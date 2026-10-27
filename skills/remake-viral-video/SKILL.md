@@ -86,8 +86,9 @@ If a length you can see (the user states it) is over 60 seconds, say references 
 seconds and ask for a shorter one.
 
 Whenever you stop before `start_remake_video` has accepted the job (something is missing, a video
-is refused, the inputs are refused), tell the user that nothing was started, nothing was charged
-and it does not count toward the daily remake limit.
+is refused, the inputs are refused), tell the user that no remake was started, no remake fee was
+charged and it does not count toward the daily remake limit. Fetching the videos may still have used
+the daily data allowance; do not claim that nothing at all was used.
 
 `--creator-name` is a short ASCII name for the creator (letters, digits, `.`, `_`, `-`). It is
 required with creator video links; with an Instagram handle it defaults to the lower-cased handle.
@@ -123,8 +124,8 @@ relay it and ask for a corrected input; nothing was started.
 - A tool error carries `code`, `message` and `retryable`. No remake was started by any of them;
   relay `message` in plain words:
   - `validation_error` (a link or handle that cannot be used, a reference over 60 seconds, a video
-    that cannot be fetched, no usable reels, the same video in both roles): nothing was charged and
-    the daily limit was not used. Ask for a different input instead of resubmitting.
+    that cannot be fetched, no usable reels, the same video in both roles): no remake fee was charged
+    and the daily remake limit was not used. Ask for a different input instead of resubmitting.
   - `quota_exceeded` with `retryable: false`: the daily remake limit (or the daily data allowance)
     is reached. Say no new remake was started and another can start tomorrow.
   - `quota_exceeded` with `retryable: true`: another remake is still running. Say one remake runs
@@ -201,11 +202,15 @@ it again; read each warning and change the document when it applies. Advance onl
 Nothing is generated or charged before this step. Show the user the `talking_models` from the
 waiting_script result, in their order, each with its label and its estimated cost (`est_usd`), and
 say that the first one is the default. Do not add a recommendation of your own, drop options or
-change the order. End your reply there and wait for the answer; the job waits at the script gate.
+change the order. Unless the user already named a listed model (below), end your reply there and wait for the
+answer; the job waits at the script gate.
 When the conversation resumes, continue here in the same run directory.
 
 - A model from the list, by number or name: use its `id`.
 - A plain go-ahead with no choice ("OK", "yes", or the same in their language): the first option.
+- The user already named one of the listed models earlier in this conversation (for example in the
+  first request): use it without asking again. Tell them the model and its estimated cost, then
+  render.
 - A question about the options: answer it from the list, then wait for their choice.
 
 Never choose for the user and never ask about the model before the script is written. Then build
