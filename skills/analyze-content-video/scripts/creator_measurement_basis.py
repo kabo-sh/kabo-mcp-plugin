@@ -42,8 +42,12 @@ def measurement_basis(evidence: dict, analysis: dict, view: dict) -> dict:
         facts.update(frame_kind="extracted", extracted_frames=len(frame_ids))
         plan = record(frames.get("sampling_plan"))
         count = plan.get("frames")
-        if count is not None and (isinstance(count, bool) or not isinstance(count, int) or count != len(frame_ids)):
+        # 计划帧数是请求量：provider 解不出个别时间点（如末帧越过时长）时会少返回，
+        # 少于计划照实记录缺口；多于计划才说明帧记录与这份计划对不上。
+        if count is not None and (isinstance(count, bool) or not isinstance(count, int) or count < len(frame_ids)):
             raise ValueError("cannot derive data_note: sampling-plan frame count disagrees with frame records")
+        if count is not None and count > len(frame_ids):
+            facts["requested_frames"] = count
         dense = plan.get("hook_dense_window_s")
         interval = plan.get("hook_interval_s")
         if dense is not None or interval is not None:
@@ -118,6 +122,8 @@ def measurement_note(facts: dict) -> str:
               "unavailable": "frames unavailable", "not_attempted": "frames not sampled"}.get(kind)
     if kind == "extracted":
         frames = f"{facts['extracted_frames']} extracted frames"
+        if "requested_frames" in facts:
+            frames += f" of {facts['requested_frames']} requested"
     parts = [facts["source"], frames, f"{facts['cited_frame_refs']} cited frame refs"]
     transcript = facts["transcript"]
     if "caption_cues" in facts:

@@ -127,3 +127,29 @@ test("实际 ZIP 中的驱动不下载程序，显式交接公开工具；deep �
   // deep 原先在宿主 skill 缓存里找视频 skill（KS4.2 / KS7.1），该脚本已删除。
   await assert.rejects(readFile(path.join(root, "skills/review-creator-account-deep/scripts/resolve_video_skill.py")));
 });
+
+// 计划帧数是请求量：provider 少返回一帧（120 请求、119 记录）时照实写进 data_note，多于计划才拒绝。
+test("ACV data_note 接受少于计划的帧记录并写明请求量，多于计划仍拒绝", () => {
+  const probe = `
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from creator_measurement_basis import canonical_note
+def evidence(count):
+    return {"content_ref": {"platform": "youtube"}, "transcript": {"status": "not_attempted"},
+            "owner_metrics": {"status": "unavailable"},
+            "frames": {"status": "available", "origin": "extracted_frames", "sampling_plan": {"frames": 120},
+                       "items": [{"frame_id": f"f{i}", "t_seconds": i} for i in range(count)]}}
+out = {}
+for count in (119, 120, 121):
+    try:
+        out[count] = canonical_note(evidence(count), {}, {})
+    except ValueError as error:
+        out[count] = "ERROR " + str(error)
+print(json.dumps(out))
+`;
+  const scripts = path.join(import.meta.dirname, "..", "skills", "analyze-content-video", "scripts");
+  const out = JSON.parse(execFileSync("python3", ["-I", "-B", "-c", probe, scripts], { encoding: "utf8" }));
+  assert.match(out[119], /^YouTube video; 119 extracted frames of 120 requested;/);
+  assert.match(out[120], /^YouTube video; 120 extracted frames;/);
+  assert.match(out[121], /^ERROR cannot derive data_note: sampling-plan frame count disagrees/);
+});
