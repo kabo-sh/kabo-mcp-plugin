@@ -131,6 +131,36 @@ plugin ID containing `@`.
 Place the extracted package in a supported local plugin directory and reload it. The package uses the
 portable format; installation in Cursor still needs to be tested.
 
+### Skills only (skills CLI)
+
+You can also install the ten Skills without the plugin using the
+[skills CLI](https://github.com/vercel-labs/skills). It copies only the Skill folders and does not add
+the Kabo MCP connection, so add that separately. Use either the plugin or this method, not both;
+otherwise the host lists each Skill twice.
+
+```sh
+npx skills add kabo-sh/kabo-mcp-plugin#stable --agent codex --skill '*'
+codex mcp add kabo --url https://kabo.sh/mcp-pub
+```
+
+`codex mcp add` opens the Kabo sign-in page. To sign in again later, run `codex mcp login kabo`.
+Skills are installed in `.agents/skills/` in the current project; add `-g` to install them in
+`~/.agents/skills/` for all projects.
+
+**Versions and updates.** The skills CLI does not use version numbers. It records the Git ref you
+installed from and a content hash in `skills-lock.json` (or in its global lock file with `-g`).
+
+- `#stable` follows releases. The branch moves only when a new version is released. Run
+  `npx skills check` to see whether an update is available and `npx skills update` to install it.
+- `#v1.0.0` pins one release. `npx skills update` never moves it to a newer tag; to upgrade, run
+  `npx skills add` again with the new tag.
+- Without a ref, the CLI follows `main`, which includes unreleased changes.
+
+The skills CLI collects anonymous usage data; set `DISABLE_TELEMETRY=1` to turn it off.
+
+Installing all ten Skills and their discovery by Codex 0.164 were checked on October 27, 2026. Kabo
+sign-in and a complete Skill run through this method still need testing, as do other agents.
+
 ### Validation status
 
 Use `claude plugin validate <plugin-root>` to check the Claude Code manifest and marketplace. Codex

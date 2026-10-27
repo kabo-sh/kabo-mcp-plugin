@@ -1,6 +1,7 @@
 ---
 name: research-instagram-trends
 description: "Find what is working on Instagram Reels: scan a niche or a supplied Reel for repeated mechanisms, the hottest posts, account-relative outliers and emerging creators; list the hottest Reels of the last seven days; read the daily Reels audio board of trending and rising sounds; suggest soundtrack for named scenes; or analyze a supplied public-content Snapshot. Use for Reels trend scans and more hot Reels like this one. Not for a known creator's profile, YouTube, private Insights or scripts."
+license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and a host that can save a tool's complete result to a file."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download collect_instagram_trend_candidates enrich_instagram_shortlist lookup_instagram_post instagram_get_transcript instagram_baseline_search_reels instagram_baseline_search_music creator_trends_get_instagram_audio_board
 ---

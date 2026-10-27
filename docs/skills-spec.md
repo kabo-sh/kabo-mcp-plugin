@@ -42,7 +42,9 @@ skill 内容（`SKILL.md`、`references/`、脚本输出）一律用英文。本
   - description 只写「做什么、什么时候用」，执行规则写进正文。这一点由人工判断。
 - **KS1.3**：frontmatter 只能使用规范字段：`name`、`description`、`license`、`compatibility`、`metadata`、`allowed-tools`。
 - **KS1.4**：`compatibility` 是不超过 500 字符的字符串。`metadata` 是字符串到字符串的映射。
-  - 版本号如果要写，写在 `metadata.version`。版本与发布规则暂不纳入本规范。
+  - 来源业务版本如果要写，写在 `metadata.version`。版本与发布规则暂不纳入本规范。
+  - 许可写在 `license`，须与 `plugin.json` 一致（包检查强制）。skills CLI 只复制单个 Skill 目录，
+    不带仓库根目录的 LICENSE，许可声明须随 Skill 一起分发。
 
 ### KS2 依赖与宿主无关
 

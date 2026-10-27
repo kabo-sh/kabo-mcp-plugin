@@ -250,6 +250,12 @@ export function validateRuntime(files, mcp) {
       throw new Error("静态包不得重新包含动态运行器。");
   }
   const manifest = JSON.parse(files.get("plugin.json").bytes);
+  // skills CLI 只复制单个 Skill 目录：许可须写在各自 frontmatter，并与主清单一致。
+  for (const skill of lock.skills) {
+    const text = decoder.decode(files.get(`skills/${skill.id}/SKILL.md`).bytes);
+    if (yaml(/^---\r?\n([\s\S]*?)\r?\n---/.exec(text)[1]).license !== manifest.license)
+      throw new Error("Skill 的 license 必须与插件清单一致。");
+  }
   for (const directory of [".claude-plugin"]) {
     const compatibility = JSON.parse(files.get(`${directory}/plugin.json`)?.bytes ?? "null");
     // license 与 privacyPolicyUrl 是目录提交元数据；许可必须与主清单一致。
