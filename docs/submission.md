@@ -7,7 +7,7 @@
 
 - portable manifest、品牌资产与公开目录 MCP；生产 scopes 及 UserInfo 仍须按下文实测。
 - 十一个固定 Skills、源 commit/版本/文件哈希、逐项数据工具映射和报告单次交付说明。
-  其中 `remake-viral-video` 依赖的三个复刻工具尚未进入固定的 tools/list，重新固定契约前不具备提交条件。
+  其中 `remake-viral-video` 依赖的三个复刻工具已固定，但固定来源仍是 kabo#1777 分支 commit；该 PR 部署生产并改钉到合入 commit 前不具备提交条件。
 - 原生宿主 OAuth，无 lifecycle hooks；脚本执行需要实际宿主提供相应运行环境。
 - 固定工具/标准来源、静态 Skills 记录与证据隔离回归、确定性 ZIP 和逐文件摘要。
 - `contracts/directory-mcp/data-tool-bindings.json` 固定提供方的全部基础依赖及
