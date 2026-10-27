@@ -6,11 +6,14 @@
   "resource": "https://kabo.sh/mcp-pub",
   "baseScopes": [
     "openid",
+    "profile",
     "email",
     "offline_access"
   ],
   "defaultScopes": [
     "data",
-    "video"
+    "video",
+    "workspace:read",
+    "workspace:write"
   ]
 }

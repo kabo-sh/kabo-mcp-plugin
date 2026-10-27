@@ -345,3 +345,14 @@ Deployment, marketplace upload and Publish are separate actions.
 Format references: [OpenAI plugins](https://developers.openai.com/plugins/build/plugins),
 [Claude Code manifests](https://code.claude.com/docs/en/plugins-reference), and
 [Cursor portable plugins](https://cursor.com/docs/plugins).
+
+## Your saved Kabo work
+
+When your Kabo deployment provides workspace tools, your agent can read your linked accounts,
+saved creator profiles, official social connection status, scripts and video library after you
+grant workspace access. `get_kabo_info` shows basic identity and permissions without credits.
+Ask the agent to save a completed script or update an existing one; it keeps the saved version
+and rejects conflicting edits. You can also ask to connect a public Instagram, TikTok or YouTube
+account. Public Connect uses data allowance and does not start official social OAuth or analysis.
+Existing connections may need authorization for the new workspace permissions. If these tools
+are unavailable, the original public research and local drafting workflows remain usable.

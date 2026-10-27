@@ -5,6 +5,17 @@ OAuth 通过 `securitySchemes` 与 `_meta.securitySchemes` 同值声明。下表
 
 | Tool | Scope | Read only | Destructive | Open world | 判定依据 |
 | --- | --- | --- | --- | --- | --- |
+| get_kabo_info | workspace:read | true | false | false | 只读已授权用户的 Kabo 账号与持久化资产；不同步、不生成、不扣 credits、不访问网页 agent。 |
+| list_connected_accounts | workspace:read | true | false | false | 只读已授权用户的 Kabo 账号与持久化资产；不同步、不生成、不扣 credits、不访问网页 agent。 |
+| get_creator_profile | workspace:read | true | false | false | 只读已授权用户的 Kabo 账号与持久化资产；不同步、不生成、不扣 credits、不访问网页 agent。 |
+| get_social_connection | workspace:read | true | false | false | 只读已授权用户的 Kabo 账号与持久化资产；不同步、不生成、不扣 credits、不访问网页 agent。 |
+| list_scripts | workspace:read | true | false | false | 只读已授权用户的 Kabo 账号与持久化资产；不同步、不生成、不扣 credits、不访问网页 agent。 |
+| get_script | workspace:read | true | false | false | 只读已授权用户的 Kabo 账号与持久化资产；不同步、不生成、不扣 credits、不访问网页 agent。 |
+| list_library_videos | workspace:read | true | false | false | 只读已授权用户的 Kabo 账号与持久化资产；不同步、不生成、不扣 credits、不访问网页 agent。 |
+| get_library_video | workspace:read | true | false | false | 只读已授权用户的 Kabo 账号与持久化资产；不同步、不生成、不扣 credits、不访问网页 agent。 |
+| save_script | workspace:write | false | false | false | 按当前用户保存已有正文，幂等回执与写入同事务；不启动生成或扣 credits。 |
+| update_script | workspace:write | false | true | false | 替换用户已有正文；属主、乐观锁及幂等回执防止越权、重放与覆盖较新版本。 |
+| connect_public_account | workspace:write | false | true | true | 使用当前用户取数额度核验公开身份并建立观察关系；换绑须携带当前账号与版本。不进行官方 OAuth、不投递分析或同步任务。 |
 | collect_instagram_trend_candidates | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | enrich_instagram_shortlist | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | collect_youtube_trend_candidates | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
@@ -31,6 +42,8 @@ OAuth 通过 `securitySchemes` 与 `_meta.securitySchemes` 同值声明。下表
 | tiktok_discovery_search_videos | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | tiktok_discovery_search_sounds | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | tiktok_discovery_list_top_contents | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
+| tiktok_discovery_get_industry_hashtags | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
+| tiktok_discovery_get_trending_hashtag_detail | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | tiktok_discovery_list_search_insights | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | tiktok_discovery_list_comments | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | tiktok_discovery_list_comment_replies | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
