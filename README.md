@@ -15,21 +15,57 @@ review and production acceptance remain separate from this GitHub release.
 
 | Your setup | Install |
 | --- | --- |
-| You already connected Kabo MCP in your AI host | [Skills only](#skills-only-skills-cli): add the ten workflows and keep your existing connection. |
+| You already connected Kabo MCP in your AI host | [Skills only](#skills-only): use Git, ZIP or the optional skills CLI to add the ten workflows and keep your existing connection. |
 | You want the MCP connection and workflows together | [Full plugin](#installation-and-authentication): use your host's plugin installer. |
 
 [MCP setup and Skills guide](https://kabo.sh/docs/mcp#skills) ·
 [Latest release and ZIP download](https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest)
 
-## Skills only (skills CLI)
+<a id="skills-only-skills-cli"></a>
+
+## Skills only
 
 The MCP connection provides data tools. Skills add the research workflows your AI host runs with
 those tools. Connecting MCP does not install Skills automatically. If the full Kabo plugin is
 already installed, it includes all ten Skills; installing them again can produce duplicate entries.
 
-Use a host that supports local Skills, Python 3 and workspace file access. The
-[skills CLI](https://github.com/vercel-labs/skills) needs Node.js 22.20 or later and Git for this
-repository source. Installing files locally does not add Skills to a web-only MCP client.
+Official repository: **https://github.com/kabo-sh/kabo-mcp-plugin**.
+
+Kabo Skills can be used by compatible agents on your computer, in a remote workspace or in the
+cloud. The agent environment must load `SKILL.md` and its bundled files, run the required scripts
+with Python 3, and use your authorized Kabo MCP connection. Compatibility depends on these
+capabilities, not on whether the interface is a desktop app or a web page. Codex, Claude Code and
+Cursor are examples, not an exclusive support list. See the host's Skills loading and execution
+instructions and the [workflow requirements](#requirements-and-connection).
+
+Choose Git, ZIP or the optional skills CLI. Only the CLI method requires Node.js and npx.
+
+### Option 1: Clone the GitHub repository
+
+In the workspace where your agent can access Skill files:
+
+```sh
+git clone --branch stable --single-branch https://github.com/kabo-sh/kabo-mcp-plugin.git
+```
+
+Configure your agent to load the complete Skill folders under `kabo-mcp-plugin/skills/`, or copy or
+import those folders into its supported Skills location. Keep all scripts, references and assets.
+Cloning alone does not register Skills with the agent. This method needs Git, but does not require
+Node.js or npx. Keep your existing Kabo MCP connection and sign-in.
+
+For a clone on `stable`, update from its parent directory with:
+
+```sh
+git -C kabo-mcp-plugin pull --ff-only
+```
+
+If you copied or imported the Skill folders elsewhere, replace those copies as well. Git and ZIP
+installations are not tracked by the skills CLI updater.
+
+### Option 2: Use the skills CLI (npx)
+
+The [skills CLI](https://github.com/vercel-labs/skills) is an optional installer. This method needs
+Node.js 22.20 or later and Git; these are not requirements for every installation method.
 
 After connecting `https://kabo.sh/mcp-pub` and signing in, run this in your project directory:
 
@@ -37,7 +73,9 @@ After connecting `https://kabo.sh/mcp-pub` and signing in, run this in your proj
 npx skills add 'kabo-sh/kabo-mcp-plugin#stable' --skill '*'
 ```
 
-Select your agent in the installer. To choose it explicitly, append one of these options:
+Select your agent in the installer. Examples of explicit CLI targets are listed below; this is not
+a complete list of agents that can use Kabo Skills. Use Git or ZIP for compatible environments that
+the CLI does not target.
 
 | Agent | Option |
 | --- | --- |
@@ -56,7 +94,7 @@ locations are `.agents/skills/` and `~/.agents/skills/`, respectively; other hos
 supported locations. Run `npx skills list` (or `npx skills list -g`) to see the installation, then
 start a new host session to load it.
 
-### Versions and updates
+### CLI versions and updates
 
 The CLI records the source ref and a content hash in `skills-lock.json`, or in its global lock file
 for `-g`. The repository's `skills.lock.json` is a separate record of the original Skill sources.
@@ -81,11 +119,11 @@ same agent and project/global scope.
 can replace installed files. Use the release page to read about updates without changing your
 installation. See the [CLI 1.7.4 implementation](https://github.com/vercel-labs/skills/blob/v1.7.4/src/cli.ts#L420).
 
-### Manual download
+### Option 3: Download a ZIP
 
 The [latest release](https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest) includes a ZIP and its
 SHA-256 file. This is the full plugin package. For manual Skills-only installation, extract it and
-copy each complete directory under `skills/` into your host's supported Skills directory, including
+copy or import each complete directory under `skills/` into your agent's supported Skills location, including
 all scripts, references and assets. Copying only `SKILL.md` is insufficient. Manual copies are not
 tracked by the skills CLI updater.
 
