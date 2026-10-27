@@ -2,6 +2,15 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.2（2026-10-27；GitHub Release）
+
+- 视频分析：服务端抽帧少于采样计划（如请求 120 帧、返回 119 帧）时不再中断报告生成，`data_note` 写明
+  「119 extracted frames of 120 requested」；帧记录多于计划仍拒绝。
+- 视频分析与深度复盘的抽帧请求封顶 60 帧（此前默认顶到服务端上限 120）：`static_host.py job-call` 按各 Skill 的
+  `FRAME_CAPS` 补上 `max_frames`，显式超过上限的值被拒绝；开头三秒密度不变，只摊薄正文采样。
+  未在真实宿主或生产环境实测，提速幅度未计时。
+- README 补充 MCP 与 Skills 的安装、更新说明。
+
 ## 1.0.1（2026-10-27；GitHub Release）
 
 - 支持用 skills CLI 单独安装十个 Skills（`npx skills add kabo-sh/kabo-mcp-plugin#stable`）：README 说明安装、
