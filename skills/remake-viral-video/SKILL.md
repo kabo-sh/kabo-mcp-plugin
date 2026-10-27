@@ -89,8 +89,10 @@ Whenever you stop before `start_remake_video` has accepted the job (something is
 is refused, the inputs are refused), tell the user that nothing was started, nothing was charged
 and it does not count toward the daily remake limit.
 
-`--creator-name` is a short ASCII name for the creator (letters, digits, `.`, `_`, `-`); with an
-Instagram handle it defaults to the handle. Pass `--language` (for example `en`) only when the
+`--creator-name` is a short ASCII name for the creator (letters, digits, `.`, `_`, `-`). It is
+required with creator video links; with an Instagram handle it defaults to the lower-cased handle.
+When the user gave video links and no name, use the name they go by in the conversation, or ask
+for one together with any other missing input. Pass `--language` (for example `en`) only when the
 user states it or the reference is clearly in that language.
 
 ## 2. Start the job and wait for the script gate
@@ -104,7 +106,8 @@ cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill di
 ```
 
 For creator video links, pass `--creator-video '<link>'` once per link (one to four) instead of
-`--instagram-handle`. Add `--creator-name '<name>'` and `--language '<code>'` only as step 1 says.
+`--instagram-handle`, and add `--creator-name '<name>'` (required then). Add `--language '<code>'`
+only as step 1 says.
 
 It checks the links and prints `{"tool": "start_remake_video", "arguments": {...}}`. Call
 `start_remake_video` with exactly those arguments. A refusal from the script is an input problem:
@@ -113,24 +116,36 @@ relay it and ask for a corrected input; nothing was started.
 - The `idempotency_key` is stable for the same inputs in this run. On a timeout or lost response,
   call again with exactly the same arguments; the key returns the same job instead of creating and
   charging another. Never create a second job for the same request.
-- `fetching_inputs` means the videos are still being fetched (`job_id` is null). Tell the user in
-  one line, then call `start_remake_video` again with the same arguments after `retry_after_s`
-  seconds (wait with the host's own sleep or wait facility); the same fetches are picked up.
-- An error result (reference over 60 seconds, a link that cannot be fetched, no usable reels, the
-  same video in both roles) means nothing was charged and the daily limit was not used: relay the
-  reason and ask for a different video instead of resubmitting. At the daily limit, say no new
-  remake was started, nothing was charged and another can start tomorrow. When another remake is
-  still running, say one remake runs at a time. A key conflict means the inputs changed: build the
-  arguments again with `--attempt 2`.
+- `fetching_inputs` means the videos are still being fetched (`job_id` is null). Tell the user
+  `message` in one line, then call `start_remake_video` again with the same arguments after
+  `retry_after_s` seconds (wait with the host's own sleep or wait facility); the same fetches are
+  picked up.
+- A tool error carries `code`, `message` and `retryable`. No remake was started by any of them;
+  relay `message` in plain words:
+  - `validation_error` (a link or handle that cannot be used, a reference over 60 seconds, a video
+    that cannot be fetched, no usable reels, the same video in both roles): nothing was charged and
+    the daily limit was not used. Ask for a different input instead of resubmitting.
+  - `quota_exceeded` with `retryable: false`: the daily remake limit (or the daily data allowance)
+    is reached. Say no new remake was started and another can start tomorrow.
+  - `quota_exceeded` with `retryable: true`: another remake is still running. Say one remake runs
+    at a time and offer to start this one when it finishes.
+  - `conflict`: this key was already used with different inputs. Build the arguments again with
+    `--attempt 2` (then 3, ...) and call again.
+  - `subscription_required`: a remake needs a Kabo Pro subscription; say so.
+  - `service_unavailable` or another retryable error: try once more after a minute; if it fails
+    again, say remakes are unavailable right now.
 
 Once there is a `job_id`, call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30}` until the
 status is no longer `preparing`. Analysis takes about ten minutes. Tell the user the current stage
 in one line when it changes; do not repeat yourself on every call.
 
-**Talking head only.** As soon as a result shows a `reference_type` that is set and is not `talking`, stop: say
-that this version of the plugin only remakes talking-head videos (one person talking to the camera,
-without screen recordings, product close-ups or voice-over), that no video was generated, and the
-spend the result reports, if any. Do not call `render_remake_video`.
+**Talking head only.** Stop as soon as a result shows `failure: "unsupported_type"` (the status
+stays `waiting_script`, and `brief`, `talking_models` and `gate_message` are null), or a
+`reference_type` that is set and is not `talking`. Say that this version of the plugin only remakes
+talking-head videos (one person talking to the camera, without screen recordings, product
+close-ups or voice-over), give `failure_reason` in plain words, say that no video was generated, and
+give the spend the result reports, if any. Do not say whether it counts toward the daily limit. Do
+not call `render_remake_video`; this job is finished.
 
 A final status at this point (`out_of_scope`, `failed`, `timed_out`) is handled as in step 8; when
 it comes from `start_remake_video`, its reason is in `message`.
@@ -145,9 +160,10 @@ cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill di
 ```
 
 It downloads the bundle, checks its host, size and sha256, and writes the four brief files under
-`brief/work/`. When it says the link expired or the download was refused, do what it prints: call
-`get_remake_video` again (that re-signs the link; nothing is re-run), save that result and fetch
-again. If this host blocks scripts from the network, say that the remake cannot continue here; never
+`brief/work/`. When it says the link expired, the download was refused or the download is
+unavailable, do what it prints: call `get_remake_video` again (that re-signs the link; nothing is
+re-run), save that result and fetch again. For an unavailable download, wait about a minute before
+calling again and stop after three tries; never call in a tight loop. If this host blocks scripts from the network, say that the remake cannot continue here; never
 rebuild the brief from what was displayed.
 
 ## 4. Write the script (the only creative gate)
@@ -200,19 +216,27 @@ cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill di
 ```
 
 It writes `render/render_remake_video.json`. Call `render_remake_video` with that file's content as
-its arguments, unchanged. A retry of an accepted render returns the current state and never
-launches twice, so on a timeout or lost response call it again with the same arguments.
+its arguments, unchanged. An accepted render returns `status: "running"`. A retry of an accepted
+render returns the current state and never launches twice, so on a timeout or lost response call
+it again with the same arguments. A `conflict` error with `retryable: true` means the job's brief
+could not be read: call once more after a minute, then report it. A result with
+`failure: "unsupported_type"` is handled as in step 2.
 
-If `render_remake_video` returns an error that names failing checks, nothing has been spent and the
-job is still at `waiting_script`. Fix only what it names, keep the rest of the documents as they
-were, run step 5 again and submit again with the same talking model: do not ask about the model
-again. A `failure` of `unsupported_type` means the reference is not a talking-head video; handle it
-as in step 2.
+**The runner checks the documents first, after render returns.** If they fail, a later
+`get_remake_video` shows `waiting_script` again, with `gate_message` (the runner's reason, for
+example `cr check-script: ...`) and a fresh brief; nothing paid has been spent. Then:
+
+1. Save that result and run `fetch` on it (step 3). It keeps the earlier brief as
+   `brief.previous-<N>/` and writes the fresh one to `brief/`; your documents in `script/` stay.
+2. Fix only what `gate_message` names, keep the rest of the documents as they were, and run step 5.
+3. Build the arguments again with `--models-from` pointing at this newest result and the same
+   talking model, and call `render_remake_video` again. Do not ask about the model again.
 
 ## 7. Production and delivery
 
 Production takes about twenty minutes with the default model and longer with the others. Call
-`get_remake_video` with `wait_s` 30 until the status is `delivered` or final. While it is
+`get_remake_video` with `wait_s` 30 until the status is `delivered`, final, or `waiting_script`
+again (the documents were rejected: step 6). While it is
 `running`, report the stage in one line when it changes. Do not promise a finish time.
 
 At `delivered`, save the result and fetch the video at once:
@@ -221,8 +245,8 @@ At `delivered`, save the result and fetch the video at once:
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch --input 'host-results/<NN>-get_remake_video.json'
 ```
 
-It checks the MP4's host, size and sha256 and prints its local `path`. An expired link is handled as
-in step 3. Then tell the user:
+It checks the MP4's host, size and sha256 and prints its local `path`. An expired, refused or
+unavailable download is handled as in step 3. Then tell the user:
 
 - that the video is ready, with the local path (it carries no on-screen label or watermark: never
   say it does);

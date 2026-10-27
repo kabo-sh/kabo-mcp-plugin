@@ -42,6 +42,15 @@ BRIEF_FILES = ("work/brief_input.json", "work/script.draft.json", "work/decision
                "work/route_b/jobs.template.json")
 RESIGN_HINT = ("Call get_remake_video again with this job_id (reading re-signs the link; nothing is re-run), save "
                "its complete result to a new host-results file and run fetch on it right away")
+# 签名失败时服务端给 {status: "unavailable", reason}；复刻没有内联回退，只能稍后再读一次重签，不要连着狂调。
+UNAVAILABLE_HINTS = {
+    "service_unavailable": ("Signing the download link failed for now. Wait about a minute, call get_remake_video "
+                            "again with this job_id, save that result and run fetch on it. After three such tries, "
+                            "say the file cannot be downloaded right now and that the job is preserved"),
+    "not_found": ("The file this result points to was not found. Call get_remake_video once more; if it is still "
+                  "not_found, report that the file is missing and that the job is preserved"),
+    "too_large": "The file is too large to be signed for download; report this, the job is preserved",
+}
 RUN_DIRS = ("host-results", "brief", "script", "render", "output")
 
 # 与 start_remake_video 的入参约束一致；服务端仍会再校验一次。
@@ -153,6 +162,8 @@ def start_call(reference, handle, video_urls, creator_name, language, attempt):
             raise ValueError("The same creator video is listed twice")
         if any(_same_video(reference, url) for url in urls):
             raise ValueError("The reference and a creator video are the same video; each role needs its own video")
+        if not creator_name:
+            raise ValueError("--creator-name is required with --creator-video (a short ASCII name for the creator)")
         creator = {"video_urls": urls}
     arguments = {"reference_url": reference, "creator": creator}
     if creator_name:
@@ -216,11 +227,17 @@ def expired(descriptor):
     return stamp.tzinfo is not None and stamp <= datetime.now(timezone.utc)
 
 
-def download(descriptor, content_type, limit, sink):
+def download(descriptor, kind, content_type, limit, sink):
     """GET one Kabo-issued signed link into sink; return (sha256, bytes) only when everything matches."""
     url, digest, size = descriptor.get("url"), descriptor.get("sha256"), descriptor.get("bytes")
+    if descriptor.get("status") == "unavailable":
+        reason = str(descriptor.get("reason"))
+        raise ValueError(f"Download unavailable ({reason}). " + UNAVAILABLE_HINTS.get(reason, RESIGN_HINT))
     if descriptor.get("status") != "ready":
         raise ValueError("This result has no ready download. " + RESIGN_HINT)
+    # 简报是 envelope，成片是 artifact（ADR-0084 researchDownloadSchema 的 kind）。
+    if descriptor.get("kind") != kind:
+        raise ValueError(f"Download kind is {descriptor.get('kind')!r}, expected {kind!r}")
     if (not isinstance(url, str) or not isinstance(digest, str) or len(digest) != 64 or
             any(char not in "0123456789abcdef" for char in digest) or
             isinstance(size, bool) or not isinstance(size, int) or not 0 < size <= limit):
@@ -279,6 +296,10 @@ def safe_relative(name):
 
 
 def fetch_brief(run, structured):
+    if structured.get("failure") == "unsupported_type":
+        raise ValueError("This job is not a talking-head reference (failure unsupported_type): "
+                         + str(structured.get("failure_reason") or "no reason given")
+                         + ". Stop: do not call render_remake_video")
     brief = structured.get("brief")
     if not isinstance(brief, dict) or not isinstance(brief.get("download"), dict):
         raise ValueError(f"This result (status {structured.get('status')!r}) carries no brief; the brief is given only "
@@ -287,14 +308,14 @@ def fetch_brief(run, structured):
     descriptor = brief["download"]
     target = run / "brief"
     marker = target / "bundle.json"
+    previous = None
     if marker.exists():
         existing = hashlib.sha256(marker.read_bytes()).hexdigest()
         if existing == descriptor.get("sha256"):
             return {"saved": "brief", "job_id": job_id, "status": "already_saved", "directory": str(target),
                     "files": {name: str(target / name) for name in BRIEF_FILES}}
-        raise ValueError("A different brief is already saved in this run; keep working from the saved one")
     buffer = io.BytesIO()
-    digest, size = download(descriptor, "application/json", MAX_BRIEF_BYTES, buffer)
+    digest, size = download(descriptor, "envelope", "application/json", MAX_BRIEF_BYTES, buffer)
     body = buffer.getvalue()
     bundle = json.loads(body.decode("utf-8"))
     if not isinstance(bundle, dict) or bundle.get("schema") != BRIEF_SCHEMA:
@@ -311,6 +332,15 @@ def fetch_brief(run, structured):
         safe_relative(name)
         if name.endswith(".json"):
             json.loads(text)
+    if marker.exists():
+        # 稿件预检没过时服务端回到 waiting_script 并给一份新简报：旧简报整体留作 brief.previous-N，
+        # 新简报写回 brief/，script/ 里已写的文档不动。
+        n = 1
+        while (run / f"brief.previous-{n}").exists():
+            n += 1
+        previous = run / f"brief.previous-{n}"
+        target.rename(previous)
+        target.mkdir(mode=0o700)
     written = {}
     for name, text in sorted(files.items()):
         path = target / name
@@ -320,8 +350,11 @@ def fetch_brief(run, structured):
         written[name] = str(path)
     # bundle.json 最后写：它在就表示整份简报都已落盘。
     write_new(marker, body)
-    return {"saved": "brief", "job_id": bundle.get("job_id"), "sha256": digest, "bytes": size,
-            "directory": str(target), "files": written}
+    result = {"saved": "brief", "job_id": bundle.get("job_id"), "sha256": digest, "bytes": size,
+              "directory": str(target), "files": written}
+    if previous is not None:
+        result["previous_brief"] = str(previous)
+    return result
 
 
 def fetch_video(run, structured):
@@ -344,7 +377,7 @@ def fetch_video(run, structured):
     try:
         fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "wb") as stream:
-            digest, size = download(descriptor, "video/mp4", MAX_VIDEO_BYTES, stream)
+            digest, size = download(descriptor, "artifact", "video/mp4", MAX_VIDEO_BYTES, stream)
         with open(partial, "rb") as stream:
             head = stream.read(12)
         if head[4:8] != b"ftyp":

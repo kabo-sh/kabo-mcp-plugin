@@ -146,8 +146,9 @@ an insert's lines drops that shot from the video. Do not add image jobs for inse
 ## Before you submit
 
 Run the local check (SKILL.md step 5). It catches structural mistakes only; the runner checks the
-script, the opening record and the decisions again before anything is generated or paid for. If
-the runner rejects them, `render_remake_video` returns an error naming each failure (for example
-`cr check-script: ...`, `cr check-opening: ...`, `cr decisions brief: ...`) and the job stays at
-`waiting_script`, with nothing spent. Fix only what it names, keep the rest of the documents as
-they were, run the local check again and submit all four files again with the same talking model.
+script, the opening record and the decisions again after `render_remake_video` has accepted them,
+before anything paid is generated. If the runner rejects them, a later `get_remake_video` returns
+`waiting_script` again with `gate_message` listing each failure (for example `cr check-script: ...`,
+`cr check-opening: ...`, `cr decisions brief: ...`) and a fresh brief, with nothing spent. Save the
+fresh brief, fix only what `gate_message` names, keep the rest of the documents as they were, run
+the local check again and submit all four files again with the same talking model.
