@@ -62,7 +62,8 @@ Write each as a JSON file in the run's `script/` folder: `script/script.json`,
    `replaces`. Adapt or drop inherited entries only with a reason. The reference's on-screen
    text is part of its format, so keep it:
    - Title overlay: replace the `TODO` with the text the draft reports as read on the reference
-     (the lines joined with `\n`), word for word. Keep it even when you rewrote the opening line;
+     (the lines joined with a line break, written `\n` inside the JSON string; never `\\n`, which
+     shows a backslash on screen), word for word. Keep it even when you rewrote the opening line;
      drop it only when it states something false about the creator, and say so in the ledger.
    - Numbered list overlay: keep one item per number the reference speaks (remove items whose
      label is not part of that sequence, such as a stray `0`). You cannot see the reference's

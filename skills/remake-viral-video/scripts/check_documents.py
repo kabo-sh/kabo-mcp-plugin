@@ -21,6 +21,7 @@ DOCUMENTS = {"script": "script/script.json", "opening_review": "script/opening_r
              "decisions": "script/decisions.json", "route_b_jobs": "script/route_b_jobs.json"}
 MAX_DOCUMENT_BYTES = 256 * 1024
 SLOTS = ("opening", "author_claim", "summary", "cta")
+FIRST_PERSON = re.compile(r"\b(i|i'm|i've|i'd|i'll|me|my|mine|we|we're|we've|us|our|ours)\b", re.IGNORECASE)
 SUMMARY_BASIS = ("creator_quote", "persona")
 CTA_BASIS = ("creator_habit", "platform_generic", "user_given")
 CITED_BASIS = ("creator_quote", "creator_habit")
@@ -90,6 +91,13 @@ def no_todo(label, document, errors):
             errors.append(f"{label}.{where} still holds the draft's TODO")
 
 
+def no_escaped_breaks(label, document, errors):
+    # A backslash followed by n in the decoded text is drawn literally on screen.
+    for where, value in strings(document):
+        if "\\n" in value:
+            errors.append(f"{label}.{where} contains a backslash followed by n; write a real line break (\\n inside the JSON string), not an escaped one (\\\\n)")
+
+
 def beats_of(role):
     out = set()
     for match in BEAT.finditer(str(role or "")):
@@ -137,7 +145,9 @@ def check_script(script, brief, errors, warnings):
     if not isinstance(script, dict):
         errors.append("script must be a JSON object")
         return
+    english = str(script.get("language") or "en").lower().startswith("en")
     no_todo("script", script, errors)
+    no_escaped_breaks("script", script, errors)
     reference = brief.get("reference") if isinstance(brief, dict) else {}
     reference = reference if isinstance(reference, dict) else {}
     sentences = reference.get("sentences") if isinstance(reference.get("sentences"), list) else []
@@ -188,6 +198,9 @@ def check_script(script, brief, errors, warnings):
             errors.append(f"{prefix}: rewrite.why is required")
         if slot != "summary" and not text(rewrite.get("replaces")):
             errors.append(f"{prefix}: rewrite.replaces must quote the reference words this {slot} line takes the place of")
+        elif slot == "author_claim" and english and not FIRST_PERSON.search(rewrite["replaces"]):
+            warnings.append(f"{prefix}: the replaced words have no I/me/my/we/our; author_claim covers only the original "
+                            "author speaking about themselves, so keep any other reference line word for word")
         basis = rewrite.get("basis")
         if not text(basis):
             errors.append(f"{prefix}: rewrite.basis is required")

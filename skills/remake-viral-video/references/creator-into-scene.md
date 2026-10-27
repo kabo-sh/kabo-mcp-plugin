@@ -24,7 +24,9 @@ The first picture is the reference's own (rebuilt with the creator in it), so op
 differ in the **first line** and the **first-frame text**. Write **2-3 candidates**. The reference's
 own opening may be one of them (`"original": true`); keep it when it already gives the viewer a
 reason to stay and does not need the creator's experience to be true -- do not rewrite a working
-opening for its own sake. A candidate must not contradict the fixed first picture.
+opening for its own sake. A candidate must not contradict the fixed first picture, and it must
+lead into the topic the kept body actually delivers: the body stays the reference's, so an opening
+about the creator's own subject that the body never returns to breaks the video.
 
 Pick candidates from the material you actually have; these are prompts with the condition under
 which each holds, not a pattern library:
