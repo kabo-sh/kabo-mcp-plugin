@@ -18,8 +18,8 @@
 MCP URL 为 `https://kabo.sh/mcp-pub`，OAuth 通过公开 metadata 发现授权端点、
 DCR、PKCE S256 与 resource。`host-auth.json` 是本包的公开认证契约，**不是**官方后台
 自动导入文件，也不能假设连接面板提供高级 OAuth 编辑器。
-其目标 scopes 为 `openid email offline_access data video`；生产部署前必须确认
-`/mcp-pub` 的资源策略已允许 `email`，仅修改此交接文件不会改变服务端授权结果。
+其目标 scopes 为 `openid profile email offline_access data video workspace:read workspace:write`；生产部署前必须确认
+`/mcp-pub` 的资源策略已允许这些权限，仅修改此交接文件不会改变服务端授权结果。
 
 当前 portable 1.0.0 MCP schema 不接受 server extensions，故本包保留可直接安装的
 `mcp.json`，依赖标准发现。先在官方草稿验证 OAuth/DCR、scope 和 UserInfo；若必须
@@ -73,3 +73,11 @@ Kabo 网页端 agent 的部署和可用性不是此插件的前置条件。官�
 [官方打包](https://developers.openai.com/plugins/build/plugins) ·
 [工具规范](https://developers.openai.com/plugins/plugin-guidelines) ·
 [提交](https://developers.openai.com/plugins/deploy/submission)
+
+## 个人资产能力
+
+固定提供方契约新增 get_kabo_info（不含 credit）、账号/官方授权状态、脚本和视频库读取，以及 save_script、update_script、connect_public_account。公开 Connect 支持 Instagram、TikTok、YouTube；不启动官方 OAuth、复盘或媒体同步。读取用 workspace:read，保存和公开 Connect 用 workspace:write，Connect 核验使用数据额度。旧授权不自动扩权。
+
+写作 Skill 只在用户要求保存或替换时写入正文；保留幂等键和乐观版本，冲突先重读。账号复盘 Skill 可把绑定与历史档案作为上下文，不能冒充最新证据。新工具缺失时原有公开研究和本地写作仍可继续。
+
+本次 pin 为提供方 PR 的固定提交，不代表生产已部署。生产授权迁移、实际工具可用性、真实宿主以及目录审核仍须单独验收；ZIP 构建与本地测试不替代上述事实。

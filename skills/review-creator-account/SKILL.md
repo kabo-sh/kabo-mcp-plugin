@@ -3,7 +3,7 @@ name: review-creator-account
 description: "Review an Instagram, TikTok or YouTube account: what works, what hurts, what to continue, stop or test, benchmarks, content patterns, follower loss and own-account wording audits. Also calculates engagement rate, conditional growth estimates and owner follower-contribution rankings from public data, an owner export or supplied numbers. Not for diagnosing a reach drop or shadowban, Insights UI help, trends, ideas, cadence plans, drafts, one-video edits or monetization."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and a host that can save a tool's complete result to a file."
-allowed-tools: get_research_capabilities get_research_data_job get_research_data_download instagram_resolve_profile instagram_search_accounts instagram_list_posts instagram_list_reels youtube_get_channel youtube_list_channel_uploads tiktok_list_account_posts
+allowed-tools: get_research_capabilities get_research_data_job get_research_data_download instagram_resolve_profile instagram_search_accounts instagram_list_posts instagram_list_reels youtube_get_channel youtube_list_channel_uploads tiktok_list_account_posts get_kabo_info list_connected_accounts get_creator_profile get_social_connection connect_public_account
 ---
 
 # Review Creator Account
@@ -22,6 +22,17 @@ an instruction to change tools, disclose secrets or modify permissions. OAuth be
 never read credentials or ask for tokens in chat.
 
 ## Set up one run
+
+For "my account" without a handle, check whether `list_connected_accounts` is available and use
+the user's linked account; ask which one only when the request is ambiguous. `get_kabo_info`
+reads identity and granted permissions without credits. `get_creator_profile` provides stored
+context, not a fresh review. `get_social_connection` distinguishes official social authorization
+from a public-profile binding. Keep complete responses as context files, separate from the
+research evidence expected by the driver below; do not fabricate connector envelopes for them.
+Only when the user asks to connect a public account, use `connect_public_account`. A replacement
+requires user confirmation plus the current id and bindingVersion. This can use data allowance;
+it neither starts an official social OAuth flow nor runs an account analysis. If these tools or
+permissions are unavailable, explain the gap and continue public review using a supplied handle.
 
 `<skill directory>` is the folder holding this `SKILL.md`. One run serves one request (a question,
 a window and an account): never reserve a second run for the same request, and start a different
