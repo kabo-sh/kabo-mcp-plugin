@@ -1,0 +1,1505 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "content-evidence.v1",
+  "title": "ContentEvidence",
+  "description": "Everything actually observed about one piece of content, before interpretation. Every acquisition step is a Connector call: per the Connector Runtime policy a Skill never touches a provider endpoint, binary or credential directly, so this object references connector results rather than rebuilding a provider ledger. Field set is audited in FIELD_AUDIT.csv; each property here was either exercised in the recorded runs or traces to a named source.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "evidence_id",
+    "content_ref",
+    "acquisition",
+    "media",
+    "transcript",
+    "frames",
+    "owner_metrics",
+    "limitations",
+    "reproducibility"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "content-evidence.v1"
+    },
+    "evidence_id": {
+      "type": "string"
+    },
+    "request_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "content_ref": {
+      "type": "object",
+      "required": [
+        "platform",
+        "content_id",
+        "permalink",
+        "published_at",
+        "published_at_precision",
+        "published_at_timezone_source",
+        "format"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "platform": {
+          "enum": [
+            "instagram",
+            "youtube",
+            "tiktok"
+          ]
+        },
+        "content_id": {
+          "type": "string"
+        },
+        "permalink": {
+          "type": "string",
+          "format": "uri"
+        },
+        "published_at": {
+          "type": "string"
+        },
+        "published_at_precision": {
+          "enum": [
+            "second",
+            "day"
+          ],
+          "description": "collect_public_metadata normalizes upload_date to a day string; the connector's preserved raw carries a unix timestamp. Anything time-of-day sensitive must check this before using published_at."
+        },
+        "published_at_timezone_source": {
+          "enum": [
+            "platform_utc",
+            "creator_confirmed",
+            "unknown"
+          ],
+          "description": "Instagram owner exports carry UTC only; local publish hour is not recoverable from the timestamp alone."
+        },
+        "format": {
+          "type": "string"
+        },
+        "owner_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "acquisition": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One entry per acquisition step, in the order the run took them. Most are Connector calls, and their shape follows connector-result: the runtime already records provider, command, exit code, duration and raw hash, so none of that is duplicated here. A local extraction step is one this run performed on the machine it runs on, over a file the creator named: it has no connector and no request id, because nothing was requested of a connector. It is never recorded as a call with those identifiers filled in as 'unknown' or as a placeholder.",
+      "items": {
+        "type": "object",
+        "required": [
+          "step",
+          "operation",
+          "status"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "step": {
+            "enum": [
+              "connector_call",
+              "local_extraction"
+            ],
+            "description": "Which kind of step produced this entry. Required, with no default: a missing value meaning 'connector' is the same defect this object keeps having to fix elsewhere, where an absent field and a negative finding arrive looking identical. The branches below pin the fields each kind must carry, and a local step must not merely leave the connector fields null - it must not carry them at all."
+          },
+          "connector_id": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "connector_request_id": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string",
+            "description": "Local steps only. The program this run executed, by the name it is invoked under."
+          },
+          "tool_version": {
+            "type": "string",
+            "description": "Local steps only. The first line the tool prints for its own version query, verbatim. A local step is replayable only against the build that ran it, and media tools change their output between versions."
+          },
+          "invocation_sha256": {
+            "type": "string",
+            "description": "Local steps only. sha256 over the JSON-encoded argument list, with the media path replaced by the literal '<media>'. Substituting the path is what makes the hash comparable between two machines that ran the same step, and keeps a home directory out of an artifact that travels."
+          },
+          "input_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Local steps only. The bytes that were read. Together with invocation_sha256 this is the replay anchor: which file was measured, and what shape of invocation measured it."
+          },
+          "status": {
+            "enum": [
+              "completed",
+              "completed_partial",
+              "pending",
+              "deferred_incomplete",
+              "blocked_setup",
+              "feature_gated",
+              "unsupported",
+              "failed"
+            ],
+            "description": "Verbatim acquisition status. pending means a deferred job was accepted and remains non-terminal inside this run's bounded wait; deferred_incomplete means the run ended without a completed deferred artifact. Neither is silently rewritten as failed. blocked_setup is not a failure of the content or of the analysis."
+          },
+          "retrieved_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "raw_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "raw_retained_outside_git": {
+            "type": "boolean",
+            "default": true
+          },
+          "credits_charged": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Only metered providers report this."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "$comment": "A connector call must name the connector and the request, because that pair is what makes it re-runnable and what ties the entry to the runtime's own record of it.",
+            "if": {
+              "properties": { "step": { "const": "connector_call" } },
+              "required": ["step"]
+            },
+            "then": {
+              "required": ["connector_id", "connector_request_id"],
+              "properties": {
+                "connector_id": { "type": "string", "minLength": 1 },
+                "connector_request_id": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          {
+            "$comment": "A local step must carry what replays it, and must not carry connector identifiers at all. 'not required' rather than 'const null' on purpose: a null connector_id still reads, to anything scanning the ledger, as a call whose id went missing.",
+            "if": {
+              "properties": { "step": { "const": "local_extraction" } },
+              "required": ["step"]
+            },
+            "then": {
+              "required": ["tool", "tool_version", "invocation_sha256"],
+              "properties": {
+                "tool": { "type": "string", "minLength": 1 },
+                "tool_version": { "type": "string", "minLength": 1 },
+                "invocation_sha256": { "type": "string", "minLength": 1 }
+              },
+              "not": {
+                "anyOf": [
+                  { "required": ["connector_id"] },
+                  { "required": ["connector_request_id"] }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "media": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "available",
+            "unavailable",
+            "not_attempted",
+            "not_applicable"
+          ],
+          "description": "Acquisition-level detail lives in the matching acquisition entry; this only says whether usable media facts exist."
+        },
+        "duration_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "duration_source": {
+          "enum": [
+            "connector_extract_keyframes",
+            "connector_metadata",
+            "local_probe",
+            "unavailable"
+          ],
+          "description": "extract_keyframes probes the downloaded file; collect_public_metadata returns the platform-declared duration and was observed to be null for Instagram. local_probe is the creator's own file, probed on the machine this run executed on - it is the master they exported, not the copy a platform re-encoded and delivered, and the same is true of every other field in this block on that path."
+        },
+        "width": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "height": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "has_audio": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "From the audio codec in the connector's preserved metadata raw."
+        },
+        "encoding": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Delivery quality of the file itself. A baseline comparison run used exactly these fields to find two real defects this module had no way to see: an eleven decibel loudness cliff where the music track ran out before the video did, and a true peak above zero that a platform re-encode turns into audible distortion. They were cut from an earlier draft for not having been used, which was a statement about the depth of that analysis rather than about the fields.",
+          "additionalProperties": false,
+          "properties": {
+            "video_codec": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "video_bitrate_bps": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "frame_rate": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "audio_codec": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "audio_bitrate_bps": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "audio_sample_rate": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "audio_channels": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "integrated_loudness_lufs": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "true_peak_dbfs": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Above zero means clipping that a platform transcode will make audible."
+            },
+            "loudness_segments": {
+              "type": "array",
+              "description": "Loudness measured over spans rather than the whole file, so a track that stops before the video does is visible instead of averaged away.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "t_start_s",
+                  "t_end_s",
+                  "integrated_loudness_lufs"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "t_start_s": {
+                    "type": "number"
+                  },
+                  "t_end_s": {
+                    "type": "number"
+                  },
+                  "integrated_loudness_lufs": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "safe_area": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Where the platform's own interface sits over the frame. On-screen text placed underneath it is present in the file and invisible in the feed, which no frame-only reading can catch.",
+          "additionalProperties": false,
+          "properties": {
+            "platform": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bottom_reserved_fraction": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "top_reserved_fraction": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "source": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Where the reserved fractions came from; a guessed value is worse than none."
+            }
+          }
+        },
+        "probed": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "What measuring the delivered file found: where it cuts, where the audio drops below the speech floor, where the picture holds still, how bright each shot is, and how much of a phone screen the frame fills. These are measurements; every reading of one is an observation and belongs in the analysis, not here. Absent when no measurement operation ran. `loudness` is a summary rather than the per-interval series it came from - an observation cites the silent lead-in, the working range and the mean, and the several hundred samples behind them belong in the envelope this was derived from, not in the context of everything that reads this evidence.",
+          "additionalProperties": false,
+          "properties": {
+            "shots": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "count": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "cuts_at_s": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "shots": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "index": {
+                        "type": "integer"
+                      },
+                      "start_s": {
+                        "type": "number"
+                      },
+                      "end_s": {
+                        "type": "number"
+                      },
+                      "duration_s": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "silence": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Spans under the speech floor. A trailing one is why a Reel ends on nothing.",
+              "additionalProperties": false,
+              "properties": {
+                "min_s": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "floor_db": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "spans": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "start_s": {
+                        "type": "number"
+                      },
+                      "end_s": {
+                        "type": "number"
+                      },
+                      "duration_s": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "freeze": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Spans where the picture stops changing. One that overlaps a silence span is the still-logo ending.",
+              "additionalProperties": false,
+              "properties": {
+                "min_s": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "spans": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "start_s": {
+                        "type": "number"
+                      },
+                      "end_s": {
+                        "type": "number"
+                      },
+                      "duration_s": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "framing": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "How much of a phone screen the delivered frame fills, and what the bars are. A top-of-funnel fact no frame image carries on its own.",
+              "additionalProperties": false,
+              "properties": {
+                "fps": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "width": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "height": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "aspect_ratio": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "vertical_screen_fill": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "bars": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "top": {
+                      "type": "number"
+                    },
+                    "bottom": {
+                      "type": "number"
+                    },
+                    "left": {
+                      "type": "number"
+                    },
+                    "right": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "content_rect": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "width": {
+                      "type": "number"
+                    },
+                    "height": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            },
+            "brightness": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "samples": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "whole_video": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "samples": {
+                      "type": "integer"
+                    },
+                    "mean_luma": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "per_shot": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "shot_index": {
+                        "type": "integer"
+                      },
+                      "samples": {
+                        "type": "integer"
+                      },
+                      "mean_luma": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "loudness": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "A summary of the momentary-loudness series. `lead_in_silence_s` is how long the track is inaudible before the first sample above the floor, which is the difference between a hook that speaks and one that opens on nothing.",
+              "additionalProperties": false,
+              "properties": {
+                "interval_s": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "samples": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "mean_lufs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "min_lufs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "max_lufs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "p10_lufs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "p90_lufs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "lead_in_silence_s": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "first_audible_s": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "first_audible_lufs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "mean_volume_db": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Mean of the momentary-loudness series, under the name the analysis has always been allowed to cite."
+            },
+            "measured": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Which signals the operation actually measured."
+            },
+            "unavailable": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Which it could not, so a missing block is not read as a zero."
+            }
+          }
+        },
+        "declared": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Platform-declared values, kept only when they disagree with what the delivered file actually is.",
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "height": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "duration_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          }
+        },
+        "discrepancies": {
+          "type": "array",
+          "description": "Required whenever declared and delivered disagree. A 1080x1920 upload was observed delivered as a 720x1280 transcode, which changes how legible small on-screen text is.",
+          "items": {
+            "type": "object",
+            "required": [
+              "field",
+              "declared",
+              "observed"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "field": {
+                "type": "string"
+              },
+              "declared": {},
+              "observed": {},
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "transcript": {
+      "type": "object",
+      "required": [
+        "status",
+        "status_basis",
+        "granularity",
+        "timestamps_available"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "available",
+            "no_speech_detected",
+            "no_audio_track",
+            "no_platform_captions",
+            "provider_error",
+            "not_attempted"
+          ],
+          "description": "Derived from the payload, never from an HTTP code or a success flag."
+        },
+        "status_basis": {
+          "type": "string"
+        },
+        "source_connector": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "granularity": {
+          "enum": [
+            "plain_text",
+            "timestamped",
+            "none"
+          ],
+          "description": "timestamped whenever the cues carry a start second, which is the normal case on every platform and every retrieval path. plain_text is for a path that genuinely returned no timing at all; it is not the expected shape for any particular platform, and choosing it because a field name did not match is how a timed transcript gets silently thrown away."
+        },
+        "timestamps_available": {
+          "type": "boolean"
+        },
+        "language_requested": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Caption fetching is language-scoped and defaults to English; a wrong or absent language yields empty captions rather than an error."
+        },
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "segment_count": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "character_count": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "text_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cues": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "description": "The timestamped cue list, carried verbatim. Required whenever status is available and granularity is timestamped. A frame says what was on screen at that second and a cue says what was being said; an analysis that reads only the frame track is describing something no viewer received, and a video with no burned-in captions leaves that track empty on screen while the speech carries the whole argument. The text is evidence and belongs in the object — a hash identifies a fetch, it cannot be read.",
+          "items": {
+            "type": "object",
+            "required": [
+              "start_s",
+              "text"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "start_s": {
+                "type": "number"
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "plain_text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The untimed transcript for providers that return no cues, carried verbatim. Required whenever status is available and granularity is plain_text. No statement taken from it may be anchored to a second."
+        },
+        "origin": {
+          "enum": [
+            "platform_captions",
+            "provider_transcript",
+            "speech_recognition",
+            "creator_supplied",
+            null
+          ],
+          "description": "Who produced these words. platform_captions are published with the video and are what a viewer with captions on would read. speech_recognition is a machine transcribing the audio after the fact: it carries a word error rate, so a line taken from it may be quoted as what the analysis heard but never as the creator's exact wording, and a proper noun or figure read from it needs a frame to confirm it. creator_supplied is a subtitle or text file the creator handed over for this run: its wording may be quoted as theirs, because no machine guessed at it - that is the whole reason this field distinguishes the two. What it is not is evidence of what the platform published, and it was not checked against the audio, so a second taken from it is the file's claim about the video rather than a measurement of it."
+        }
+      }
+    },
+    "frames": {
+      "type": "object",
+      "required": [
+        "status",
+        "selection",
+        "items"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "available",
+            "unavailable",
+            "not_attempted"
+          ]
+        },
+        "selection": {
+          "enum": [
+            "duration_scaled_v1",
+            "evenly_spaced_bounded_v1",
+            "explicit_timestamps_v1",
+            "none"
+          ],
+          "description": "The sampling algorithm this run used: verbatim from the connector on a connector path, and the same algorithm run here on a local extraction. duration_scaled_v1 is the default: dense across the opening three seconds, steady through the body, dense again at the close. evenly_spaced_bounded_v1 places its first frame at duration/(n+1) and cannot reach the opening — measured on a 60s video, 24 evenly spaced frames landed one frame inside the hook window while the segmented plan landed seven using four fewer frames. It survives only for callers that ask for it by name. Which path produced the frames is not encoded here, deliberately: it is in acquisition[].step and media.duration_source, and a consumer reading frames must not branch on where they were taken. Frames are frames; the plan is the same plan."
+        },
+        "requested_timestamps": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "frame_id",
+              "t_seconds"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "frame_id": {
+                "type": "string"
+              },
+              "t_seconds": {
+                "type": "number"
+              },
+              "sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retained_outside_git": {
+                "type": "boolean",
+                "default": true
+              },
+              "path": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Where the frame file is, as a host artifact URI or a path under the run workspace. Required whenever the frames were extracted in this run. Without it the evidence records that a frame exists and not where to look at it, so any consumer that did not do the extraction — a replay, an App drill-down, a re-analysis under a better prompt — can only reuse the descriptions already written into observations. That is the same shape as the transcript defect: a hash identifies a fetch, it cannot be read."
+              }
+            }
+          }
+        },
+        "sampling_plan": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Present on duration_scaled_v1. What was actually sampled, so an analysis can say what it may have missed rather than implying it watched the whole video.",
+          "additionalProperties": false,
+          "properties": {
+            "base_interval_s": {
+              "type": "number",
+              "description": "The sampling floor, one frame a second. Anything sparser is guessing at what happened between frames."
+            },
+            "hook_window_s": {
+              "type": "number",
+              "description": "How far in the hook is judged — about three seconds for a Short or Reel, fifteen to thirty for long-form. This follows the format and does not change how much was sampled; judging a twelve-minute video by a three-second standard is the wrong yardstick."
+            },
+            "hook_dense_window_s": {
+              "type": "number"
+            },
+            "hook_interval_s": {
+              "type": "number"
+            },
+            "hook_frames": {
+              "type": "integer",
+              "description": "Fixed cost, never reduced to make room for the body: the first frames decide whether anything after them is seen."
+            },
+            "body_interval_s": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "The interval actually achieved. Equal to base_interval_s unless the video is long enough that 1 fps would exceed one read."
+            },
+            "body_frames": {
+              "type": "integer"
+            },
+            "budget": {
+              "type": "integer",
+              "description": "Frames one read holds, at roughly 1.15k tokens each. The binding cost is attention, not disk."
+            },
+            "frames": {
+              "type": "integer"
+            },
+            "body_degraded": {
+              "type": "boolean",
+              "description": "True when the body was stretched past one frame a second. The analysis must then state that cuts shorter than body_interval_s may be missing. A long video is analysed with stated coverage, never refused — this Skill does not control what a creator points it at."
+            },
+            "note": {
+              "type": "string"
+            },
+            "closing_frame_s": {
+              "type": "number",
+              "description": "The last second, sampled explicitly. A 1 fps walk from the opening leaves a remainder at the end, and the call to action lives there."
+            }
+          }
+        },
+        "origin": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "extracted_frames",
+            "model_observation",
+            null
+          ],
+          "description": "Where the visual evidence came from. extracted_frames means real frames were sampled from the media. model_observation means no frame was retrievable and the evidence is timestamped descriptions from a model that watched it: nobody looked at a pixel this run, so attribute those lines as what was reported rather than what was seen, and never quote their on-screen text verbatim. Enforced as a pair with observations: model_observation requires at least one observation, and observations are admissible under no other origin."
+        },
+        "observations": {
+          "type": "array",
+          "description": "Timestamped descriptions, present only when origin is model_observation. They carry a second and can be cited, but a claim about typography, framing or a specific frame needs a frame.",
+          "items": {
+            "type": "object",
+            "required": [
+              "t_seconds",
+              "description"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "t_seconds": {
+                "type": "number"
+              },
+              "description": {
+                "type": "string"
+              },
+              "on_screen_text": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "owner_metrics": {
+      "type": "object",
+      "required": [
+        "status",
+        "source_mode",
+        "items"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "available",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "source_mode": {
+          "enum": [
+            "connector",
+            "provided_export",
+            "unavailable"
+          ]
+        },
+        "account_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "snapshot_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "native_name",
+              "status",
+              "denominator_known"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "native_name": {
+                "type": "string"
+              },
+              "canonical_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "value": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "unit": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "period": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "available",
+                  "zero",
+                  "unsupported",
+                  "upstream_error",
+                  "empty"
+                ],
+                "description": "Taken from the values the owner export actually emits. zero and unavailable are different facts."
+              },
+              "denominator": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "denominator_known": {
+                "type": "boolean",
+                "description": "False when the provider does not document the population. An average watch time was observed whose implied population is neither views nor reach."
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "public_metrics": {
+      "type": "array",
+      "description": "Public counters, never merged into owner_metrics even when a value coincides.",
+      "items": {
+        "type": "object",
+        "required": [
+          "native_name",
+          "value"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "native_name": {
+            "type": "string"
+          },
+          "value": {},
+          "equals_owner_metric": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "audio_attribution": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Normalized across providers that expose sound information under different shapes.",
+      "additionalProperties": false,
+      "properties": {
+        "uses_original_audio": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "audio_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artist_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "song_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trend_metrics_available": {
+          "type": "boolean",
+          "description": "No registered connector supplies audio usage velocity or competition, so this stays false until one is verified."
+        }
+      }
+    },
+    "derived": {
+      "type": "array",
+      "description": "Values computed from the fields above. Each carries its own formula and denominator so a consumer can tell which variant it is reading.",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "formula",
+          "formula_version",
+          "value",
+          "denominator_known"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "formula": {
+            "type": "string"
+          },
+          "formula_version": {
+            "type": "string"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "denominator_known": {
+            "type": "boolean"
+          },
+          "caveat": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reproducibility": {
+      "type": "object",
+      "required": [
+        "run_id",
+        "generated_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "input_hashes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "content_metadata": {
+      "type": "object",
+      "required": [
+        "status",
+        "tags",
+        "thumbnails"
+      ],
+      "additionalProperties": false,
+      "description": "What the platform itself declares about this video: the words the creator tagged it with, and the cover a viewer decides on. Everything else in this object is what happens after the click; this is the only part that decides whether the click happens at all. Frozen against the shipped youtubeVideoRows() projection, which runs on get_video only.",
+      "properties": {
+        "status": {
+          "enum": [
+            "available",
+            "unavailable",
+            "not_attempted"
+          ],
+          "description": "Mapped from the connector envelope's top-level status, not from whether the arrays have entries. `available` with empty arrays means the fetch succeeded and this video publishes none - that is an observation. Only a failed or partial envelope is `unavailable`. Collapsing the two is a known mistake: it reports 'this video has no tags' when the truth is 'we never asked'."
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "caption": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The text the creator published under the video, verbatim. Separate from `title` because a caption is not a title: platforms that have both treat them differently, and a caption read as a title loses that it is the line a viewer reads after deciding to stay."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The creator's own declared tags, in the order the platform returned them. The order is the creator's ranking and carries meaning, so it is never sorted or de-duplicated. An empty array is a finding, not a gap - read `status` to tell which."
+        },
+        "thumbnails": {
+          "type": "array",
+          "description": "Cover images by tier, ordered largest pixel area first, so index 0 is the highest tier without the reader re-deriving the ordering. Ordering is the connector's job precisely so every consumer agrees on what 'highest' means. Tiers the platform published no URL for are absent rather than present-and-empty. A reference is not the image: a resolvable URL does not mean any pixel was read.",
+          "items": {
+            "type": "object",
+            "required": [
+              "tier",
+              "url"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "tier": {
+                "enum": [
+                  "maxres",
+                  "standard",
+                  "high",
+                  "medium",
+                  "default"
+                ]
+              },
+              "url": {
+                "type": "string"
+              },
+              "width": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "height": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "path": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Set only when this run saved the file into its own working directory. The connector never downloads; it hands back a reference."
+              },
+              "retained_outside_git": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "media_type",
+        "returned_count",
+        "expected_count",
+        "completeness",
+        "source_request_id",
+        "items"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "media_type": {
+          "enum": [
+            "image",
+            "image_carousel",
+            "video",
+            "unknown"
+          ]
+        },
+        "returned_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 128
+        },
+        "expected_count": {
+          "type": "null"
+        },
+        "completeness": {
+          "const": "unknown"
+        },
+        "source_request_id": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "index",
+              "status"
+            ],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 128
+              },
+              "status": {
+                "enum": [
+                  "available",
+                  "unavailable"
+                ]
+              },
+              "image_id": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

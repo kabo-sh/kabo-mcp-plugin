@@ -1,0 +1,65 @@
+{
+  "format": "kabo.static-skills.v2",
+  "derivedFrom": {
+    "repository": "https://github.com/kabo-sh/creator-skills",
+    "commit": "5fe111d6eea87bd377a94ea4c64dec30b5cc5868"
+  },
+  "mcp": {
+    "sourceRepository": "https://github.com/kabo-sh/kabo",
+    "sourceCommit": "b23ca7782d0f705f447379e93d30e90e2c885cb8",
+    "sourceCommand": "pnpm --filter @kabo/api mcp:audit --surface directory",
+    "sha256": "2f58bc1276027123fd553e3e3b9cd0cda62eded1161846def72e2918f2e1710b"
+  },
+  "skills": [
+    {
+      "id": "analyze-content-video",
+      "derivedFromVersion": "0.14.26",
+      "sourcePath": "creator-skills/runtime/analyze-content-video"
+    },
+    {
+      "id": "review-creator-account",
+      "derivedFromVersion": "0.5.44",
+      "sourcePath": "creator-skills/runtime/review-creator-account"
+    },
+    {
+      "id": "review-creator-account-deep",
+      "derivedFromVersion": "0.3.46",
+      "sourcePath": "creator-skills/runtime/review-creator-account-deep"
+    },
+    {
+      "id": "create-script-and-packaging",
+      "derivedFromVersion": "0.2.24",
+      "sourcePath": "creator-skills/runtime/create-script-and-packaging"
+    },
+    {
+      "id": "develop-content-ideas",
+      "derivedFromVersion": "0.1.30",
+      "sourcePath": "creator-skills/runtime/develop-content-ideas"
+    },
+    {
+      "id": "research-instagram-trends",
+      "derivedFromVersion": "0.3.101",
+      "sourcePath": "creator-skills/runtime/research-instagram-trends"
+    },
+    {
+      "id": "research-tiktok-trends",
+      "derivedFromVersion": "0.1.92",
+      "sourcePath": "creator-skills/runtime/research-tiktok-trends"
+    },
+    {
+      "id": "research-youtube-trends",
+      "derivedFromVersion": "0.1.92",
+      "sourcePath": "creator-skills/runtime/research-youtube-trends"
+    },
+    {
+      "id": "analyze-creator-competitors",
+      "derivedFromVersion": "0.5.72",
+      "sourcePath": "creator-skills/runtime/analyze-creator-competitors"
+    },
+    {
+      "id": "analyze-tiktok-competitors",
+      "derivedFromVersion": "0.1.67",
+      "sourcePath": "creator-skills/runtime/analyze-tiktok-competitors"
+    }
+  ]
+}

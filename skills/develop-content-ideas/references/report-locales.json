@@ -1,0 +1,462 @@
+{
+  " 分钟": {
+    "en": " minutes",
+    "fr": " minutes",
+    "ar": " دقائق"
+  },
+  " 分钟。": {
+    "en": " minutes.",
+    "fr": " minutes.",
+    "ar": " دقائق."
+  },
+  "# Idea 决策与证据报告": {
+    "en": "# Idea decisions and evidence",
+    "fr": "# Choix des idées et preuves",
+    "ar": "# اختيار الأفكار والأدلة"
+  },
+  "# 先拍：": {
+    "en": "# Film first: ",
+    "fr": "# À filmer en premier : ",
+    "ar": "# صوّري أولًا: "
+  },
+  "## 下一步": {
+    "en": "## Next step",
+    "fr": "## Étape suivante",
+    "ar": "## الخطوة التالية"
+  },
+  "## 你来决定下一步": {
+    "en": "## Choose your next step",
+    "fr": "## Choisissez la suite",
+    "ar": "## اختاري الخطوة التالية"
+  },
+  "## 先看诊断": {
+    "en": "## Diagnosis first",
+    "fr": "## Diagnostic préalable",
+    "ar": "## التشخيص أولًا"
+  },
+  "## 可选方向": {
+    "en": "## Options",
+    "fr": "## Directions possibles",
+    "ar": "## الأفكار المتاحة"
+  },
+  "## 当前阻塞": {
+    "en": "## What is missing",
+    "fr": "## Ce qui manque",
+    "ar": "## المعلومات الناقصة"
+  },
+  "## 证据边界": {
+    "en": "## Evidence boundaries",
+    "fr": "## Limites des preuves",
+    "ar": "## حدود الأدلة"
+  },
+  "## 这批内容怎么展开": {
+    "en": "## How the ideas fit together",
+    "fr": "## Comment articuler ces idées",
+    "ar": "## كيف تترابط الأفكار"
+  },
+  "## 需要补充": {
+    "en": "## Information needed",
+    "fr": "## Informations nécessaires",
+    "ar": "## المعلومات المطلوبة"
+  },
+  "- **三个不同机制：**": {
+    "en": "- **Distinct hook mechanisms:**",
+    "fr": "- **Mécanismes d’accroche distincts :**",
+    "ar": "- **أساليب افتتاحية مختلفة:**"
+  },
+  "- **不能越过：** ": {
+    "en": "- **Boundaries:** ",
+    "fr": "- **Limites à respecter :** ",
+    "ar": "- **الحدود:** "
+  },
+  "- **为什么适合：** ": {
+    "en": "- **Why it fits:** ",
+    "fr": "- **Pourquoi cette idée convient :** ",
+    "ar": "- **لماذا تناسبك:** "
+  },
+  "- **依据：** ": {
+    "en": "- **Evidence:** ",
+    "fr": "- **Preuves :** ",
+    "ar": "- **الدليل:** "
+  },
+  "- **再推进：** ": {
+    "en": "- **Follow-up line:** ",
+    "fr": "- **Relance :** ",
+    "ar": "- **الجملة التالية:** "
+  },
+  "- **创作者适配：** ": {
+    "en": "- **Creator fit:** ",
+    "fr": "- **Adéquation avec la chaîne :** ",
+    "ar": "- **ملاءمتها لصانعة المحتوى:** "
+  },
+  "- **制作前：** ": {
+    "en": "- **Before production:** ",
+    "fr": "- **Avant la réalisation :** ",
+    "ar": "- **قبل الإنتاج:** "
+  },
+  "- **制作量：** ": {
+    "en": "- **Production effort:** ",
+    "fr": "- **Temps de réalisation :** ",
+    "ar": "- **جهد الإنتاج:** "
+  },
+  "- **开口就说：** ": {
+    "en": "- **Opening line:** ",
+    "fr": "- **Première phrase :** ",
+    "ar": "- **الافتتاحية:** "
+  },
+  "- **怎么拍：** ": {
+    "en": "- **How to film:** ",
+    "fr": "- **Comment filmer :** ",
+    "ar": "- **طريقة التصوير:** "
+  },
+  "- **选择前：** ": {
+    "en": "- **Before choosing:** ",
+    "fr": "- **Avant de choisir :** ",
+    "ar": "- **قبل الاختيار:** "
+  },
+  "- **阻塞：** ": {
+    "en": "- **Missing requirement:** ",
+    "fr": "- **Prérequis manquant :** ",
+    "ar": "- **المتطلب الناقص:** "
+  },
+  "- 推荐理由：": {
+    "en": "- Recommendation: ",
+    "fr": "- Recommandation : ",
+    "ar": "- سبب الترشيح: "
+  },
+  "> **先选它的原因：** ": {
+    "en": "> **Why choose it first:** ",
+    "fr": "> **Pourquoi commencer ici :** ",
+    "ar": "> **سبب اختيارها أولًا:** "
+  },
+  "> **缺少这些信息的影响：** ": {
+    "en": "> **Why this information matters:** ",
+    "fr": "> **Pourquoi ces informations comptent :** ",
+    "ar": "> **أهمية هذه المعلومات:** "
+  },
+  "> **诊断：** ": {
+    "en": "> **Diagnosis:** ",
+    "fr": "> **Diagnostic :** ",
+    "ar": "> **التشخيص:** "
+  },
+  "> 全部方案按上界合计 ": {
+    "en": "> Total upper-bound production time: ",
+    "fr": "> Durée totale maximale estimée : ",
+    "ar": "> الحد الأعلى لوقت إنتاج جميع الأفكار: "
+  },
+  "> 证据边界：以下方向只来自你的 brief，是待验证假设；没有声称账号或趋势已验证。": {
+    "en": "> These ideas use only your brief and remain hypotheses to test; account or trend validation is not claimed.",
+    "fr": "> Ces idées reposent uniquement sur votre brief et restent à tester ; elles ne prétendent pas être validées par des données de compte ou de tendance.",
+    "ar": "> هذه الأفكار مبنية فقط على وصفك، وتظل فرضيات للاختبار؛ لا ندّعي التحقق من الحساب أو الاتجاهات."
+  },
+  "Creator 定位/受众资料": {
+    "en": "creator positioning/audience context",
+    "fr": "contexte de la chaîne et de son audience",
+    "ar": "معلومات صانعة المحتوى والجمهور"
+  },
+  "`；任务：`": {
+    "en": "`; task: `",
+    "fr": "` ; tâche : `",
+    "ar": "`؛ المهمة: `"
+  },
+  "`；输入模式：`": {
+    "en": "`; input mode: `",
+    "fr": "` ; mode d’entrée : `",
+    "ar": "`؛ نوع المدخلات: `"
+  },
+  "先回答下面的选择门问题；回答后再选择，不会自动进入脚本：": {
+    "en": "Answer the missing selection questions below, then choose an idea; scripting does not start automatically:",
+    "fr": "Répondez aux questions nécessaires ci-dessous, puis choisissez une idée ; le script ne démarre pas automatiquement :",
+    "ar": "أجيبي عن أسئلة الاختيار التالية ثم اختاري فكرة؛ لن تبدأ كتابة السكريبت تلقائيًا:"
+  },
+  "回复编号即可选择；也可以说“改第 N 条”“换一批”或直接给自己的方向。": {
+    "en": "Reply with a number to choose, request a revision or another set, or give your own direction.",
+    "fr": "Répondez avec un numéro, demandez de modifier une idée ou une nouvelle sélection, ou proposez votre direction.",
+    "ar": "اختاري برقم، أو اطلبي تعديل فكرة أو مجموعة جديدة، أو اقترحي اتجاهك."
+  },
+  "当前不生成选题": {
+    "en": "Ideas cannot be generated yet",
+    "fr": "La génération d’idées attend ces informations",
+    "ar": "لا يمكن توليد الأفكار بعد"
+  },
+  "当前输入被安全门阻塞；补齐声明缺口后再生成或选择。": {
+    "en": "Resolve the missing requirements below before generating or selecting ideas.",
+    "fr": "Complétez les prérequis ci-dessous avant de générer ou choisir des idées.",
+    "ar": "استكملي المتطلبات التالية قبل توليد الأفكار أو اختيارها."
+  },
+  "待改内容的视频分析": {
+    "en": "analysis of the video to rework",
+    "fr": "analyse de la vidéo à retravailler",
+    "ar": "تحليل الفيديو المطلوب تعديله"
+  },
+  "待确认": {
+    "en": "To confirm",
+    "fr": "À confirmer",
+    "ar": "بحاجة للتأكيد"
+  },
+  "无": {
+    "en": "None",
+    "fr": "Aucun",
+    "ar": "لا يوجد"
+  },
+  "无外部证据；这是待验证方向": {
+    "en": "No external evidence; a direction to test",
+    "fr": "Sans preuve externe ; direction à tester",
+    "ar": "لا توجد أدلة خارجية؛ اتجاه للاختبار"
+  },
+  "状态：`": {
+    "en": "Status: `",
+    "fr": "Statut : `",
+    "ar": "الحالة: `"
+  },
+  "直接给出一个明确内容主题": {
+    "en": "Provide a specific content topic",
+    "fr": "Indiquez un sujet précis",
+    "ar": "حددي موضوعًا واضحًا للمحتوى"
+  },
+  "竞品证据": {
+    "en": "competitor evidence",
+    "fr": "preuves issues de comptes comparables",
+    "ar": "أدلة الحسابات المنافسة"
+  },
+  "缺少用户明确要求使用的": {
+    "en": "Missing explicitly requested ",
+    "fr": "Il manque les éléments explicitement demandés : ",
+    "ar": "تنقص المعلومات المطلوبة صراحة: "
+  },
+  "补充制作条件": {
+    "en": "Provide missing production details",
+    "fr": "Précisez les conditions de réalisation",
+    "ar": "استكملي تفاصيل الإنتاج"
+  },
+  "补充选题所需信息": {
+    "en": "Provide missing selection details",
+    "fr": "Précisez les informations nécessaires au choix",
+    "ar": "استكملي معلومات اختيار الأفكار"
+  },
+  "补齐或刷新上游证据": {
+    "en": "Complete or refresh the evidence",
+    "fr": "Complétez ou actualisez les preuves",
+    "ar": "استكملي الأدلة أو حدّثيها"
+  },
+  "观众评论证据": {
+    "en": "audience comment evidence",
+    "fr": "commentaires du public",
+    "ar": "أدلة تعليقات الجمهور"
+  },
+  "请明确一个要讲的内容主题，或提供可用的账号、趋势、竞品等上游证据": {
+    "en": "What topic or niche should the video cover? You can also provide an account or relevant evidence.",
+    "fr": "Quel sujet ou quelle niche souhaitez-vous aborder ? Vous pouvez aussi fournir un compte ou des preuves pertinentes.",
+    "ar": "ما موضوع الفيديو أو مجال المحتوى؟ يمكنك أيضًا تقديم حساب أو أدلة ذات صلة."
+  },
+  "账号表现证据": {
+    "en": "account performance evidence",
+    "fr": "données de performance du compte",
+    "ar": "أدلة أداء الحساب"
+  },
+  "近期趋势证据": {
+    "en": "recent trend evidence",
+    "fr": "preuves de tendances récentes",
+    "ar": "أدلة الاتجاهات الحديثة"
+  },
+  "选择后、制作前再确认：": {
+    "en": "Confirm after choosing, before production:",
+    "fr": "À confirmer après le choix, avant la réalisation :",
+    "ar": "أكدي بعد الاختيار وقبل الإنتاج:"
+  },
+  "（首选）": {
+    "en": " (first choice)",
+    "fr": " (premier choix)",
+    "ar": " (الخيار الأول)"
+  },
+  "low": {
+    "en": "low",
+    "fr": "faible",
+    "ar": "منخفض"
+  },
+  "medium": {
+    "en": "medium",
+    "fr": "moyen",
+    "ar": "متوسط"
+  },
+  "high": {
+    "en": "high",
+    "fr": "élevé",
+    "ar": "مرتفع"
+  },
+  "；": {
+    "en": "; ",
+    "fr": " ; ",
+    "ar": "؛ "
+  },
+  "`。": {
+    "en": "`.",
+    "fr": "`.",
+    "ar": "`."
+  },
+  "ready_for_selection": {
+    "en": "ready to choose",
+    "fr": "prêt à choisir",
+    "ar": "جاهز للاختيار"
+  },
+  "needs_selection_context": {
+    "en": "needs topic or context",
+    "fr": "sujet ou contexte nécessaire",
+    "ar": "بحاجة لموضوع أو سياق"
+  },
+  "open_shortlist": {
+    "en": "idea shortlist",
+    "fr": "sélection d’idées",
+    "ar": "قائمة أفكار"
+  },
+  "brief_only": {
+    "en": "brief only",
+    "fr": "brief uniquement",
+    "ar": "وصف المستخدم فقط"
+  },
+  "- Audience problem：": {
+    "en": "- Audience problem: ",
+    "fr": "- Besoin du public : ",
+    "ar": "- حاجة الجمهور: "
+  },
+  "- Promise：": {
+    "en": "- Promise: ",
+    "fr": "- Promesse : ",
+    "ar": "- الوعد: "
+  },
+  "- Angle：": {
+    "en": "- Angle: ",
+    "fr": "- Angle : ",
+    "ar": "- الزاوية: "
+  },
+  "- Main Hook：": {
+    "en": "- Opening: ",
+    "fr": "- Accroche : ",
+    "ar": "- الافتتاحية: "
+  },
+  "- Progressive Hook：": {
+    "en": "- Follow-up: ",
+    "fr": "- Relance : ",
+    "ar": "- الجملة التالية: "
+  },
+  "- Shoot：": {
+    "en": "- Filming: ",
+    "fr": "- Tournage : ",
+    "ar": "- التصوير: "
+  },
+  "- Time：": {
+    "en": "- Time: ",
+    "fr": "- Durée : ",
+    "ar": "- الوقت: "
+  },
+  "- Assets：": {
+    "en": "- Assets: ",
+    "fr": "- Ressources : ",
+    "ar": "- الموارد: "
+  },
+  "- Primary evidence：": {
+    "en": "- Primary evidence: ",
+    "fr": "- Preuve principale : ",
+    "ar": "- الدليل الرئيسي: "
+  },
+  "### Evidence lineage": {
+    "en": "### Evidence lineage",
+    "fr": "### Origine des preuves",
+    "ar": "### مصادر الأدلة"
+  },
+  "- source context refs: ": {
+    "en": "- Source context: ",
+    "fr": "- Contexte source : ",
+    "ar": "- السياق المصدر: "
+  },
+  "- evidence refs: ": {
+    "en": "- Evidence references: ",
+    "fr": "- Références : ",
+    "ar": "- مراجع الأدلة: "
+  },
+  "### Outline": {
+    "en": "### Outline",
+    "fr": "### Déroulé",
+    "ar": "### التسلسل"
+  },
+  "### Hook options": {
+    "en": "### Opening options",
+    "fr": "### Options d’accroche",
+    "ar": "### بدائل الافتتاحية"
+  },
+  "### Risks / boundaries": {
+    "en": "### Risks / boundaries",
+    "fr": "### Risques et limites",
+    "ar": "### المخاطر والحدود"
+  },
+  "- Must differ：": {
+    "en": "- Must differ: ",
+    "fr": "- À différencier : ",
+    "ar": "- ما يجب تمييزه: "
+  },
+  "## Gates": {
+    "en": "## Requirements",
+    "fr": "## Prérequis",
+    "ar": "## المتطلبات"
+  },
+  "## Evidence summary": {
+    "en": "## Evidence summary",
+    "fr": "## Synthèse des preuves",
+    "ar": "## ملخص الأدلة"
+  },
+  "blocked_invalid_or_unsafe_input": {
+    "en": "blocked by invalid or unsafe input",
+    "fr": "entrée invalide ou non sûre",
+    "ar": "مدخلات غير صالحة أو غير آمنة"
+  },
+  "blocked_missing_required_source": {
+    "en": "required evidence is missing",
+    "fr": "preuve requise manquante",
+    "ar": "الدليل المطلوب غير متوفر"
+  },
+  "capacity_plan": {
+    "en": "production capacity plan",
+    "fr": "plan de capacité de production",
+    "ar": "خطة طاقة الإنتاج"
+  },
+  "rework_content": {
+    "en": "rework existing content",
+    "fr": "retravailler un contenu",
+    "ar": "تعديل محتوى قائم"
+  },
+  "evidence_rich": {
+    "en": "multiple evidence sources",
+    "fr": "sources de preuves multiples",
+    "ar": "مصادر أدلة متعددة"
+  },
+  "context_only": {
+    "en": "context evidence",
+    "fr": "preuves de contexte",
+    "ar": "أدلة السياق"
+  },
+  "profile_video": {
+    "en": "profile and video evidence",
+    "fr": "profil et preuve vidéo",
+    "ar": "ملف الحساب وأدلة الفيديو"
+  },
+  "profile_only": {
+    "en": "profile evidence",
+    "fr": "preuves du profil",
+    "ar": "أدلة ملف الحساب"
+  },
+  "video_only": {
+    "en": "video evidence",
+    "fr": "preuves vidéo",
+    "ar": "أدلة الفيديو"
+  },
+  "选择一个选题": {
+    "en": "Choose an idea",
+    "fr": "Choisissez une idée",
+    "ar": "اختاري فكرة"
+  },
+  "修改选题": {
+    "en": "Revise the ideas",
+    "fr": "Révisez les idées",
+    "ar": "عدّلي الأفكار"
+  }
+}

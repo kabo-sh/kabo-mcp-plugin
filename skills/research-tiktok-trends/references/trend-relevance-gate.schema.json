@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/trend-relevance-gate.json",
+  "title": "TrendRelevanceGate",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "request_id", "direct_refs", "adjacent_refs", "reject_refs"],
+      "properties": {
+        "schema_version": {"const": "trend-relevance-gate.v2"},
+        "request_id": {"type": "string", "minLength": 1},
+        "direct_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "adjacent_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "reject_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "request_id", "platform", "items"],
+      "properties": {
+        "schema_version": {"const": "trend-relevance-gate.v3"},
+        "request_id": {"type": "string", "minLength": 1},
+        "platform": {"enum": ["instagram", "tiktok", "youtube"]},
+        "items": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["content_key", "semantic_scores"],
+            "properties": {
+              "content_key": {"type": "string", "minLength": 1},
+              "semantic_scores": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["topic_relevance", "locale_fit"],
+                "properties": {
+                  "topic_relevance": {"type": "number", "minimum": 0, "maximum": 100},
+                  "creator_transferability": {"type": "number", "minimum": 0, "maximum": 100},
+                  "locale_fit": {"type": "number", "minimum": 0, "maximum": 100}
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

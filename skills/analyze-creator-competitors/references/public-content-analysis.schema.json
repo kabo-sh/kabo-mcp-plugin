@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "public-content-analysis.v1",
+  "title": "PublicContentAnalysis",
+  "type": "object",
+  "required": ["schema_version", "analysis_id", "mode", "snapshot_ref", "rule_version", "data_quality", "cohorts", "ranked_content", "account_outliers", "focus_summary", "claim_boundary", "evidence", "reproducibility"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "public-content-analysis.v1"},
+    "analysis_id": {"type": "string"},
+    "mode": {"enum": ["account", "trend", "competitor"]},
+    "snapshot_ref": {"type": "string"},
+    "rule_version": {"const": "public-content-facts.v1.4"},
+    "data_quality": {"type": "object"},
+    "cohorts": {"type": "array"},
+    "ranked_content": {"type": "array"},
+    "account_outliers": {"type": "array"},
+    "focus_summary": {"type": ["object", "null"]},
+    "claim_boundary": {"type": "object"},
+    "evidence": {"type": "array"},
+    "reproducibility": {"type": "object"}
+  }
+}

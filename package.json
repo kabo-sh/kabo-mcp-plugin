@@ -1,0 +1,23 @@
+{
+  "name": "kabo-plugin-openai",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "check": "node scripts/package-check.mjs",
+    "check:submission": "node scripts/package-check.mjs --submission",
+    "acceptance:init": "node scripts/acceptance-init.mjs",
+    "test": "node --test scripts/*.test.mjs",
+    "verify": "node scripts/verify.mjs",
+    "skills:lint": "node scripts/skills-lint.mjs",
+    "build": "node scripts/openai-plugin-package.mjs"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "yaml": "2.9.1"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "kabo-mcp-plugin",
+  "description": "Kabo creator research plugin for Claude Code, published from the kabo-sh/kabo-mcp-plugin repository.",
+  "owner": {
+    "name": "Dealism",
+    "email": "support@kabo.sh",
+    "url": "https://kabo.sh"
+  },
+  "plugins": [
+    {
+      "name": "kabo",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/competitor-discovery-selection.v1.json",
+  "title": "CompetitorDiscoverySelectionV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "selection_strategy", "selected_handles", "reserve_handles", "authors"],
+  "properties": {
+    "schema_version": {"const": "competitor-discovery-selection.v1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "selection_strategy": {"enum": ["legacy-v1", "comparable-v2", "evidence-score-v3", "provided-v1"]},
+    "selected_handles": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "reserve_handles": {"type": "array", "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "discovery_mode": {"enum": ["auto", "provided", "hybrid"]},
+    "provided_handles": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "requested_refs": {"type": "array", "maxItems": 20, "items": {"type": "object", "additionalProperties": false, "required": ["ref", "handle"], "properties": {"ref": {"type": "string", "minLength": 1}, "handle": {"type": ["string", "null"], "minLength": 1}}}},
+    "authors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["handle", "relevance", "content_refs", "visible_content", "matched_intents", "source_routes", "content_count", "author_summary", "newest_published_at", "max_play_count", "best_source_rank", "discovery_rank", "decision", "reason"],
+        "properties": {
+          "handle": {"type": "string", "minLength": 1},
+          "relevance": {"enum": ["direct_candidate", "adjacent_candidate", "scored_candidate", "reject", "subject", "provided_candidate"]},
+          "semantic_scores": {
+            "type": "object", "additionalProperties": false,
+            "required": ["category_fit", "audience_job_fit", "sustained_focus", "locale_fit"],
+            "properties": {
+              "category_fit": {"type": "number", "minimum": 0, "maximum": 100},
+              "audience_job_fit": {"type": "number", "minimum": 0, "maximum": 100},
+              "sustained_focus": {"type": "number", "minimum": 0, "maximum": 100},
+              "locale_fit": {"type": "number", "minimum": 0, "maximum": 100}
+            }
+          },
+          "semantic_score": {"type": "number", "minimum": 0, "maximum": 100},
+          "retrieval_score": {"type": "number", "minimum": 0, "maximum": 100},
+          "selection_score": {"type": "number", "minimum": 0, "maximum": 100},
+          "content_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "visible_content": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "matched_intents": {"type": "integer", "minimum": 0},
+          "source_routes": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"enum": ["search", "popular"]}
+          },
+          "content_count": {"type": "integer", "minimum": 0},
+          "author_summary": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {"type": "string", "minLength": 1},
+              "handle": {"type": "string", "minLength": 1},
+              "full_name": {"type": "string", "minLength": 1},
+              "is_verified": {"type": "boolean"},
+              "follower_count": {"type": "integer", "minimum": 0},
+              "post_count": {"type": "integer", "minimum": 0},
+              "is_private": {"type": "boolean"}
+            }
+          },
+          "newest_published_at": {"type": ["string", "null"]},
+          "max_play_count": {"type": ["number", "null"], "minimum": 0},
+          "best_source_rank": {"type": ["integer", "null"], "minimum": 1},
+          "discovery_rank": {"type": ["integer", "null"], "minimum": 1},
+          "decision": {"enum": ["selected_for_profile", "reserve", "not_selected_capacity", "rejected_by_discovery_gate", "rejected_missing_visible_content", "excluded_subject"]},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

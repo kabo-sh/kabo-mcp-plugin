@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/competitor-discovery-gate-input.v1.json",
+  "title": "CompetitorDiscoveryGateInputV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "subject",
+    "authors"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "competitor-discovery-gate-input.v1"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject": {
+      "$ref": "#/$defs/subject"
+    },
+    "authors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "handle",
+          "posts"
+        ],
+        "properties": {
+          "handle": {
+            "type": "string",
+            "minLength": 1
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "followers": {
+            "type": "integer",
+            "description": "Public follower count, when the discovery route returned it."
+          },
+          "post_count": {
+            "type": "integer",
+            "description": "Public post count on the account, when the discovery route returned it."
+          },
+          "verified": {
+            "const": true
+          },
+          "private": {
+            "const": true
+          },
+          "is_subject": {
+            "const": true,
+            "description": "This account is the subject the run started from."
+          },
+          "posts": {
+            "description": "Every discovery row for this account, with what discovery returned alongside each caption.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "text"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "description": "The post's own words — caption, title and description — kept whole."
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The post's canonical content id (Instagram shortcode, YouTube video id)."
+                },
+                "date": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Published date, YYYY-MM-DD."
+                },
+                "plays": {
+                  "type": "integer"
+                },
+                "likes": {
+                  "type": "integer"
+                },
+                "comments": {
+                  "type": "integer"
+                },
+                "window": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Whether the post falls inside the research window."
+                },
+                "routes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": "The lanes that returned it, as route/intent#rank."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description",
+        "kind",
+        "market",
+        "audience",
+        "region",
+        "language"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "caption_phrases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The subject's own recurring caption wording: the content form to compare against."
+        },
+        "seed_caption": {
+          "type": "string",
+          "description": "Caption of the one video the run started from, when it started from a post."
+        },
+        "kind": {
+          "enum": [
+            "product",
+            "creator"
+          ],
+          "description": "Whether the subject sells something or makes content. The gate must switch its yardstick for category_fit accordingly: for a product subject, ask whether the account offers the same kind of supply; for a creator subject, ask whether it makes the same kind of content."
+        },
+        "market": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "audience": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "region": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

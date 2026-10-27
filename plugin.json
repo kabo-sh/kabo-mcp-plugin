@@ -1,0 +1,43 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "kabo",
+  "version": "1.0.0",
+  "description": "Public creator research with bundled workflows and Kabo MCP evidence.",
+  "author": {
+    "name": "Dealism",
+    "email": "support@kabo.sh",
+    "url": "https://kabo.sh"
+  },
+  "homepage": "https://kabo.sh",
+  "license": "MIT",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Kabo",
+        "shortDescription": "Research for video creators",
+        "longDescription": "Research public YouTube, Instagram and TikTok accounts, compare competitors, find content trends, and analyze videos. Turn the evidence into content ideas and text scripts, with sources, sample sizes and limitations. Public evidence cannot establish private reach, retention or revenue. Kabo does not publish posts or send messages.\n\nThe bundled workflows require a host with Python 3, workspace file access, and a way to save complete tool results or download evidence. Local video files also require ffmpeg and ffprobe. Connect your Kabo account through the host’s OAuth flow. Requests may use your existing Kabo allowance.",
+        "developerName": "Dealism",
+        "category": "Productivity",
+        "capabilities": [
+          "Research public creator accounts, competitors and trends",
+          "Analyze public videos and develop content ideas and text scripts",
+          "Read complete research reports with sources and limitations"
+        ],
+        "websiteURL": "https://kabo.sh",
+        "supportURL": "https://kabo.sh/support",
+        "privacyPolicyURL": "https://kabo.sh/privacy",
+        "termsOfServiceURL": "https://kabo.sh/terms",
+        "logo": "./assets/composer-icon.png",
+        "composerIcon": "./assets/composer-icon.png",
+        "defaultPrompt": [
+          "Use Kabo to research my channel and identify what to improve.",
+          "Find the strongest videos in my niche and explain the evidence.",
+          "Develop three video ideas from my creator research."
+        ]
+      },
+      "publication": {
+        "release_notes": "Kabo 1.0.0 bundles ten workflows for public creator research, video analysis, content ideas and text scripts, with Kabo MCP evidence and host-managed OAuth. Production acceptance and OpenAI review remain required before publication."
+      }
+    }
+  }
+}

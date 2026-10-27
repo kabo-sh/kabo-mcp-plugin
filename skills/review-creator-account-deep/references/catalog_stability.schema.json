@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CatalogStability",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "account",
+    "followers",
+    "view_n",
+    "median_views",
+    "median_views_per_follower",
+    "p10_views",
+    "p90_views",
+    "p90_over_p10",
+    "top10_share",
+    "hidden_likes_n",
+    "other_handle_n",
+    "span_days",
+    "monthly_count",
+    "formats",
+    "periods",
+    "rise_fade",
+    "readings"
+  ],
+  "properties": {
+    "schema_version": { "const": "catalog-stability.v1" },
+    "analysis_id": { "type": "string", "minLength": 1 },
+    "account": { "type": ["string", "null"] },
+    "followers": { "type": ["number", "null"] },
+    "view_n": { "type": "integer", "minimum": 0 },
+    "median_views": { "type": ["number", "null"] },
+    "median_views_per_follower": { "type": ["number", "null"] },
+    "p10_views": { "type": ["number", "null"] },
+    "p90_views": { "type": ["number", "null"] },
+    "p90_over_p10": { "type": ["number", "null"] },
+    "top10_share": { "type": ["number", "null"] },
+    "hidden_likes_n": { "type": "integer", "minimum": 0 },
+    "other_handle_n": { "type": "integer", "minimum": 0 },
+    "span_days": { "type": ["number", "null"] },
+    "monthly_count": { "type": ["number", "null"] },
+    "formats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["format", "n", "view_share", "median_views"],
+        "properties": {
+          "format": { "type": "string", "minLength": 1 },
+          "n": { "type": "integer", "minimum": 0 },
+          "view_share": { "type": ["number", "null"] },
+          "median_views": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "periods": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["earlier_n", "later_n"],
+      "properties": {
+        "earlier_n": { "type": "integer", "minimum": 0 },
+        "later_n": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "rise_fade": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "format",
+          "earlier_n",
+          "later_n",
+          "earlier_view_share",
+          "later_view_share",
+          "view_share_delta",
+          "status"
+        ],
+        "properties": {
+          "format": { "type": "string", "minLength": 1 },
+          "earlier_n": { "type": "integer", "minimum": 0 },
+          "later_n": { "type": "integer", "minimum": 0 },
+          "earlier_view_share": { "type": ["number", "null"] },
+          "later_view_share": { "type": ["number", "null"] },
+          "view_share_delta": { "type": ["number", "null"] },
+          "status": { "enum": ["rise", "fade", "stable", "thin", "unknown"] }
+        }
+      }
+    },
+    "readings": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

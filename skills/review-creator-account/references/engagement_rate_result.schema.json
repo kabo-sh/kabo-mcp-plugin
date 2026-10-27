@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://creator-ai.local/schemas/engagement-rate.v1.json",
+  "title": "EngagementRate V1",
+  "description": "Deterministic engagement-rate result for a public Instagram profile or supplied Instagram, TikTok, or YouTube average metrics.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "rule_version", "platform", "request_surface", "input_mode", "aggregation_method", "interaction_scope", "sample_size", "account", "metrics", "benchmark"],
+  "properties": {
+    "schema_version": {"const": "engagement-rate.v1", "description": "Output contract version."},
+    "rule_version": {"const": "engagement-rate-rules.v1", "description": "Deterministic formula and benchmark version."},
+    "platform": {"enum": ["instagram", "tiktok", "youtube"], "description": "Platform whose benchmark is applied."},
+    "request_surface": {"enum": ["instagram_profile", "platform_calculator", "cross_platform_calculator"], "description": "Product entry point represented by this result."},
+    "input_mode": {"enum": ["public_profile", "manual_averages"], "description": "Whether metrics came from public Connector data or user-supplied averages."},
+    "aggregation_method": {"enum": ["median", "average"], "description": "Statistic used for likes and comments before calculating the rate."},
+    "interaction_scope": {"const": ["likes", "comments"], "description": "Interactions included in both rate formulas."},
+    "sample_size": {"type": ["integer", "null"], "minimum": 1, "description": "Number of calculable posts for public-profile mode; null for pre-aggregated manual input."},
+    "account": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "followers"],
+      "properties": {
+        "handle": {"type": ["string", "null"], "description": "Resolved public handle when available."},
+        "followers": {"type": "number", "exclusiveMinimum": 0, "description": "Follower denominator."}
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["likes", "comments", "views", "follower_engagement_rate_percent", "view_engagement_rate_percent"],
+      "properties": {
+        "likes": {"type": "number", "minimum": 0, "description": "Median or average likes, as declared by aggregation_method."},
+        "comments": {"type": "number", "minimum": 0, "description": "Median or average comments, as declared by aggregation_method."},
+        "views": {"type": ["number", "null"], "minimum": 0, "description": "Average views when available; context only for Instagram public-profile mode."},
+        "follower_engagement_rate_percent": {"type": "number", "minimum": 0, "description": "(likes + comments) / followers * 100."},
+        "view_engagement_rate_percent": {"type": ["number", "null"], "minimum": 0, "description": "(likes + comments) / compatible views * 100 when views exist; null when the sample has no play or view count."}
+      }
+    },
+    "benchmark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basis", "tier", "rating", "label", "thresholds_percent", "matched_minimum_percent"],
+      "properties": {
+        "basis": {"enum": ["platform_wide_follower_bands", "instagram_follower_tier", "youtube_view_engagement_rate"], "description": "Benchmark family. YouTube grades the view rate only."},
+        "tier": {"type": ["string", "null"], "description": "Follower tier for public Instagram; null for broad manual bands and YouTube view bands."},
+        "rating": {"enum": ["exceptional", "strong", "solid", "below_typical", "high", "above_average", "average", "below_average", "low", "excellent", "good", "needs_work"], "description": "Machine-readable verdict. YouTube uses published view-rate labels."},
+        "label": {"type": "string", "minLength": 1, "description": "Short display label for the follower-rate verdict."},
+        "thresholds_percent": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minimum", "rating", "label"],
+            "properties": {
+              "minimum": {"type": "number", "minimum": 0, "description": "Inclusive lower bound in percent."},
+              "rating": {"type": "string", "minLength": 1, "description": "Rating at this bound."},
+              "label": {"type": "string", "minLength": 1, "description": "Display label at this bound."}
+            }
+          }
+        },
+        "matched_minimum_percent": {"type": ["number", "null"], "minimum": 0, "description": "Inclusive lower bound matched by this result, when the benchmark exposes one."}
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "description": "Optional caveats that must reach the short explanation. Omit when none apply.",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "sensitivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional alternate rates. Never replace the default metrics.",
+      "required": ["view_engagement_rate_excluding_highest_play_percent", "sample_size_excluding_highest_play"],
+      "properties": {
+        "view_engagement_rate_excluding_highest_play_percent": {"type": "number", "minimum": 0, "description": "Same formula after dropping one highest-play post. Sensitivity only."},
+        "sample_size_excluding_highest_play": {"type": "integer", "minimum": 1, "description": "Calculable posts remaining after that drop."}
+      }
+    }
+  }
+}

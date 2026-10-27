@@ -1,0 +1,641 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "video-analysis.v1",
+  "title": "VideoAnalysis",
+  "description": "Interpretation of one piece of content, anchored to a ContentEvidence object. Blocks carry different epistemic weight and a consumer must respect that: `deterministic` and `observations` may be used as fact, `hypotheses` may not, `unavailable_dimensions` says what was never seen, and `must_not_assume` lists inferences that are forbidden even though they look available. There is deliberately no separate downstream projection: an earlier draft carried one and roughly four fifths of it duplicated these blocks, which creates two sources for the same fact. Packaging output (title, hashtags, thumbnail) is absent by design; it belongs to create-script-and-packaging.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "subject_state",
+    "evidence_ref",
+    "content_ref",
+    "evidence_completeness",
+    "deterministic",
+    "observations",
+    "unavailable_dimensions",
+    "must_not_assume",
+    "limitations",
+    "reproducibility"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "video-analysis.v1"
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "subject_state": {
+      "enum": [
+        "own_unpublished",
+        "own_published",
+        "third_party",
+        "unknown"
+      ],
+      "description": "Carried from the request because it is the single thing a downstream consumer most needs to know: whether this analysis describes the creator's own content or somebody else's. A third-party analysis may only be borrowed from at the mechanism level and carries must-differ obligations. Unknown preserves undeclared ownership, permits public-only observations and carries no owner metrics, baseline or source revisions."
+    },
+    "request_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_ref": {
+      "type": "string",
+      "description": "evidence_id of the ContentEvidence this analysis is built on. Media facts are read from there, not restated here."
+    },
+    "content_ref": {
+      "type": "object",
+      "description": "Minimum identity so a human can tell what this file is about without opening the evidence.",
+      "required": [
+        "platform",
+        "content_id",
+        "permalink"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "platform": {
+          "type": "string"
+        },
+        "content_id": {
+          "type": "string"
+        },
+        "permalink": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence_completeness": {
+      "type": "object",
+      "description": "What the analysis could and could not see. A consumer must read this before trusting any dimension.",
+      "required": [
+        "media",
+        "transcript",
+        "frames",
+        "owner_metrics"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "media": {
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "transcript": {
+          "enum": [
+            "available",
+            "no_speech_detected",
+            "no_audio_track",
+            "no_platform_captions",
+            "provider_error",
+            "not_attempted"
+          ]
+        },
+        "frames": {
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "owner_metrics": {
+          "enum": [
+            "available",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "account_baseline": {
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "images": {
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        }
+      }
+    },
+    "deterministic": {
+      "type": "object",
+      "description": "Computed by rule, not by model: the same evidence and the same rule_version must yield the same verdict. Hook stage and sustain stage are reported separately because they were observed to rank the same two posts in opposite orders.",
+      "required": [
+        "rule_version",
+        "hook_stage",
+        "sustain_stage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "rule_version": {
+          "type": "string"
+        },
+        "cohort": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "format": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "maturity_days": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "is_mature": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "baseline_ref": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cohort_n": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        },
+        "hook_stage": {
+          "type": "object",
+          "required": [
+            "status",
+            "verdict"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "measured",
+                "unavailable"
+              ]
+            },
+            "metric": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "unit": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "baseline_value": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "verdict": {
+              "enum": [
+                "above_baseline",
+                "at_baseline",
+                "below_baseline",
+                "unassessed"
+              ]
+            },
+            "note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "sustain_stage": {
+          "type": "object",
+          "required": [
+            "status",
+            "measures",
+            "verdict"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "measured",
+                "unavailable"
+              ]
+            },
+            "measures": {
+              "type": "array",
+              "description": "More than one defensible derivation can exist for the same idea; all are reported and none is silently promoted. A measure that was already computed in the evidence object names it rather than restating its formula, so there is exactly one authority for how each number was produced.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "source",
+                  "value"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "enum": [
+                      "evidence_derived",
+                      "computed_here"
+                    ],
+                    "description": "evidence_derived means the formula, unit and denominator caveat live in ContentEvidence.derived and must be read from there."
+                  },
+                  "evidence_ref": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Name of the ContentEvidence.derived entry when source is evidence_derived."
+                  },
+                  "value": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "baseline_value": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "verdict": {
+              "enum": [
+                "above_baseline",
+                "at_baseline",
+                "below_baseline",
+                "unassessed"
+              ]
+            },
+            "note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "composite_score": {
+          "description": "Fixed to null. Hook and sustain were observed to diverge, so a single scalar would destroy the only actionable distinction.",
+          "const": null
+        }
+      }
+    },
+    "observations": {
+      "type": "array",
+      "description": "Model-produced statements, usable as fact. Every entry must name what it looked at.",
+      "items": {
+        "type": "object",
+        "required": [
+          "observation_id",
+          "dimension",
+          "statement",
+          "basis",
+          "evidence_refs",
+          "confidence"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "observation_id": {
+            "type": "string"
+          },
+          "dimension": {
+            "enum": [
+              "first_frame_promise",
+              "text_overlay",
+              "visual_hook",
+              "spoken_hook",
+              "structure",
+              "pacing",
+              "proof",
+              "payoff",
+              "cta",
+              "framing",
+              "delivery",
+              "audio",
+              "duration",
+              "audio_mix",
+              "text_placement",
+              "delivery_quality",
+              "performance"
+            ],
+            "$comment": "Kept identical to revisions[].target_dimension so an observation and the revision that answers it can be matched. `performance` covers statements about the metrics themselves rather than the content — an isolation run needed one and invented a value, and an earlier fixture had been forced to file a measured reach ratio as a hypothesis for want of it. `framing` covers where the camera is and whether the subject is inside the shot, which is distinct from `delivery` (how the person performs). One-frame-per-second sampling made runs of insert shots observable for the first time and four analyses independently invented a value for it; the precedent for adding rather than forcing a fit is `performance` above."
+          },
+          "t_start_s": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Only when the evidence itself carries time. A plain-text transcript cannot support a timestamp."
+          },
+          "t_end_s": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "statement": {
+            "type": "string"
+          },
+          "basis": {
+            "enum": [
+              "frame",
+              "transcript",
+              "caption",
+              "owner_metric",
+              "public_metric",
+              "media_probe",
+              "model_inference",
+              "audio_probe",
+              "image"
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "description": "Use this run's evidence identifiers: frame_id for frames, public_metrics.<exact native_name> or owner_metrics.<exact native_name> for metrics, and transcript.cue[i] for cues actually present. Preserve native_name verbatim, including dots; do not index metric arrays. Creator-view cards cite observations.<observation_id>.",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "confidence": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          }
+        }
+      }
+    },
+    "unavailable_dimensions": {
+      "type": "array",
+      "description": "Dimensions that could not be assessed, so that absence is visible rather than looking like a clean result.",
+      "items": {
+        "type": "object",
+        "required": [
+          "dimension",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "dimension": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "would_require": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "hypotheses": {
+      "type": "array",
+      "description": "NOT usable as fact. Unconfirmed explanations that go beyond what the evidence proves; a downstream consumer must not promote these into claims. Known evidence limits belong in limitations, and forbidden inferences in must_not_assume, rather than hypotheses.",
+      "items": {
+        "type": "object",
+        "required": [
+          "statement",
+          "confidence",
+          "would_be_confirmed_by"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "statement": {
+            "type": "string"
+          },
+          "supported_by": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contradicted_by": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sample_size": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "confidence": {
+            "enum": [
+              "medium",
+              "low"
+            ]
+          },
+          "would_be_confirmed_by": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "revisions": {
+      "type": "array",
+      "description": "Concrete changes the creator can act on. Required when subject_state is own_unpublished, because a draft review whose output is only description has not done its job (the product spec asks for specific rewrites here, and for improvements on published work). Optional for own_published, where a revision means 'do this differently next time'. Must be empty for unknown ownership. Conditional next-version mechanisms may be offered without asserting ownership or permission to modify this source. Must be empty for third_party: that video is not the creator's to change, and what carries over from it belongs in observations plus must_not_assume.",
+      "items": {
+        "type": "object",
+        "required": [
+          "revision_id",
+          "target_dimension",
+          "current_state",
+          "proposed_change",
+          "rationale",
+          "evidence_refs",
+          "priority"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "revision_id": {
+            "type": "string"
+          },
+          "target_dimension": {
+            "enum": [
+              "first_frame_promise",
+              "text_overlay",
+              "visual_hook",
+              "spoken_hook",
+              "structure",
+              "pacing",
+              "proof",
+              "payoff",
+              "cta",
+              "framing",
+              "delivery",
+              "audio",
+              "duration",
+              "audio_mix",
+              "text_placement",
+              "delivery_quality",
+              "performance"
+            ]
+          },
+          "current_state": {
+            "type": "string",
+            "description": "What the video does now, stated as an observation rather than a judgement."
+          },
+          "proposed_change": {
+            "type": "string",
+            "description": "Specific enough to act on without further interpretation."
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            },
+            "description": "Frames or metrics that show the current state. A revision with no evidence is an opinion."
+          },
+          "priority": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "fix_stage": {
+            "enum": [
+              "caption_only",
+              "edit",
+              "reshoot"
+            ],
+            "description": "How expensive the change is. Meaningful only for an unpublished draft, where whether something can still be fixed in the edit decides if it is worth raising at all."
+          }
+        }
+      }
+    },
+    "what_worked": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Plain-language wins, each restating something already established in deterministic or observations."
+    },
+    "what_did_not_work": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "edit_verdict": {
+      "type": "object",
+      "description": "Keep / recut / replace for the next edit, derived deterministically by compose_video_analysis.py from what_worked and revisions[].fix_stage so hosts read data instead of re-deriving it from prose: keep = what_worked; recut = proposed_change of every revision whose fix_stage is not reshoot (a revision without fix_stage counts as recut and is counted in unstaged_revisions); replace = proposed_change of every reshoot revision.",
+      "required": [
+        "keep",
+        "recut",
+        "replace",
+        "unstaged_revisions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "keep": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recut": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "replace": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unstaged_revisions": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "must_not_assume": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "description": "Inferences a consumer is not entitled to make from this analysis. Required, because the tempting wrong readings are specific to the evidence that was and was not collected."
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reproducibility": {
+      "type": "object",
+      "required": [
+        "run_id",
+        "generated_at",
+        "rule_version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rule_version": {
+          "type": "string"
+        },
+        "analyst_model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

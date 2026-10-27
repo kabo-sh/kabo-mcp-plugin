@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/competitor-research-request.v3.json",
+  "title": "CompetitorResearchRequestV3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "subject", "platforms", "locale", "formats", "discovery_mode", "competitor_refs"],
+  "allOf": [{"if": {"required": ["sampling"]}, "then": {"not": {"required": ["window"]}, "properties": {"discovery_mode": {"const": "provided"}}}, "else": {"required": ["window"]}}],
+  "properties": {
+    "schema_version": {"const": "competitor-research-request.v3"},
+    "request_id": {"type": "string", "minLength": 1},
+    "subject": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "description"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "market": {"type": ["string", "null"]},
+        "audience": {"type": ["string", "null"]},
+        "account_ref": {"type": ["string", "null"]}
+      }
+    },
+    "platforms": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"const": "tiktok"}},
+    "window": {"type": "object", "additionalProperties": false, "required": ["since", "until"], "properties": {"since": {"type": "string", "format": "date-time"}, "until": {"type": "string", "format": "date-time"}}},
+    "sampling": {"type": "object", "additionalProperties": false, "required": ["mode", "count", "as_of"], "properties": {"mode": {"const": "latest_per_account"}, "count": {"type": "integer", "minimum": 1, "maximum": 100}, "as_of": {"type": "string", "format": "date-time"}}},
+    "locale": {"type": "object", "additionalProperties": false, "required": ["region", "language"], "properties": {"region": {"type": ["string", "null"]}, "language": {"type": ["string", "null"]}}},
+    "formats": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "discovery_mode": {"enum": ["auto", "provided", "hybrid"]},
+    "competitor_refs": {"type": "array", "uniqueItems": true, "maxItems": 20, "items": {"type": "string", "minLength": 1}},
+    "creator_profile": {"type": ["object", "null"]}
+  }
+}

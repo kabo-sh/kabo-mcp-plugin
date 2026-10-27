@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://creator-ai.local/schemas/account-review-synthesis.v3.json",
+  "title": "AccountReviewSynthesis V3",
+  "description": "The single semantic model response for Account Review V3. Metrics are referenced by content_id and bound later by the composer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "snapshot_id", "analysis_id", "output_language", "status", "headline", "diagnosis", "what_works", "what_hurts", "recommendations", "profile", "data_gaps"],
+  "properties": {
+    "schema_version": {"const": "account-review-synthesis.v3", "description": "Synthesis contract version."},
+    "snapshot_id": {"type": "string", "minLength": 1, "description": "Snapshot used for synthesis."},
+    "analysis_id": {"type": "string", "minLength": 1, "description": "Deterministic analysis used for synthesis."},
+    "output_language": {"type": "string", "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$", "description": "BCP-47 tag of the Creator-facing language from the isolated task context (for example en, zh-CN, pt-BR). Write every semantic string in this language; quoted native titles and proper nouns keep their own script. Fixed report labels use the Simplified Chinese template for zh/zh-CN/zh-SG/zh-Hans (CN/SG), and otherwise the English template; delivery may translate unmapped fixed labels without rewriting the analysis."},
+    "status": {"enum": ["complete", "partial", "blocked"], "description": "Completion status based on available data and task coverage."},
+    "headline": {"type": "string", "minLength": 1, "maxLength": 80, "description": "Short Creator-facing editorial headline in natural output_language, rendered unchanged. A single cumulative public snapshot supports sample distributions and associations, not historical change or its causes. State the finding within that boundary in this field itself; a later data-gap sentence cannot repair a causal title or diagnosis. Claim historical growth or a cause only when the supplied input contains independent temporal or causal evidence."},
+    "diagnosis": {"type": "string", "minLength": 1, "description": "Single most important account diagnosis in natural output_language, rendered unchanged. A single cumulative public snapshot supports sample distributions and associations, not historical change or its causes. State the finding within that boundary in this field itself; a later data-gap sentence cannot repair a causal title or diagnosis. Claim historical growth or a cause only when the supplied input contains independent temporal or causal evidence."},
+    "what_works": {"type": "array", "description": "Semantic winning patterns selected from analyzed content.", "items": {"$ref": "#/$defs/pattern"}},
+    "what_hurts": {"type": "array", "description": "Semantic losing patterns selected from analyzed content.", "items": {"$ref": "#/$defs/pattern"}},
+    "recommendations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["continue", "stop", "test"],
+      "description": "Next-cycle continue, stop, and test actions.",
+      "properties": {
+        "continue": {"type": "array", "items": {"$ref": "#/$defs/action"}},
+        "stop": {"type": "array", "items": {"$ref": "#/$defs/action"}},
+        "test": {"type": "array", "items": {"$ref": "#/$defs/action"}}
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Slim stable profile values; identity and schema metadata are injected by the composer. Window-specific cadence and ranking observations are not profile fields.",
+      "properties": {
+        "markets": {"$ref": "creator_profile.schema.json#/properties/markets"},
+        "audience": {"$ref": "creator_profile.schema.json#/properties/audience"},
+        "positioning": {"$ref": "creator_profile.schema.json#/properties/positioning"},
+        "niche": {"$ref": "creator_profile.schema.json#/properties/niche"},
+        "content_profile": {"$ref": "creator_profile.schema.json#/properties/content_profile"},
+        "key_missing_info": {"$ref": "creator_profile.schema.json#/properties/key_missing_info"},
+        "extensions": {"$ref": "creator_profile.schema.json#/properties/extensions"}
+      }
+    },
+    "data_gaps": {"type": "array", "uniqueItems": true, "description": "Creator-facing missing-data limitations in natural output_language. Preserve which claim is unverified and why; a gap note does not authorize a stronger headline or diagnosis.", "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pattern", "explanation", "content_ids"],
+      "properties": {
+        "pattern": {"type": "string", "minLength": 1, "description": "Creator-facing report heading rendered unchanged. Name the pattern in natural creator language using output_language; express the analytical meaning in that language. Quoted native source titles and proper names keep their original wording in cited evidence."},
+        "explanation": {"type": "string", "minLength": 1, "description": "Creator-facing explanatory prose rendered unchanged, using natural output_language. Explain why this observed pattern matters without upgrading sample association to historical change or its cause."},
+        "content_ids": {"type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true, "description": "Copy IDs character for character from this run's synthesis_input.content; verify the associated title. Never reconstruct IDs from titles, URLs or memory.", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": {
+        "action": {"type": "string", "minLength": 1, "description": "Concrete Creator-facing action in natural output_language, rendered unchanged. Proposed tests are recommendations, not verified outcomes."},
+        "success_metric": {"type": "string", "minLength": 1, "description": "Optional measurable success criterion for a test, expressed in natural output_language without changing any supplied metric."}
+      }
+    }
+  }
+}

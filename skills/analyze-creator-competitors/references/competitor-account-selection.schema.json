@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/competitor-account-selection.v1.json",
+  "title": "CompetitorAccountSelectionV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "included_handles", "audit"],
+  "properties": {
+    "schema_version": {"const": "competitor-account-selection.v1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "included_handles": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "limitations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "Material account-selection limitations."
+    },
+    "audit": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["handle", "relationship", "eligible", "discovery_rank", "decision", "reason"],
+        "properties": {
+          "handle": {"type": "string", "minLength": 1},
+          "relationship": {"enum": ["direct", "adjacent", "media", "excluded"], "description": "Evidence Gate relationship; the finalizer never rewrites it."},
+          "eligible": {"type": "boolean"},
+          "discovery_rank": {"type": "integer", "minimum": 1},
+          "decision": {"enum": ["included", "excluded_by_eligibility", "not_selected_capacity", "not_selected_media_cap", "excluded_profile_unavailable"]},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

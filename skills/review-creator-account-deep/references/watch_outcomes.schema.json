@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WatchOutcomes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "connector_id",
+    "videos",
+    "watched_count",
+    "unwatched_count",
+    "empty_reason",
+    "dest_filename_pattern"
+  ],
+  "properties": {
+    "schema_version": { "const": "watch-outcomes.v1" },
+    "analysis_id": { "type": "string", "minLength": 1 },
+    "connector_id": { "const": "public-video-media" },
+    "videos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "content_id",
+          "url",
+          "role",
+          "format",
+          "watched",
+          "unwatched_reason",
+          "operations"
+        ],
+        "properties": {
+          "content_id": { "type": "string", "minLength": 1 },
+          "url": { "type": "string", "minLength": 1 },
+          "role": { "enum": ["named", "high", "low", "other_handle"] },
+          "format": { "type": "string", "minLength": 1 },
+          "watched": { "type": "boolean" },
+          "unwatched_reason": {
+            "type": ["string", "null"],
+            "enum": [
+              null,
+              "metadata_only",
+              "frames_and_transcript_missing",
+              "jobs_pending",
+              "jobs_failed",
+              "not_attempted"
+            ]
+          },
+          "operations": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "collect_public_metadata",
+              "fetch_transcript",
+              "extract_keyframes"
+            ],
+            "properties": {
+              "collect_public_metadata": { "$ref": "#/$defs/operation_outcome" },
+              "fetch_transcript": { "$ref": "#/$defs/operation_outcome" },
+              "extract_keyframes": { "$ref": "#/$defs/operation_outcome" }
+            }
+          }
+        }
+      }
+    },
+    "watched_count": { "type": "integer", "minimum": 0 },
+    "unwatched_count": { "type": "integer", "minimum": 0 },
+    "empty_reason": {
+      "type": ["string", "null"],
+      "enum": [null, "no_watchable_videos", "watch_set_empty"]
+    },
+    "dest_filename_pattern": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "operation_outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "envelope", "job_id"],
+      "properties": {
+        "status": {
+          "enum": ["available", "failed", "pending", "not_attempted"]
+        },
+        "envelope": { "type": ["string", "null"] },
+        "job_id": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

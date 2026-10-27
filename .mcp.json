@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kabo": {
+      "type": "http",
+      "url": "https://kabo.sh/mcp-pub"
+    }
+  }
+}

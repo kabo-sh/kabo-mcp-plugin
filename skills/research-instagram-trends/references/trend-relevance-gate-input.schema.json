@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/trend-relevance-gate-input.v1.json",
+  "title": "TrendRelevanceGateInputV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "platform", "subject", "items"],
+  "properties": {
+    "schema_version": {"const": "trend-relevance-gate-input.v1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "platform": {"enum": ["instagram", "youtube"]},
+    "subject": {
+      "type": "object", "additionalProperties": false, "required": ["niche", "region", "language"],
+      "properties": {
+        "niche": {"type": "string", "minLength": 1},
+        "region": {"type": ["string", "null"]},
+        "language": {"type": ["string", "null"]},
+        "anchor_handle": {"type": ["string", "null"]},
+        "anchor_mechanisms": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["content_key", "visible_text"],
+        "properties": {
+          "content_key": {"type": "string", "minLength": 1},
+          "creator_label": {"type": "string", "minLength": 1},
+          "visible_text": {"type": "string"},
+          "matched_queries": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    }
+  }
+}

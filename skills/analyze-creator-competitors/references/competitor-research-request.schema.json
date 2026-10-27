@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/competitor-research-request.v3.json",
+  "title": "CompetitorResearchRequestV3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "subject",
+    "platforms",
+    "window",
+    "locale",
+    "formats",
+    "discovery_mode",
+    "competitor_refs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "competitor-research-request.v3"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+      "kind": {
+        "enum": [
+          "product",
+          "creator"
+        ],
+        "description": "Whether the subject sells a product or makes content. This decides who counts as a competitor: for a product subject, competitors are the **same kind of supply** a buyer would compare prices against; for a creator subject, competitors are **peers making the same kind of content**. These are different questions, and one yardstick for both is always wrong for one of them: an educational account is a real competitor for a creator subject but only a commentator on the category for a product subject. Defaults to creator, because discovery was historically tuned for creators."
+      },
+      "market": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "audience": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "account_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "caption_phrases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Content-form phrases from the creator's own captions, supplemented by canonical YouTube video titles, copied verbatim: do not rewrite, translate or polish them. Caption and title samples qualify independently; merge and deduplicate their phrases while preserving the original caption phrases and their order. Do not substitute descriptions or transcripts for captions. Search terms must land on these original words; subject.description is a description of the creator, and search terms derived from it retrieve 'people described this way' rather than 'people making the same kind of content'. Include only phrases that name a content format; leave out calls to action and demonstratives."
+        },
+        "seed_content_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "\\S",
+          "description": "When the user starts account discovery from a public post, record its resolved canonical content_id. An empty string is invalid. The report must keep this starting point; the analysis window does not need to widen for it. Do not put the subject account in the comparison roster."
+        }
+      }
+    },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "instagram",
+          "youtube"
+        ]
+      }
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "since",
+        "until"
+      ],
+      "properties": {
+        "since": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "until": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "window_policy": {
+      "type": "string",
+      "enum": [
+        "recent_30d",
+        "user_named_span"
+      ],
+      "description": "How the primary competitor window was chosen. recent_30d is the default when omitted: last 30 days UTC. user_named_span is only for a span the user named. A research window is not an account-selection constraint."
+    },
+    "locale": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "region",
+        "language"
+      ],
+      "properties": {
+        "region": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "formats": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "discovery_mode": {
+      "enum": [
+        "auto",
+        "provided",
+        "hybrid"
+      ]
+    },
+    "competitor_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "creator_profile": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  }
+}

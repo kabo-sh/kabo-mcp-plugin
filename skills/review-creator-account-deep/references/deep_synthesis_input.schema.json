@@ -1,0 +1,285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DeepSynthesisInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "platform",
+    "user_question",
+    "watched",
+    "unwatched",
+    "watched_count",
+    "unwatched_count"
+  ],
+  "properties": {
+    "authoring_basis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_dir",
+        "projection_sha256",
+        "sources"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "deep-authoring-basis.v1"
+        },
+        "run_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projection_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "evidence",
+            "watch_set",
+            "account_analysis",
+            "stability"
+          ],
+          "properties": {
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            "watch_set": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            "account_analysis": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            "stability": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "hook_context": {"type": "object"},
+    "schema_version": { "const": "deep-synthesis-input.v1" },
+    "observation_contract": { "const": "point-observations.v1" },
+    "analysis_id": { "type": "string", "minLength": 1 },
+    "platform": { "type": "string", "minLength": 1 },
+    "baseline_availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_followers",
+        "follower_history",
+        "view_history"
+      ],
+      "properties": {
+        "current_followers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "value",
+            "source"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "available",
+                "not_carried"
+              ]
+            },
+            "value": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "source": {
+              "enum": [
+                "account_analysis.scope.followers",
+                null
+              ]
+            }
+          }
+        },
+        "follower_history": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "const": "not_carried"
+            }
+          }
+        },
+        "view_history": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "const": "not_carried"
+            }
+          }
+        }
+      }
+    },
+    "user_question": { "type": ["string", "null"] },
+    "watched": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "content_id",
+          "url",
+          "role",
+          "format",
+          "views",
+          "view_multiple",
+          "duration_s",
+          "title",
+          "opening_cues",
+          "later_cues",
+          "frame_seconds",
+          "transcript_origin",
+          "frames_origin"
+        ],
+        "properties": {
+          "content_id": { "type": "string", "minLength": 1 },
+          "url": { "type": "string", "minLength": 1 },
+          "role": { "enum": ["named", "high", "low", "other_handle"] },
+          "format": { "type": "string", "minLength": 1 },
+          "views": { "type": ["number", "null"] },
+          "view_multiple": { "type": ["number", "null"] },
+          "duration_s": { "type": ["number", "null"] },
+          "title": { "type": ["string", "null"] },
+          "metadata": {"type": "object", "additionalProperties": false, "properties": {"status": {"type": "string"}, "connector_status": {"type": ["string", "null"]}, "origin": {"type": ["string", "null"]}, "limitations": {"type": "array"}}},
+          "opening_cues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["start_s", "text"],
+              "properties": {
+                "start_s": { "type": "number" },
+                "end_s": { "type": ["number", "null"], "minimum": 0 },
+                "text": { "type": "string" }
+              }
+            }
+          },
+          "later_cues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["start_s", "text"],
+              "properties": {
+                "start_s": { "type": "number" },
+                "end_s": { "type": ["number", "null"], "minimum": 0 },
+                "text": { "type": "string" }
+              }
+            }
+          },
+          "frame_seconds": {
+            "type": "array",
+            "items": { "type": "number" }
+          },
+          "transcript_origin": {
+            "enum": [
+              "platform_captions",
+              "provider_transcript",
+              "speech_recognition",
+              null
+            ]
+          },
+          "frames_origin": {
+            "enum": ["extracted_frames", "model_observation", null]
+          }
+        }
+      }
+    },
+    "unwatched": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["content_id", "role", "reason"],
+        "properties": {
+          "content_id": { "type": "string", "minLength": 1 },
+          "role": { "enum": ["named", "high", "low", "other_handle"] },
+          "reason": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "watched_count": { "type": "integer", "minimum": 0 },
+    "unwatched_count": { "type": "integer", "minimum": 0 }
+  }
+}

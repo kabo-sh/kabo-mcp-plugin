@@ -1,0 +1,16 @@
+{
+  "type": "oauth",
+  "client": {
+    "mode": "dcr"
+  },
+  "resource": "https://kabo.sh/mcp-pub",
+  "baseScopes": [
+    "openid",
+    "email",
+    "offline_access"
+  ],
+  "defaultScopes": [
+    "data",
+    "video"
+  ]
+}

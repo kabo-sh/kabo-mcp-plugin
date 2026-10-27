@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/competitor-research-report.v3.json",
+  "title": "CompetitorResearchReportV3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_id", "request_id", "status", "scope", "coverage", "overview", "competitors", "top_content", "outliers", "patterns", "gaps", "data_gaps"],
+  "allOf": [{"if": {"properties": {"scope": {"required": ["sampling"]}}}, "then": {"properties": {"coverage": {"required": ["account_samples"]}}}, "else": {"properties": {"coverage": {"not": {"required": ["account_samples"]}}}}}],
+  "properties": {
+    "schema_version": {"const": "competitor-research-report.v3"},
+    "report_id": {"type": "string", "minLength": 1},
+    "request_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["complete", "partial", "blocked"]},
+    "scope": {"$ref": "#/$defs/scope"},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "overview": {"$ref": "#/$defs/overview"},
+    "competitors": {"type": "array", "maxItems": 5, "description": "Three to five representative accounts used in the concise product report when evidence permits. The complete eligible-account audit remains in competitor-account-selection.v1.", "items": {"$ref": "#/$defs/competitor"}},
+    "top_content": {"type": "array", "description": "Evidence cited by the report in reading order. This is not the complete analyzed inventory and is not required to sort by an incomparable raw metric.", "items": {"$ref": "#/$defs/topContent"}},
+    "outliers": {"type": "array", "items": {"$ref": "#/$defs/outlier"}},
+    "patterns": {"type": "array", "items": {"$ref": "#/$defs/pattern"}},
+    "gaps": {"type": "array", "items": {"$ref": "#/$defs/gap"}},
+    "data_gaps": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "accountSample": {
+      "type": "object", "additionalProperties": false,
+      "required": ["handle", "account_ref", "requested_count", "raw_count", "selected_count", "analyzed_count", "window", "reason"],
+      "properties": {
+        "handle": {"type": "string", "minLength": 1}, "account_ref": {"type": "string", "minLength": 1},
+        "requested_count": {"type": "integer", "minimum": 1, "maximum": 100}, "raw_count": {"type": ["integer", "null"], "minimum": 0},
+        "selected_count": {"type": "integer", "minimum": 0}, "analyzed_count": {"type": "integer", "minimum": 0},
+        "window": {"anyOf": [{"type": "object", "additionalProperties": false, "required": ["since", "until"], "properties": {"since": {"type": "string", "format": "date-time"}, "until": {"type": "string", "format": "date-time"}}}, {"type": "null"}]},
+        "reason": {"type": ["string", "null"]}
+      }
+    },
+    "scope": {
+      "type": "object", "additionalProperties": false,
+      "required": ["subject", "platforms", "window", "locale", "formats", "source_mode"],
+      "allOf": [{"if": {"not": {"required": ["sampling"]}}, "then": {"properties": {"window": {"type": "object"}}}}],
+      "properties": {
+        "subject": {"type": "object"},
+        "platforms": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"const": "tiktok"}},
+        "window": {"anyOf": [{"type": "object", "additionalProperties": false, "required": ["since", "until"], "properties": {"since": {"type": "string", "format": "date-time"}, "until": {"type": "string", "format": "date-time"}}}, {"type": "null"}]},
+        "sampling": {"type": "object", "additionalProperties": false, "required": ["mode", "count", "as_of"], "properties": {"mode": {"const": "latest_per_account"}, "count": {"type": "integer", "minimum": 1, "maximum": 100}, "as_of": {"type": "string", "format": "date-time"}}},
+        "locale": {"type": "object", "additionalProperties": false, "required": ["region", "language"], "properties": {"region": {"type": ["string", "null"]}, "language": {"type": ["string", "null"]}}},
+        "formats": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+        "source_mode": {"enum": ["public_connector", "provided_snapshot", "fixture"]}
+      }
+    },
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["raw_count", "eligible_count", "competitor_count", "coverage_complete"],
+      "properties": {
+        "raw_count": {"type": "integer", "minimum": 0},
+        "eligible_count": {"type": "integer", "minimum": 0, "description": "Analyzed in-window evidence rows belonging to the representative report accounts, not the number of top_content citations."},
+        "competitor_count": {"type": "integer", "minimum": 0},
+        "coverage_complete": {"type": "boolean"},
+        "account_samples": {"type": "array", "items": {"$ref": "#/$defs/accountSample"}}
+      }
+    },
+    "overview": {
+      "type": "object", "additionalProperties": false,
+      "required": ["title", "summary", "key_findings", "next_action"],
+      "properties": {
+        "title": {"type": "string", "minLength": 1, "maxLength": 80},
+        "summary": {"type": "string", "minLength": 1},
+        "key_findings": {"type": "array", "maxItems": 3, "items": {"type": "string", "minLength": 1}},
+        "next_action": {"type": "string", "minLength": 1}
+      }
+    },
+    "competitor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["account_ref", "handle", "url", "platform", "relationship", "sample_size", "summary"],
+      "properties": {
+        "account_ref": {"type": "string", "minLength": 1},
+        "handle": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "format": "uri"},
+        "platform": {"const": "tiktok"},
+        "relationship": {"enum": ["direct", "adjacent", "media"]},
+        "sample_size": {"type": "integer", "minimum": 1},
+        "summary": {"type": "string", "minLength": 1}
+      }
+    },
+    "metrics": {"type": "object", "additionalProperties": {"type": ["number", "null"]}},
+    "topContent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["rank", "content_id", "account_ref", "title", "url", "platform", "format", "published_at", "metrics"],
+      "properties": {
+        "rank": {"type": "integer", "minimum": 1, "description": "Contiguous report reading order, not a universal descending-view rank."},
+        "content_id": {"type": "string", "minLength": 1},
+        "account_ref": {"type": "string", "minLength": 1},
+        "title": {"type": "string"},
+        "url": {"type": "string", "format": "uri"},
+        "platform": {"const": "tiktok"},
+        "format": {"type": "string", "minLength": 1},
+        "format_confidence": {"type": "string", "minLength": 1},
+        "format_source": {"type": "string", "minLength": 1},
+        "published_at": {"type": "string", "format": "date-time"},
+        "metrics": {"$ref": "#/$defs/metrics"}
+      }
+    },
+    "baseline": {
+      "type": "object", "additionalProperties": false,
+      "required": ["value", "sample_size", "cohort"],
+      "properties": {"value": {"type": "number", "exclusiveMinimum": 0}, "sample_size": {"type": "integer", "minimum": 3}, "cohort": {"type": "string", "minLength": 1}}
+    },
+    "outlier": {
+      "type": "object", "additionalProperties": false,
+      "required": ["content_id", "account_ref", "format", "metric", "value", "baseline", "ratio", "evidence_strength"],
+      "properties": {
+        "content_id": {"type": "string", "minLength": 1},
+        "account_ref": {"type": "string", "minLength": 1},
+        "format": {"type": "string", "minLength": 1},
+        "format_confidence": {"type": "string", "minLength": 1},
+        "format_source": {"type": "string", "minLength": 1},
+        "metric": {"type": "string", "minLength": 1},
+        "value": {"type": "number", "minimum": 0},
+        "baseline": {"$ref": "#/$defs/baseline"},
+        "ratio": {"type": "number", "minimum": 0},
+        "evidence_strength": {"const": "reliable"}
+      }
+    },
+    "pattern": {
+      "type": "object", "additionalProperties": false,
+      "required": ["pattern", "mechanism", "account_refs", "content_refs", "audience_problem", "content_promise", "angle", "recommended_formats", "why_now", "creator_fit", "differentiation", "must_avoid", "proof_points"],
+      "properties": {
+        "pattern": {"type": "string", "minLength": 1},
+        "mechanism": {"type": "string", "minLength": 1},
+        "account_refs": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "content_refs": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "audience_problem": {"type": "string", "minLength": 1},
+        "content_promise": {"type": "string", "minLength": 1},
+        "angle": {"type": "string", "minLength": 1},
+        "recommended_formats": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "why_now": {"type": "string", "minLength": 1},
+        "creator_fit": {"type": "string", "minLength": 1},
+        "differentiation": {"type": "string", "minLength": 1},
+        "must_avoid": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "proof_points": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "gap": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "summary", "content_refs"],
+      "properties": {
+        "type": {"enum": ["positioning", "topic", "format", "audience_problem"]},
+        "summary": {"type": "string", "minLength": 1},
+        "content_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  }
+}

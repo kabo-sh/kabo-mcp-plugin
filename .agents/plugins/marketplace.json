@@ -1,0 +1,20 @@
+{
+  "name": "kabo-plugin-openai",
+  "interface": {
+    "displayName": "Kabo OpenAI Development"
+  },
+  "plugins": [
+    {
+      "name": "kabo",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

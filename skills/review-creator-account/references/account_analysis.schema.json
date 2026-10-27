@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://creator-ai.local/schemas/account-analysis.v3.json",
+  "title": "AccountAnalysis V3",
+  "description": "Deterministic reusable analysis for one normalized account snapshot.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "analysis_id", "snapshot_id", "platform", "source_mode", "rule_version", "scope", "coverage", "baselines", "rankings", "outliers", "pillar_performance", "funnel_signals", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": "account-analysis.v3", "description": "AccountAnalysis contract version."},
+    "analysis_id": {"type": "string", "minLength": 1, "description": "Deterministic identifier derived from snapshot and rule version."},
+    "snapshot_id": {"type": "string", "minLength": 1, "description": "Source snapshot identifier."},
+    "platform": {"type": "string", "minLength": 1, "description": "Source platform."},
+    "source_mode": {"type": "string", "minLength": 1, "description": "Public or owner source mode."},
+    "rule_version": {"type": "string", "minLength": 1, "description": "Deterministic formula version."},
+    "scope": {"type": "object", "description": "Account identity and observation window."},
+    "coverage": {"type": "object", "description": "Collected and usable content counts plus missing data."},
+    "baselines": {"type": "array", "description": "Comparable-format and maturity-controlled personal baselines.", "items": {"type": "object"}},
+    "rankings": {"type": "array", "description": "Content ranked by observed views with original metrics and URLs.", "items": {"type": "object"}},
+    "outliers": {"type": "array", "description": "Account-relative view multiples when the comparable cohort is sufficient.", "items": {"type": "object"}},
+    "pillar_performance": {"type": "array", "description": "Deterministic performance grouped by supplied semantic pillar labels.", "items": {"type": "object"}},
+    "funnel_signals": {"type": "array", "description": "Observable attention, interaction, and action signals without causal interpretation.", "items": {"type": "object"}},
+    "claim_boundary": {"type": "object", "description": "Claims supported or unsupported by this snapshot."}
+  }
+}

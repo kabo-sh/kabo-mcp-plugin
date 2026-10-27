@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "video-analysis-request.v1",
+  "title": "VideoAnalysisRequest",
+  "description": "The request that triggers analyze-content-video. It covers the three product-spec entry points as one envelope and declares capability needs, not providers: the Skill selects a workflow and the Connector Runtime resolves which connector and operation serves it. Acquisition parameters here map one-to-one onto real connector parameters; nothing describes an algorithm no registered connector implements.",
+  "type": "object",
+  "required": ["schema_version", "request_id", "source", "acquire", "budget", "failure_policy"],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "source": { "properties": { "subject_state": { "const": "unknown" } }, "required": ["subject_state"] } }, "required": ["source"] },
+      "then": { "properties": {
+        "source": { "required": ["owner_data"], "properties": { "acquisition": { "const": "public_url" }, "owner_data": { "const": null } } },
+        "acquire": { "properties": { "owner_metrics": { "const": "skip" } } },
+        "baseline": { "const": null }
+      } }
+    },
+    {
+      "if": { "properties": { "budget": { "properties": { "max_connector_calls": { "const": 0 } }, "required": ["max_connector_calls"] } }, "required": ["budget"] },
+      "then": { "properties": { "acquire": { "properties": {
+        "media": { "const": "skip" }, "transcript": { "const": "skip" },
+        "frames": { "const": "skip" }, "owner_metrics": { "const": "skip" }
+      } } } }
+    }
+  ],
+  "properties": {
+    "schema_version": { "const": "video-analysis-request.v1" },
+    "request_id": { "type": "string" },
+    "requested_at": { "type": ["string", "null"], "format": "date-time" },
+
+    "source": {
+      "type": "object",
+      "description": "Two orthogonal questions. `acquisition` says how the media is obtained and drives which connector operations apply. `subject_state` says whose content it is and at what stage, and drives what the analysis may conclude. They do not imply each other: an uploaded file may be the creator's own draft or somebody else's video the creator downloaded to study.",
+      "required": ["acquisition", "subject_state", "platform"],
+      "additionalProperties": false,
+      "properties": {
+        "acquisition": {
+          "enum": ["local_file", "public_url", "owner_connector"],
+          "description": "Where the media comes from, and therefore who reads it. local_file is read on this machine by this package's own scripts; public_url and owner_connector are read by connectors. The two paths never serve one request: they would be reading two different copies of the video."
+        },
+        "subject_state": {
+          "enum": ["own_unpublished", "own_published", "third_party", "unknown"],
+          "description": "Whose content this is and whether it is published. It cannot be inferred from the media or from the acquisition path: the same file may be the creator's unreleased draft or a competitor's post. For a public URL without an ownership statement, explicitly declare unknown and use public-only evidence; never infer own or third_party. Unknown permits neither owner data nor a baseline."
+        },
+        "platform": {
+          "enum": ["instagram", "youtube", "tiktok", "unknown"],
+          "description": "For an unpublished draft this is the intended platform; use `unknown` only when the creator genuinely has not decided."
+        },
+        "url": { "type": ["string", "null"], "format": "uri" },
+        "content_id": { "type": ["string", "null"] },
+        "file_ref": { "type": ["string", "null"], "description": "Absolute path to the media on the machine this Skill runs on. No connector reads it: the media capability runs server-side and cannot see this file under any name, so a local_file request is served by this package's own local scripts and must never spend a media-connector call on it. There is no workspace root. An earlier version of this description said the media connector accepted files under one, which was never true, and a real run spent six calls discovering that - every one rejected at request validation, none creating a job - before it could attempt anything else." },
+        "declared_format": { "type": ["string", "null"] },
+        "owner_data": {
+          "type": ["object", "null"],
+          "description": "Where owner metrics come from. Meaningful only when subject_state is own_published; owner metrics never exist for third-party content and do not exist yet for an unpublished draft.",
+          "additionalProperties": false,
+          "properties": {
+            "source_mode": { "enum": ["connector", "provided_export"] },
+            "account_ref": { "type": ["string", "null"] },
+            "export_ref": { "type": ["string", "null"] },
+            "snapshot_sha256": { "type": ["string", "null"] }
+          }
+        }
+      },
+      "allOf": [
+        { "$comment": "required alone only checks that a key is present, so each branch also pins the type: a null file_ref is not a file reference.",
+          "if": { "properties": { "acquisition": { "const": "local_file" } }, "required": ["acquisition"] },
+          "then": { "required": ["file_ref"], "properties": { "file_ref": { "type": "string", "minLength": 1 } } } },
+        { "if": { "properties": { "acquisition": { "const": "public_url" } }, "required": ["acquisition"] },
+          "then": { "required": ["url"], "properties": { "url": { "type": "string", "minLength": 1 } } } },
+        { "if": { "properties": { "acquisition": { "const": "owner_connector" } }, "required": ["acquisition"] },
+          "then": { "required": ["owner_data"], "properties": { "owner_data": { "type": "object" } } } },
+        { "if": { "properties": { "subject_state": { "const": "third_party" } }, "required": ["subject_state"] },
+          "then": { "properties": { "owner_data": { "const": null } } } },
+        { "if": { "properties": { "subject_state": { "const": "own_unpublished" } }, "required": ["subject_state"] },
+          "then": { "properties": { "owner_data": { "const": null } } } }
+      ]
+    },
+
+    "acquire": {
+      "type": "object",
+      "description": "Capability needs and how strictly each is required. 'required' makes a failure fatal, 'best_effort' records the failure state and continues, 'skip' spends nothing on it.",
+      "required": ["media", "transcript", "frames", "owner_metrics"],
+      "additionalProperties": false,
+      "properties": {
+        "media": { "enum": ["required", "best_effort", "skip"] },
+        "transcript": { "enum": ["required", "best_effort", "skip"] },
+        "transcript_language": {
+          "type": ["string", "null"],
+          "description": "Caption fetching is language-scoped and defaults to English. A language with no captions returns an empty transcript and a partial status rather than an error, so the caller should state it."
+        },
+        "frames": { "enum": ["required", "best_effort", "skip"] },
+        "frame_timestamps": {
+          "type": ["array", "null"],
+          "items": { "type": "number", "minimum": 0 },
+          "minItems": 1,
+          "maxItems": 24,
+          "description": "Explicit sampling seconds. Required for any hook-window or first-frame dimension, because the default evenly spaced selection places its first frame at duration/(n+1) and cannot reach the opening seconds. Mutually exclusive with frame_count."
+        },
+        "frame_count": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 12,
+          "description": "Evenly spaced sampling count. Mutually exclusive with frame_timestamps."
+        },
+        "owner_metrics": { "enum": ["required", "best_effort", "skip"] }
+      },
+      "not": { "required": ["frame_timestamps", "frame_count"] }
+    },
+
+    "baseline": {
+      "type": ["object", "null"],
+      "description": "Optional account context. Without it the deterministic verdicts can only be 'unassessed'; the analysis still runs.",
+      "additionalProperties": false,
+      "properties": {
+        "creator_profile_ref": { "type": ["string", "null"] },
+        "account_review_ref": { "type": ["string", "null"] },
+        "cohort_format": { "type": ["string", "null"] },
+        "maturity_days": { "type": ["integer", "null"] }
+      }
+    },
+
+    "budget": {
+      "type": "object",
+      "description": "Workflow-level ceiling. The Connector Runtime budgets a single call at a time, so per-call limits are passed straight through while the call count and any metered credits are governed here. This block is mandatory because a reviewed candidate was observed selecting accounts on its own and starting paid scraping seconds after receiving a token, with no confirmation step anywhere in its workflow.",
+      "required": ["max_connector_calls", "confirmed_by_user", "per_call"],
+      "additionalProperties": false,
+      "properties": {
+        "max_connector_calls": { "type": "integer", "minimum": 0,
+          "description": "Zero permits analysis of existing evidence only; every acquire capability must be skip." },
+        "max_provider_credits": { "type": ["integer", "null"], "minimum": 0, "description": "Only meaningful for metered providers." },
+        "confirmed_by_user": {
+          "type": "boolean",
+          "description": "Must be true before any billable call. A request may be built with false and held until the creator approves."
+        },
+        "per_call": {
+          "type": "object",
+          "description": "Passed verbatim into each connector request budget.",
+          "required": ["timeout_seconds", "max_response_bytes"],
+          "additionalProperties": false,
+          "properties": {
+            "timeout_seconds": { "type": "integer", "minimum": 1 },
+            "max_response_bytes": { "type": "integer", "minimum": 1024, "maximum": 50000000 }
+          }
+        }
+      }
+    },
+
+    "failure_policy": {
+      "type": "object",
+      "required": ["on_missing_capability"],
+      "additionalProperties": false,
+      "properties": {
+        "on_missing_capability": {
+          "enum": ["return_partial", "fail_closed"],
+          "description": "Whichever is chosen, a partial result must never be presented as complete."
+        },
+        "fatal_capabilities": {
+          "type": "array",
+          "items": { "enum": ["media", "transcript", "frames", "owner_metrics"] },
+          "description": "Capabilities whose absence aborts the request regardless of the policy above. Anything listed here should also be 'required' in acquire."
+        }
+      }
+    }
+  }
+}

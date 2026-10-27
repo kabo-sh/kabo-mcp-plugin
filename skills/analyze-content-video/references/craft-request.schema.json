@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "craft-request.v1",
+  "title": "CraftRequest",
+  "description": "What a craft-teardown run was asked to do, written before anything is retrieved. It exists because the two facts it carries stop being recoverable once the run is over: the creator's exact words, and whether a video was named at all. Reconstructed afterwards from what the run produced, 'was this supposed to read a video' is a guess - and a run that answered from the corpus when a video was sitting there unread looks identical to one that was never given a video.",
+  "type": "object",
+  "required": ["schema_version", "request_id", "question", "subject_named", "delivery_language"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "craft-request.v1" },
+    "request_id": { "type": "string", "minLength": 1 },
+    "requested_at": { "type": ["string", "null"], "format": "date-time" },
+
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The creator's own words, verbatim. Not a restatement, not a normalised topic label. A run that cannot quote what was asked has answered something adjacent to it."
+    },
+
+    "subject_named": {
+      "type": "boolean",
+      "description": "Whether the creator pointed at a specific video. False is a legitimate state - 'what should I buy first' names nothing - and it is a decision, not a gap: a run must not go and find a video to look at, because footage nobody asked about is not evidence about their question."
+    },
+
+    "subject": {
+      "type": ["object", "null"],
+      "description": "Null exactly when subject_named is false.",
+      "required": ["platform", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "platform": { "enum": ["youtube", "instagram", "tiktok", "other"] },
+        "url": { "type": "string", "minLength": 1 },
+        "whose": {
+          "enum": ["creator_own", "third_party", "unknown"],
+          "description": "A teardown of somebody else's video borrows mechanisms; it is not a repair order for a post that is already out."
+        }
+      }
+    },
+
+    "delivery_language": {
+      "type": "string",
+      "minLength": 2,
+      "description": "The language the creator wrote in, which the report is written in. A quoted video title stays in its original wording - it is evidence."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "subject_named": { "const": true } }, "required": ["subject_named"] },
+      "then": { "required": ["subject"], "properties": { "subject": { "type": "object" } } }
+    },
+    {
+      "if": { "properties": { "subject_named": { "const": false } }, "required": ["subject_named"] },
+      "then": { "required": ["subject"], "properties": { "subject": { "type": "null" } } }
+    }
+  ]
+}

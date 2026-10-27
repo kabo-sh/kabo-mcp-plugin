@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://creator-ai.local/schemas/idea-request.v3-candidate2.json",
+  "title": "IdeaRequestV3Candidate2",
+  "description": "Idea input after the Account/Trend/Competitor V3 upstream migration. Artifact lineage is separate from semantic context, and generation_basis records whether the user supplied an explicit topic or required external evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "request_id", "created_at", "task_intent", "source_mode",
+    "idea_count", "hook_option_count", "goal", "audience", "desired_audience_action",
+    "platform_targets", "language_targets", "upstream_sources", "idea_context",
+    "user_brief", "generation_basis", "production_constraints", "exclusions"
+  ],
+  "properties": {
+    "schema_version": {"const": "idea-request.v3-candidate2"},
+    "request_id": {"type": "string", "minLength": 1},
+    "report_language": {"type": "string", "minLength": 1, "description": "Report and interaction language tag; omitted only for legacy Chinese requests. Unsupported locales must be explicit, never silently substituted."},
+    "created_at": {"type": "string", "format": "date-time"},
+    "task_intent": {"enum": ["open_shortlist", "capacity_plan", "rework_content", "brief_only"]},
+    "source_mode": {"enum": ["evidence_rich", "context_only", "profile_video", "profile_only", "video_only", "brief_only"]},
+    "idea_count": {"type": "integer", "minimum": 1, "maximum": 10},
+    "hook_option_count": {"type": "integer", "minimum": 0, "maximum": 5},
+    "goal": {"$ref": "#/$defs/nullableInput"},
+    "audience": {"$ref": "#/$defs/nullableInput"},
+    "desired_audience_action": {"$ref": "#/$defs/nullableInput"},
+    "platform_targets": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "language_targets": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "upstream_sources": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/upstreamSourceRef"}},
+    "idea_context": {"$ref": "#/$defs/ideaContext"},
+    "user_brief": {
+      "type": "object", "additionalProperties": false, "required": ["status", "text"],
+      "properties": {"status": {"enum": ["absent", "provided"]}, "text": {"type": ["string", "null"]}},
+      "oneOf": [
+        {"properties": {"status": {"const": "absent"}, "text": {"type": "null"}}},
+        {"properties": {"status": {"const": "provided"}, "text": {"type": "string", "minLength": 1}}}
+      ]
+    },
+    "generation_basis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["direct_topic", "required_sources", "allow_brief_fallback"],
+      "properties": {
+        "direct_topic": {
+          "description": "A literal topic phrase supplied by the user, excluding handles, URLs, platform names, formats, and generic requests for ideas. Null when no explicit content topic was supplied.",
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "required_sources": {
+          "description": "Evidence classes the user explicitly asked the result to use.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"enum": ["creator", "account", "trend", "competitor", "video", "comments"]}
+        },
+        "allow_brief_fallback": {
+          "description": "True only when the user explicitly permits generation from direct_topic if a requested evidence class is unavailable.",
+          "type": "boolean"
+        },
+        "brief_fallback_quote": {
+          "description": "The span of user_brief.text in which the user gave that permission, copied verbatim. Supply it whenever allow_brief_fallback is true; the wording is the user's own, in whatever language they wrote, and it is accepted by being found in the brief rather than by how it is phrased.",
+          "type": ["string", "null"],
+          "minLength": 8
+        }
+      }
+    },
+    "production_constraints": {
+      "type": "object",
+      "required": ["status", "total_time_minutes", "time_per_item", "budget", "available_assets", "filming_mode", "editing_capacity", "publishing_cadence"],
+      "properties": {
+        "status": {"enum": ["absent", "partial", "confirmed"]},
+        "total_time_minutes": {"type": ["integer", "null"], "minimum": 1},
+        "time_per_item": {"type": ["string", "null"]},
+        "budget": {"type": ["string", "null"]},
+        "available_assets": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "filming_mode": {"type": ["string", "null"]},
+        "editing_capacity": {"type": ["string", "null"]},
+        "publishing_cadence": {"type": ["string", "null"]}
+      }
+    },
+    "exclusions": {
+      "type": "object", "additionalProperties": false, "required": ["topics", "claims", "formats", "assets"],
+      "properties": {
+        "topics": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "claims": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "formats": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "assets": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+      }
+    }
+  },
+  "$defs": {
+    "nullableInput": {
+      "type": "object", "additionalProperties": false, "required": ["status", "value"],
+      "properties": {"status": {"enum": ["missing", "hypothesis", "confirmed"]}, "value": {"type": ["string", "null"]}},
+      "oneOf": [
+        {"properties": {"status": {"const": "missing"}, "value": {"type": "null"}}},
+        {"properties": {"status": {"enum": ["hypothesis", "confirmed"]}, "value": {"type": "string", "minLength": 1}}}
+      ]
+    },
+    "upstreamSourceRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_type", "path", "artifact_id", "schema_version", "sha256"],
+      "properties": {
+        "source_type": {"enum": ["creator_profile", "account_review_report", "account_idea_context", "trend_report", "competitor_report", "video_analysis", "comment_context"]},
+        "path": {"type": "string", "minLength": 1},
+        "artifact_id": {"type": "string", "minLength": 1},
+        "schema_version": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "ideaContext": {
+      "type": "object", "additionalProperties": false, "required": ["creator", "trend", "competitor", "account"],
+      "properties": {
+        "creator": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/creatorContext"}]},
+        "trend": {"type": "array", "items": {"$ref": "#/$defs/trendPattern"}},
+        "competitor": {"type": "array", "items": {"$ref": "#/$defs/competitorPattern"}},
+        "account": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/accountContext"}]},
+        "comments": {"type": "object", "description": "Deterministic comment-idea-context.v1, recomputed from saved source envelopes by the validator."}
+      }
+    },
+    "creatorContext": {
+      "type": "object", "additionalProperties": false, "required": ["schema_version", "profile_id", "accounts"],
+      "properties": {
+        "schema_version": {"const": "creator-profile.v3"},
+        "profile_id": {"type": "string", "minLength": 1},
+        "accounts": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["platform", "handle"], "properties": {"platform": {"type": "string", "minLength": 1}, "handle": {"type": "string", "minLength": 1}}}},
+        "markets": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "audience": {"type": "object", "additionalProperties": false, "properties": {"summary": {"type": "string", "minLength": 1}, "needs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}},
+        "positioning": {"type": "string", "minLength": 1},
+        "content_profile": {"type": "object", "additionalProperties": false, "properties": {"pillars": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "formats": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "hooks": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "languages": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "caption_phrases": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}},
+        "key_missing_info": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "extensions": {"type": "object"}
+      }
+    },
+    "contextPattern": {
+      "type": "object",
+      "required": ["pattern", "mechanism", "audience_problem", "content_promise", "angle", "recommended_formats", "why_now", "creator_fit", "differentiation", "must_avoid", "proof_points"],
+      "properties": {
+        "pattern": {"type": "string", "minLength": 1}, "mechanism": {"type": "string", "minLength": 1}, "audience_problem": {"type": "string", "minLength": 1}, "content_promise": {"type": "string", "minLength": 1}, "angle": {"type": "string", "minLength": 1},
+        "recommended_formats": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "why_now": {"type": "string", "minLength": 1}, "creator_fit": {"type": "string", "minLength": 1}, "differentiation": {"type": "string", "minLength": 1}, "must_avoid": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "proof_points": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "trendPattern": {"allOf": [{"$ref": "#/$defs/contextPattern"}, {"type": "object", "properties": {"type": {"enum": ["topic", "hook", "format", "packaging", "audience_problem", "mixed"]}, "stage": {"enum": ["current_high_performance", "recurring_pattern", "rising", "falling"]}, "content_refs": {"type": "array", "items": {"type": "string"}}}}]},
+    "competitorPattern": {"allOf": [{"$ref": "#/$defs/contextPattern"}, {"type": "object", "required": ["gaps"], "properties": {"account_refs": {"type": "array", "items": {"type": "string"}}, "content_refs": {"type": "array", "items": {"type": "string"}}, "gaps": {"type": "array", "items": {"type": "string"}}}}]},
+    "accountContext": {
+      "type": "object", "additionalProperties": false, "required": ["platform", "window", "observed_at", "coverage", "baselines", "diagnosis", "what_works", "what_hurts", "recommendations", "data_gaps"],
+      "properties": {
+        "platform": {"type": "string", "minLength": 1}, "window": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": ["string", "null"]}, "end": {"type": ["string", "null"]}}}, "observed_at": {"type": "string", "minLength": 1}, "coverage": {"type": "object"}, "baselines": {"type": "array"}, "diagnosis": {"type": "string", "minLength": 1}, "what_works": {"type": "array"}, "what_hurts": {"type": "array"}, "recommendations": {"type": "object"}, "data_gaps": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+      }
+    }
+  }
+}

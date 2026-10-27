@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SourceBoundDeepAuthoring",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "output_language",
+    "headline",
+    "question_answer",
+    "seen_summary",
+    "repeated_strengths",
+    "repeated_drags",
+    "next_shoot",
+    "observations",
+    "other_limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "account-deep-authoring.v1"
+    },
+    "output_language": {
+      "enum": [
+        "zh-CN",
+        "en"
+      ]
+    },
+    "headline": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "description": "Single cumulative snapshots establish sample distributions and associations, not historical growth or causes. Preserve the standard report baseline/history limits; observed craft mechanisms remain candidate hypotheses unless supported by independent temporal/causal evidence."
+    },
+    "question_answer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Complete-sentence answer to the frozen original question. Catalog numbers must come from catalog_stability.json. Single cumulative snapshots establish sample distributions and associations, not historical growth or causes. Preserve the standard report baseline/history limits; observed craft mechanisms remain candidate hypotheses unless supported by independent temporal/causal evidence."
+    },
+    "seen_summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Which content_ids were watched and which were not. No craft claim."
+    },
+    "repeated_strengths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pattern",
+          "explanation",
+          "pins"
+        ],
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "minLength": 1
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "repeated_drags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pattern",
+          "explanation",
+          "pins"
+        ],
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "minLength": 1
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "next_shoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "keep",
+        "stop"
+      ],
+      "properties": {
+        "keep": {
+          "type": "string"
+        },
+        "stop": {
+          "type": "string"
+        },
+        "pins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "insight": {
+      "type": "string",
+      "description": "One takeaway that still helps after deleting view counts and format names."
+    },
+    "watch_diff": {
+      "type": "string",
+      "description": "Deprecated and no longer rendered: the report speaks to the creator, not about how this Skill reached its conclusions. Kept so a synthesis that still carries the field is accepted rather than rejected."
+    },
+    "practices": {
+      "type": "string",
+      "description": "Practice labels locked from watched videos only."
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Model-written display text in output_language. Required for non-English output; fill every used canonical key and all pin kinds. Blank seed values are not complete. Metric gap sentences must preserve not_carried input scope, not assert platform absence.",
+      "required": [
+        "format_labels",
+        "role_labels",
+        "pin_kind_labels",
+        "seconds_unit",
+        "metric_gap_labels"
+      ],
+      "properties": {
+        "format_labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "role_labels": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "high": {
+              "type": "string",
+              "minLength": 1
+            },
+            "low": {
+              "type": "string",
+              "minLength": 1
+            },
+            "named": {
+              "type": "string",
+              "minLength": 1
+            },
+            "other_handle": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "pin_kind_labels": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cue": {
+              "type": "string",
+              "minLength": 1
+            },
+            "frame": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "cue",
+            "frame"
+          ]
+        },
+        "seconds_unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metric_gap_labels": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "current_followers": {
+              "type": "string",
+              "minLength": 1
+            },
+            "follower_history": {
+              "type": "string",
+              "minLength": 1
+            },
+            "view_history": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "not_watched_reason_labels": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "metadata_only": {
+              "type": "string",
+              "minLength": 1
+            },
+            "frames_and_transcript_missing": {
+              "type": "string",
+              "minLength": 1
+            },
+            "jobs_pending": {
+              "type": "string",
+              "minLength": 1
+            },
+            "jobs_failed": {
+              "type": "string",
+              "minLength": 1
+            },
+            "not_attempted": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "observations": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "description"
+            ],
+            "properties": {
+              "description": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        ]
+      }
+    },
+    "other_limitations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

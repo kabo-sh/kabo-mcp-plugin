@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/competitor-discovery-gate.v3.json",
+  "title": "CompetitorDiscoveryGateV3",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "request_id", "items"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "competitor-discovery-gate.v3"},
+    "request_id": {"type": "string", "minLength": 1},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["handle", "semantic_scores"],
+        "properties": {
+          "handle": {"type": "string", "minLength": 1},
+          "semantic_scores": {
+            "type": "object", "additionalProperties": false,
+            "required": ["category_fit", "audience_job_fit", "sustained_focus", "locale_fit"],
+            "properties": {
+              "category_fit": {"type": "number", "minimum": 0, "maximum": 100},
+              "audience_job_fit": {"type": "number", "minimum": 0, "maximum": 100},
+              "sustained_focus": {"type": "number", "minimum": 0, "maximum": 100},
+              "locale_fit": {"type": "number", "minimum": 0, "maximum": 100}
+            }
+          }
+        }
+      }
+    }
+  }
+}

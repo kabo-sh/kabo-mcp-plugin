@@ -1,0 +1,8 @@
+node_modules/
+dist/
+artifacts/
+.env
+.env.*
+*.zip
+*.zip.sha256
+*.log

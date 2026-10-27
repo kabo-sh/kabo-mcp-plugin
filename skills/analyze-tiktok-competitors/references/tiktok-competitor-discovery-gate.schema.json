@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/tiktok-competitor-discovery-gate.v1.json",
+  "title": "TikTokCompetitorDiscoveryGateV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "items"],
+  "properties": {
+    "schema_version": {"const": "tiktok-competitor-discovery-gate.v1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "items": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["account_ref", "relationship", "category_fit", "audience_job_fit", "sustained_focus", "locale_fit"],
+        "properties": {
+          "account_ref": {"type": "string", "minLength": 1},
+          "relationship": {"enum": ["direct", "adjacent", "media", "excluded"]},
+          "category_fit": {"type": "integer", "minimum": 0, "maximum": 100},
+          "audience_job_fit": {"type": "integer", "minimum": 0, "maximum": 100},
+          "sustained_focus": {"type": "integer", "minimum": 0, "maximum": 100},
+          "locale_fit": {"type": "integer", "minimum": 0, "maximum": 100}
+        }
+      }
+    }
+  }
+}

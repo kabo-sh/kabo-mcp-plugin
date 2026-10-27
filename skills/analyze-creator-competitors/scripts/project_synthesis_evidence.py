@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+"""Project the evidence a competitor synthesis may cite, one compact row per analyzed item.
+
+The synthesis step needs, per included account, which analyzed items exist, what each one is
+about, and how it performed against its own account. Those facts are spread across the Analysis
+(evidence, outliers), the Snapshot (titles) and the eligibility and selection files. Without this
+projection the model queries them one `jq` at a time; measured 2026-09-17 on a YouTube run, six
+such queries before a single synthesis write.
+
+The citation allowlist here is the same rule the skill states: eligible direct, adjacent or media
+accounts that are also in `included_handles`, intersected with Snapshot items and `analysis.evidence`,
+plus the request's seed item when it is analyzed. Nothing is ranked or dropped semantically; rows are
+only ordered by the Analyzer's own `evidence_score`, then views.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+sys.dont_write_bytecode = True
+
+MAX_TITLE_CHARS = 100
+MAX_ROWS_PER_ACCOUNT = 12
+MIN_COMPARABLES = 5
+MIN_MULTIPLE = 1.5
+
+
+def load(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return value
+
+
+def canonical_token(value: str) -> str:
+    stripped = (value or "").strip().removeprefix("@")
+    if not stripped:
+        return ""
+    if re.fullmatch(r"UC[\w-]{22}", stripped):
+        return stripped
+    return stripped.casefold()
+
+
+def token_aliases(value: Any) -> set[str]:
+    token = canonical_token(str(value or ""))
+    if not token:
+        return set()
+    aliases = {token}
+    if ":" in token:
+        tail = canonical_token(token.split(":", 1)[1])
+        if tail:
+            aliases.add(tail)
+    return aliases
+
+
+def ref_tokens(values: Any) -> set[str]:
+    tokens: set[str] = set()
+    for value in values or []:
+        if isinstance(value, dict):
+            for key in ("account_ref", "handle", "creator_id"):
+                tokens.update(token_aliases(value.get(key)))
+        else:
+            tokens.update(token_aliases(value))
+    return tokens
+
+
+def short(text: Any) -> str:
+    flat = " ".join(str(text or "").split())
+    return flat if len(flat) <= MAX_TITLE_CHARS else flat[: MAX_TITLE_CHARS - 1] + "…"
+
+
+def number(value: Any) -> float | None:
+    if isinstance(value, dict):
+        value = value.get("value")
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def build(
+    analysis: dict[str, Any],
+    snapshot: dict[str, Any],
+    selection: dict[str, Any],
+    eligibility: dict[str, Any],
+    request: dict[str, Any] | None,
+) -> dict[str, Any]:
+    relationships = {
+        name: ref_tokens(eligibility.get(f"{name}_refs")) for name in ("direct", "adjacent", "media")
+    }
+    included = ref_tokens(selection.get("included_handles"))
+    creators = {
+        str(row.get("creator_id")): row
+        for row in snapshot.get("creators") or []
+        if isinstance(row, dict) and row.get("creator_id")
+    }
+    items = {
+        str(row.get("content_id")): row
+        for row in snapshot.get("items") or []
+        if isinstance(row, dict) and row.get("content_id")
+    }
+    evidence = {
+        str(row.get("content_id")): row
+        for row in analysis.get("evidence") or []
+        if isinstance(row, dict) and row.get("content_id")
+    }
+    outliers = {
+        str(row.get("content_id")): row
+        for row in analysis.get("account_outliers") or []
+        if isinstance(row, dict) and row.get("content_id")
+    }
+    subject = (request or {}).get("subject") if isinstance((request or {}).get("subject"), dict) else {}
+    seed_ref = str(subject.get("seed_content_ref") or "")
+
+    def account_of(creator_id: str) -> tuple[set[str], str | None]:
+        creator = creators.get(creator_id) or {}
+        tokens = token_aliases(creator_id) | token_aliases(creator.get("handle"))
+        return tokens, creator.get("handle")
+
+    accounts: dict[str, dict[str, Any]] = {}
+    allowlist: list[str] = []
+    seed_row: dict[str, Any] | None = None
+    for content_id, item in items.items():
+        if content_id not in evidence:
+            continue
+        creator_id = str(item.get("creator_id") or "")
+        tokens, handle = account_of(creator_id)
+        relationship = next((name for name, refs in relationships.items() if not refs.isdisjoint(tokens)), None)
+        outlier = outliers.get(content_id) or {}
+        multiple = number(outlier.get("account_median_multiple"))
+        comparables = outlier.get("comparable_n")
+        metrics = item.get("metrics") if isinstance(item.get("metrics"), dict) else {}
+        row = {
+            "content_id": content_id,
+            "title": short(item.get("title") or item.get("caption")),
+            "published_at": item.get("published_at"),
+            "format": item.get("format"),
+            "views": number(metrics.get("views")) if metrics else number(evidence[content_id].get("metrics", {}).get("views")),
+            "outlier_multiple": round(multiple, 2)
+            if multiple is not None and isinstance(comparables, int) and comparables >= MIN_COMPARABLES and multiple >= MIN_MULTIPLE
+            else None,
+            "evidence_score": outlier.get("evidence_score"),
+        }
+        eligible = relationship is not None and not included.isdisjoint(tokens)
+        if content_id == seed_ref:
+            seed_row = {**row, "account_ref": creator_id, "handle": handle}
+        if not eligible:
+            if content_id == seed_ref:
+                allowlist.append(content_id)
+            continue
+        allowlist.append(content_id)
+        account = accounts.setdefault(
+            creator_id,
+            {"account_ref": creator_id, "handle": handle, "relationship": relationship, "evidence": []},
+        )
+        account["evidence"].append(row)
+
+    rendered = []
+    for account in accounts.values():
+        rows = sorted(
+            account["evidence"],
+            key=lambda row: (row["evidence_score"] is None, -(row["evidence_score"] or 0), -(row["views"] or 0), row["content_id"]),
+        )
+        rendered.append({
+            **{key: account[key] for key in ("account_ref", "handle", "relationship")},
+            "evidence_count": len(rows),
+            "evidence": rows[:MAX_ROWS_PER_ACCOUNT],
+            **({"evidence_not_listed": len(rows) - MAX_ROWS_PER_ACCOUNT} if len(rows) > MAX_ROWS_PER_ACCOUNT else {}),
+        })
+    order = {"direct": 0, "adjacent": 1, "media": 2}
+    rendered.sort(key=lambda row: (order.get(row["relationship"], 3), -row["evidence_count"], str(row["handle"] or "")))
+    with_evidence = set().union(*(token_aliases(row["account_ref"]) | token_aliases(row["handle"]) for row in rendered)) if rendered else set()
+    without = [
+        handle for handle in selection.get("included_handles") or []
+        if token_aliases(handle).isdisjoint(with_evidence)
+    ]
+    return {
+        "schema_version": "competitor-synthesis-evidence.v1",
+        "accounts": rendered,
+        "included_without_evidence": without,
+        "seed_item": seed_row,
+        "citation_allowlist": sorted(set(allowlist)),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--analysis", type=Path, required=True)
+    parser.add_argument("--snapshot", type=Path, required=True)
+    parser.add_argument("--selection", type=Path, required=True)
+    parser.add_argument("--eligibility", type=Path, required=True)
+    parser.add_argument("--request", type=Path)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--print", action="store_true", help="also print the projection")
+    args = parser.parse_args()
+    try:
+        projection = build(
+            load(args.analysis),
+            load(args.snapshot),
+            load(args.selection),
+            load(args.eligibility),
+            load(args.request) if args.request else None,
+        )
+        text = json.dumps(projection, ensure_ascii=False, separators=(",", ":"))
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(projection, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps({"status": "ok", "accounts": len(projection["accounts"]), "citations": len(projection["citation_allowlist"]), "path": str(args.output)}))
+        if args.print:
+            print(text)
+        return 0
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
+        print(json.dumps({"status": "failed", "error": f"{type(error).__name__}: {error}"}, ensure_ascii=False))
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

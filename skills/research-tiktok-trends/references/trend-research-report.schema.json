@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/trend-research-report.v3.json",
+  "title": "TrendResearchReportV3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_id", "request_id", "status", "scope", "coverage", "overview", "top_content", "patterns", "emerging_creators", "data_gaps"],
+  "properties": {
+    "schema_version": {"const": "trend-research-report.v3"},
+    "report_id": {"type": "string", "minLength": 1},
+    "request_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["complete", "partial", "blocked"]},
+    "scope": {"$ref": "#/$defs/scope"},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "overview": {"$ref": "#/$defs/overview"},
+    "top_content": {"type": "array", "description": "Evidence cited by the concise report in reading order. It may be a representative subset of Analyzer-eligible content.", "items": {"$ref": "#/$defs/topContent"}},
+    "patterns": {"type": "array", "items": {"$ref": "#/$defs/pattern"}},
+    "emerging_creators": {"type": "array", "items": {"$ref": "#/$defs/emergingCreator"}},
+    "data_gaps": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "scope": {
+      "type": "object", "additionalProperties": false,
+      "required": ["niche", "platforms", "window", "locale", "formats", "source_mode", "snapshot_count"],
+      "properties": {
+        "niche": {"type": "string", "minLength": 1},
+        "platforms": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["instagram", "tiktok", "youtube"]}},
+        "window": {"type": "object", "additionalProperties": false, "required": ["since", "until"], "properties": {"since": {"type": "string", "format": "date-time"}, "until": {"type": "string", "format": "date-time"}}},
+        "locale": {"type": "object", "additionalProperties": false, "required": ["region", "language"], "properties": {"region": {"type": ["string", "null"]}, "language": {"type": ["string", "null"]}}},
+        "formats": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+        "source_mode": {"enum": ["public_connector", "provided_snapshot", "public_only", "fixture"]},
+        "snapshot_count": {"type": "integer", "minimum": 1}
+      }
+    },
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["raw_count", "eligible_count", "coverage_complete"],
+      "properties": {"raw_count": {"type": "integer", "minimum": 0}, "eligible_count": {"type": "integer", "minimum": 0, "description": "All Analyzer-eligible content in the request scope, not the number of top_content citations."}, "coverage_complete": {"type": "boolean"}}
+    },
+    "overview": {
+      "type": "object", "additionalProperties": false,
+      "required": ["title", "summary", "key_findings", "next_action"],
+      "properties": {
+        "title": {"type": "string", "minLength": 1, "maxLength": 80},
+        "summary": {"type": "string", "minLength": 1},
+        "key_findings": {"type": "array", "maxItems": 3, "items": {"type": "string", "minLength": 1}},
+        "next_action": {"type": "string", "minLength": 1}
+      }
+    },
+    "metrics": {
+      "type": "object", "additionalProperties": {"type": ["number", "null"]}
+    },
+    "baseline": {
+      "type": "object", "additionalProperties": false,
+      "required": ["metric", "value", "sample_size", "cohort"],
+      "properties": {
+        "metric": {"type": "string", "minLength": 1},
+        "value": {"type": "number", "minimum": 0},
+        "sample_size": {"type": "integer", "minimum": 5},
+        "cohort": {"type": "string", "minLength": 1}
+      }
+    },
+    "topContent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["rank", "content_id", "creator_ref", "title", "url", "platform", "format", "published_at", "metrics", "baseline", "outlier_multiple"],
+      "properties": {
+        "rank": {"type": "integer", "minimum": 1, "description": "Contiguous report reading order, not a requirement to reproduce every Analyzer rank."},
+        "content_id": {"type": "string", "minLength": 1},
+        "creator_ref": {"type": "string", "minLength": 1},
+        "title": {"type": "string"},
+        "url": {"type": "string", "format": "uri"},
+        "platform": {"enum": ["instagram", "tiktok", "youtube"]},
+        "format": {"type": "string", "minLength": 1},
+        "published_at": {"type": "string", "format": "date-time"},
+        "metrics": {"$ref": "#/$defs/metrics"},
+        "baseline": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/baseline"}]},
+        "outlier_multiple": {"type": ["number", "null"], "minimum": 0}
+      }
+    },
+    "pattern": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "pattern", "mechanism", "stage", "content_refs", "audience_problem", "content_promise", "angle", "recommended_formats", "why_now", "creator_fit", "differentiation", "must_avoid", "proof_points"],
+      "properties": {
+        "type": {"enum": ["topic", "hook", "format", "packaging", "audience_problem", "mixed"]},
+        "pattern": {"type": "string", "minLength": 1},
+        "mechanism": {"type": "string", "minLength": 1},
+        "stage": {"enum": ["current_high_performance", "recurring_pattern", "rising", "falling"]},
+        "content_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "audience_problem": {"type": "string", "minLength": 1},
+        "content_promise": {"type": "string", "minLength": 1},
+        "angle": {"type": "string", "minLength": 1},
+        "recommended_formats": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "why_now": {"type": "string", "minLength": 1},
+        "creator_fit": {"type": "string", "minLength": 1},
+        "differentiation": {"type": "string", "minLength": 1},
+        "must_avoid": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "proof_points": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "emergingCreator": {
+      "type": "object", "additionalProperties": false,
+      "required": ["creator_ref", "status", "summary", "content_refs"],
+      "properties": {
+        "creator_ref": {"type": "string", "minLength": 1},
+        "status": {"enum": ["small_account_outlier", "breakout_confirmed"]},
+        "summary": {"type": "string", "minLength": 1},
+        "content_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  }
+}

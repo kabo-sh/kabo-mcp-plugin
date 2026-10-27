@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://creator-ai.local/schemas/account-review-synthesis-input.v1.json",
+  "title": "AccountReviewSynthesisInput V1",
+  "description": "Compact deterministic view of AccountAnalysis for the single Account Review semantic synthesis.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "snapshot_id", "analysis_id", "platform", "source_mode", "scope", "coverage", "baselines", "content", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": "account-review-synthesis-input.v1"},
+    "snapshot_id": {"type": "string", "minLength": 1},
+    "analysis_id": {"type": "string", "minLength": 1},
+    "platform": {"type": "string", "minLength": 1},
+    "source_mode": {"type": "string", "minLength": 1},
+    "hook_context": {"type": "object"},
+    "scope": {"type": "object"},
+    "coverage": {"type": "object"},
+    "baselines": {"type": "array", "items": {"type": "object"}},
+    "content": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["content_id", "title", "published_at", "format", "metrics", "rank_by_views"],
+        "properties": {
+          "content_id": {"type": "string", "minLength": 1},
+          "title": {"type": "string", "minLength": 1},
+          "url": {"type": "string", "minLength": 1},
+          "published_at": {"type": "string", "minLength": 1},
+          "format": {"type": "string", "minLength": 1},
+          "format_confidence": {"type": "string", "minLength": 1},
+          "format_source": {"type": "string", "minLength": 1},
+          "metrics": {"type": "object", "additionalProperties": {"type": "number"}},
+          "duration_seconds": {"type": "number", "exclusiveMinimum": 0},
+          "rank_by_views": {"type": "integer", "minimum": 1},
+          "view_multiple_vs_format_median": {"type": "number"}
+        }
+      }
+    },
+    "pillar_performance": {"type": "array", "items": {"type": "object"}},
+    "funnel_signals": {"type": "array", "items": {"type": "object"}},
+    "claim_boundary": {"type": "object"}
+  }
+}

@@ -1,0 +1,120 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { packageFiles, checkPackage } from "./package-check.mjs";
+import { deterministicZip, validatePackage } from "./openai-plugin-package.mjs";
+
+const ids = ["analyze-content-video", "review-creator-account", "review-creator-account-deep", "create-script-and-packaging", "develop-content-ideas", "research-instagram-trends", "research-tiktok-trends", "research-youtube-trends", "analyze-creator-competitors", "analyze-tiktok-competitors"];
+
+async function installed(t) {
+  const temp = await mkdtemp(path.join(os.tmpdir(), "kabo-static-installed-"));
+  t.after(() => rm(temp, { recursive: true, force: true }));
+  const files = await packageFiles();
+  validatePackage(files);
+  const archive = path.join(temp, "kabo.zip");
+  await writeFile(archive, deterministicZip(files));
+  const root = path.join(temp, "installed");
+  execFileSync("unzip", ["-q", archive, "-d", root]);
+  return { temp, root, files };
+}
+
+test("十个固定 Skills 完整解包；根目录、宿主身份与唯一 MCP 一致", async t => {
+  const { root, files } = await installed(t);
+  const result = await checkPackage(root);
+  assert.equal(result.version, "1.0.0");
+  assert.equal(result.submissionReady, false);
+  const runtime = JSON.parse(await readFile(path.join(root, "runtime-contract.json")));
+  assert.deepEqual(runtime.skills, ids);
+  // 目录面已收敛到插件在用的工具：必需与可选两组恰好覆盖本仓钉住的 tools/list（契约不进包），不多不少。
+  const pinnedNames = JSON.parse(await readFile(new URL("../contracts/directory-mcp/tools-list.json", import.meta.url))).tools.map(tool => tool.name).sort();
+  assert.equal(pinnedNames.length, 46);
+  assert.deepEqual([...runtime.requiredTools, ...runtime.optionalTools].sort(), pinnedNames);
+  assert.ok(runtime.optionalTools.includes("public_video_measure_media_signals"));
+  assert.equal(files.some(file => /^(plugin|bin|hooks)\//.test(file.name)), false);
+  for (const id of ids) assert.ok((await readFile(path.join(root, "skills", id, "SKILL.md"))).length);
+  assert.deepEqual(deterministicZip(files), deterministicZip([...files].reverse()));
+  await mkdir(path.join(root, "hooks"));
+  await writeFile(path.join(root, "hooks/hooks.json"), "{}");
+  await assert.rejects(checkPackage(root), /过滤器/);
+});
+
+// 两个宿主各读自己的市场清单，都只列仓库根这一个 kabo；Codex 市场名已被用户本机安装引用，改名会让已装条目找不到来源。
+test("Claude Code 与 Codex 市场清单都指向仓库根的同一个 kabo，且不进安装包", async () => {
+  const json = async name => JSON.parse(await readFile(new URL(`../${name}`, import.meta.url)));
+  const manifest = await json("plugin.json");
+  const claude = await json(".claude-plugin/marketplace.json");
+  const codex = await json(".agents/plugins/marketplace.json");
+  assert.equal(claude.name, "kabo-mcp-plugin");
+  assert.equal(codex.name, "kabo-plugin-openai");
+  assert.deepEqual(claude.plugins.map(entry => [entry.name, entry.source]), [[manifest.name, "./"]]);
+  assert.deepEqual(codex.plugins.map(entry => [entry.name, entry.source]), [[manifest.name, { source: "local", path: "./" }]]);
+  // 版本只认 plugin.json；条目再写一份会与之漂移（Claude Code 以 plugin.json 为准并告警）。
+  assert.equal("version" in claude.plugins[0], false);
+  assert.equal((await packageFiles()).some(file => file.name.endsWith("marketplace.json")), false);
+});
+
+// 现行品牌只有 K Fold 一张图标；旧三角形标志已退出，两个宿主的清单都指向同一文件。
+test("插件图标只有 composer-icon.png，两份清单都指向它", async () => {
+  const json = async name => JSON.parse(await readFile(new URL(`../${name}`, import.meta.url)));
+  const ui = (await json("plugin.json")).extensions["com.openai"].interface;
+  assert.equal(ui.logo, "./assets/composer-icon.png");
+  assert.equal(ui.composerIcon, "./assets/composer-icon.png");
+  assert.equal((await json(".claude-plugin/plugin.json")).icon, "./assets/composer-icon.png");
+  assert.deepEqual((await packageFiles()).filter(file => file.name.startsWith("assets/")).map(file => file.name), ["assets/composer-icon.png"]);
+  const original = await packageFiles();
+  const broken = original.map(file => file.name === ".claude-plugin/plugin.json"
+    ? { ...file, bytes: Buffer.from(JSON.stringify({ ...JSON.parse(file.bytes), icon: "./assets/logo.png" })) } : file);
+  assert.throws(() => validatePackage(broken), /图标/);
+});
+
+test("MIT 许可随包分发，两份清单声明一致", async () => {
+  const original = await packageFiles();
+  assert.ok(original.some(file => file.name === "LICENSE"));
+  const mismatched = original.map(file => file.name === ".claude-plugin/plugin.json"
+    ? { ...file, bytes: Buffer.from(JSON.stringify({ ...JSON.parse(file.bytes), license: "Apache-2.0" })) } : file);
+  assert.throws(() => validatePackage(mismatched), /同一插件身份/);
+});
+
+test("固定 Skills 可在本仓直接修改；缺正文、未记录目录和错误工具绑定仍被拒绝", async () => {
+  const original = await packageFiles();
+  const filename = "skills/review-creator-account/scripts/drive.py";
+  const changed = original.map(file => file.name === filename ? { ...file, bytes: Buffer.from("print('changed')") } : file);
+  validatePackage(changed);
+  validatePackage(original.filter(file => file.name !== "skills/review-creator-account/manifest.json"));
+  assert.throws(() => validatePackage(original.filter(file => file.name !== "skills/review-creator-account/SKILL.md")), /入口缺失|正文/);
+  assert.throws(() => validatePackage([...original, { name: "skills/extra-skill/SKILL.md", bytes: Buffer.from("---\nname: extra-skill\ndescription: x\n---\nbody\n"), mode: 0o100644 }]), /未记录/);
+  // Skill 已按规范删除绑定表；包内再出现与公开契约不一致的绑定表仍须拒绝。
+  const bindings = "skills/review-creator-account/references/mcp-bindings.json";
+  assert.throws(() => validatePackage([...original.filter(file => file.name !== bindings), { name: bindings, bytes: Buffer.from("{}"), mode: 0o100644 }]), /公开工具契约/);
+  for (const edit of [
+    data => { data.execution = "agent-service"; },
+    data => { data.requiredTools.push("not_a_pinned_tool"); },
+    data => { data.connectorTools["youtube-public/get_channel"] = "youtube_get_video"; },
+    data => { data.skills.pop(); },
+  ]) {
+    const changed = original.map(file => {
+      if (file.name !== "runtime-contract.json") return file;
+      const value = JSON.parse(file.bytes); edit(value);
+      return { ...file, bytes: Buffer.from(JSON.stringify(value)) };
+    });
+    assert.throws(() => validatePackage(changed));
+  }
+});
+
+test("实际 ZIP 中的驱动不下载程序，显式交接公开工具；deep 不再查找其他 Skill", async t => {
+  const { root, temp } = await installed(t);
+  const scripts = path.join(root, "skills/review-creator-account/scripts");
+  const run = execFileSync("python3", [path.join(scripts, "static_host.py"), "init", "--workspace", temp], { encoding: "utf8" }).trim();
+  const output = execFileSync("python3", [path.join(scripts, "drive.py"), "fetch", "--platform", "youtube", "--handle", "@fixture", "--question-file", "-"], {
+    encoding: "utf8", cwd: run, env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1", KABO_STATIC_RUN_DIR: run }, input: "Review public YouTube account @fixture.",
+  });
+  const calls = output.split("\n").filter(line => line.startsWith("call: ")).map(line => JSON.parse(line.slice(6)));
+  assert.ok(calls.length > 0);
+  // 交接的数据调用带 delivery:"download"：完整数据由 static_host.py fetch 下载校验。
+  assert.ok(calls.every(call => call.tool.startsWith("youtube_") && Object.keys(call.arguments).join() === "parameters,delivery" && call.arguments.delivery === "download"));
+  // deep 原先在宿主 skill 缓存里找视频 skill（KS4.2 / KS7.1），该脚本已删除。
+  await assert.rejects(readFile(path.join(root, "skills/review-creator-account-deep/scripts/resolve_video_skill.py")));
+});

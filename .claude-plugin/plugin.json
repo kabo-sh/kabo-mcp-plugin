@@ -1,0 +1,14 @@
+{
+  "name": "kabo",
+  "version": "1.0.0",
+  "description": "Public creator research with bundled workflows and Kabo MCP evidence.",
+  "author": {
+    "name": "Dealism",
+    "email": "support@kabo.sh",
+    "url": "https://kabo.sh"
+  },
+  "homepage": "https://kabo.sh",
+  "license": "MIT",
+  "privacyPolicyUrl": "https://kabo.sh/privacy",
+  "icon": "./assets/composer-icon.png"
+}

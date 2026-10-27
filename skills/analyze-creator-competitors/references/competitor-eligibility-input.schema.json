@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/competitor-eligibility-input.v1.json",
+  "title": "CompetitorEligibilityInputV1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "request_id", "subject", "profiles"],
+  "properties": {
+    "schema_version": {"const": "competitor-eligibility-input.v1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "subject": {"$ref": "#/$defs/subject"},
+    "profiles": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false, "required": ["handle", "display_name", "description", "category", "external_url", "visible_content"],
+      "properties": {
+        "handle": {"type": "string", "minLength": 1},
+        "display_name": {"type": ["string", "null"]}, "description": {"type": ["string", "null"]},
+        "category": {"type": ["string", "null"]}, "external_url": {"type": ["string", "null"]},
+        "visible_content": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    }}
+  },
+  "$defs": {"subject": {
+    "type": "object", "additionalProperties": false,
+    "required": ["name", "description", "kind", "market", "audience", "region", "language"],
+    "properties": {
+      "name": {"type": "string"}, "description": {"type": "string"},
+      "kind": {
+        "enum": ["product", "creator"],
+        "description": "Eligibility uses the same subject axis as discovery: on a product question the account of the platform or channel the product runs on is not a purchase alternative and is classified as media."
+      },
+      "market": {"type": ["string", "null"]}, "audience": {"type": ["string", "null"]},
+      "region": {"type": ["string", "null"]}, "language": {"type": ["string", "null"]}
+    }
+  }}
+}

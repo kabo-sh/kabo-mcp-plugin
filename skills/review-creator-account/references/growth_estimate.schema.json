@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://creator-ai.local/schemas/growth_estimate.schema.json",
+  "title": "Growth estimate",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "scope",
+    "mode",
+    "horizon_days",
+    "coverage",
+    "estimate",
+    "required_inputs",
+    "assumptions",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "growth-estimate.v1"
+    },
+    "status": {
+      "enum": [
+        "computed",
+        "needs_input"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "platform",
+        "account",
+        "metric",
+        "semantics"
+      ]
+    },
+    "mode": {
+      "enum": [
+        "observed_pace",
+        "assumed_pace",
+        "content_scenario"
+      ]
+    },
+    "horizon_days": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "coverage": {
+      "type": "object"
+    },
+    "estimate": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "required_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "basis": {
+      "type": "object"
+    },
+    "cohort": {
+      "type": "object"
+    },
+    "observations": {
+      "type": "array"
+    },
+    "samples": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "content_scenario"
+          },
+          "status": {
+            "const": "computed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "estimate": {
+            "type": "object",
+            "required": [
+              "value",
+              "formula",
+              "measurement",
+              "time_basis"
+            ],
+            "properties": {
+              "time_basis": {
+                "type": "object",
+                "required": [
+                  "publication_window_days",
+                  "content_age_days",
+                  "deadline_total",
+                  "deadline_comparison_to_scenario",
+                  "required_evidence"
+                ],
+                "properties": {
+                  "publication_window_days": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "content_age_days": {
+                    "type": "object",
+                    "required": [
+                      "min",
+                      "max",
+                      "median"
+                    ],
+                    "properties": {
+                      "min": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "max": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "median": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "deadline_total": {
+                    "const": "not_identified"
+                  },
+                  "deadline_comparison_to_scenario": {
+                    "enum": [
+                      "not_identified",
+                      "lower"
+                    ]
+                  },
+                  "required_evidence": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

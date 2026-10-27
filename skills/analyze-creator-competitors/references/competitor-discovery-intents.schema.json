@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/competitor-discovery-intents.v1.json",
+  "title": "CompetitorDiscoveryIntentsV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "platform",
+    "intents"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "competitor-discovery-intents.v1"
+    },
+    "platform": {
+      "const": "instagram"
+    },
+    "content_language": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 16,
+      "description": "The language the accounts being searched for publish in (an ISO 639-1 code) — the «local» language of the subject's audience, never the report's locale.language. The candidate collector searches in it. Write it on every plan."
+    },
+    "market_tokens": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1},
+      "description": "Optional. The compact market word(s), in the market's own spelling, that this plan wrote into both local lanes because the Request names a market. Profile search strips exactly these words."
+    },
+    "intents": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "intent_id",
+          "search_query",
+          "popular_topic"
+        ],
+        "properties": {
+          "intent_id": {
+            "enum": [
+              "local_category",
+              "local_workflow",
+              "english_category",
+              "english_workflow"
+            ]
+          },
+          "search_query": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 240
+          },
+          "popular_topic": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        }
+      }
+    }
+  }
+}

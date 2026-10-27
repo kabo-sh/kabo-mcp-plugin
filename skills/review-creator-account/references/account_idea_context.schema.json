@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kabo.sh/schemas/account-idea-context.v1.json",
+  "title": "AccountIdeaContext",
+  "description": "Compact deterministic context projected from one validated AccountReviewReport V3 for optional downstream Idea use.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["account"],
+  "properties": {
+    "account": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "window", "observed_at", "coverage", "baselines", "diagnosis", "what_works", "what_hurts", "recommendations", "data_gaps"],
+      "properties": {
+        "platform": {"type": "string", "minLength": 1},
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": {"type": ["string", "null"]},
+            "end": {"type": ["string", "null"]}
+          }
+        },
+        "observed_at": {"type": "string", "minLength": 1},
+        "coverage": {"$ref": "#/$defs/coverage"},
+        "baselines": {"type": "array", "items": {"$ref": "#/$defs/baseline"}},
+        "diagnosis": {"type": "string", "minLength": 1},
+        "what_works": {"type": "array", "items": {"$ref": "#/$defs/pattern"}},
+        "what_hurts": {"type": "array", "items": {"$ref": "#/$defs/pattern"}},
+        "recommendations": {"$ref": "#/$defs/recommendations"},
+        "data_gaps": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  },
+  "$defs": {
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content_total", "formats", "metric_available_counts"],
+      "properties": {
+        "content_total": {"type": "integer", "minimum": 0},
+        "formats": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "metric_available_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "format_classification": {"$ref": "#/$defs/format_classification"}
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "maturity_days", "sample_size", "metrics"],
+      "properties": {
+        "format": {"type": "string"},
+        "maturity_days": {"type": "integer", "minimum": 1},
+        "sample_size": {"type": "integer", "minimum": 0},
+        "metrics": {"type": "object", "additionalProperties": {"$ref": "#/$defs/metric_summary"}},
+        "format_classification": {"$ref": "#/$defs/format_classification"}
+      }
+    },
+    "format_classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confidence_counts", "source_counts"],
+      "properties": {
+        "confidence_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "source_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+      }
+    },
+    "metric_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available_n", "median", "mean"],
+      "properties": {
+        "available_n": {"type": "integer", "minimum": 0},
+        "median": {"type": ["number", "null"]},
+        "mean": {"type": ["number", "null"]}
+      }
+    },
+    "pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pattern", "explanation", "performance_signals"],
+      "properties": {
+        "pattern": {"type": "string", "minLength": 1},
+        "explanation": {"type": "string", "minLength": 1},
+        "performance_signals": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/performance_signal"}}
+      }
+    },
+    "performance_signal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "metrics", "view_multiple_vs_format_median"],
+      "properties": {
+        "format": {"type": "string", "minLength": 1},
+        "format_confidence": {"type": "string", "minLength": 1},
+        "format_source": {"type": "string", "minLength": 1},
+        "metrics": {"type": "object", "additionalProperties": {"type": "number"}},
+        "view_multiple_vs_format_median": {"type": ["number", "null"]}
+      }
+    },
+    "recommendations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["continue", "stop", "test"],
+      "properties": {
+        "continue": {"type": "array", "items": {"$ref": "#/$defs/action"}},
+        "stop": {"type": "array", "items": {"$ref": "#/$defs/action"}},
+        "test": {"type": "array", "items": {"$ref": "#/$defs/action"}}
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": {
+        "action": {"type": "string", "minLength": 1},
+        "success_metric": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

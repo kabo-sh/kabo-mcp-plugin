@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "kabo": {
+      "type": "streamable-http",
+      "url": "https://kabo.sh/mcp-pub"
+    }
+  }
+}

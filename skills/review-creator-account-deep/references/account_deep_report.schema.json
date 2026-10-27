@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AccountDeepReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "output_language",
+    "headline",
+    "markdown"
+  ],
+  "properties": {
+    "schema_version": { "const": "account-deep-report.v1" },
+    "analysis_id": { "type": "string", "minLength": 1 },
+    "output_language": { "enum": ["zh-CN", "en"] },
+    "headline": { "type": "string", "minLength": 1 },
+    "markdown": { "type": "string", "minLength": 1 }
+  }
+}
