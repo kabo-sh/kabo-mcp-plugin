@@ -11,60 +11,90 @@ packaged as `kabo-1.0.1.zip`. Version 1.0.0 reset the public release numbering w
 implementation. Earlier version history and source Skill versions remain separate. OpenAI marketplace
 review and production acceptance remain separate from this GitHub release.
 
-## Repository layout
+## Choose your installation
 
-```text
-plugin.json                     # Portable manifest for Codex / Cursor
-mcp.json                        # Production MCP connection
-.claude-plugin/plugin.json       # Claude Code metadata
-.claude-plugin/marketplace.json  # Claude Code marketplace (not included in the ZIP)
-.agents/plugins/marketplace.json # Codex marketplace (not included in the ZIP)
-.mcp.json                       # Claude Code HTTP MCP configuration
-skills/                         # Ten complete Skills and their resources
-skills.lock.json                # Original Skill source and versions
-runtime-contract.json           # Fixed tool and Skill inventory
-CHANGELOG.md                    # Version history (Chinese)
-```
+| Your setup | Install |
+| --- | --- |
+| You already connected Kabo MCP in your AI host | [Skills only](#skills-only-skills-cli): add the ten workflows and keep your existing connection. |
+| You want the MCP connection and workflows together | [Full plugin](#installation-and-authentication): use your host's plugin installer. |
 
-The ten Skills cover video analysis, standard and deep account reviews, scripts and packaging,
-content ideas, Instagram/TikTok/YouTube trends, and creator/TikTok competitor research. See
-[skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the same Skills.
+[MCP setup and Skills guide](https://kabo.sh/docs/mcp#skills) ·
+[Latest release and ZIP download](https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest)
 
-- The Kabo service, which is not part of this repository, owns MCP, OAuth, data tools, asynchronous
-  jobs, the website and deployment.
-- The Skills were adapted from the ones used by Kabo's web agent and are now maintained here.
-- This repository owns the plugin Skills, offline checks, host metadata, reproducible packages and
-  acceptance evidence.
+## Skills only (skills CLI)
 
-## Development
+The MCP connection provides data tools. Skills add the research workflows your AI host runs with
+those tools. Connecting MCP does not install Skills automatically. If the full Kabo plugin is
+already installed, it includes all ten Skills; installing them again can produce duplicate entries.
 
-Use Node 24 and Python 3. Normal builds do not read neighboring repositories or a Skill registry.
+Use a host that supports local Skills, Python 3 and workspace file access. The
+[skills CLI](https://github.com/vercel-labs/skills) needs Node.js 22.20 or later and Git for this
+repository source. Installing files locally does not add Skills to a web-only MCP client.
+
+After connecting `https://kabo.sh/mcp-pub` and signing in, run this in your project directory:
 
 ```sh
-npm ci --ignore-scripts
-npm run verify
+npx skills add 'kabo-sh/kabo-mcp-plugin#stable' --skill '*'
 ```
 
-Edit the bundled `skills/` here and submit changes for PR review. Do not overwrite them with a fresh
-upstream export. The web agent's Skills are maintained separately.
-`skills.lock.json` records the original source, not a byte-for-byte comparison; update it and
-`runtime-contract.json` when adding or removing a Skill.
+Select your agent in the installer. To choose it explicitly, append one of these options:
 
-Follow the [Kabo Skills specification](docs/skills-spec.md) (Chinese). Run `npm run skills:lint` for
-details. Enforcement remains disabled (`skills-spec.json` has an empty `enforced` list), and
-`npm run verify` prints the summary. The MCP artifacts in `contracts/directory-mcp/` record the
-provider commit and file hashes. New tools require an explicit update to those artifacts.
+| Agent | Option |
+| --- | --- |
+| Codex | `--agent codex` |
+| Claude Code | `--agent claude-code` |
+| Cursor | `--agent cursor` |
 
-Build from a committed revision:
+The command installs all ten Skills with their scripts and resources. It does not add an MCP
+connection or change your Kabo sign-in. **Keep your existing Kabo connection.** If you have not
+connected yet, follow the [MCP setup guide](https://kabo.sh/docs/mcp#connect). For Codex, the command is
+`codex mcp add kabo --url https://kabo.sh/mcp-pub`; to sign in again later, use
+`codex mcp login kabo`.
+
+Installation defaults to the current project. Add `-g` to install for all projects. For Codex, these
+locations are `.agents/skills/` and `~/.agents/skills/`, respectively; other hosts use their own
+supported locations. Run `npx skills list` (or `npx skills list -g`) to see the installation, then
+start a new host session to load it.
+
+### Versions and updates
+
+The CLI records the source ref and a content hash in `skills-lock.json`, or in its global lock file
+for `-g`. The repository's `skills.lock.json` is a separate record of the original Skill sources.
+
+- `#stable` follows published releases. It advances only after a release; installed files stay as
+  they are until you run an installation or update command.
+- `#v1.0.1` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
+- Without a ref, the CLI follows `main`, which includes unreleased changes.
+
+See [GitHub Releases](https://github.com/kabo-sh/kabo-mcp-plugin/releases) for new versions and release
+notes. To update installed Skills, choose the scope explicitly:
 
 ```sh
-npm run build -- --commit <full-40-character-commit> --output <new-output-directory>
+npx skills update -p
 ```
 
-The build reads Git blobs from that commit and produces `kabo-<version>.zip`, its SHA-256, and a file
-manifest. Every declared component is included. Development documentation, tests, dependencies and
-marketplace listings are excluded. The repository's resource limits are 512 files and 5 MiB per Skill,
-and 2,048 files and 64 MiB for the whole package; these are local build limits.
+Use `npx skills update -g` for global installations. These commands update all tracked Skills in that
+scope, including other sources. To refresh only Kabo, rerun the `skills add` command above with the
+same agent and project/global scope.
+
+**`skills check` is not a read-only check in CLI 1.7.4.** It runs the same update logic as `update` and
+can replace installed files. Use the release page to read about updates without changing your
+installation. See the [CLI 1.7.4 implementation](https://github.com/vercel-labs/skills/blob/v1.7.4/src/cli.ts#L420).
+
+### Manual download
+
+The [latest release](https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest) includes a ZIP and its
+SHA-256 file. This is the full plugin package. For manual Skills-only installation, extract it and
+copy each complete directory under `skills/` into your host's supported Skills directory, including
+all scripts, references and assets. Copying only `SKILL.md` is insufficient. Manual copies are not
+tracked by the skills CLI updater.
+
+The CLI collects anonymous usage data; set `DISABLE_TELEMETRY=1` to turn it off.
+
+Installing all ten Skills and their discovery by Codex 0.164 were checked on October 27, 2026. Kabo
+sign-in and a complete Skill run through this method still need testing, as do other agents. See
+[requirements and connection](#requirements-and-connection) for evidence downloads and local video
+requirements.
 
 ## Installation and authentication
 
@@ -130,36 +160,6 @@ plugin ID containing `@`.
 
 Place the extracted package in a supported local plugin directory and reload it. The package uses the
 portable format; installation in Cursor still needs to be tested.
-
-### Skills only (skills CLI)
-
-You can also install the ten Skills without the plugin using the
-[skills CLI](https://github.com/vercel-labs/skills). It copies only the Skill folders and does not add
-the Kabo MCP connection, so add that separately. Use either the plugin or this method, not both;
-otherwise the host lists each Skill twice.
-
-```sh
-npx skills add kabo-sh/kabo-mcp-plugin#stable --agent codex --skill '*'
-codex mcp add kabo --url https://kabo.sh/mcp-pub
-```
-
-`codex mcp add` opens the Kabo sign-in page. To sign in again later, run `codex mcp login kabo`.
-Skills are installed in `.agents/skills/` in the current project; add `-g` to install them in
-`~/.agents/skills/` for all projects.
-
-**Versions and updates.** The skills CLI does not use version numbers. It records the Git ref you
-installed from and a content hash in `skills-lock.json` (or in its global lock file with `-g`).
-
-- `#stable` follows releases. The branch moves only when a new version is released. Run
-  `npx skills check` to see whether an update is available and `npx skills update` to install it.
-- `#v1.0.1` pins one release. `npx skills update` never moves it to a newer tag; to upgrade, run
-  `npx skills add` again with the new tag.
-- Without a ref, the CLI follows `main`, which includes unreleased changes.
-
-The skills CLI collects anonymous usage data; set `DISABLE_TELEMETRY=1` to turn it off.
-
-Installing all ten Skills and their discovery by Codex 0.164 were checked on October 27, 2026. Kabo
-sign-in and a complete Skill run through this method still need testing, as do other agents.
 
 ### Validation status
 
@@ -234,6 +234,61 @@ Do not roll back to 3.0.0 or earlier under the **old numbering scheme**, includi
 ZIP: their `/mcp-directory` connection no longer works. Fix current problems in a new release instead
 of replacing signed content with an old package. Uninstall through the host to remove the plugin and
 connection. Delete local research files only when the user asks.
+
+## Repository layout
+
+```text
+plugin.json                     # Portable manifest for Codex / Cursor
+mcp.json                        # Production MCP connection
+.claude-plugin/plugin.json       # Claude Code metadata
+.claude-plugin/marketplace.json  # Claude Code marketplace (not included in the ZIP)
+.agents/plugins/marketplace.json # Codex marketplace (not included in the ZIP)
+.mcp.json                       # Claude Code HTTP MCP configuration
+skills/                         # Ten complete Skills and their resources
+skills.lock.json                # Original Skill source and versions
+runtime-contract.json           # Fixed tool and Skill inventory
+CHANGELOG.md                    # Version history (Chinese)
+```
+
+The ten Skills cover video analysis, standard and deep account reviews, scripts and packaging,
+content ideas, Instagram/TikTok/YouTube trends, and creator/TikTok competitor research. See
+[skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the same Skills.
+
+- The Kabo service, which is not part of this repository, owns MCP, OAuth, data tools, asynchronous
+  jobs, the website and deployment.
+- The Skills were adapted from the ones used by Kabo's web agent and are now maintained here.
+- This repository owns the plugin Skills, offline checks, host metadata, reproducible packages and
+  acceptance evidence.
+
+## Development
+
+Use Node 24 and Python 3. Normal builds do not read neighboring repositories or a Skill registry.
+
+```sh
+npm ci --ignore-scripts
+npm run verify
+```
+
+Edit the bundled `skills/` here and submit changes for PR review. Do not overwrite them with a fresh
+upstream export. The web agent's Skills are maintained separately.
+`skills.lock.json` records the original source, not a byte-for-byte comparison; update it and
+`runtime-contract.json` when adding or removing a Skill.
+
+Follow the [Kabo Skills specification](docs/skills-spec.md) (Chinese). Run `npm run skills:lint` for
+details. Enforcement remains disabled (`skills-spec.json` has an empty `enforced` list), and
+`npm run verify` prints the summary. The MCP artifacts in `contracts/directory-mcp/` record the
+provider commit and file hashes. New tools require an explicit update to those artifacts.
+
+Build from a committed revision:
+
+```sh
+npm run build -- --commit <full-40-character-commit> --output <new-output-directory>
+```
+
+The build reads Git blobs from that commit and produces `kabo-<version>.zip`, its SHA-256, and a file
+manifest. Every declared component is included. Development documentation, tests, dependencies and
+marketplace listings are excluded. The repository's resource limits are 512 files and 5 MiB per Skill,
+and 2,048 files and 64 MiB for the whole package; these are local build limits.
 
 ## Acceptance and release
 
