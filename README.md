@@ -38,7 +38,7 @@ capabilities, not on whether the interface is a desktop app or a web page. Codex
 Cursor are examples, not an exclusive support list. See the host's Skills loading and execution
 instructions and the [workflow requirements](#requirements-and-connection).
 
-Choose Git, ZIP or the optional skills CLI. Only the CLI method requires Node.js and npx.
+Choose Git, ZIP or the optional skills CLI according to your environment and preference.
 
 ### Option 1: Clone the GitHub repository
 
@@ -50,8 +50,8 @@ git clone --branch stable --single-branch https://github.com/kabo-sh/kabo-mcp-pl
 
 Configure your agent to load the complete Skill folders under `kabo-mcp-plugin/skills/`, or copy or
 import those folders into its supported Skills location. Keep all scripts, references and assets.
-Cloning alone does not register Skills with the agent. This method needs Git, but does not require
-Node.js or npx. Keep your existing Kabo MCP connection and sign-in.
+Cloning alone does not register Skills with the agent. Keep your existing Kabo MCP connection and
+sign-in.
 
 For a clone on `stable`, update from its parent directory with:
 
@@ -64,8 +64,8 @@ installations are not tracked by the skills CLI updater.
 
 ### Option 2: Use the skills CLI (npx)
 
-The [skills CLI](https://github.com/vercel-labs/skills) is an optional installer. This method needs
-Node.js 22.20 or later and Git; these are not requirements for every installation method.
+The [skills CLI](https://github.com/vercel-labs/skills) is an optional installer. You can also clone
+the GitHub repository or download a ZIP. Choose whichever method fits your environment and preference.
 
 After connecting `https://kabo.sh/mcp-pub` and signing in, run this in your project directory:
 
