@@ -1,6 +1,6 @@
 {
   "sourceRepository": "https://github.com/kabo-sh/kabo",
-  "sourceCommit": "8e028b4c7a1b9489cf1c2f9a026acb624dd9b7d6",
+  "sourceCommit": "92a2214d0a2ffa7c843773dd94da99d3dd8eb349",
   "sourceCommand": "pnpm --filter @kabo/api mcp:audit --surface directory --output <directory>",
   "files": {
     "tools-list.json": {
