@@ -6,8 +6,8 @@ ten bundled Skills, and the metadata needed by each host. The AI host runs the w
 reports; Kabo provides the data tools. The plugin does not hand work to Kabo's web agent, download
 Skills at runtime, or register lifecycle hooks.
 
-The current GitHub package release is [**1.0.0**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.0),
-packaged as `kabo-1.0.0.zip`. This resets the public release numbering while retaining the latest
+The current GitHub package release is [**1.0.1**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.1),
+packaged as `kabo-1.0.1.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
 implementation. Earlier version history and source Skill versions remain separate. OpenAI marketplace
 review and production acceptance remain separate from this GitHub release.
 
@@ -152,7 +152,7 @@ installed from and a content hash in `skills-lock.json` (or in its global lock f
 
 - `#stable` follows releases. The branch moves only when a new version is released. Run
   `npx skills check` to see whether an update is available and `npx skills update` to install it.
-- `#v1.0.0` pins one release. `npx skills update` never moves it to a newer tag; to upgrade, run
+- `#v1.0.1` pins one release. `npx skills update` never moves it to a newer tag; to upgrade, run
   `npx skills add` again with the new tag.
 - Without a ref, the CLI follows `main`, which includes unreleased changes.
 
@@ -166,7 +166,7 @@ sign-in and a complete Skill run through this method still need testing, as do o
 Use `claude plugin validate <plugin-root>` to check the Claude Code manifest and marketplace. Codex
 metadata is covered by portable-schema and package tests. Under the old version numbering, 3.1.0
 passed an end-to-end YouTube video-analysis run in Codex 0.163. That historical result does not replace
-acceptance testing for 1.0.0; record results against the exact candidate commit and ZIP.
+acceptance testing for the current release; record results against the exact candidate commit and ZIP.
 
 ### Requirements and connection
 
@@ -179,7 +179,7 @@ require separate validation of these capabilities; a local installation does not
 A successful build also does not establish source-distribution rights or marketplace approval.
 
 The only connection is `https://kabo.sh/mcp-pub`. Follow the host's OAuth flow on first use
-(or during installation in Codex). The host manages login, refresh and revocation. Version 1.0.0 keeps
+(or during installation in Codex). The host manages login, refresh and revocation. Versions 1.0.0 and later keep
 the `/mcp-pub` address introduced in the old 3.0.1 release. The former `/mcp-directory` endpoint was
 removed and has returned 404 since October 22, 2026. Installations still using that address must update and reconnect. If `/mcp-pub` is unavailable,
 report the failure rather than switching endpoints or reusing a token issued for another audience.
@@ -212,7 +212,7 @@ Skills do not read the host's session or `tool-results` directories.
 Moving from a development version to 1.0.0 resets the version numbering while keeping the latest
 implementation; see [CHANGELOG](CHANGELOG.md) (Chinese). SemVer ranks `1.0.0` below the former `3.x`
 versions, so do not rely on automatic upgrade detection. Refresh the marketplace, update the
-installation, and confirm that the host loads `1.0.0`. If it retains the old version, uninstall the
+installation, and confirm that the host loads `1.0.0` or later. If it retains the old version, uninstall the
 plugin through the host and reinstall it. Keep research files and credentials intact. Host behavior
 when moving to a lower version number still needs testing.
 
