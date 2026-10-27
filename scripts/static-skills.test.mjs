@@ -24,7 +24,7 @@ async function installed(t) {
 test("十个固定 Skills 完整解包；根目录、宿主身份与唯一 MCP 一致", async t => {
   const { root, files } = await installed(t);
   const result = await checkPackage(root);
-  assert.equal(result.version, "1.0.0");
+  assert.equal(result.version, JSON.parse(await readFile(new URL("../plugin.json", import.meta.url))).version);
   assert.equal(result.submissionReady, false);
   const runtime = JSON.parse(await readFile(path.join(root, "runtime-contract.json")));
   assert.deepEqual(runtime.skills, ids);

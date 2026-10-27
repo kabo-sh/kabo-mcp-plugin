@@ -2,20 +2,22 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
-## 未发布
+## 1.0.1（2026-10-27；GitHub Release）
 
+- 支持用 skills CLI 单独安装十个 Skills（`npx skills add kabo-sh/kabo-mcp-plugin#stable`）：README 说明安装、
+  另行添加 `/mcp-pub` 连接、版本与更新方式；`stable` 分支只指向已发布 tag，作为 `npx skills update` 的更新渠道。
+  每个 SKILL.md 新增 `license: MIT`，许可随单独安装的 Skill 分发，包检查要求与 `plugin.json` 一致。
+  已验证安装完整与 Codex 0.164 识别；登录与端到端运行待验收。
+- 仓库协作约定（AGENTS.md）改为英文，提交说明与 PR 使用英文。
+
+## 1.0.0（2026-10-23 首发；2026-10-27 随公开仓库重新发布）
+
+- 2026-10-27 重新发布：仓库转为公开，开发历史不随公开仓库发布；ZIP 从新提交重新构建，旧 ZIP 作废。
 - 插件采用 MIT 许可：新增根目录 `LICENSE` 并随 ZIP 打包，`plugin.json`、`.claude-plugin/plugin.json` 与 `package.json` 声明 `MIT`；
   `.claude-plugin/plugin.json` 显式声明隐私政策链接，`claude plugin validate --profile directory` 不再报目录提交问题。
   许可只覆盖本仓内容，kabo.sh 服务仍受其服务条款约束。
 - 公开仓库前的清理：删除 1.x/2.x 历史迁移记录，文档与代码注释不再引用非公开仓库的 issue、PR 与设计文档，
   README 去掉私有仓读权限的安装要求。
-- 支持用 skills CLI 单独安装十个 Skills（`npx skills add kabo-sh/kabo-mcp-plugin#stable`）：README 说明安装、
-  另行添加 `/mcp-pub` 连接、版本与更新方式；`stable` 分支只指向已发布 tag，作为 `npx skills update` 的更新渠道。
-  每个 SKILL.md 新增 `license: MIT`，许可随单独安装的 Skill 分发，包检查要求与 `plugin.json` 一致。
-  已验证安装完整与 Codex 0.164 识别；登录与端到端运行待验收。
-
-## 1.0.0（2026-10-23；GitHub Release）
-
 - 对外发布版本统一为 `1.0.0`，替代此前开发阶段的包版本编号；不是回退到旧代码。
 - 保留最新主分支的十个固定 Skills、`/mcp-pub` 连接、完整证据下载、宿主适配与打包修复；
   deep 只使用本对话中已完成的普通账号复盘校验输出。
