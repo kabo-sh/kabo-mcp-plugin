@@ -1,8 +1,9 @@
 # Kabo plugin
 
 Kabo helps you research public creator accounts, compare competitors, find trends, analyze videos,
-and develop content ideas and scripts. This repository contains one plugin: a `kabo` MCP connection,
-ten bundled Skills, and the metadata needed by each host. The AI host runs the workflows and writes
+develop content ideas and scripts, and remake a viral talking-head video with you in it. This
+repository contains one plugin: a `kabo` MCP connection, eleven bundled Skills, and the metadata
+needed by each host. The AI host runs the workflows and writes
 reports; Kabo provides the data tools. The plugin does not hand work to Kabo's web agent, download
 Skills at runtime, or register lifecycle hooks.
 
@@ -15,7 +16,7 @@ review and production acceptance remain separate from this GitHub release.
 
 | Your setup | Install |
 | --- | --- |
-| You already connected Kabo MCP in your AI host | [Skills only](#skills-only-skills-cli): add the ten workflows and keep your existing connection. |
+| You already connected Kabo MCP in your AI host | [Skills only](#skills-only-skills-cli): add the workflows and keep your existing connection. |
 | You want the MCP connection and workflows together | [Full plugin](#installation-and-authentication): use your host's plugin installer. |
 
 [MCP setup and Skills guide](https://kabo.sh/docs/mcp#skills) ·
@@ -25,7 +26,7 @@ review and production acceptance remain separate from this GitHub release.
 
 The MCP connection provides data tools. Skills add the research workflows your AI host runs with
 those tools. Connecting MCP does not install Skills automatically. If the full Kabo plugin is
-already installed, it includes all ten Skills; installing them again can produce duplicate entries.
+already installed, it includes all bundled Skills; installing them again can produce duplicate entries.
 
 Use a host that supports local Skills, Python 3 and workspace file access. The
 [skills CLI](https://github.com/vercel-labs/skills) needs Node.js 22.20 or later and Git for this
@@ -45,7 +46,7 @@ Select your agent in the installer. To choose it explicitly, append one of these
 | Claude Code | `--agent claude-code` |
 | Cursor | `--agent cursor` |
 
-The command installs all ten Skills with their scripts and resources. It does not add an MCP
+The command installs all bundled Skills with their scripts and resources. It does not add an MCP
 connection or change your Kabo sign-in. **Keep your existing Kabo connection.** If you have not
 connected yet, follow the [MCP setup guide](https://kabo.sh/docs/mcp#connect). For Codex, the command is
 `codex mcp add kabo --url https://kabo.sh/mcp-pub`; to sign in again later, use
@@ -91,7 +92,7 @@ tracked by the skills CLI updater.
 
 The CLI collects anonymous usage data; set `DISABLE_TELEMETRY=1` to turn it off.
 
-Installing all ten Skills and their discovery by Codex 0.164 were checked on October 27, 2026. Kabo
+Installing the ten Skills of release 1.0.2 and their discovery by Codex 0.164 were checked on October 27, 2026. Kabo
 sign-in and a complete Skill run through this method still need testing, as do other agents. See
 [requirements and connection](#requirements-and-connection) for evidence downloads and local video
 requirements.
@@ -225,7 +226,7 @@ Normal update commands:
 
 The connection and OAuth resource stay at `/mcp-pub` when moving from the old 3.0.1 or 3.1.x versions.
 Renumbering alone does not change authorization. Older installations using `/mcp-directory` must
-reauthorize for `/mcp-pub`. The current package has ten fixed Skills, downloads full evidence, and
+reauthorize for `/mcp-pub`. The current package has eleven fixed Skills, downloads full evidence, and
 stores raw tool results in each run's `host-results/` directory. The old dynamic menu, channel switch,
 download cache and Node runner are no longer included. Validate in a separate workspace before
 updating the existing `kabo` entry. Old research directories are not migrated or deleted automatically.
@@ -244,15 +245,22 @@ mcp.json                        # Production MCP connection
 .claude-plugin/marketplace.json  # Claude Code marketplace (not included in the ZIP)
 .agents/plugins/marketplace.json # Codex marketplace (not included in the ZIP)
 .mcp.json                       # Claude Code HTTP MCP configuration
-skills/                         # Ten complete Skills and their resources
+skills/                         # Eleven complete Skills and their resources
 skills.lock.json                # Original Skill source and versions
 runtime-contract.json           # Fixed tool and Skill inventory
 CHANGELOG.md                    # Version history (Chinese)
 ```
 
-The ten Skills cover video analysis, standard and deep account reviews, scripts and packaging,
-content ideas, Instagram/TikTok/YouTube trends, and creator/TikTok competitor research. See
-[skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the same Skills.
+The eleven Skills cover video analysis, standard and deep account reviews, scripts and packaging,
+content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor research, and
+`remake-viral-video`, which remakes a viral talking-head video of 60 seconds or less with the creator
+in it. See [skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
+same Skills.
+
+`remake-viral-video` is not released yet. It needs the `start_remake_video`, `get_remake_video` and
+`render_remake_video` tools on `/mcp-pub`, which are not yet in the pinned tool contract, and it has
+not been run in a real host. Its scripts download the brief and the finished MP4 from the same signed
+`storage.googleapis.com` links as evidence downloads; there is no `stage` fallback for them.
 
 - The Kabo service, which is not part of this repository, owns MCP, OAuth, data tools, asynchronous
   jobs, the website and deployment.

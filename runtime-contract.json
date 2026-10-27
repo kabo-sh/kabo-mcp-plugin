@@ -14,7 +14,8 @@
     "research-tiktok-trends",
     "research-youtube-trends",
     "analyze-creator-competitors",
-    "analyze-tiktok-competitors"
+    "analyze-tiktok-competitors",
+    "remake-viral-video"
   ],
   "requiredTools": [
     "analyze_content_video",
