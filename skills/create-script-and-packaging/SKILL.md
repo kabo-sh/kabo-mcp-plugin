@@ -1,6 +1,7 @@
 ---
 name: create-script-and-packaging
 description: "Write a script, hooks and platform packaging (titles, captions, tags, thumbnail or cover briefs) for a topic the creator chose; adapt a specified video into written clips, hooks or carousel copy; rewrite openings, CTAs, captions or cover text; or propose new openings and cover text for an existing script. Use after an idea is picked or when a creator asks for a script or copy on a stated topic. Not for choosing ideas, trend research, publish timing, new artwork, CTR predictions or publishing."
+license: MIT
 metadata:
   version: "0.2.24"
 compatibility: "Requires Python 3 and read and write access to a local workspace. Source-video facts and channel samples come from other Kabo Skills or the creator. Optional operations on an existing thumbnail image need an image download, resize and preview capability from the host."

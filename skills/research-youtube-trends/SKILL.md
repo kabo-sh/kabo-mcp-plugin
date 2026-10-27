@@ -1,6 +1,7 @@
 ---
 name: research-youtube-trends
 description: "Research what is working on YouTube now: current high-performing videos, repeated mechanisms, emerging creators and Creator-fit directions in a niche or like a given video, ranked by exact public metrics and channel-relative baselines; the hottest videos of the last seven days; or an analysis of a supplied public-content Snapshot. Use for YouTube trend scans and outlier videos; a Shorts soundtrack ask gets an honest no-evidence answer. Not for private Analytics or full scripts."
+license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and a host that can save a tool's complete result to a file."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download collect_youtube_trend_candidates enrich_youtube_shortlist youtube_search_videos youtube_get_video
 ---

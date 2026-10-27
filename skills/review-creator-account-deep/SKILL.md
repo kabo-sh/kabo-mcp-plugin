@@ -1,6 +1,7 @@
 ---
 name: review-creator-account-deep
 description: "Deep-review a named public Instagram, TikTok or YouTube account: walk the standard account-analysis steps and watch a bounded set of its videos (frames and transcript) to say which practices to keep or stop and what to change in the next shoot. Requires a finished, validated review-creator-account review of the same account and question. Use when the creator asks for a deep review that actually watches videos. Not for a catalog-only review, a single-video teardown, competitors or trends."
+license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and a host that can save a tool's complete result to a file. Viewing frames needs a host that can display images to the model."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download read_research_data_artifacts public_video_collect_public_metadata public_video_fetch_transcript public_video_extract_keyframes public_video_extract_keyframes_hosted_media public_video_extract_keyframes_hosted_stream
 ---

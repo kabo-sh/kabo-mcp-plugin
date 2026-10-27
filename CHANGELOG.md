@@ -9,6 +9,10 @@
   许可只覆盖本仓内容，kabo.sh 服务仍受其服务条款约束。
 - 公开仓库前的清理：删除 1.x/2.x 历史迁移记录，文档与代码注释不再引用非公开仓库的 issue、PR 与设计文档，
   README 去掉私有仓读权限的安装要求。
+- 支持用 skills CLI 单独安装十个 Skills（`npx skills add kabo-sh/kabo-mcp-plugin#stable`）：README 说明安装、
+  另行添加 `/mcp-pub` 连接、版本与更新方式；`stable` 分支只指向已发布 tag，作为 `npx skills update` 的更新渠道。
+  每个 SKILL.md 新增 `license: MIT`，许可随单独安装的 Skill 分发，包检查要求与 `plugin.json` 一致。
+  已验证安装完整与 Codex 0.164 识别；登录与端到端运行待验收。
 
 ## 1.0.0（2026-10-23；GitHub Release）
 

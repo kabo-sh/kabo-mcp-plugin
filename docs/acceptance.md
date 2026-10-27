@@ -50,3 +50,18 @@ npm run build -- --commit <同一commit> --submission --evidence <验收目录>/
 固定 Skills 的运行目录在用户工作区的 `.kabo-runs/` 下，由用户自行管理。）
 
 当前发布版本另需记录 Claude Code / Cursor 的实际安装与十项业务回归矩阵；这些宿主的成功不能替代 OpenAI 上架候选本身的验收。网页宿主缺少执行条件时如实标记，不能删掉待验收项制造就绪。
+
+## skills CLI 发布渠道
+
+`stable` 分支是 `npx skills add kabo-sh/kabo-mcp-plugin#stable` 的更新渠道，只指向已发布的 tag。
+候选验收通过、打 tag 并发布 GitHub Release 之后，由发布负责人手动把 `stable` fast-forward 到该 tag：
+
+```bash
+git push origin <tag>^{commit}:refs/heads/stable
+```
+
+不得推进到未发布的提交，也不用 workflow 自动推进。`stable` 受仓库规则保护，禁止删除与非 fast-forward 更新。
+
+这条安装路径单独记录：skills CLI 安装、宿主识别、`/mcp-pub` 登录与至少一个 Skill 的端到端运行。
+它不属于上面的提交门禁，插件安装成功不能代替。2026-10-27 已验证十个 Skills 安装完整、Codex 0.164 能识别；
+登录与端到端运行未执行。

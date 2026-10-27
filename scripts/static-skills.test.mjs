@@ -78,6 +78,15 @@ test("MIT 许可随包分发，两份清单声明一致", async () => {
   assert.throws(() => validatePackage(mismatched), /同一插件身份/);
 });
 
+test("每个 Skill 自带与插件清单一致的 license，供 skills CLI 单独安装", async () => {
+  const original = await packageFiles();
+  const filename = "skills/develop-content-ideas/SKILL.md";
+  for (const to of ["license: Apache-2.0\n", ""]) {
+    const changed = original.map(file => file.name === filename ? { ...file, bytes: Buffer.from(String(file.bytes).replace("license: MIT\n", to)) } : file);
+    assert.throws(() => validatePackage(changed), /license/);
+  }
+});
+
 test("固定 Skills 可在本仓直接修改；缺正文、未记录目录和错误工具绑定仍被拒绝", async () => {
   const original = await packageFiles();
   const filename = "skills/review-creator-account/scripts/drive.py";

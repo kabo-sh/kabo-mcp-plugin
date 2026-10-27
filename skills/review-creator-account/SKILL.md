@@ -1,6 +1,7 @@
 ---
 name: review-creator-account
 description: "Review an Instagram, TikTok or YouTube account: what works, what hurts, what to continue, stop or test, benchmarks, content patterns, follower loss and own-account wording audits. Also calculates engagement rate, conditional growth estimates and owner follower-contribution rankings from public data, an owner export or supplied numbers. Not for diagnosing a reach drop or shadowban, Insights UI help, trends, ideas, cadence plans, drafts, one-video edits or monetization."
+license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and a host that can save a tool's complete result to a file."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download instagram_resolve_profile instagram_search_accounts instagram_list_posts instagram_list_reels youtube_get_channel youtube_list_channel_uploads tiktok_list_account_posts
 ---
