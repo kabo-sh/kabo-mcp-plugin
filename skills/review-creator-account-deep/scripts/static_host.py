@@ -30,6 +30,9 @@ PENDING = {"queued", "running", "pending", "in_progress", "accepted"}
 DOWNLOAD_HOST = "storage.googleapis.com"
 DOWNLOAD_PREFIX = "https://" + DOWNLOAD_HOST + "/"
 DOWNLOAD_TIMEOUT = 60
+# 抽帧请求的帧数上限，由 job-call 补进入参；与 plan_media_jobs.py 的计划值一致，逐帧查看太慢。
+FRAME_CAPS = dict.fromkeys(("public_video_extract_keyframes", "public_video_extract_keyframes_hosted_media",
+                            "public_video_extract_keyframes_hosted_stream"), 60)
 # 产物下载声明的类型闭集 → 落盘扩展名。文本与 stage 的内联文本一样落成 .txt：.json 会被
 # persist_envelope 当成 envelope 候选读入。闭集之外（含 application/octet-stream）不落盘。
 ARTIFACT_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp",
@@ -510,6 +513,12 @@ def job_call(tool, raw_parameters, attempt):
     parameters = json.loads(raw_parameters)
     if not isinstance(parameters, dict):
         raise ValueError("--parameters must be a JSON object")
+    cap = FRAME_CAPS.get(tool)
+    if cap is not None:
+        # 缺省时补上本 Skill 的帧数上限；显式传入只能更小。
+        frames = parameters.setdefault("max_frames", cap)
+        if isinstance(frames, bool) or not isinstance(frames, int) or not 1 <= frames <= cap:
+            raise ValueError(f"max_frames must be an integer from 1 to {cap}")
     digest = hashlib.sha256(json.dumps(parameters, sort_keys=True, ensure_ascii=False,
                                        separators=(",", ":")).encode()).hexdigest()[:16]
     key = "".join(char if char in KEY_CHARS else "-" for char in f"{SKILL.name}:{run_dir().name}:{tool}:{digest}:a{attempt}")

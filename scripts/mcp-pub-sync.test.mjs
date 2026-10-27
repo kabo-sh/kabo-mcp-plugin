@@ -230,6 +230,32 @@ test("job-call：同一运行、同一工具、同一组入参、同一尝试序
   }
 });
 
+test("job-call：ACV 与 deep 的抽帧请求补上 max_frames 60，显式更小值保留，超过 60 拒绝", async (t) => {
+  const url = "https://www.youtube.com/watch?v=abc";
+  for (const skill of ["analyze-content-video", "review-creator-account-deep"]) {
+    const run = await newRun(t, skill);
+    const host = path.join(scripts(skill), "static_host.py");
+    const call = (tool, parameters) => attempt([host, "job-call", "--tool", tool, "--parameters", parameters], { cwd: run, run });
+    for (const tool of ["public_video_extract_keyframes", "public_video_extract_keyframes_hosted_media", "public_video_extract_keyframes_hosted_stream"]) {
+      const capped = call(tool, JSON.stringify({ url }));
+      assert.equal(capped.exit, 0, capped.stderr);
+      assert.deepEqual(JSON.parse(capped.stdout).arguments.parameters, { url, max_frames: 60 });
+    }
+    assert.equal(JSON.parse(call("public_video_extract_keyframes", JSON.stringify({ url, max_frames: 30 })).stdout).arguments.parameters.max_frames, 30);
+    // 帧数上限只属于抽帧，其他媒体调用的入参不变。
+    assert.deepEqual(JSON.parse(call("public_video_fetch_transcript", JSON.stringify({ url })).stdout).arguments.parameters, { url });
+    for (const frames of [120, 0, "60", true]) {
+      const refused = call("public_video_extract_keyframes", JSON.stringify({ url, max_frames: frames }));
+      assert.equal(refused.exit, 1);
+      assert.match(refused.stderr, /max_frames must be an integer from 1 to 60/);
+    }
+  }
+  // deep 的计划入参必须过得了 job-call：计划值超过上限会让每次抽帧都被拒。
+  const planned = JSON.parse(python(["-c", "import json, sys; sys.path.insert(0, sys.argv[1]); import plan_media_jobs; print(json.dumps(plan_media_jobs.KEYFRAME_PARAMS))",
+    scripts("review-creator-account-deep")]));
+  assert.equal(planned.max_frames, 60);
+});
+
 test("重签结果按原操作放置：get_research_data_download 的信封经 stage 后 persist_envelope 照常落位", async (t) => {
   const skill = "analyze-creator-competitors";
   const run = await newRun(t, skill);

@@ -5,9 +5,9 @@ the first data call of a run.
 
 ## Frame sampling
 
-The default request asks for one frame a second across the video and twice that in the opening
-three seconds. `sampling_plan` records requested sampling, not verified decoded timestamps or
-viewing coverage; even `t_seconds` may be a nominal requested point. Without verified actual decode
+The request asks for at most 60 frames: twice a second through the opening three seconds, then one a
+second, spread out evenly once a longer video would exceed the cap (`job-call` adds `max_frames`).
+`sampling_plan` records requested sampling, not verified decoded timestamps or viewing coverage; even `t_seconds` may be a nominal requested point. Without verified actual decode
 records, never state a planned interval as actual spacing in judgment or creator cards. Describe it
 only as a planned/requested sampling limitation. Judge the hook over `frames.sampling_plan.hook_window_s`
 rather than a fixed three seconds — a Short lives or dies in about three, long-form has fifteen to
@@ -91,8 +91,8 @@ about its own video; it is not a deferred job and carries the same facts plus pu
 with `{"parameters": {"video_id": "<resolved-video-id>"}, "delivery": "download"}`. The media tools
 `public_video_fetch_transcript`, `public_video_extract_keyframes` and
 `public_video_measure_media_signals` take `{"parameters": {"url": "<original-video-url>"}}`, built
-into full arguments (with `delivery` and `idempotency_key`) by `static_host.py job-call` as
-`SKILL.md` says. Readiness alone does not
+into full arguments (with `delivery` and `idempotency_key`, and `max_frames` for keyframes) by
+`static_host.py job-call` as `SKILL.md` says. Readiness alone does not
 supply parameter names; use each tool's input schema.
 
 On **Instagram and TikTok** `public_video_collect_public_metadata` stays the metadata call.

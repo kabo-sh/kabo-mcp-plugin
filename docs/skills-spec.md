@@ -185,7 +185,9 @@ skill 内容（`SKILL.md`、`references/`、脚本输出）一律用英文。本
 - **延迟媒体调用的幂等键**：`public_video_*` 的入参由 `static_host.py job-call` 生成，
   顶层带 `idempotency_key`（`<skill>:<运行目录名>:<工具名>:<入参摘要>:a<尝试序号>`）。没拿到响应而
   重发时原样复用，服务端交回原 job、不再计费；拿到错误结果、改了入参或要重跑已终局的任务时换下一个
-  尝试序号。
+  尝试序号。`analyze-content-video` 与 `review-creator-account-deep` 的抽帧调用帧数上限为 60（服务端
+  上限 120）：缺省时由 `job-call` 补上 `max_frames: 60`，只摊薄开头之后的采样，开头密度不变；
+  显式传入超过 60 的值会被拒绝。deep 的计划值在 `plan_media_jobs.py`。
 - **有限等待（已落地）**：延迟任务先返回 job_id，再用 `get_research_data_job` 的 `wait_s`（上限 30 秒）
   等待，不另做首次调用时的服务端等待（2026-10-20 决定）。排队中的任务不重新发起。
 - **长任务**：视频分析、采集 / 补全的 p90 在 60–100 秒。skill 不得假设工具会同步返回。

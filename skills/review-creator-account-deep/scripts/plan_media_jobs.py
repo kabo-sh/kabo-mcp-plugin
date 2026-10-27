@@ -23,8 +23,8 @@ OPERATIONS = (
     "fetch_transcript",
     "extract_keyframes",
 )
-# Same defaults the video skill uses: 1 fps body, denser opening is a later read plan.
-KEYFRAME_PARAMS = {"fps": 1, "max_frames": 120}
+# Same frame cap the video skill uses; static_host.py job-call refuses anything above it.
+KEYFRAME_PARAMS = {"fps": 1, "max_frames": 60}
 # Requests per group in the issue order. The bounds come from the old batch interface
 # (two to four requests per batch); they no longer limit any call, since each request is
 # its own call, and are kept so existing plans keep their shape.
