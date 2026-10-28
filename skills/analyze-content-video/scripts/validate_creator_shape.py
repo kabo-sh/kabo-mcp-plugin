@@ -189,6 +189,8 @@ CLOCK = re.compile(r"\d{1,2}:\d{2}(?::\d{2})?")
 # ground a figure nobody stated. A single letter after a space counts only in capitals: speech
 # recognition writes "27 B", while "5 m tall" is metres, not five million. Attached letters
 # ("5M", "27b") count in either case, and ".5 billion" is read as 0.5 billion.
+# The report side reads ".5" as 0.5, so the source keeps that reading next to the bare digits.
+LEADING_DOT = re.compile(r"(?<![\d.])\.\d+")
 SOURCE_FIGURE = re.compile(
     r"(?<![A-Za-z0-9.])(\d+(?:[.,]\d+)*|\.\d+)"
     r"(?:\s*(万亿|万|亿|(?i:thousand|million|billion|bn))|([kmbKMB])|\s+([KMB]))"
@@ -216,7 +218,8 @@ def source_values(*objects) -> set:
     # "billion" stays whitespace instead of becoming a literal "\n".
     values = set()
     for obj in objects:
-        for raw in NUMBER.findall(json.dumps(obj, ensure_ascii=False)):
+        text = json.dumps(obj, ensure_ascii=False)
+        for raw in NUMBER.findall(text) + LEADING_DOT.findall(text):
             try:
                 values.add(float(raw.replace(",", "")))
             except ValueError:
