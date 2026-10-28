@@ -133,8 +133,11 @@ relay it and ask for a corrected input; nothing was started.
   - `conflict`: this key was already used with different inputs. Build the arguments again with
     `--attempt 2` (then 3, ...) and call again.
   - `subscription_required`: a remake needs a Kabo Pro subscription; say so.
-  - `service_unavailable` or another retryable error: try once more after a minute; if it fails
-    again, say remakes are unavailable right now.
+  - `service_unavailable` with `retryable: false`: Kabo could not fetch the videos on its side; no
+    remake was started. Do not retry with the same key. Say so; if the user wants to try again later,
+    build the arguments again with the next `--attempt` and call once.
+  - `service_unavailable` or another error with `retryable: true`: try once more after a minute; if
+    it fails again, say remakes are unavailable right now.
 
 Once there is a `job_id`, call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30}` until the
 status is no longer `preparing`. Analysis takes about ten minutes. Tell the user the current stage
