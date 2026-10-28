@@ -39,7 +39,7 @@ const mcpSchema = ajv.compile(
 const publicEndpoint = "https://kabo.sh/mcp-pub";
 const scopesByResource = new Map([
   ["https://kabo.sh/mcp", ["account:read", "registry", "telemetry", "data"]],
-  [publicEndpoint, ["data", "video"]],
+  [publicEndpoint, ["data", "video", "workspace:read", "workspace:write"]],
 ]);
 
 function object(value) {
@@ -75,7 +75,7 @@ export function validateManifests(manifest, mcp, auth) {
     !keys(auth.client, ["mode"]) ||
     auth.client.mode !== "dcr" ||
     JSON.stringify(auth.baseScopes) !==
-      JSON.stringify(["openid", "email", "offline_access"]) ||
+      JSON.stringify(server.url === publicEndpoint ? ["openid", "profile", "email", "offline_access"] : ["openid", "email", "offline_access"]) ||
     JSON.stringify(auth.defaultScopes) !== JSON.stringify(scopesByResource.get(server.url))
   )
     throw new Error("OAuth 配置必须匹配实际 MCP 资源、DCR 与其权限。");
