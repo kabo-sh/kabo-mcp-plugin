@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kabo",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Public creator research with bundled workflows and Kabo MCP evidence.",
   "author": {
     "name": "Dealism",
@@ -36,7 +36,7 @@
         ]
       },
       "publication": {
-        "release_notes": "Kabo 1.0.2 bundles ten workflows for public creator research, video analysis, content ideas and text scripts, with Kabo MCP evidence and host-managed OAuth. Production acceptance and OpenAI review remain required before publication."
+        "release_notes": "Kabo 1.0.3 bundles eleven workflows for public creator research, video analysis, content ideas, text scripts and remaking a viral talking-head video with the creator in it, with Kabo MCP evidence and host-managed OAuth. Production acceptance and OpenAI review remain required before publication."
       }
     }
   }
