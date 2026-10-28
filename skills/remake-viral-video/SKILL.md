@@ -85,6 +85,13 @@ A remake needs both of these. Check them before any paid call:
    profile link, or one to four YouTube or Instagram links to videos where they talk to camera. It
    decides how much the result looks like the creator.
 
+These two inputs are all a remake needs. When both are present, start: do not add checks of your
+own. In particular, do not look up connected accounts, social or OAuth connection status, creator
+profiles or any other Kabo workspace data, and do not ask the user to grant extra Kabo permissions;
+none of that is part of a remake, and a missing workspace permission is not a reason to wait. The
+user's right to use the creator's face and voice is the single `rights` line written at the script
+gate (step 4), not a stop before it.
+
 Uploaded or local video files are not supported in this version, and neither are TikTok links:
 say so and ask for a YouTube or Instagram link instead. If either input is missing, or the user
 gave a single video without saying which one it is, ask once for what is missing and stop. Use
