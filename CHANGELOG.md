@@ -9,7 +9,7 @@
   画面文字与继承台账、来源规则、四份文档），只做纯口播；录屏/画中画、实物、旁白与网页端专有机制未移植。
   依赖 `/mcp-pub` 新增的 `start_remake_video`、`get_remake_video`、`render_remake_video`（kabo#1777），
   三个工具已随 kabo#1777 重新固定进 `contracts/directory-mcp/`（62 个工具，另含 kabo main 上新增的两个 TikTok 话题工具与十一个个人资产工具），
-  `runtime-contract.json` 的 `requiredTools` 已补上。固定来源是 kabo#1777 分支 commit，合入 kabo main 并部署后须改钉到合入 commit 再重新生成。
+  `runtime-contract.json` 的 `requiredTools` 已补上。固定来源是 kabo#1777 的合入 commit `005fcbc6d`。
   只在本机 kabo 环境实测，未在生产环境实测。
 
 ## 1.0.2（2026-10-27；GitHub Release）
