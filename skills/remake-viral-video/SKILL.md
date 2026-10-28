@@ -269,7 +269,9 @@ unavailable download is handled as in step 3. Then tell the user:
   before publishing;
 - the spend the result reports (`spend_usd`), when present.
 
-Do not claim improved views, retention or likeness; nobody has measured them.
+Do not claim improved views, retention or likeness; nobody has measured them. The result does not
+report the outcome of Kabo's final quality review, so never say the video passed one; suggest the user
+watch it in full before publishing.
 
 ## 8. When it does not finish
 

@@ -2,7 +2,7 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
-## 未发布
+## 1.0.3（2026-10-28；GitHub Release）
 
 - 新增第十一个 Skill `remake-viral-video`：把 60 秒以内的爆款纯口播视频复刻成创作者本人出镜的成片（MP4）。
   移植自网页端 creator-remake-web 0.1.23（creator-skills `2206478d`）的写稿关口（读音校对、四个改写位、
@@ -10,7 +10,15 @@
   依赖 `/mcp-pub` 新增的 `start_remake_video`、`get_remake_video`、`render_remake_video`（kabo#1777），
   三个工具已随 kabo#1777 重新固定进 `contracts/directory-mcp/`（62 个工具，另含 kabo main 上新增的两个 TikTok 话题工具与十一个个人资产工具），
   `runtime-contract.json` 的 `requiredTools` 已补上。固定来源是 kabo#1777 的合入 commit `005fcbc6d`。
-  只在本机 kabo 环境实测，未在生产环境实测。
+  第一次提出复刻时先用两三句话说明支持与会被拒的参考视频（同网页端 0.1.26）。
+  生产验收：Codex 0.164 经 OAuth 安装本包、连 `kabo.sh/mcp-pub` 跑通一条纯口播（job `ed76cc05`，runner r56，
+  约 19 分钟、$0.53，成片抽帧检查通过）；Claude Code 与其他宿主未实测。
+  生产 runner 换成 r58q（开头快速粗筛）后回归：正常口播在开头粗筛被放行并交付（job `b04218cd`）；两人同框的参考视频
+  在开头粗筛 30 秒内以 `out_of_scope` 被拒、未做付费生成（job `0d1575bb`）。交付结果不含终审结论，
+  技能不再声称成片「通过终审」，改为建议用户发布前完整看一遍。
+- 视频分析（#12）：来源本身写成「27B / 27 billion」这类带量级词的数字，不再被当作编造而中断诊断。
+- 个人资产工具（#11）：授权 workspace 权限后可读已绑定账号、创作者画像、社媒连接状态、脚本与视频库，
+  保存或更新脚本，绑定公开账号；`review-creator-account` 与 `create-script-and-packaging` 按需使用。
 
 ## 1.0.2（2026-10-27；GitHub Release）
 
