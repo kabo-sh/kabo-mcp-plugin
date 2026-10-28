@@ -167,16 +167,17 @@ def quotes_the_video(line: str, cues: list[dict]) -> str | None:
 # decide which notation a figure arrives in.
 #
 # The single letters need the lookahead: without it "5 km" reads as five thousand and "3 more"
-# reads as three million.
+# reads as three million. "万亿" is listed before "万" so "5万亿" reads as five trillion, not
+# 5万 followed by a stray 亿, and ".5B" reads as 0.5B, not 5B.
 MAGNITUDES = {
     "": 1,
-    "万": 10_000, "亿": 100_000_000,
+    "万": 10_000, "亿": 100_000_000, "万亿": 1_000_000_000_000,
     "k": 1_000, "thousand": 1_000,
     "m": 1_000_000, "million": 1_000_000,
     "b": 1_000_000_000, "bn": 1_000_000_000, "billion": 1_000_000_000,
 }
 FIGURE = re.compile(
-    r"(\d+(?:[.,]\d+)*)\s*(万|亿|thousand|million|billion|bn|[kmb](?![a-z]))?",
+    r"(\d+(?:[.,]\d+)*|\.\d+)\s*(万亿|万|亿|thousand|million|billion|bn|[kmb](?![a-z]))?",
     re.IGNORECASE)
 # A clock is not a figure the creator stands behind, and splitting one produces two that nobody
 # wrote: `14:00` yields `14` and `00`. Hours are governed by the block rules above, which already
@@ -190,7 +191,7 @@ CLOCK = re.compile(r"\d{1,2}:\d{2}(?::\d{2})?")
 # ("5M", "27b") count in either case, and ".5 billion" is read as 0.5 billion.
 SOURCE_FIGURE = re.compile(
     r"(?<![A-Za-z0-9.])(\d+(?:[.,]\d+)*|\.\d+)"
-    r"(?:\s*(万|亿|(?i:thousand|million|billion|bn))|([kmbKMB])|\s+([KMB]))"
+    r"(?:\s*(万亿|万|亿|(?i:thousand|million|billion|bn))|([kmbKMB])|\s+([KMB]))"
     r"(?![A-Za-z0-9])")
 
 
