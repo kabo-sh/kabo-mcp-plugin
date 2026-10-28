@@ -1,7 +1,8 @@
 # When a remake does not finish
 
-Every final status (`out_of_scope`, `failed`, `timed_out`) comes with `failure` and, when the
-runner gave one, `failure_reason`. Always tell the user that reason in plain words, not only that
+Take the reason from where the final status came: from `start_remake_video`, its `message`; from
+`get_remake_video`, `failure_reason` when it is not null. If there is none, say that no reason was
+given and do not invent one. Always tell the user the reason in plain words, not only that
 the remake was refused or stopped (for example: the reference is filmed with a camera that keeps
 moving, like a walking or travel vlog, rather than one person talking to the camera). Do not quote
 stage names or internal terms. Always say whether it was charged:

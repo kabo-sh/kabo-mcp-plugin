@@ -130,9 +130,10 @@ cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill di
 ```
 
 It writes `render/preview_remake_video.json`; call `render_remake_video` with that file's content,
-unchanged. Use `--preview stills` instead to also generate the stills of the `generated` rows
-(about $0.04 each; the video uses the very still you looked at, so it is not paid for twice). The
-job stays at `waiting_script`. About 30 seconds later call `get_remake_video` with `wait_s` 30,
+unchanged; it costs nothing and you can repeat it freely. `--preview stills` also generates the
+stills of the `generated` rows: about $0.04 each, the same stills the video then uses (not paid
+twice), but it is paid -- run it only after the user's go-ahead in SKILL.md step 6, look at the
+stills, fix any, and then render. The job stays at `waiting_script`. About 30 seconds later call `get_remake_video` with `wait_s` 30,
 save that result and fetch the pages (they ride in its brief link):
 
 ```sh

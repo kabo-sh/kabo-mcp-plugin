@@ -554,16 +554,27 @@ def offered_models(path):
     return [m.get("id") for m in models if isinstance(m, dict)], structured.get("job_id")
 
 
-def beat_review_text(path):
+def beat_review_text(path, script):
+    """The per-line review: one row per script line, each with ok true or false (and a note when
+    not ok); the MCP schema takes it as an opaque string, so it is checked here."""
     review = json.loads(Path(path).read_bytes())
     rows = review.get("lines") if isinstance(review, dict) else None
+    count = len((script or {}).get("lines") or []) if isinstance(script, dict) else 0
     if not isinstance(rows, list) or not rows:
         raise ValueError("beat_review must be the template with its lines list")
+    seen = set()
     for k, row in enumerate(rows):
-        if not isinstance(row, dict) or not isinstance(row.get("ok"), bool):
+        line = row.get("line") if isinstance(row, dict) else None
+        if not isinstance(line, int) or isinstance(line, bool) or not 0 <= line < count or line in seen:
+            raise ValueError(f"beat_review.lines[{k}].line must be a script line number (0..{count - 1}), each once")
+        seen.add(line)
+        if not isinstance(row.get("ok"), bool):
             raise ValueError(f"beat_review.lines[{k}].ok must be true or false")
         if row["ok"] is False and not text(row.get("note")):
             raise ValueError(f"beat_review.lines[{k}] is not ok: give a short note")
+    missing = [i for i in range(count) if i not in seen]
+    if missing:
+        raise ValueError(f"beat_review has no row for script lines {missing}; review every line")
     return json.dumps(review, ensure_ascii=False)
 
 
@@ -584,7 +595,7 @@ def render_args(run, model, models_from, preview=None, beat_review=None):
             body["preview"] = preview
             target = run / "render/preview_remake_video.json"
         else:
-            body["beat_review"] = beat_review_text(beat_review)
+            body["beat_review"] = beat_review_text(beat_review, json.loads(files["script"]))
             target = run / "render/review_remake_video.json"
     elif narration:
         # 旁白没有口播模型可选

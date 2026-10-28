@@ -68,6 +68,7 @@ out["picture_ok"] = errors
 docs.check = lambda run: {"status": "ready", "errors": [], "warnings": [], "kind": "narration"}
 for name in docs.DOCUMENTS.values():
     (run / name).write_text("{}", encoding="utf-8")
+(run / "script/script.json").write_text(json.dumps({"lines": [{"text": "a"}, {"text": "b"}]}))
 plain = docs.render_args(run, None, None)
 out["render"] = sorted(json.loads(open(plain["render_arguments"]).read()))
 pv = docs.render_args(run, None, None, preview="stills")
@@ -81,7 +82,13 @@ for bad, kwargs in (("talking", {"model": "vivix/vivix-a1"}), ("both", {"preview
         out["refused_" + bad] = False
     except ValueError:
         out["refused_" + bad] = True
-(run / "script/beat_review.json").write_text(json.dumps({"lines": [{"line": 1, "ok": False}]}))
+(run / "script/beat_review.json").write_text(json.dumps({"lines": [{"line": 0, "ok": True}]}))
+try:
+    docs.render_args(run, None, None, beat_review=str(run / "script/beat_review.json"))
+    out["refused_incomplete"] = False
+except ValueError:
+    out["refused_incomplete"] = True
+(run / "script/beat_review.json").write_text(json.dumps({"lines": [{"line": 0, "ok": True}, {"line": 1, "ok": False}]}))
 try:
     docs.render_args(run, None, None, beat_review=str(run / "script/beat_review.json"))
     out["refused_no_note"] = False
@@ -114,6 +121,16 @@ rbody = json.dumps({"schema": host.BRIEF_SCHEMA, "job_id": JOB, "files": review_
                     "review": {"sheets": [{"download": descriptor("s1.jpg", jpeg, "image/jpeg")}]}}).encode()
 review = {"status": "waiting_script", "job_id": JOB,
           "brief": {"download": descriptor("rbrief.json", rbody, "application/json", "envelope")}}
+# a page that fails its check leaves nothing behind, so the fetch can run again
+bad_sheet = dict(descriptor("s0.jpg", jpeg, "image/jpeg")); bad_sheet["sha256"] = "0" * 64
+bbody = json.dumps({"schema": host.BRIEF_SCHEMA, "job_id": JOB, "files": review_files,
+                    "review": {"sheets": [{"download": bad_sheet}]}}).encode()
+try:
+    host.fetch(json.dumps({"status": "waiting_script", "job_id": JOB,
+        "brief": {"download": descriptor("bbrief.json", bbody, "application/json", "envelope")}}).encode())
+except ValueError:
+    pass
+out["review_left_nothing"] = not (run / "review").exists() and not list(run.glob(".review-staging-*"))
 saved = host.fetch(json.dumps(review).encode())
 out["review"] = [saved["saved"], [os.path.relpath(p, run) for p in saved["pages"]], sorted(saved["files"])]
 try:
@@ -142,6 +159,7 @@ test("remake-viral-video 旁白：画面检查、preview / review 参数与分�
   assert.equal(out.refused_talking, true);
   assert.equal(out.refused_both, true);
   assert.equal(out.refused_no_note, true);
+  assert.equal(out.refused_incomplete, true);
   assert.deepEqual(out.preview_pages, ["preview/1/page_01.jpg", "preview/1/page_02.jpg", "preview/2/page_01.jpg", "preview/2/page_02.jpg"]);
   assert.deepEqual(out.preview_errors, [{ row: 1, lines: [1], error: "lint: left" }]);
   assert.match(out.preview_running, /still rendering/);
@@ -149,4 +167,5 @@ test("remake-viral-video 旁白：画面检查、preview / review 参数与分�
   assert.deepEqual(out.review, ["review", ["review/pages/page_01.jpg"],
     ["production/review/beats/beat_review.template.json", "work/decisions.json", "work/script.json"]]);
   assert.equal(out.review_twice, true);
+  assert.equal(out.review_left_nothing, true);
 });

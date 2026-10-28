@@ -30,9 +30,8 @@ follow the same steps in the main thread.
   recordings or to a product the speaker shows are not remade yet.
 - Refused by the runner before any video is generated (`out_of_scope`): references over 60
   seconds, walking, vehicle or first-person vlogs where the camera keeps moving, dialogues between
-  several people, references with nobody speaking on camera, references where the speaker is on
-  camera less than about half the time, and references that are mostly other footage. So are
-  creator videos with no clear frontal view of the creator's face.
+  several people, and -- for a talking head -- a speaker on camera less than about half the time
+  or mostly other footage. So are creator videos with no clear frontal view of the creator's face.
 - The creator is framed as the reference frames its speaker, shot by shot; the reference's other
   shots (cutaways, inserts, other people) are reused from its own footage. The reference's speaker
   never appears in the result.
@@ -82,7 +81,7 @@ charged, and that borderline references may not come out well. Say it once per c
 A remake needs both of these. Check them before any paid call:
 
 1. **One reference video**: the viral video to remake, as a YouTube or Instagram link, 60 seconds
-   or less, one person talking to camera.
+   or less, one person talking to camera or a voice-over.
 2. **The creator's own talking footage**, separate from the reference: their Instagram handle or
    profile link, or one to four YouTube or Instagram links to videos where they talk to camera. It
    decides how much the result looks like the creator.
@@ -228,7 +227,8 @@ it again; read each warning and change the document when it applies. Advance onl
 Nothing is generated or charged before this step. **Voice-over**: there is no model to choose.
 Tell the user the video will be made in their cloned voice with N pictures (M of them moving)
 and that the generated pictures cost about the sum of the rows' `est_usd`, then wait for a
-go-ahead; build the arguments without `--talking-model` / `--models-from` and render as below.
+go-ahead. After it, preview the stills once (narration.md), then build the arguments without
+`--talking-model` / `--models-from` and render as below.
 For a talking head, show the user the `talking_models` from the
 waiting_script result, in their order, each with its label and its estimated cost (`est_usd`), and
 say that the first one is the default. Do not add a recommendation of your own, drop options or

@@ -21,6 +21,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import sys
 import urllib.error
 import urllib.request
@@ -458,23 +459,31 @@ def fetch_preview(run, structured):
 
 
 def fetch_review(run, bundle):
-    """Save the per-line sheet pages and the review brief (current decisions, script, template) as review/."""
+    """Save the per-line sheet pages and the review brief (current decisions, script, template) as
+    review/. Everything is written to a staging directory first and moved into place only once
+    every page and file has passed, so a failed fetch can simply be run again."""
     target = run / "review"
     if target.exists():
         raise ValueError("This run already saved its picture review in review/; there is only one round")
     files = bundle["files"]
     if any(name not in files for name in REVIEW_FILES):
         raise ValueError("The review brief is incomplete")
-    pages = fetch_pages((bundle.get("review") or {}).get("sheets"), target / "pages")
-    written = {}
-    for name in REVIEW_FILES:
-        safe_relative(name)
-        json.loads(files[name])
-        path = target / "brief" / name
-        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        path.write_text(files[name], encoding="utf-8")
-        written[name] = str(path)
-    return {"saved": "review", "pages": pages, "files": written}
+    staging = run / f".review-staging-{secrets.token_hex(6)}"
+    try:
+        fetch_pages((bundle.get("review") or {}).get("sheets"), staging / "pages")
+        for name in REVIEW_FILES:
+            safe_relative(name)
+            json.loads(files[name])
+            path = staging / "brief" / name
+            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            path.write_text(files[name], encoding="utf-8")
+        staging.rename(target)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+    pages = sorted(str(p) for p in (target / "pages").glob("page_*.jpg"))
+    return {"saved": "review", "pages": pages,
+            "files": {name: str(target / "brief" / name) for name in REVIEW_FILES}}
 
 
 def fetch(raw):
