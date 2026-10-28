@@ -1,6 +1,6 @@
 ---
 name: remake-viral-video
-description: "Make a finished remake video of a viral talking-head reference (60 seconds or less) with the creator in it: the reference's scene and lines, the creator on camera, a few lines rewritten in their voice, rendered by Kabo and saved as an MP4. Use when someone asks to remake, recreate or copy a viral video onto themselves or a named creator. Needs a reference link and the creator's Instagram profile or video links. For only a script, use script writing; for only a teardown, use video analysis."
+description: "Make a finished remake video of a viral talking-head or voice-over reference (60 seconds or less) for a creator: the reference's lines, a few rewritten in their voice, with the creator on camera or, for a voice-over, in their cloned voice over pictures made anew; rendered by Kabo and saved as an MP4. Use when someone asks to remake, recreate or copy a viral video onto themselves or a named creator. Needs a reference link and the creator's Instagram profile or video links. For only a script, use script writing; for only a teardown, use video analysis."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return."
 allowed-tools: start_remake_video get_remake_video render_remake_video
@@ -24,8 +24,10 @@ follow the same steps in the main thread.
 
 - A reference of **60 seconds or less** where **one person talks to the camera** for most of the
   video, at any distance, seated or standing, anywhere, with a fixed or slightly handheld camera.
-  This version remakes only this talking-head kind. References that cut to screen recordings or to
-  a product the speaker shows, and voice-over references, are not remade yet.
+  Also **voice-over** references (nobody on camera; a voice over a screen recording, an animated
+  explainer, scenes or kinetic type): the creator's cloned voice reads the script and every
+  picture is made anew -- see `references/formats/narration.md`. References that cut to screen
+  recordings or to a product the speaker shows are not remade yet.
 - Refused by the runner before any video is generated (`out_of_scope`): references over 60
   seconds, walking, vehicle or first-person vlogs where the camera keeps moving, dialogues between
   several people, references with nobody speaking on camera, references where the speaker is on
@@ -72,9 +74,9 @@ rebuild a file from what was displayed.
 
 The first time the user asks for a remake in a conversation, say in two or three sentences what
 this remakes before asking for anything: a reference of 60 seconds or less where one person talks
-to the camera. Say that references outside this (dialogues between several people, walking or
-travel vlogs, nobody speaking on camera, over 60 seconds; for now also screen-recording,
-product-showing and voice-over videos) are refused before anything is generated and are not
+to the camera, or a voice-over video. Say that references outside this (dialogues between several
+people, walking or travel vlogs, over 60 seconds; for now also talking videos that cut to screen
+recordings or show a product) are refused before anything is generated and are not
 charged, and that borderline references may not come out well. Say it once per conversation.
 
 A remake needs both of these. Check them before any paid call:
@@ -157,12 +159,12 @@ Once there is a `job_id`, call `get_remake_video` with `{"job_id": "<id>", "wait
 status is no longer `preparing`. Analysis takes about ten minutes. Tell the user the current stage
 in one line when it changes; do not repeat yourself on every call.
 
-**Talking head only.** Stop as soon as a result shows `failure: "unsupported_type"` (the status
-stays `waiting_script`, and `brief`, `talking_models` and `gate_message` are null), or a
-`reference_type` that is set and is not `talking`. Say that this version of the plugin only remakes
-pure talking-head videos (one person talking to the camera, without cutting to screen recordings,
-without showing or handling an object or product for much of the video, and not voice-over); a
-speaker who faces the camera throughout can still be one of these kinds. Give `failure_reason` in
+**Talking head and voice-over only.** Stop as soon as a result shows `failure: "unsupported_type"`
+(the status stays `waiting_script`, and `brief`, `talking_models` and `gate_message` are null), or
+a `reference_type` that is set and is neither `talking` nor `narration`. Say that this version of
+the plugin remakes pure talking-head videos (one person talking to the camera, without cutting to
+screen recordings or showing a product for much of the video) and voice-over videos; a speaker
+who faces the camera throughout can still be one of the other kinds. Give `failure_reason` in
 plain words (it names the kind Kabo detected and that Kabo web supports it), say that no video was
 generated, and
 give the spend the result reports, if any. Do not say whether it counts toward the daily limit. Do
@@ -207,6 +209,10 @@ Write the four documents as `script/script.json`, `script/opening_review.json`,
 `script/decisions.json` and `script/route_b_jobs.json` (a heredoc at the absolute path, or the
 host's file tool).
 
+**Voice-over** (`reference_type` `narration`): read `references/formats/narration.md` whole. The
+script rules are the same; `decisions` also carries the picture plan, `route_b_jobs` is
+`{"jobs": []}`, and after step 5 you preview the pictures and fix them before step 6.
+
 ## 5. Check the documents
 
 ```sh
@@ -219,7 +225,11 @@ it again; read each warning and change the document when it applies. Advance onl
 
 ## 6. Choose the talking model and render
 
-Nothing is generated or charged before this step. Show the user the `talking_models` from the
+Nothing is generated or charged before this step. **Voice-over**: there is no model to choose.
+Tell the user the video will be made in their cloned voice with N pictures (M of them moving)
+and that the generated pictures cost about the sum of the rows' `est_usd`, then wait for a
+go-ahead; build the arguments without `--talking-model` / `--models-from` and render as below.
+For a talking head, show the user the `talking_models` from the
 waiting_script result, in their order, each with its label and its estimated cost (`est_usd`), and
 say that the first one is the default. Do not add a recommendation of your own, drop options or
 change the order. Unless the user already named a listed model (below), end your reply there and wait for the
@@ -266,7 +276,8 @@ example `cr check-script: ...`) and a fresh brief; nothing paid has been spent. 
 
 Production takes about twenty minutes with the default model and longer with the others. Call
 `get_remake_video` with `wait_s` 30 until the status is `delivered`, final, or `waiting_script`
-again (the documents were rejected: step 6). While it is
+again: with `review` it is a voice-over's one look at the finished pictures (narration.md, last
+section); otherwise the documents were rejected (step 6). While it is
 `running`, report the stage in one line when it changes. Do not promise a finish time.
 
 At `delivered`, save the result and fetch the video at once:
@@ -290,26 +301,9 @@ watch it in full before publishing.
 
 ## 8. When it does not finish
 
-Every final status (`out_of_scope`, `failed`, `timed_out`) comes with `failure` and, when the
-runner gave one, `failure_reason`. Always tell the user that reason in plain words, not only that
-the remake was refused or stopped (for example: the reference is filmed with a camera that keeps
-moving, like a walking or travel vlog, rather than one person talking to the camera). Do not quote
-stage names or internal terms. Always say whether it was charged:
-
-- `out_of_scope`: relay the reason. For a reference that is not a short talking-head video, suggest
-  one of 60 seconds or less where one person speaks to the camera for most of it. When no clear
-  frontal face of the creator was found, ask for links to videos where they talk facing the camera.
-  Nothing was charged and the daily limit was not used; say so.
-- `failed` with a likeness reason: the generated person did not look like the creator, so the video
-  was stopped or not delivered. Say so plainly and ask for clearer footage of the creator facing the
-  camera; do not resubmit the same inputs.
-- `failed` or `timed_out`: say the remake did not finish, why, and that no video was produced. These
-  jobs ran paid steps and count toward the daily limit; do not say otherwise. Do not resubmit on
-  your own; offer to start a new remake if the user wants one.
-- Any other `failure` value: relay `failure_reason` and the reported spend; do not guess whether it
-  was charged.
-- A `get_remake_video` call that fails: try once more; if it still fails, say the job is preserved
-  and can be checked later with its job id. Never start a replacement job for an unknown outcome.
+Every final status (`out_of_scope`, `failed`, `timed_out`) carries `failure` and usually
+`failure_reason`. Read `references/when-it-does-not-finish.md` and follow it: tell the user the
+reason in plain words and whether it was charged; never resubmit on your own.
 
 When the user's next step is outside this Skill, name the Skill that fits -- for example
 `create-script-and-packaging` for a script only, or `analyze-content-video` for a teardown of the

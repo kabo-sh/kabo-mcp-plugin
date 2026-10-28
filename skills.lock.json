@@ -63,8 +63,8 @@
     },
     {
       "id": "remake-viral-video",
-      "derivedFromVersion": "0.1.23",
-      "derivedFromCommit": "2206478d4b8bb5479790f073bfa0d7b6c5d2d929",
+      "derivedFromVersion": "0.1.29",
+      "derivedFromCommit": "8c0ffa32dcdc47bcc43910911f0a8bae881cf083",
       "sourcePath": "creator-skills/runtime/creator-remake-web"
     }
   ]

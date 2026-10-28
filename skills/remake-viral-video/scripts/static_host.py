@@ -4,10 +4,12 @@
 Commands:
   init        reserve one run directory under <workspace>/.kabo-runs/
   start-call  check the inputs and print the start_remake_video arguments with a stable idempotency_key
-  fetch       save the brief bundle or the final MP4 that a get_remake_video / render_remake_video
-              result links to, after checking host, size, sha256 and content type
+  fetch       save the brief bundle, the final MP4 or (voice-over) the picture review that a
+              get_remake_video / render_remake_video result links to, after checking host, size,
+              sha256 and content type
+  fetch-preview  save the pages of a voice-over preview (render_remake_video with preview)
 
-The only network access is `fetch`: one GET per signed storage.googleapis.com link that a Kabo tool
+The only network access is `fetch` / `fetch-preview`: one GET per signed storage.googleapis.com link that a Kabo tool
 result returned, checked against the declared bytes and sha256 before anything is kept.
 """
 from __future__ import annotations
@@ -32,6 +34,8 @@ SKILL = Path(__file__).resolve().parent.parent
 MAX_RESULT_BYTES = 4 * 1024 * 1024
 MAX_BRIEF_BYTES = 32 * 1024 * 1024
 MAX_VIDEO_BYTES = 512 * 1024 * 1024
+# 旁白的预览页与逐句对照页：runner 每页压到 200 KB 以内，这里留余量
+MAX_PAGE_BYTES = 1024 * 1024
 # 下载交付：只认 Kabo 工具结果给出的 GCS 签名链接，只 GET、不跟随重定向（Kabo Skills 规范 KS7.3）。
 DOWNLOAD_HOST = "storage.googleapis.com"
 DOWNLOAD_PREFIX = "https://" + DOWNLOAD_HOST + "/"
@@ -40,6 +44,11 @@ BRIEF_SCHEMA = "kabo.remake-brief.v1"
 # 简报包里必须有的四份文件（与网页端 status.brief 相同）。
 BRIEF_FILES = ("work/brief_input.json", "work/script.draft.json", "work/decisions.draft.json",
                "work/route_b/jobs.template.json")
+# 旁白没有口播首帧任务，简报里可以没有 jobs.template.json
+NARRATION_OPTIONAL = ("work/route_b/jobs.template.json",)
+# 旁白出片前看一次图时，简报换成当前稿件与逐句审片模板
+REVIEW_FILES = ("work/decisions.json", "work/script.json",
+                "production/review/beats/beat_review.template.json")
 RESIGN_HINT = ("Call get_remake_video again with this job_id (reading re-signs the link; nothing is re-run), save "
                "its complete result to a new host-results file and run fetch on it right away")
 # 签名失败时服务端给 {status: "unavailable", reason}；复刻没有内联回退，只能稍后再读一次重签，不要连着狂调。
@@ -297,7 +306,7 @@ def safe_relative(name):
 
 def fetch_brief(run, structured):
     if structured.get("failure") == "unsupported_type":
-        raise ValueError("This job is not a talking-head reference (failure unsupported_type): "
+        raise ValueError("This job is not a talking-head or voice-over reference (failure unsupported_type): "
                          + str(structured.get("failure_reason") or "no reason given")
                          + ". Stop: do not call render_remake_video")
     brief = structured.get("brief")
@@ -313,7 +322,7 @@ def fetch_brief(run, structured):
         existing = hashlib.sha256(marker.read_bytes()).hexdigest()
         if existing == descriptor.get("sha256"):
             return {"saved": "brief", "job_id": job_id, "status": "already_saved", "directory": str(target),
-                    "files": {name: str(target / name) for name in BRIEF_FILES}}
+                    "files": {name: str(target / name) for name in BRIEF_FILES if (target / name).exists()}}
     buffer = io.BytesIO()
     digest, size = download(descriptor, "envelope", "application/json", MAX_BRIEF_BYTES, buffer)
     body = buffer.getvalue()
@@ -325,7 +334,13 @@ def fetch_brief(run, structured):
     files = bundle.get("files")
     if not isinstance(files, dict) or not all(isinstance(text, str) for text in files.values()):
         raise ValueError("Brief bundle files must map paths to text")
-    missing = [name for name in BRIEF_FILES if name not in files]
+    narration = False
+    try:
+        narration = (json.loads(files.get("work/brief_input.json") or "{}").get("reference") or {}).get("type") == "narration"
+    except (ValueError, AttributeError):
+        pass
+    missing = [name for name in BRIEF_FILES if name not in files
+               and not (narration and name in NARRATION_OPTIONAL)]
     if missing:
         raise ValueError("Brief bundle is missing " + ", ".join(missing))
     for name, text in files.items():
@@ -389,11 +404,89 @@ def fetch_video(run, structured):
     return {"saved": "video", "job_id": job_id, "sha256": digest, "bytes": size, "path": str(final)}
 
 
+def fetch_pages(descriptors, target):
+    """Download page images (preview pages or the per-line review sheet) into a fresh target."""
+    if not isinstance(descriptors, list) or not descriptors:
+        raise ValueError("This result carries no pages to fetch")
+    target.mkdir(mode=0o700, parents=True)
+    paths = []
+    for n, item in enumerate(descriptors, start=1):
+        if not isinstance(item, dict) or not isinstance(item.get("download"), dict):
+            raise ValueError("A page in this result has no download")
+        path = target / f"page_{n:02d}.jpg"
+        buffer = io.BytesIO()
+        download(item["download"], "artifact", "image/jpeg", MAX_PAGE_BYTES, buffer)
+        body = buffer.getvalue()
+        if body[:3] != b"\xff\xd8\xff":
+            raise ValueError("A downloaded page is not a JPEG image; nothing was kept")
+        write_new(path, body)
+        paths.append(str(path))
+    return paths
+
+
+def next_round(base):
+    n = 1
+    while (base / str(n)).exists():
+        n += 1
+    return base / str(n)
+
+
+def fetch_preview(run, structured):
+    """Save the pages of a narration preview (render_remake_video with preview) as preview/<n>/."""
+    preview = structured.get("preview")
+    if not isinstance(preview, dict):
+        raise ValueError("This result carries no preview; call render_remake_video with preview first")
+    if preview.get("status") == "running":
+        raise ValueError("The preview is still rendering: call get_remake_video with this job_id in about 30 seconds, "
+                         "save the result and run fetch-preview on it")
+    rows = [row for row in preview.get("rows") or [] if isinstance(row, dict)]
+    errors = [{"row": row.get("row"), "lines": row.get("lines"), "error": str(row["error"])[:400]}
+              for row in rows if row.get("error")]
+    if preview.get("status") != "done":
+        return {"saved": "preview", "status": "failed", "errors": errors}
+    target = next_round(run / "preview")
+    pages = fetch_pages(preview.get("pages"), target)
+    return {"saved": "preview", "status": "done", "directory": str(target), "pages": pages,
+            "rows": len(rows), "errors": errors, "spend_usd": preview.get("spend_usd")}
+
+
+def fetch_review(run, structured):
+    """Save the per-line sheet pages and the review brief (current decisions, script, template) as review/."""
+    review = structured.get("review")
+    target = run / "review"
+    if target.exists():
+        raise ValueError("This run already saved its picture review in review/; there is only one round")
+    sheets = review.get("sheets") if isinstance(review, dict) else None
+    brief = structured.get("brief")
+    if not isinstance(brief, dict) or not isinstance(brief.get("download"), dict):
+        raise ValueError("This review result carries no brief; call get_remake_video again and fetch that result")
+    buffer = io.BytesIO()
+    download(brief["download"], "envelope", "application/json", MAX_BRIEF_BYTES, buffer)
+    bundle = json.loads(buffer.getvalue().decode("utf-8"))
+    files = bundle.get("files") if isinstance(bundle, dict) else None
+    if not isinstance(files, dict) or bundle.get("schema") != BRIEF_SCHEMA or any(name not in files for name in REVIEW_FILES):
+        raise ValueError("Downloaded review brief is incomplete")
+    if structured.get("job_id") and bundle.get("job_id") != structured.get("job_id"):
+        raise ValueError("Downloaded review brief belongs to a different job")
+    pages = fetch_pages(sheets, target / "pages")
+    written = {}
+    for name in REVIEW_FILES:
+        safe_relative(name)
+        json.loads(files[name])
+        path = target / "brief" / name
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path.write_text(files[name], encoding="utf-8")
+        written[name] = str(path)
+    return {"saved": "review", "pages": pages, "files": written}
+
+
 def fetch(raw):
     run = run_dir()
     structured = tool_result(raw)
     if isinstance(structured.get("video"), dict):
         return fetch_video(run, structured)
+    if isinstance(structured.get("review"), dict):
+        return fetch_review(run, structured)
     return fetch_brief(run, structured)
 
 
@@ -411,6 +504,8 @@ def main():
     # 完整结果只从文件或 stdin 读；下载链接不进 argv，不出现在进程列表里。
     command = commands.add_parser("fetch")
     command.add_argument("--input", default="-")
+    command = commands.add_parser("fetch-preview")
+    command.add_argument("--input", default="-")
     args = parser.parse_args()
     if args.command == "init":
         print(init(args.workspace))
@@ -423,7 +518,10 @@ def main():
         else:
             with open(args.input, "rb") as stream:
                 raw = stream.read(MAX_RESULT_BYTES + 1)
-        print(json.dumps(fetch(raw), ensure_ascii=False))
+        if args.command == "fetch-preview":
+            print(json.dumps(fetch_preview(run_dir(), tool_result(raw)), ensure_ascii=False))
+        else:
+            print(json.dumps(fetch(raw), ensure_ascii=False))
 
 
 if __name__ == "__main__":

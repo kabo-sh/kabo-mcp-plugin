@@ -2,6 +2,19 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 未发布
+
+- 复刻（`remake-viral-video`）支持旁白类参考视频（没人出镜、配音配画面）：移植网页端 creator-remake-web 0.1.29
+  （creator-skills `8c0ffa32d`，runner V2-r61）。带字的画面由 agent 写动效（composition，里面要的图片用
+  `make.images` 生成），写稿后先 `render_remake_video` + `preview` 渲出画面分页、用 `fetch-preview` 存到本地看图，
+  改到满意再出片；成片前 runner 停一次给逐句对照图，`fetch` 存下后写 `beat_review` 用 `--beat-review` 返工，
+  只重做不行的句子。旁白没有口播模型可选。
+  依赖 kabo `mark/remake-preview-review`（`/mcp-pub` 放行 narration、`render_remake_video` 加 `preview` 与
+  `beat_review`、get 给 preview / review 分页下载），`contracts/directory-mcp/` 已重新固定到其 commit
+  `0bd832aaf`（只有两个复刻工具变了）；合入后需按 kabo main 的 commit 重新固定。
+- 第 8 步「没跑完」的细则移到 `references/when-it-does-not-finish.md`（SKILL.md 正文回到 2 万字符以内）。
+- 新增 `scripts/remake-narration.test.mjs`：旁白画面检查、preview / review 参数、分页下载（不联网）。
+
 ## 1.0.3（2026-10-28；GitHub Release）
 
 - 新增第十一个 Skill `remake-viral-video`：把 60 秒以内的爆款纯口播视频复刻成创作者本人出镜的成片（MP4）。
