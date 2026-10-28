@@ -153,3 +153,28 @@ print(json.dumps(out))
   assert.match(out[120], /^YouTube video; 120 extracted frames;/);
   assert.match(out[121], /^ERROR cannot derive data_note: sampling-plan frame count disagrees/);
 });
+
+// 证据原文自带量级词（转录 "27 B" / "27 billion"、caption "27B"）时，报告照写不能判成编造；
+// 证据只有不相关的裸数字 27 时，报告的 "27B" 仍要拦。2026-10-28 Claude Code 补测 P2 实测误报。
+test("ACV 数字核对接受证据里自带量级词的数字，裸数字仍不能支撑带量级的写法", () => {
+  const probe = `
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from validate_creator_shape import figure_errors, source_values
+evidence = {"transcript": {"cues": [{"start_s": 0.0, "text": "Qwen 3.8 27 B is a 27 billion parameter variant"}]},
+            "caption": "Models like Qwen 3.8 27B run on consumer computers", "views": 1600000}
+view = {"cards": [{"why_for_you": "The 27B label and the spoken 27 billion both land in the first second; 1.6M views."}]}
+print(json.dumps({
+    "grounded": figure_errors(view, source_values(evidence)),
+    "bare": figure_errors({"cards": [{"why_for_you": "a 27B model"}]}, source_values({"steps": "27 steps"})),
+    "other": figure_errors({"cards": [{"why_for_you": "a 28B model"}]}, source_values(evidence)),
+}))
+`;
+  const scripts = path.join(import.meta.dirname, "..", "skills", "analyze-content-video", "scripts");
+  const out = JSON.parse(execFileSync("python3", ["-I", "-B", "-c", probe, scripts], { encoding: "utf8" }));
+  assert.deepEqual(out.grounded, []);
+  assert.equal(out.bare.length, 1);
+  assert.match(out.bare[0], /states 27B, which appears nowhere/);
+  assert.equal(out.other.length, 1);
+  assert.match(out.other[0], /states 28B, which appears nowhere/);
+});

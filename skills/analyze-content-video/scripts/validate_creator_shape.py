@@ -185,12 +185,25 @@ CLOCK = re.compile(r"\d{1,2}:\d{2}(?::\d{2})?")
 
 
 def source_values(*objects) -> set:
+    # The source can carry a magnitude word too: a transcript says "27 B" or "27 billion" and a
+    # caption says "27B" for a model's parameter count. Reading only the digits keeps 27, and the
+    # report's "27B" is then compared as 27 billion against 27 and called invented. Each scaled
+    # figure is kept alongside its bare digits, so a source "27B" grounds "27B" and "27 billion",
+    # while a bare 27 elsewhere still does not ground "27B".
     values = set()
     for obj in objects:
-        for raw in NUMBER.findall(json.dumps(obj, ensure_ascii=False)):
+        text = json.dumps(obj, ensure_ascii=False)
+        for raw in NUMBER.findall(text):
             try:
                 values.add(float(raw.replace(",", "")))
             except ValueError:
+                continue
+        for raw, unit in FIGURE.findall(text):
+            if not unit:
+                continue
+            try:
+                values.add(float(raw.replace(",", "")) * MAGNITUDES[unit.lower()])
+            except (ValueError, KeyError):
                 continue
     return values
 
