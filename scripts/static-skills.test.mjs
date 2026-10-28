@@ -155,7 +155,7 @@ print(json.dumps(out))
 });
 
 // 证据原文自带量级词（转录 "27 B" / "27 billion"、caption "27B"）时，报告照写不能判成编造；
-// 证据只有不相关的裸数字 27 时，报告的 "27B" 仍要拦。2026-10-28 Claude Code 补测 P2 实测误报。
+// 证据只有不相关的裸数字 27、"5 billionaires" 或 ID 片段（UUID 的 "-5b2e"）时，报告的带量级数字仍要拦。2026-10-28 Claude Code 补测 P2 实测误报。
 test("ACV 数字核对接受证据里自带量级词的数字，裸数字仍不能支撑带量级的写法", () => {
   const probe = `
 import json, sys
@@ -168,6 +168,9 @@ print(json.dumps({
     "grounded": figure_errors(view, source_values(evidence)),
     "bare": figure_errors({"cards": [{"why_for_you": "a 27B model"}]}, source_values({"steps": "27 steps"})),
     "other": figure_errors({"cards": [{"why_for_you": "a 28B model"}]}, source_values(evidence)),
+    "line_break": figure_errors({"cards": [{"why_for_you": "a 27 billion model"}]}, source_values({"t": "a 27\\nbillion model"})),
+    "word_tail": figure_errors({"cards": [{"why_for_you": "5B people"}]}, source_values({"t": "5 billionaires agree"})),
+    "identifier": figure_errors({"cards": [{"why_for_you": "5B people"}]}, source_values({"id": "7a9b2edb-d958-495d-5b2e-281111e5db11", "sha": "c5b3ff"})),
 }))
 `;
   const scripts = path.join(import.meta.dirname, "..", "skills", "analyze-content-video", "scripts");
@@ -177,4 +180,7 @@ print(json.dumps({
   assert.match(out.bare[0], /states 27B, which appears nowhere/);
   assert.equal(out.other.length, 1);
   assert.match(out.other[0], /states 28B, which appears nowhere/);
+  assert.deepEqual(out.line_break, []);
+  assert.equal(out.word_tail.length, 1);
+  assert.equal(out.identifier.length, 1);
 });

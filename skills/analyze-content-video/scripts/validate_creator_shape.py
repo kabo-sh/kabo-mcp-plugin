@@ -182,6 +182,24 @@ FIGURE = re.compile(
 # wrote: `14:00` yields `14` and `00`. Hours are governed by the block rules above, which already
 # know a time range from a UTC offset, so times are lifted out before figures are read.
 CLOCK = re.compile(r"\d{1,2}:\d{2}(?::\d{2})?")
+# A scaled figure in the source must stand on its own: nothing alphanumeric right before the
+# number or right after the unit. Without that, "5 billionaires" reads as five billion and an
+# identifier fragment such as "-5b2e" in a UUID or "c5b3" in a hash reads as 5B, and either would
+# ground a figure nobody stated.
+SOURCE_FIGURE = re.compile(
+    r"(?<![A-Za-z0-9.])(\d+(?:[.,]\d+)*)\s*(万|亿|thousand|million|billion|bn|[kmb])(?![A-Za-z0-9])",
+    re.IGNORECASE)
+
+
+def _strings(node):
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for child in node.values():
+            yield from _strings(child)
+    elif isinstance(node, list):
+        for child in node:
+            yield from _strings(child)
 
 
 def source_values(*objects) -> set:
@@ -189,22 +207,22 @@ def source_values(*objects) -> set:
     # caption says "27B" for a model's parameter count. Reading only the digits keeps 27, and the
     # report's "27B" is then compared as 27 billion against 27 and called invented. Each scaled
     # figure is kept alongside its bare digits, so a source "27B" grounds "27B" and "27 billion",
-    # while a bare 27 elsewhere still does not ground "27B".
+    # while a bare 27 elsewhere still does not ground "27B". Scaled figures are read from the
+    # string values themselves, not the JSON text, so a transcript line break between "27" and
+    # "billion" stays whitespace instead of becoming a literal "\n".
     values = set()
     for obj in objects:
-        text = json.dumps(obj, ensure_ascii=False)
-        for raw in NUMBER.findall(text):
+        for raw in NUMBER.findall(json.dumps(obj, ensure_ascii=False)):
             try:
                 values.add(float(raw.replace(",", "")))
             except ValueError:
                 continue
-        for raw, unit in FIGURE.findall(text):
-            if not unit:
-                continue
-            try:
-                values.add(float(raw.replace(",", "")) * MAGNITUDES[unit.lower()])
-            except (ValueError, KeyError):
-                continue
+        for text in _strings(obj):
+            for raw, unit in SOURCE_FIGURE.findall(text):
+                try:
+                    values.add(float(raw.replace(",", "")) * MAGNITUDES[unit.lower()])
+                except (ValueError, KeyError):
+                    continue
     return values
 
 
