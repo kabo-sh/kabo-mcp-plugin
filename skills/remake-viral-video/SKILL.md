@@ -70,12 +70,18 @@ rebuild a file from what was displayed.
 
 ## 1. Collect the inputs
 
-The first time the user asks for a remake in a conversation, say in two or three sentences what
-this remakes before asking for anything: a reference of 60 seconds or less where one person talks
-to the camera. Say that references outside this (dialogues between several people, walking or
-travel vlogs, nobody speaking on camera, over 60 seconds; for now also screen-recording,
-product-showing and voice-over videos) are refused before anything is generated and are not
-charged, and that borderline references may not come out well. Say it once per conversation.
+The first time the user asks for a remake in a conversation, say in two or three sentences, before
+asking for anything or starting, all three of these:
+
+- what this remakes: a reference of 60 seconds or less where one person talks to the camera;
+- that references outside this (dialogues between several people, walking or travel vlogs, nobody
+  speaking on camera, over 60 seconds; for now also screen-recording, product-showing and
+  voice-over videos) are refused before anything is generated, and a refusal is not charged;
+- that borderline references may not come out well.
+
+Say it once per conversation, also
+when the first message already has both inputs: it is information, not a question, so start right
+after it.
 
 A remake needs both of these. Check them before any paid call:
 
@@ -163,9 +169,9 @@ stays `waiting_script`, and `brief`, `talking_models` and `gate_message` are nul
 pure talking-head videos (one person talking to the camera, without cutting to screen recordings,
 without showing or handling an object or product for much of the video, and not voice-over); a
 speaker who faces the camera throughout can still be one of these kinds. Give `failure_reason` in
-plain words (it names the kind Kabo detected and that Kabo web supports it), say that no video was
-generated, and
-give the spend the result reports, if any. Do not say whether it counts toward the daily limit. Do
+plain words. It names the kind Kabo detected and says Kabo web supports it: tell the user both, so
+they know they can remake this video on Kabo web. Say that no video was generated, and give the
+spend the result reports, if any. Do not say whether it counts toward the daily limit. Do
 not call `render_remake_video`; this job is finished.
 
 A final status at this point (`out_of_scope`, `failed`, `timed_out`) is handled as in step 8; when
