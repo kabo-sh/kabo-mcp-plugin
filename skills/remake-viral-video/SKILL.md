@@ -153,8 +153,11 @@ in one line when it changes; do not repeat yourself on every call.
 **Talking head only.** Stop as soon as a result shows `failure: "unsupported_type"` (the status
 stays `waiting_script`, and `brief`, `talking_models` and `gate_message` are null), or a
 `reference_type` that is set and is not `talking`. Say that this version of the plugin only remakes
-talking-head videos (one person talking to the camera, without screen recordings, product
-close-ups or voice-over), give `failure_reason` in plain words, say that no video was generated, and
+pure talking-head videos (one person talking to the camera, without cutting to screen recordings,
+without showing or handling an object or product for much of the video, and not voice-over); a
+speaker who faces the camera throughout can still be one of these kinds. Give `failure_reason` in
+plain words (it names the kind Kabo detected and that Kabo web supports it), say that no video was
+generated, and
 give the spend the result reports, if any. Do not say whether it counts toward the daily limit. Do
 not call `render_remake_video`; this job is finished.
 
