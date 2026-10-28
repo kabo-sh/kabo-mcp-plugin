@@ -10,6 +10,7 @@ again before anything is generated or charged, and its message is the one that c
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import re
@@ -98,6 +99,18 @@ def no_escaped_breaks(label, document, errors):
             errors.append(f"{label}.{where} contains a backslash followed by n; write a real line break (\\n inside the JSON string), not an escaped one (\\\\n)")
 
 
+def words_of(sentence):
+    return re.findall(r"[a-z0-9']+", sentence.lower())
+
+
+def dropped_words(original, fixed):
+    # 校对只改听错的词：原句里的词在改正句里找不到相近的词（含相邻两词拼起来，如 selfcommunicate -> sell, communicate）就算被删了。
+    have = words_of(fixed)
+    near = have + [a + b for a, b in zip(have, have[1:])]
+    return [w for w in words_of(original)
+            if not any(difflib.SequenceMatcher(None, w, n).ratio() >= 0.75 for n in near)]
+
+
 def beats_of(role):
     out = set()
     for match in BEAT.finditer(str(role or "")):
@@ -161,6 +174,12 @@ def check_script(script, brief, errors, warnings):
                 errors.append(f"script.proofread.fixes key {key!r} is not an index into reference.sentences")
             if not text(value):
                 errors.append(f"script.proofread.fixes[{key}] must be the whole corrected sentence")
+            elif str(key).isdigit() and int(key) < len(sentences):
+                original = sentences[int(key)]
+                original = original.get("text") if isinstance(original, dict) else original
+                for word in dropped_words(str(original or ""), value):
+                    warnings.append(f"script.proofread.fixes[{key}] drops {word!r}; a proofread fix only corrects misheard "
+                                    "words, so keep every other word of the reference sentence")
     lines = script.get("lines")
     if not isinstance(lines, list) or not lines:
         errors.append("script.lines must list the lines")
