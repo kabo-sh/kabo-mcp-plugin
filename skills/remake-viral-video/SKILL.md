@@ -70,6 +70,13 @@ rebuild a file from what was displayed.
 
 ## 1. Collect the inputs
 
+The first time the user asks for a remake in a conversation, say in two or three sentences what
+this remakes before asking for anything: a reference of 60 seconds or less where one person talks
+to the camera. Say that references outside this (dialogues between several people, walking or
+travel vlogs, nobody speaking on camera, over 60 seconds; for now also screen-recording,
+product-showing and voice-over videos) are refused before anything is generated and are not
+charged, and that borderline references may not come out well. Say it once per conversation.
+
 A remake needs both of these. Check them before any paid call:
 
 1. **One reference video**: the viral video to remake, as a YouTube or Instagram link, 60 seconds
