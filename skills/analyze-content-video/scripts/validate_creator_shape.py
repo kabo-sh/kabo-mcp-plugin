@@ -185,10 +185,13 @@ CLOCK = re.compile(r"\d{1,2}:\d{2}(?::\d{2})?")
 # A scaled figure in the source must stand on its own: nothing alphanumeric right before the
 # number or right after the unit. Without that, "5 billionaires" reads as five billion and an
 # identifier fragment such as "-5b2e" in a UUID or "c5b3" in a hash reads as 5B, and either would
-# ground a figure nobody stated.
+# ground a figure nobody stated. A single letter after a space counts only in capitals: speech
+# recognition writes "27 B", while "5 m tall" is metres, not five million. Attached letters
+# ("5M", "27b") count in either case, and ".5 billion" is read as 0.5 billion.
 SOURCE_FIGURE = re.compile(
-    r"(?<![A-Za-z0-9.])(\d+(?:[.,]\d+)*)\s*(万|亿|thousand|million|billion|bn|[kmb])(?![A-Za-z0-9])",
-    re.IGNORECASE)
+    r"(?<![A-Za-z0-9.])(\d+(?:[.,]\d+)*|\.\d+)"
+    r"(?:\s*(万|亿|(?i:thousand|million|billion|bn))|([kmbKMB])|\s+([KMB]))"
+    r"(?![A-Za-z0-9])")
 
 
 def _strings(node):
@@ -218,7 +221,8 @@ def source_values(*objects) -> set:
             except ValueError:
                 continue
         for text in _strings(obj):
-            for raw, unit in SOURCE_FIGURE.findall(text):
+            for raw, *units in SOURCE_FIGURE.findall(text):
+                unit = next(u for u in units if u)
                 try:
                     values.add(float(raw.replace(",", "")) * MAGNITUDES[unit.lower()])
                 except (ValueError, KeyError):

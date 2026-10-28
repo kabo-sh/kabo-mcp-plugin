@@ -170,6 +170,8 @@ print(json.dumps({
     "other": figure_errors({"cards": [{"why_for_you": "a 28B model"}]}, source_values(evidence)),
     "line_break": figure_errors({"cards": [{"why_for_you": "a 27 billion model"}]}, source_values({"t": "a 27\\nbillion model"})),
     "word_tail": figure_errors({"cards": [{"why_for_you": "5B people"}]}, source_values({"t": "5 billionaires agree"})),
+    "leading_dot": figure_errors({"cards": [{"why_for_you": "0.5B users"}]}, source_values({"t": "about .5 billion users"})),
+    "metres": figure_errors({"cards": [{"why_for_you": "5M views"}]}, source_values({"t": "he is 5 m tall"})),
     "identifier": figure_errors({"cards": [{"why_for_you": "5B people"}]}, source_values({"id": "7a9b2edb-d958-495d-5b2e-281111e5db11", "sha": "c5b3ff"})),
 }))
 `;
@@ -183,4 +185,6 @@ print(json.dumps({
   assert.deepEqual(out.line_break, []);
   assert.equal(out.word_tail.length, 1);
   assert.equal(out.identifier.length, 1);
+  assert.deepEqual(out.leading_dot, []);
+  assert.equal(out.metres.length, 1);
 });
