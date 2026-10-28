@@ -10,8 +10,8 @@
   改到满意再出片；成片前 runner 停一次给逐句对照图，`fetch` 存下后写 `beat_review` 用 `--beat-review` 返工，
   只重做不行的句子。旁白没有口播模型可选。
   依赖 kabo `mark/remake-preview-review`（`/mcp-pub` 放行 narration、`render_remake_video` 加 `preview` 与
-  `beat_review`、get 给 preview / review 分页下载），`contracts/directory-mcp/` 已重新固定到其 commit
-  `0bd832aaf`（只有两个复刻工具变了）；合入后需按 kabo main 的 commit 重新固定。
+  `beat_review`、preview 结果与逐句对照图放在 brief 信封里），`contracts/directory-mcp/` 已重新固定到其 commit
+  `4de826067`（只有两个复刻工具的入参和说明变了，出参不变）；合入后需按 kabo main 的 commit 重新固定。
 - 第 8 步「没跑完」的细则移到 `references/when-it-does-not-finish.md`（SKILL.md 正文回到 2 万字符以内）。
 - 新增 `scripts/remake-narration.test.mjs`：旁白画面检查、preview / review 参数、分页下载（不联网）。
 

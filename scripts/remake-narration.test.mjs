@@ -88,24 +88,32 @@ try:
 except ValueError:
     out["refused_no_note"] = True
 
-# 4. preview pages
+# 4. preview pages ride in the brief envelope
 jpeg = b"\xff\xd8\xff\xe0" + b"0" * 60
-result = {"status": "waiting_script", "job_id": JOB, "preview": {"status": "done", "pages": [
+def envelope(name, extra):
+    body = json.dumps({"schema": host.BRIEF_SCHEMA, "job_id": JOB, "files": brief, **extra}).encode()
+    return {"status": "waiting_script", "job_id": JOB,
+            "brief": {"download": descriptor(name, body, "application/json", "envelope")}}
+preview = {"status": "done", "pages": [
     {"download": descriptor("p1.jpg", jpeg, "image/jpeg")}, {"download": descriptor("p2.jpg", jpeg, "image/jpeg")}],
-    "stills": {}, "rows": [{"row": 0, "lines": [0]}, {"row": 1, "lines": [1], "error": "lint: left"}], "spend_usd": 0.04}}
-first, second = host.fetch_preview(run, result), host.fetch_preview(run, result)
+    "stills": {}, "rows": [{"row": 0, "lines": [0]}, {"row": 1, "lines": [1], "error": "lint: left"}], "spend_usd": 0.04}
+first = host.fetch_preview(run, envelope("e1.json", {"preview": preview}))
+second = host.fetch_preview(run, envelope("e2.json", {"preview": preview}))
 out["preview_pages"] = [os.path.relpath(p, run) for p in first["pages"] + second["pages"]]
 out["preview_errors"] = first["errors"]
 try:
-    host.fetch_preview(run, {"status": "waiting_script", "preview": {"status": "running"}})
+    host.fetch_preview(run, envelope("e3.json", {"preview": {"status": "running"}}))
 except ValueError as error:
     out["preview_running"] = str(error)[:40]
+# the same brief with a fresh preview inside is not a new brief
+out["same_brief"] = host.fetch(json.dumps(envelope("e4.json", {"preview": preview})).encode())["status"]
 
 # 5. the picture review
 review_files = {name: "{}" for name in host.REVIEW_FILES}
-rbundle = json.dumps({"schema": host.BRIEF_SCHEMA, "job_id": JOB, "files": review_files}).encode()
-review = {"status": "waiting_script", "job_id": JOB, "review": {"sheets": [{"download": descriptor("s1.jpg", jpeg, "image/jpeg")}]},
-          "brief": {"download": descriptor("rbrief.json", rbundle, "application/json", "envelope")}}
+rbody = json.dumps({"schema": host.BRIEF_SCHEMA, "job_id": JOB, "files": review_files,
+                    "review": {"sheets": [{"download": descriptor("s1.jpg", jpeg, "image/jpeg")}]}}).encode()
+review = {"status": "waiting_script", "job_id": JOB,
+          "brief": {"download": descriptor("rbrief.json", rbody, "application/json", "envelope")}}
 saved = host.fetch(json.dumps(review).encode())
 out["review"] = [saved["saved"], [os.path.relpath(p, run) for p in saved["pages"]], sorted(saved["files"])]
 try:
@@ -137,6 +145,7 @@ test("remake-viral-video 旁白：画面检查、preview / review 参数与分�
   assert.deepEqual(out.preview_pages, ["preview/1/page_01.jpg", "preview/1/page_02.jpg", "preview/2/page_01.jpg", "preview/2/page_02.jpg"]);
   assert.deepEqual(out.preview_errors, [{ row: 1, lines: [1], error: "lint: left" }]);
   assert.match(out.preview_running, /still rendering/);
+  assert.equal(out.same_brief, "already_saved");
   assert.deepEqual(out.review, ["review", ["review/pages/page_01.jpg"],
     ["production/review/beats/beat_review.template.json", "work/decisions.json", "work/script.json"]]);
   assert.equal(out.review_twice, true);

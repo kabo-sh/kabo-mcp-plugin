@@ -276,8 +276,8 @@ example `cr check-script: ...`) and a fresh brief; nothing paid has been spent. 
 
 Production takes about twenty minutes with the default model and longer with the others. Call
 `get_remake_video` with `wait_s` 30 until the status is `delivered`, final, or `waiting_script`
-again: with `review` it is a voice-over's one look at the finished pictures (narration.md, last
-section); otherwise the documents were rejected (step 6). While it is
+again: for a voice-over whose `fetch` reports `"saved": "review"` it is the one look at the
+finished pictures (narration.md, last section); otherwise the documents were rejected (step 6). While it is
 `running`, report the stage in one line when it changes. Do not promise a finish time.
 
 At `delivered`, save the result and fetch the video at once:

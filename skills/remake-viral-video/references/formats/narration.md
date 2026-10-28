@@ -132,14 +132,15 @@ cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill di
 It writes `render/preview_remake_video.json`; call `render_remake_video` with that file's content,
 unchanged. Use `--preview stills` instead to also generate the stills of the `generated` rows
 (about $0.04 each; the video uses the very still you looked at, so it is not paid for twice). The
-result says the preview is `running`; call `get_remake_video` with `wait_s` 30 until
-`preview.status` is `done` or `failed`, save that result and fetch the pages:
+job stays at `waiting_script`. About 30 seconds later call `get_remake_video` with `wait_s` 30,
+save that result and fetch the pages (they ride in its brief link):
 
 ```sh
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch-preview --input 'host-results/<NN>-get_remake_video.json'
 ```
 
-It saves `preview/<n>/page_NN.jpg`: one strip per row with the row and lines, the line, and four
+When it says the preview is still rendering, wait about 30 seconds and repeat both steps. It
+saves `preview/<n>/page_NN.jpg`: one strip per row with the row and lines, the line, and four
 frames. Open every page with your image viewer and check each strip: the words read at phone
 size, the frame is filled, nothing important sits in the bottom third under the captions, and the
 picture shows what the line says. `errors` names rows that did not render. Fix what does not
@@ -149,8 +150,9 @@ preview does not start production; the job stays at the script gate.
 ## One look at the finished pictures
 
 After the video is made, a voice-over job stops once more: `get_remake_video` shows
-`waiting_script` with `review` (and no `gate_message` about the documents). Save that result and
-run `fetch` on it (step 3's command). It saves `review/pages/page_NN.jpg` -- each row: the video's
+`waiting_script` again with a `gate_message` asking you to look at every line's picture. Save that
+result and run `fetch` on it (step 3's command); it reports `"saved": "review"` and saves
+`review/pages/page_NN.jpg` -- each row: the video's
 picture while the line is heard | the reference's picture where the same line was heard | the
 line -- and `review/brief/` with the current decisions and
 `production/review/beats/beat_review.template.json`.

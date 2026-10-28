@@ -304,36 +304,42 @@ def safe_relative(name):
     return name
 
 
-def fetch_brief(run, structured):
-    if structured.get("failure") == "unsupported_type":
-        raise ValueError("This job is not a talking-head or voice-over reference (failure unsupported_type): "
-                         + str(structured.get("failure_reason") or "no reason given")
-                         + ". Stop: do not call render_remake_video")
+def load_bundle(structured):
+    """Download and check the brief envelope this result links to; return (body, bundle, digest, size)."""
     brief = structured.get("brief")
     if not isinstance(brief, dict) or not isinstance(brief.get("download"), dict):
         raise ValueError(f"This result (status {structured.get('status')!r}) carries no brief; the brief is given only "
                          "at waiting_script")
-    job_id = structured.get("job_id")
-    descriptor = brief["download"]
-    target = run / "brief"
-    marker = target / "bundle.json"
-    previous = None
-    if marker.exists():
-        existing = hashlib.sha256(marker.read_bytes()).hexdigest()
-        if existing == descriptor.get("sha256"):
-            return {"saved": "brief", "job_id": job_id, "status": "already_saved", "directory": str(target),
-                    "files": {name: str(target / name) for name in BRIEF_FILES if (target / name).exists()}}
     buffer = io.BytesIO()
-    digest, size = download(descriptor, "envelope", "application/json", MAX_BRIEF_BYTES, buffer)
+    digest, size = download(brief["download"], "envelope", "application/json", MAX_BRIEF_BYTES, buffer)
     body = buffer.getvalue()
     bundle = json.loads(body.decode("utf-8"))
     if not isinstance(bundle, dict) or bundle.get("schema") != BRIEF_SCHEMA:
         raise ValueError("Downloaded file is not a remake brief bundle")
+    job_id = structured.get("job_id")
     if job_id and bundle.get("job_id") != job_id:
         raise ValueError("Downloaded brief belongs to a different job")
     files = bundle.get("files")
     if not isinstance(files, dict) or not all(isinstance(text, str) for text in files.values()):
         raise ValueError("Brief bundle files must map paths to text")
+    return body, bundle, digest, size
+
+
+def fetch_brief(run, structured, loaded=None):
+    if structured.get("failure") == "unsupported_type":
+        raise ValueError("This job is not a talking-head or voice-over reference (failure unsupported_type): "
+                         + str(structured.get("failure_reason") or "no reason given")
+                         + ". Stop: do not call render_remake_video")
+    body, bundle, digest, size = loaded or load_bundle(structured)
+    files = bundle["files"]
+    target = run / "brief"
+    marker = target / "bundle.json"
+    previous = None
+    if marker.exists():
+        # 信封里可能带着每次重签的预览链接：只按稿件文件判断简报是否换了
+        if (json.loads(marker.read_bytes().decode("utf-8")) or {}).get("files") == files:
+            return {"saved": "brief", "job_id": bundle.get("job_id"), "status": "already_saved", "directory": str(target),
+                    "files": {name: str(target / name) for name in BRIEF_FILES if (target / name).exists()}}
     narration = False
     try:
         narration = (json.loads(files.get("work/brief_input.json") or "{}").get("reference") or {}).get("type") == "narration"
@@ -432,8 +438,9 @@ def next_round(base):
 
 
 def fetch_preview(run, structured):
-    """Save the pages of a narration preview (render_remake_video with preview) as preview/<n>/."""
-    preview = structured.get("preview")
+    """Save the pages of a voice-over preview (they ride in the brief envelope) as preview/<n>/."""
+    _, bundle, _, _ = load_bundle(structured)
+    preview = bundle.get("preview")
     if not isinstance(preview, dict):
         raise ValueError("This result carries no preview; call render_remake_video with preview first")
     if preview.get("status") == "running":
@@ -450,25 +457,15 @@ def fetch_preview(run, structured):
             "rows": len(rows), "errors": errors, "spend_usd": preview.get("spend_usd")}
 
 
-def fetch_review(run, structured):
+def fetch_review(run, bundle):
     """Save the per-line sheet pages and the review brief (current decisions, script, template) as review/."""
-    review = structured.get("review")
     target = run / "review"
     if target.exists():
         raise ValueError("This run already saved its picture review in review/; there is only one round")
-    sheets = review.get("sheets") if isinstance(review, dict) else None
-    brief = structured.get("brief")
-    if not isinstance(brief, dict) or not isinstance(brief.get("download"), dict):
-        raise ValueError("This review result carries no brief; call get_remake_video again and fetch that result")
-    buffer = io.BytesIO()
-    download(brief["download"], "envelope", "application/json", MAX_BRIEF_BYTES, buffer)
-    bundle = json.loads(buffer.getvalue().decode("utf-8"))
-    files = bundle.get("files") if isinstance(bundle, dict) else None
-    if not isinstance(files, dict) or bundle.get("schema") != BRIEF_SCHEMA or any(name not in files for name in REVIEW_FILES):
-        raise ValueError("Downloaded review brief is incomplete")
-    if structured.get("job_id") and bundle.get("job_id") != structured.get("job_id"):
-        raise ValueError("Downloaded review brief belongs to a different job")
-    pages = fetch_pages(sheets, target / "pages")
+    files = bundle["files"]
+    if any(name not in files for name in REVIEW_FILES):
+        raise ValueError("The review brief is incomplete")
+    pages = fetch_pages((bundle.get("review") or {}).get("sheets"), target / "pages")
     written = {}
     for name in REVIEW_FILES:
         safe_relative(name)
@@ -485,9 +482,10 @@ def fetch(raw):
     structured = tool_result(raw)
     if isinstance(structured.get("video"), dict):
         return fetch_video(run, structured)
-    if isinstance(structured.get("review"), dict):
-        return fetch_review(run, structured)
-    return fetch_brief(run, structured)
+    loaded = load_bundle(structured) if structured.get("failure") != "unsupported_type" else None
+    if loaded and isinstance(loaded[1].get("review"), dict):
+        return fetch_review(run, loaded[1])
+    return fetch_brief(run, structured, loaded)
 
 
 def main():
