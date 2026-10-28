@@ -175,6 +175,7 @@ print(json.dumps({
     "wan_yi": figure_errors({"cards": [{"why_for_you": "5万"}]}, source_values({"t": "市值5万亿"})),
     "wan_yi_full": figure_errors({"cards": [{"why_for_you": "5万亿"}]}, source_values({"t": "市值5万亿"})),
     "report_dot": figure_errors({"cards": [{"why_for_you": ".5B users"}]}, source_values({"t": "5 billion users"})),
+    "dotted_ref": figure_errors({"cards": [{"why_for_you": "see obs.14, v1.5 and version..5"}]}, source_values({"observation_index": 14, "version": 1.5, "patch": 5})),
     "bare_dot": figure_errors({"cards": [{"why_for_you": "a .5 share"}]}, source_values({"t": "a .5 share"})),
     "identifier": figure_errors({"cards": [{"why_for_you": "5B people"}]}, source_values({"id": "7a9b2edb-d958-495d-5b2e-281111e5db11", "sha": "c5b3ff"})),
 }))
@@ -195,4 +196,5 @@ print(json.dumps({
   assert.deepEqual(out.wan_yi_full, []);
   assert.equal(out.report_dot.length, 1);
   assert.deepEqual(out.bare_dot, []);
+  assert.deepEqual(out.dotted_ref, []);
 });

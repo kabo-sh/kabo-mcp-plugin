@@ -168,7 +168,8 @@ def quotes_the_video(line: str, cues: list[dict]) -> str | None:
 #
 # The single letters need the lookahead: without it "5 km" reads as five thousand and "3 more"
 # reads as three million. "万亿" is listed before "万" so "5万亿" reads as five trillion, not
-# 5万 followed by a stray 亿, and ".5B" reads as 0.5B, not 5B.
+# 5万 followed by a stray 亿, and ".5B" reads as 0.5B, not 5B. A dot after a letter, digit or dot
+# is not a leading-dot decimal: "obs.14" in a reference stays 14, as it always read.
 MAGNITUDES = {
     "": 1,
     "万": 10_000, "亿": 100_000_000, "万亿": 1_000_000_000_000,
@@ -177,7 +178,7 @@ MAGNITUDES = {
     "b": 1_000_000_000, "bn": 1_000_000_000, "billion": 1_000_000_000,
 }
 FIGURE = re.compile(
-    r"(\d+(?:[.,]\d+)*|\.\d+)\s*(万亿|万|亿|thousand|million|billion|bn|[kmb](?![a-z]))?",
+    r"(\d+(?:[.,]\d+)*|(?<![A-Za-z0-9.])\.\d+)\s*(万亿|万|亿|thousand|million|billion|bn|[kmb](?![a-z]))?",
     re.IGNORECASE)
 # A clock is not a figure the creator stands behind, and splitting one produces two that nobody
 # wrote: `14:00` yields `14` and `00`. Hours are governed by the block rules above, which already
@@ -190,7 +191,7 @@ CLOCK = re.compile(r"\d{1,2}:\d{2}(?::\d{2})?")
 # recognition writes "27 B", while "5 m tall" is metres, not five million. Attached letters
 # ("5M", "27b") count in either case, and ".5 billion" is read as 0.5 billion.
 # The report side reads ".5" as 0.5, so the source keeps that reading next to the bare digits.
-LEADING_DOT = re.compile(r"(?<![\d.])\.\d+")
+LEADING_DOT = re.compile(r"(?<![A-Za-z0-9.])\.\d+")
 SOURCE_FIGURE = re.compile(
     r"(?<![A-Za-z0-9.])(\d+(?:[.,]\d+)*|\.\d+)"
     r"(?:\s*(万亿|万|亿|(?i:thousand|million|billion|bn))|([kmbKMB])|\s+([KMB]))"
