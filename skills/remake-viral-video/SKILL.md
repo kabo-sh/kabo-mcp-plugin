@@ -244,7 +244,12 @@ It writes `render/render_remake_video.json`. Call `render_remake_video` with tha
 its arguments, unchanged. An accepted render returns `status: "running"`. A retry of an accepted
 render returns the current state and never launches twice, so on a timeout or lost response call
 it again with the same arguments. A `conflict` error with `retryable: true` means the job's brief
-could not be read: call once more after a minute, then report it. A result with
+could not be read: call once more after a minute, then report it.
+`quota_exceeded` with `retryable: true` from `render_remake_video` means another remake of this
+account is still being prepared or rendered; one runs at a time. Nothing was started and the job
+keeps waiting with its script: tell the user, wait for the other one (poll this job with
+`get_remake_video` every few minutes, or let the user ask later) and call `render_remake_video` again
+with the same arguments. A result with
 `failure: "unsupported_type"` is handled as in step 2.
 
 **The runner checks the documents first, after render returns.** If they fail, a later
