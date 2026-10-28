@@ -4,6 +4,15 @@
 
 ## 未发布
 
+- 新增四个 Skill，均从 creator-skills `8fc3371e6` 按 KS1–KS8 改造搬运（固定这一版搬运，与上游后续版本的差异上线前再对齐）：
+  `diagnose-reach-drop` 0.4.10、`recommend-publish-timing` 0.5.14、`plan-platform-monetization` 0.7.13、
+  `verify-platform-rule` 0.18.23。去掉 `manifest.json`、`agents/` 与读宿主会话记录的脚本，取数改为 `/mcp-pub`
+  工具名 + `delivery:"download"` + `static_host.py`；超过 KS3.2 上限的数据文件拆分或删去脚本与正文都不读的字段。
+  `recommend-publish-timing` 修正上游校验器与引擎对小时级推荐置信度判定不一致（校验器按指标一致率重算，引擎按同行佐证），
+  此前多数小时级推荐会在校验步失败。
+- `verify-platform-rule` 依赖 `/mcp-pub` 恢复的 `official_page_render_page`（kabo#1817，未合入）；`contracts/directory-mcp/`
+  暂时固定到该 PR 的 head `e13efdbee`（63 个工具，只增），kabo 合入后须按合入 commit 重新固定。
+  四个新 Skill 只做了离线回放，未在真实宿主或生产环境实测。
 - 新增第十一个 Skill `remake-viral-video`：把 60 秒以内的爆款纯口播视频复刻成创作者本人出镜的成片（MP4）。
   移植自网页端 creator-remake-web 0.1.23（creator-skills `2206478d`）的写稿关口（读音校对、四个改写位、
   画面文字与继承台账、来源规则、四份文档），只做纯口播；录屏/画中画、实物、旁白与网页端专有机制未移植。

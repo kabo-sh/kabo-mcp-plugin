@@ -1,16 +1,16 @@
 {
   "sourceRepository": "https://github.com/kabo-sh/kabo",
-  "sourceCommit": "005fcbc6d267a931fbf1010653b2236dfc1d6679",
+  "sourceCommit": "e13efdbeea5f00591154b474f42b973cf5535952",
   "sourceCommand": "pnpm --filter @kabo/api mcp:audit --surface directory --output <directory>",
   "files": {
     "tools-list.json": {
-      "sha256": "5bbf20d9ac05d94f0b177e90625e58b5c38f9b35bddb70fc4121469d66b35b69"
+      "sha256": "dc7b6477385ba086d1ebd5763d54615b5659f7b4e690a03f514842d7dc7994a8"
     },
     "annotations.md": {
-      "sha256": "242533f904b2ff1f99f1dfa686b7920837585beff96eeed88567e5494423868a"
+      "sha256": "27b908436a204244ec33dcb908910067d912707fdf273aa0fde3ae3c75edab3a"
     },
     "data-tool-bindings.json": {
-      "sha256": "5bd215967fca9117d84920cd8e8e994f04ae1927dbbc1f46ac9dfdf1b0f6faef"
+      "sha256": "bb40073dbc8b2a1c7015c93c91b4e0cf4a23b0df4cf8c8cab89a63b31c453fb7"
     }
   }
 }

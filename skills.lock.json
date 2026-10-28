@@ -66,6 +66,30 @@
       "derivedFromVersion": "0.1.23",
       "derivedFromCommit": "2206478d4b8bb5479790f073bfa0d7b6c5d2d929",
       "sourcePath": "creator-skills/runtime/creator-remake-web"
+    },
+    {
+      "id": "diagnose-reach-drop",
+      "derivedFromVersion": "0.4.10",
+      "sourcePath": "creator-skills/runtime/diagnose-reach-drop",
+      "derivedFromCommit": "8fc3371e6950478a724740bb4c5cf7a03e7e655c"
+    },
+    {
+      "id": "recommend-publish-timing",
+      "derivedFromVersion": "0.5.14",
+      "sourcePath": "creator-skills/runtime/recommend-publish-timing",
+      "derivedFromCommit": "8fc3371e6950478a724740bb4c5cf7a03e7e655c"
+    },
+    {
+      "id": "plan-platform-monetization",
+      "derivedFromVersion": "0.7.13",
+      "sourcePath": "creator-skills/runtime/plan-platform-monetization",
+      "derivedFromCommit": "8fc3371e6950478a724740bb4c5cf7a03e7e655c"
+    },
+    {
+      "id": "verify-platform-rule",
+      "derivedFromVersion": "0.18.23",
+      "sourcePath": "creator-skills/runtime/verify-platform-rule",
+      "derivedFromCommit": "8fc3371e6950478a724740bb4c5cf7a03e7e655c"
     }
   ]
 }
