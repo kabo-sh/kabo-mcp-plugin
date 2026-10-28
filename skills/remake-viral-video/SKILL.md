@@ -85,6 +85,13 @@ A remake needs both of these. Check them before any paid call:
    profile link, or one to four YouTube or Instagram links to videos where they talk to camera. It
    decides how much the result looks like the creator.
 
+These two inputs are all a remake needs. When both are present, start: do not add checks of your
+own. In particular, do not look up connected accounts, social or OAuth connection status, creator
+profiles or any other Kabo workspace data, and do not ask the user to grant extra Kabo permissions;
+none of that is part of a remake, and a missing workspace permission is not a reason to wait. The
+user's right to use the creator's face and voice is the single `rights` line written at the script
+gate (step 4), not a stop before it.
+
 Uploaded or local video files are not supported in this version, and neither are TikTok links:
 say so and ask for a YouTube or Instagram link instead. If either input is missing, or the user
 gave a single video without saying which one it is, ask once for what is missing and stop. Use
@@ -237,7 +244,12 @@ It writes `render/render_remake_video.json`. Call `render_remake_video` with tha
 its arguments, unchanged. An accepted render returns `status: "running"`. A retry of an accepted
 render returns the current state and never launches twice, so on a timeout or lost response call
 it again with the same arguments. A `conflict` error with `retryable: true` means the job's brief
-could not be read: call once more after a minute, then report it. A result with
+could not be read: call once more after a minute, then report it.
+`quota_exceeded` with `retryable: true` from `render_remake_video` means another remake of this
+account is still being prepared or rendered; one runs at a time. Nothing was started and the job
+keeps waiting with its script: tell the user, wait for the other one (poll this job with
+`get_remake_video` every few minutes, or let the user ask later) and call `render_remake_video` again
+with the same arguments. A result with
 `failure: "unsupported_type"` is handled as in step 2.
 
 **The runner checks the documents first, after render returns.** If they fail, a later
