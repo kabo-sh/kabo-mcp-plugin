@@ -2,6 +2,16 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 未发布
+
+- 新增第十一个 Skill `remake-viral-video`：把 60 秒以内的爆款纯口播视频复刻成创作者本人出镜的成片（MP4）。
+  移植自网页端 creator-remake-web 0.1.23（creator-skills `2206478d`）的写稿关口（读音校对、四个改写位、
+  画面文字与继承台账、来源规则、四份文档），只做纯口播；录屏/画中画、实物、旁白与网页端专有机制未移植。
+  依赖 `/mcp-pub` 新增的 `start_remake_video`、`get_remake_video`、`render_remake_video`（kabo#1777），
+  三个工具已随 kabo#1777 重新固定进 `contracts/directory-mcp/`（62 个工具，另含 kabo main 上新增的两个 TikTok 话题工具与十一个个人资产工具），
+  `runtime-contract.json` 的 `requiredTools` 已补上。固定来源是 kabo#1777 的合入 commit `005fcbc6d`。
+  只在本机 kabo 环境实测，未在生产环境实测。
+
 ## 1.0.2（2026-10-27；GitHub Release）
 
 - 视频分析：服务端抽帧少于采样计划（如请求 120 帧、返回 119 帧）时不再中断报告生成，`data_note` 写明

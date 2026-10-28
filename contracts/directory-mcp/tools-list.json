@@ -10259,6 +10259,999 @@
         "securitySchemes": [
           {
             "scopes": [
+              "video"
+            ],
+            "type": "oauth2"
+          }
+        ]
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Start a Kabo remake of a public talking-head video (YouTube or Instagram, 60 s max) with the creator's own footage. Propose it and call only after the user confirms. Top-level. Fetching the videos uses daily quota. Uses one daily remake (shared with Kabo web) even for a non-talking-head reference; one runs at a time. On fetching_inputs, call again after retry_after_s with the same idempotency_key and inputs. Next: poll get_remake_video.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "creator": {
+            "additionalProperties": false,
+            "description": "Exactly one of instagram_handle or video_urls.",
+            "properties": {
+              "instagram_handle": {
+                "description": "Handle or profile link; Kabo picks their reels.",
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "video_urls": {
+                "description": "1-4 links of the creator talking.",
+                "items": {
+                  "maxLength": 2048,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "creator_name": {
+            "description": "Short ASCII name; defaults to the handle, required with video_urls.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "8-128 of A-Za-z0-9._:- . New per remake; reuse only to retry or resume.",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "type": "string"
+          },
+          "language": {
+            "description": "e.g. en",
+            "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$",
+            "type": "string"
+          },
+          "reference_url": {
+            "description": "Video to remake.",
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference_url",
+          "creator",
+          "idempotency_key"
+        ],
+        "type": "object"
+      },
+      "name": "start_remake_video",
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retry_after_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "fetching_inputs",
+              "preparing",
+              "waiting_script",
+              "running",
+              "delivered",
+              "out_of_scope",
+              "failed",
+              "timed_out"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "job_id",
+          "retry_after_s",
+          "message"
+        ],
+        "type": "object"
+      },
+      "securitySchemes": [
+        {
+          "scopes": [
+            "video"
+          ],
+          "type": "oauth2"
+        }
+      ],
+      "title": "Start a talking-head video remake"
+    },
+    {
+      "_meta": {
+        "securitySchemes": [
+          {
+            "scopes": [
+              "video"
+            ],
+            "type": "oauth2"
+          }
+        ]
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read a remake job. Top-level. Send job_id and wait_s. At waiting_script: brief.download is a JSON bundle {schema, job_id, files} to write the four files from, and talking_models lists the model choices with estimated cost. At delivered: video.download is the final MP4. Links are short-lived; call again to re-sign. out_of_scope, failed, timed_out and failure unsupported_type are final and come back as a normal result. No quota.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "description": "From start_remake_video.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "wait_s": {
+            "description": "Seconds to wait while preparing or running, up to 30.",
+            "maximum": 30,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "type": "object"
+      },
+      "name": "get_remake_video",
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "brief": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "download": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "bytes": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "content_type": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "envelope",
+                              "artifact"
+                            ],
+                            "type": "string"
+                          },
+                          "sha256": {
+                            "pattern": "^[a-f0-9]{64}$",
+                            "type": "string"
+                          },
+                          "status": {
+                            "const": "ready",
+                            "type": "string"
+                          },
+                          "url": {
+                            "format": "uri",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "kind",
+                          "url",
+                          "expires_at",
+                          "sha256",
+                          "bytes",
+                          "content_type"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "reason": {
+                            "enum": [
+                              "too_large",
+                              "not_found",
+                              "service_unavailable"
+                            ],
+                            "type": "string"
+                          },
+                          "status": {
+                            "const": "unavailable",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "reason"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "download"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "enum": [
+                  "out_of_scope",
+                  "failed",
+                  "timed_out",
+                  "rejected",
+                  "unsupported_type"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gate_message": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "job_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "reference_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "talking",
+                  "talking_screen",
+                  "talking_product",
+                  "narration"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "spend_usd": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stages_done": {
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "preparing",
+              "waiting_script",
+              "running",
+              "delivered",
+              "out_of_scope",
+              "failed",
+              "timed_out"
+            ],
+            "type": "string"
+          },
+          "talking_models": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "est_usd": {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "id": {
+                      "enum": [
+                        "vivix/vivix-a1",
+                        "fal-ai/kling-video/ai-avatar/v2/standard",
+                        "minimax/h3-max/lip-sync/image-to-video",
+                        "fal-ai/kling-video/ai-avatar/v2/pro",
+                        "bytedance/seedance-2.0/reference-to-video"
+                      ],
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "est_usd"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "video": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "download": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "bytes": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "content_type": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "envelope",
+                              "artifact"
+                            ],
+                            "type": "string"
+                          },
+                          "sha256": {
+                            "pattern": "^[a-f0-9]{64}$",
+                            "type": "string"
+                          },
+                          "status": {
+                            "const": "ready",
+                            "type": "string"
+                          },
+                          "url": {
+                            "format": "uri",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "kind",
+                          "url",
+                          "expires_at",
+                          "sha256",
+                          "bytes",
+                          "content_type"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "reason": {
+                            "enum": [
+                              "too_large",
+                              "not_found",
+                              "service_unavailable"
+                            ],
+                            "type": "string"
+                          },
+                          "status": {
+                            "const": "unavailable",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "reason"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "download"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "stage",
+          "stages_done",
+          "updated_at",
+          "spend_usd",
+          "reference_type",
+          "brief",
+          "gate_message",
+          "talking_models",
+          "video",
+          "failure",
+          "failure_reason"
+        ],
+        "type": "object"
+      },
+      "securitySchemes": [
+        {
+          "scopes": [
+            "video"
+          ],
+          "type": "oauth2"
+        }
+      ],
+      "title": "Read a video remake"
+    },
+    {
+      "_meta": {
+        "securitySchemes": [
+          {
+            "scopes": [
+              "video"
+            ],
+            "type": "oauth2"
+          }
+        ]
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Submit the four script files for a remake at waiting_script and start paid generation. Top-level. Call only after the user picks a talking_model. Talking-head references only (else failure unsupported_type, nothing charged). running does not mean the script passed: if rejected, get_remake_video returns waiting_script with gate_message; fix the files and call again. Next: poll get_remake_video.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "files": {
+            "additionalProperties": false,
+            "description": "JSON text of each work/ file, up to 256 KiB each.",
+            "properties": {
+              "decisions": {
+                "maxLength": 262144,
+                "minLength": 1,
+                "type": "string"
+              },
+              "opening_review": {
+                "maxLength": 262144,
+                "minLength": 1,
+                "type": "string"
+              },
+              "route_b_jobs": {
+                "maxLength": 262144,
+                "minLength": 1,
+                "type": "string"
+              },
+              "script": {
+                "maxLength": 262144,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "script",
+              "opening_review",
+              "decisions",
+              "route_b_jobs"
+            ],
+            "type": "object"
+          },
+          "job_id": {
+            "description": "A job at waiting_script.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "talking_model": {
+            "description": "One of talking_models; defaults to vivix/vivix-a1.",
+            "enum": [
+              "vivix/vivix-a1",
+              "fal-ai/kling-video/ai-avatar/v2/standard",
+              "minimax/h3-max/lip-sync/image-to-video",
+              "fal-ai/kling-video/ai-avatar/v2/pro",
+              "bytedance/seedance-2.0/reference-to-video"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "files"
+        ],
+        "type": "object"
+      },
+      "name": "render_remake_video",
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "brief": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "download": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "bytes": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "content_type": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "envelope",
+                              "artifact"
+                            ],
+                            "type": "string"
+                          },
+                          "sha256": {
+                            "pattern": "^[a-f0-9]{64}$",
+                            "type": "string"
+                          },
+                          "status": {
+                            "const": "ready",
+                            "type": "string"
+                          },
+                          "url": {
+                            "format": "uri",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "kind",
+                          "url",
+                          "expires_at",
+                          "sha256",
+                          "bytes",
+                          "content_type"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "reason": {
+                            "enum": [
+                              "too_large",
+                              "not_found",
+                              "service_unavailable"
+                            ],
+                            "type": "string"
+                          },
+                          "status": {
+                            "const": "unavailable",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "reason"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "download"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "enum": [
+                  "out_of_scope",
+                  "failed",
+                  "timed_out",
+                  "rejected",
+                  "unsupported_type"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gate_message": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "job_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "reference_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "talking",
+                  "talking_screen",
+                  "talking_product",
+                  "narration"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "spend_usd": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stages_done": {
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "preparing",
+              "waiting_script",
+              "running",
+              "delivered",
+              "out_of_scope",
+              "failed",
+              "timed_out"
+            ],
+            "type": "string"
+          },
+          "talking_models": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "est_usd": {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "id": {
+                      "enum": [
+                        "vivix/vivix-a1",
+                        "fal-ai/kling-video/ai-avatar/v2/standard",
+                        "minimax/h3-max/lip-sync/image-to-video",
+                        "fal-ai/kling-video/ai-avatar/v2/pro",
+                        "bytedance/seedance-2.0/reference-to-video"
+                      ],
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "est_usd"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "video": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "download": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "bytes": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "content_type": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "envelope",
+                              "artifact"
+                            ],
+                            "type": "string"
+                          },
+                          "sha256": {
+                            "pattern": "^[a-f0-9]{64}$",
+                            "type": "string"
+                          },
+                          "status": {
+                            "const": "ready",
+                            "type": "string"
+                          },
+                          "url": {
+                            "format": "uri",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "kind",
+                          "url",
+                          "expires_at",
+                          "sha256",
+                          "bytes",
+                          "content_type"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "reason": {
+                            "enum": [
+                              "too_large",
+                              "not_found",
+                              "service_unavailable"
+                            ],
+                            "type": "string"
+                          },
+                          "status": {
+                            "const": "unavailable",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "reason"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "download"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "stage",
+          "stages_done",
+          "updated_at",
+          "spend_usd",
+          "reference_type",
+          "brief",
+          "gate_message",
+          "talking_models",
+          "video",
+          "failure",
+          "failure_reason"
+        ],
+        "type": "object"
+      },
+      "securitySchemes": [
+        {
+          "scopes": [
+            "video"
+          ],
+          "type": "oauth2"
+        }
+      ],
+      "title": "Render a video remake"
+    },
+    {
+      "_meta": {
+        "securitySchemes": [
+          {
+            "scopes": [
               "data"
             ],
             "type": "oauth2"

@@ -22,6 +22,9 @@ OAuth 通过 `securitySchemes` 与 `_meta.securitySchemes` 同值声明。下表
 | enrich_youtube_shortlist | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | analyze_content_video | video | false | false | true | 创建账号拥有的视频分析记录（新分析需有效 Pro 订阅）；同一幂等键重放原分析，不发布或改动源视频。 |
 | get_analysis_run | video | true | false | false | 仅查询当前用户持有的已存分析，不启动任务、不读取任意外部地址。 |
+| start_remake_video | video | false | false | true | 取第三方公开视频（占取数额度）并创建账号拥有的复刻任务（占每日复刻名额）；idempotency_key 必填，同键同入参重放或续做同一任务，不发布或改动源视频。 |
+| get_remake_video | video | true | false | false | 只读当前用户经 /mcp-pub 建的复刻任务并签发短期下载链接；不启动任务、不访问第三方、不占额度。 |
+| render_remake_video | video | false | false | true | 提交宿主写的稿件并启动付费生成（runner 调用口播、配音与图像供应商）；已受理的任务再调只回当前状态、不重复启动。 |
 | get_research_capabilities | data | true | false | false | 只读 Kabo 自有状态（任务、制品、快照或目录），不访问第三方、不占额度。 |
 | youtube_search_videos | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | youtube_search_channels | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |

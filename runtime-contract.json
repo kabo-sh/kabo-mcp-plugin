@@ -14,7 +14,8 @@
     "research-tiktok-trends",
     "research-youtube-trends",
     "analyze-creator-competitors",
-    "analyze-tiktok-competitors"
+    "analyze-tiktok-competitors",
+    "remake-viral-video"
   ],
   "requiredTools": [
     "analyze_content_video",
@@ -27,6 +28,7 @@
     "get_creator_profile",
     "get_kabo_info",
     "get_library_video",
+    "get_remake_video",
     "get_research_capabilities",
     "get_research_data_download",
     "get_research_data_job",
@@ -38,7 +40,9 @@
     "lookup_instagram_post",
     "lookup_tiktok_video",
     "read_research_data_artifacts",
+    "render_remake_video",
     "save_script",
+    "start_remake_video",
     "update_script"
   ],
   "optionalTools": [
