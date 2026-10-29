@@ -82,6 +82,13 @@ test("长度、嵌套、许可证与非标准文件", () => {
   assert.deepEqual(rules(findings), ["KS3.1", "KS3.2", "KS4.1", "KS4.2", "KS5.2", "KS6.1", "KS6.2", "KS6.3"]);
 });
 
+test("SKILL.md 正文上限 21,000 字符，references 仍为 20,000", () => {
+  const front = "name: demo-skill\ndescription: x";
+  assert.deepEqual(rules(lintSkill("demo-skill", skill(front, "x".repeat(21_000)), context)), []);
+  assert.deepEqual(rules(lintSkill("demo-skill", skill(front, "x".repeat(21_001)), context)), ["KS3.1"]);
+  assert.deepEqual(rules(lintSkill("demo-skill", skill(front, "Run.\n", { "references/a.md": "x".repeat(20_001) }), context)), ["KS3.2"]);
+});
+
 test("脚本：读会话记录报错；网络、安装与他人 skill 名只进审计", () => {
   const findings = lintSkill(
     "demo-skill",

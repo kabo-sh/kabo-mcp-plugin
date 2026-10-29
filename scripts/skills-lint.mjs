@@ -16,6 +16,7 @@ const allowedFields = new Set(["name", "description", "license", "compatibility"
 export const licenseAllowlist = new Set(["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "0BSD", "CC0-1.0", "CC-BY-4.0"]);
 // 字符而非 token：分词器因模型而异，用 token 计量本身就绑定了模型（原则 1）。
 const maxLines = 500;
+const maxBodyChars = 21_000;
 const maxChars = 20_000;
 const descriptionWarnChars = 500;
 const hostPrivate = [
@@ -133,8 +134,9 @@ export function lintSkill(id, files, { toolNames, skillIds }) {
   // KS3：长度
   const measure = (file, content) => {
     const lines = content.split("\n").length;
-    if (lines > maxLines || content.length > maxChars)
-      add(file === "SKILL.md" ? "KS3.1" : "KS3.2", "error", file, `${lines} 行、${content.length} 字符，上限 ${maxLines} 行、${maxChars} 字符；${file === "SKILL.md" ? "超出部分移到 references/" : "拆成可按需读取的小文件"}。`);
+    const limit = file === "SKILL.md" ? maxBodyChars : maxChars;
+    if (lines > maxLines || content.length > limit)
+      add(file === "SKILL.md" ? "KS3.1" : "KS3.2", "error", file, `${lines} 行、${content.length} 字符，上限 ${maxLines} 行、${limit} 字符；${file === "SKILL.md" ? "超出部分移到 references/" : "拆成可按需读取的小文件"}。`);
   };
   measure("SKILL.md", body);
   for (const [file, bytes] of files)
