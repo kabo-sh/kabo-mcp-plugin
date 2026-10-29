@@ -2,6 +2,18 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.5（2026-10-29；GitHub Release）
+
+- `remake-viral-video`：参考视频上限 60 秒 → 90 秒（kabo#1826，runner r62）。
+- `remake-viral-video`：成片交付后用 `get_remake_video` 的 `include: ["review"]`（kabo#1825）取 Kabo 终审结论与交付说明：
+  `failed` 逐项用白话告诉用户，`incomplete` 说有些检查没量到，`measured` 或 null 不提审查结果；从不说视频「通过了终审」；
+  交付说明用一两行转述。
+- `remake-viral-video`：参考视频与创作者素材都接受 TikTok 链接（kabo#1836）：长链规范成 `https://www.tiktok.com/@用户/video/<id>`，
+  `vm.`/`vt.` 短链原样带尾斜杠，与服务端写法一致，幂等键对得上；图文、http 与其他平台在付费调用前就被拒。
+- `contracts/directory-mcp/` 重新固定到 kabo `bb391d1f6`（62 个工具；`start_remake_video` 说明改为 YouTube、Instagram 或 TikTok、90 秒以内，
+  `get_remake_video` 新增 `include` 入参与 `review` 出参）。
+- 生产回归：待补。
+
 ## 1.0.4（2026-10-28；GitHub Release）
 
 - `remake-viral-video`：参考视频被判为纯口播以外的类型时，告诉用户判成了哪一类（口播时摆弄实物、录屏/画中画、旁白），
