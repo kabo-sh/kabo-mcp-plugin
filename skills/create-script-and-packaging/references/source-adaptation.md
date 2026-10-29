@@ -35,7 +35,9 @@ limits. If it also contains a diagnosis, craft teardown or creative proposal,
 those recommendations do not redefine the main task. Resume packaging with the
 original request once evidence is sufficient, rather than relaying that report
 as the final adaptation. Do not claim a retrieval failed if no retrieval was
-attempted.
+attempted. Bind a video-analysis helper's result through `video_analysis_sources` by its
+`analysis/video_analysis.json` (`video-analysis.v1`, `artifact_id` = its
+`analysis_id`), never by its report Markdown or a summary written here.
 
 A missing transcript does not establish that visual evidence is unavailable.
 If the video Skill can analyze this source and duration, it can obtain visual
