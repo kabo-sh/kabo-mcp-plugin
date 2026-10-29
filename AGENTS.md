@@ -6,7 +6,8 @@
   build entry point. Codex, Claude Code and Cursor add only host metadata; do not copy business content
   or remove features for a particular host.
 - The user selected eleven Skills in seven categories; see `skills.lock.json`. They were adapted from
-  creator-skills and are now edited directly in this repository; do not overwrite them with a new
+  creator-skills and are now edited directly in this repository. Three more for the creator routine
+  (`build-creator-library`, `pick-daily-viral-videos`, `review-new-posts`) were written here; do not overwrite them with a new
   creator-skills import. The lock file records only the starting point of the adaptation.
   Follow `docs/skills-spec.md` when changing a Skill. Enforcement stays off: keep `enforced` in
   `skills-spec.json` empty and do not add entries.

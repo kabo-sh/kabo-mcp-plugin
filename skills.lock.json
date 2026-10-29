@@ -66,6 +66,21 @@
       "derivedFromVersion": "0.1.30",
       "derivedFromCommit": "e325fcf3ff7efdc042f4da9e3d021894f3a83be4",
       "sourcePath": "creator-skills/runtime/creator-remake-web"
+    },
+    {
+      "id": "build-creator-library",
+      "derivedFromVersion": "0.1.0",
+      "sourcePath": "kabo-mcp-plugin/skills/build-creator-library"
+    },
+    {
+      "id": "pick-daily-viral-videos",
+      "derivedFromVersion": "0.1.0",
+      "sourcePath": "kabo-mcp-plugin/skills/pick-daily-viral-videos"
+    },
+    {
+      "id": "review-new-posts",
+      "derivedFromVersion": "0.1.0",
+      "sourcePath": "kabo-mcp-plugin/skills/review-new-posts"
     }
   ]
 }
