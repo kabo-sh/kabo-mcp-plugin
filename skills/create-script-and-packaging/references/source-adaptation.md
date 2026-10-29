@@ -35,7 +35,9 @@ limits. If it also contains a diagnosis, craft teardown or creative proposal,
 those recommendations do not redefine the main task. Resume packaging with the
 original request once evidence is sufficient, rather than relaying that report
 as the final adaptation. Do not claim a retrieval failed if no retrieval was
-attempted.
+attempted. Bind a video-analysis helper's result through `video_analysis_sources` by its
+`analysis/video_analysis.json` (`video-analysis.v1`, `artifact_id` = its
+`analysis_id`), never by its report Markdown or a summary written here.
 
 A missing transcript does not establish that visual evidence is unavailable.
 If the video Skill can analyze this source and duration, it can obtain visual
@@ -47,6 +49,9 @@ even if an upstream narrative suggests quoting it. An exact quotation needs
 independently verifiable source text or a directly inspected source frame.
 Do not invent speech from silent frames. When an analysis of this source is
 already pending, wait for its output rather than suggesting another paid run.
+If the host rejects that earlier job id as not belonging to this turn, submit
+the analysis again in this turn; do not ask the creator to describe a video
+that a permitted path can still read.
 Respect terminal errors recorded in that output. When no permitted path can
 recover material facts needed for the adaptation, identify that specific gap
 and ask for the minimum missing source material, preserving usable work.
