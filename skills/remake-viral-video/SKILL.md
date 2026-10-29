@@ -308,20 +308,25 @@ unavailable download is handled as in step 3. Then tell the user:
 
 `review.qc` is Kabo's automated final review; it measures, it does not watch the video:
 
-- `status` `failed`: say plainly that the video was delivered although the review flagged it, and
-  name each item of `failed` in plain words (`caption_overlap`: captions overlap the speaker or
-  another caption; `overlay_on_face`: on-screen text covers the face; `glyphs`: some characters
-  may render wrongly; `fake_captions`: caption text may not match the speech; `speech`: the voice
-  may be unclear or cut; `line_tails`: line endings may be clipped; `loudness`: the volume is off;
-  `duration_vs_reference`: the length differs a lot from the reference; `insert_padded`: an
-  inserted shot was stretched; `original_person`: the reference's speaker may still appear; any
-  other item: give its name). Ask them to check those moments before publishing.
-- `status` `incomplete`: some checks could not be measured; say so.
-- `status` `measured`, or `qc` null: say nothing about a review result.
+- `failed` is not empty (whatever `status` says, `measured` included): say plainly that the video
+  was delivered although the review flagged it, and name each item of `failed` in plain words
+  (`framing`: the shot is framed differently from the reference, for example wider or tighter;
+  `caption_overlap`: captions overlap the speaker or another caption; `overlay_on_face`: on-screen
+  text covers the face; `glyphs`: some characters may render wrongly; `fake_captions`: caption text
+  may not match the speech; `speech`: the voice may be unclear or cut; `line_tails`: line endings
+  may be clipped; `loudness`: the volume is off; `duration_vs_reference`: the length differs a lot
+  from the reference; `insert_padded`: an inserted shot was stretched; `original_person`: the
+  reference's speaker may still appear; any other item: give its name). Ask them to check those
+  moments before publishing.
+- `failed` is empty and `status` is `incomplete`: some checks could not be measured; say so.
+- `failed` is empty and `status` is `measured`, or `qc` is null: say nothing about a review result.
 
-In every case never say the video passed a review. If `review.delivery_notes` is present, give
-its points in plain words in one or two lines (for example captions that were shortened, or
-script problems that remained after the one round of fixes).
+In every case never say the video passed a review, and never call any check, score or measurement
+good, successful or in range. If `review.delivery_notes` is present, give only what was changed or
+could not be done in plain words, in one or two lines (for example captions that were shortened,
+a framing that could not match the reference, or script problems that remained after the one round
+of fixes). Leave out the notes' own self-check, likeness and speech figures and their review
+section: they are not a verdict and must not be relayed as one.
 
 Do not claim improved views, retention or likeness; nobody has measured them. Suggest the user
 watch it in full before publishing.
