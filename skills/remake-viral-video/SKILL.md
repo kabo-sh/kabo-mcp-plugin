@@ -282,9 +282,10 @@ example `cr check-script: ...`) and a fresh brief; nothing paid has been spent. 
 ## 7. Production and delivery
 
 Production takes about twenty minutes with the default model and longer with the others. Call
-`get_remake_video` with `wait_s` 30 until the status is `delivered`, final, or `waiting_script`
-again: for a voice-over whose `fetch` reports `"saved": "review"` it is the one look at the
-finished pictures (narration.md, last section); otherwise the documents were rejected (step 6). While it is
+`get_remake_video` with `wait_s` 30 and `include` `["review"]` until the status is `delivered`,
+final, or `waiting_script` again: for a voice-over whose `fetch` reports `"saved": "review"` it is
+the one look at the finished pictures (narration.md, last section); otherwise the documents were
+rejected (step 6). While it is
 `running`, report the stage in one line when it changes. Do not promise a finish time.
 
 At `delivered`, save the result and fetch the video at once:
@@ -300,10 +301,27 @@ unavailable download is handled as in step 3. Then tell the user:
   say it does);
 - what you rewrote and why, in two or three lines, and any inference line they should confirm
   before publishing;
-- the spend the result reports (`spend_usd`), when present.
+- the spend the result reports (`spend_usd`), when present;
+- what Kabo's final review found, from `review` (below).
 
-Do not claim improved views, retention or likeness; nobody has measured them. The result does not
-report the outcome of Kabo's final quality review, so never say the video passed one; suggest the user
+`review.qc` is Kabo's automated final review; it measures, it does not watch the video:
+
+- `status` `failed`: say plainly that the video was delivered although the review flagged it, and
+  name each item of `failed` in plain words (`caption_overlap`: captions overlap the speaker or
+  another caption; `overlay_on_face`: on-screen text covers the face; `glyphs`: some characters
+  may render wrongly; `fake_captions`: caption text may not match the speech; `speech`: the voice
+  may be unclear or cut; `line_tails`: line endings may be clipped; `loudness`: the volume is off;
+  `duration_vs_reference`: the length differs a lot from the reference; `insert_padded`: an
+  inserted shot was stretched; `original_person`: the reference's speaker may still appear; any
+  other item: give its name). Ask them to check those moments before publishing.
+- `status` `incomplete`: some checks could not be measured; say so.
+- `status` `measured`, or `qc` null: say nothing about a review result.
+
+In every case never say the video passed a review. If `review.delivery_notes` is present, give
+its points in plain words in one or two lines (for example captions that were shortened, or
+script problems that remained after the one round of fixes).
+
+Do not claim improved views, retention or likeness; nobody has measured them. Suggest the user
 watch it in full before publishing.
 
 ## 8. When it does not finish
