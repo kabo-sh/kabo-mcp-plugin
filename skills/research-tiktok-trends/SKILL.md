@@ -2,8 +2,8 @@
 name: research-tiktok-trends
 description: "Research what is trending on TikTok: hot videos and repeatable mechanisms in a niche or like a given TikTok video, the daily trending sound board with today's fastest risers, sounds that fit named video scenes, rising search terms and content gaps, or viral videos from the last seven days. Use for what is hot, rising or worth copying on TikTok now. Not for private analytics, TikTok Shop research, an account-history audit or full scripts."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permissions: data; optional workspace:read to read the Creator's saved account profile."
-allowed-tools: get_research_capabilities get_research_data_job get_research_data_download creator_trends_get_tiktok_sound_board tiktok_discovery_search_videos tiktok_discovery_search_sounds tiktok_discovery_list_top_contents tiktok_discovery_list_search_insights tiktok_discovery_get_search_insight_trend lookup_tiktok_video tiktok_list_account_posts list_connected_accounts get_creator_profile
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permissions: data; optional workspace:read to read the Creator's saved account profile and workspace:write to save edits to it the user asks for."
+allowed-tools: get_research_capabilities get_research_data_job get_research_data_download creator_trends_get_tiktok_sound_board tiktok_discovery_search_videos tiktok_discovery_search_sounds tiktok_discovery_list_top_contents tiktok_discovery_list_search_insights tiktok_discovery_get_search_insight_trend lookup_tiktok_video tiktok_list_account_posts list_connected_accounts get_creator_profile update_content_preferences
 ---
 
 # Research TikTok Trends
@@ -218,12 +218,15 @@ save and fetch (or stage) each result, then run the same stage again with `--pla
 
 **Saved account profile.** When the ask is for the user's own TikTok account and supplies no video,
 first call `list_connected_accounts`, then `get_creator_profile` with `{"account_id": …, "include":
-["content_profile"]}` for the one TikTok account the ask is about (the one named, or the only one
-linked). Save that complete result unchanged as a file outside `<skill directory>` and the run
-directory and pass its absolute path to `start --profile`, never together with `--video`. If a tool
-is unavailable or refused, a permission is missing, no account fits, or `contentProfile` is null,
-run `start` without `--profile`; never write or edit a profile file. When `start` prints signature
-content, read `references/signature-content.md` before writing the plan.
+["content_profile"], "effective": true}` (once more without `effective` if Kabo refuses only that)
+for the one TikTok account the ask is about (the one named, or the only one linked). Save that
+complete result unchanged as a file outside `<skill directory>` and the run directory and pass its
+absolute path to `start --profile`, never together with `--video`. If a tool is unavailable or
+refused, a permission is missing, no account fits, or both `contentProfile` and
+`effectiveContentProfile` are null or absent, run `start` without `--profile`; never write or edit a
+profile file. When `start` prints the profile as used, read `references/signature-content.md` before
+writing the plan. When the user asks to change their saved profile, follow
+`references/profile-edits.md`.
 
 1. `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' start [--video "<the TikTok URL as the user gave it>" | --profile '<the saved profile file>']`
 2. Write `trend-research-request.json` and `tiktok-trend-query-plan.json`, then
