@@ -2,7 +2,7 @@
 name: verify-platform-rule
 description: "Verify platform rules, rumours, thresholds, features and settings from registered official pages, with quotes, URLs and retrieval dates. Covers feature availability, entry paths, configuration and Instagram Insights timeframe/filter/sort controls. Use plan-platform-monetization for creator eligibility, diagnose-reach-drop for account reach diagnosis, and review-creator-account for account or owner-metric analysis. Not for pricing, content coaching or end-to-end operational playbooks."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and a host that can save a tool's complete result to a file."
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permission: data."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download official_page_render_page
 metadata:
   version: "0.18.23"

@@ -2,7 +2,7 @@
 name: diagnose-reach-drop
 description: "Diagnose Instagram, TikTok or YouTube traffic changes, including recent drops, low or stalled performance, source shifts and apparent audience mismatch. Use review-creator-account for broad performance or follower-loss analysis, and verify-platform-rule for current rules or settings."
 license: MIT
-compatibility: "Requires Python 3 and read and write access to a local workspace. Fetching public account history also requires the Kabo MCP server at https://kabo.sh/mcp-pub and a host that can save a tool's complete result to a file."
+compatibility: "Requires Python 3 and read and write access to a local workspace. Fetching public account history also requires the Kabo MCP server at https://kabo.sh/mcp-pub and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permission, for account history only: data."
 metadata:
   version: "0.4.10"
 allowed-tools: get_research_data_job get_research_data_download instagram_resolve_profile instagram_list_posts instagram_list_reels youtube_get_channel youtube_list_channel_uploads tiktok_list_account_posts
