@@ -32,6 +32,10 @@
             "required": ["content_key", "semantic_scores"],
             "properties": {
               "content_key": {"type": "string", "minLength": 1},
+              "signature_content_id": {
+                "type": ["string", "null"], "minLength": 1,
+                "description": "Present only when the Gate input carried signature content: the Request id of the signature content this item reproduces, or null for none."
+              },
               "semantic_scores": {
                 "type": "object",
                 "additionalProperties": false,

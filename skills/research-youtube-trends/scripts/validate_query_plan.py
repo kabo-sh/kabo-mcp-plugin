@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +29,21 @@ UNSPACED_SCRIPT = re.compile(
 )
 UNSPACED_MIN_CHARACTERS = 2
 UNSPACED_MAX_CHARACTERS = 20
+
+
+def _profile_intake():
+    """This package's own attach_creator_profile.py: the seed matching every trend channel shares.
+
+    Loaded by path, never through sys.modules, so a process that loaded another package's validator
+    cannot hand this one a different copy; no bytecode is written into the signed package.
+    """
+    sys.dont_write_bytecode = True
+    path = Path(__file__).with_name("attach_creator_profile.py")
+    spec = importlib.util.spec_from_file_location(f"{path.parent.parent.name}:attach_creator_profile", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 def unspaced_length(query: str) -> int | None:
@@ -106,14 +123,32 @@ def validate(plan: dict[str, Any]) -> None:
             )
 
 
+def validate_against_request(plan: dict[str, Any], request: dict[str, Any]) -> dict[str, Any] | None:
+    """With the Creator's signature content attached, the two intents search for its two heaviest
+    items, one each, in the Creator's own seed words; without it nothing more is checked.
+
+    YouTube search ranks by the words typed, so an intent that paraphrases a signature content item
+    retrieves a different pool than the Creator's own vocabulary does.
+    """
+    queries = [str(intent.get("search_query") or "") for intent in plan.get("intents") or []]
+    return _profile_intake().check_plan(queries, request, per_intent="top_two")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("plan", type=Path)
+    parser.add_argument("--request", type=Path,
+                        help="TrendResearchRequest; with signature content attached, intents must carry its seeds")
     args = parser.parse_args()
     try:
         plan = load(args.plan)
         validate(plan)
-        print(json.dumps({"valid": True, "intents": len(plan["intents"])}))
+        result: dict[str, Any] = {"valid": True, "intents": len(plan["intents"])}
+        if args.request is not None:
+            checked = validate_against_request(plan, load(args.request))
+            if checked is not None:
+                result.update(checked)
+        print(json.dumps(result))
         return 0
     except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
         print(
