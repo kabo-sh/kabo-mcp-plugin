@@ -291,7 +291,7 @@ CHANGELOG.md                    # Version history (Chinese)
 
 The eleven Skills cover video analysis, standard and deep account reviews, scripts and packaging,
 content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor research, and
-`remake-viral-video`, which remakes a viral talking-head video of 60 seconds or less with the creator
+`remake-viral-video`, which remakes a viral talking-head video of 90 seconds or less with the creator
 in it. See [skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
 same Skills.
 
