@@ -62,6 +62,11 @@ skill 内容（`SKILL.md`、`references/`、脚本输出）一律用英文。本
   - 宿主缺少某项依赖时，skill 要如实说明哪一步做不了，不要假装完成。
   - 本地文件功能（未发布的视频、本地字幕）保留，按本条声明依赖。
   - 依赖 `/mcp-pub` 工具的 skill，写明需要连接的 Kabo MCP：`https://kabo.sh/mcp-pub`。
+  - 写明 `allowed-tools` 需要的 Kabo OAuth 权限，格式为 `Kabo permission: data.`；可选的权限写明用途与触发条件，
+    例如 `workspace:write` 只在用户要求保存或绑定时使用。权限由工具清单的 `securitySchemes` 反推，lint 给警告。
+    这些是 Kabo 签发给宿主连接的权限，不是宿主本机权限；宿主按连接授权、不按 skill 授权，用户只能从这里看出每个 skill 要哪一项。
+  - 脚本会下载 Kabo 工具结果给出的签名链接时，写明需要从脚本访问 `storage.googleapis.com`（Codex 默认沙箱可能不放行）；
+    宿主导出加 `stage` 是回退，不能代替这条声明。
 - **KS2.4**（人工）：正文不按宿主写分支，不写 `subagent` / `inline` 这类执行概念，也不区分「主 agent」与「executor」的职责。
   - 耗时长的 skill 在正文开头写：建议在前台子 agent 中执行，主线程等它返回最终结果后再回复；不得放到后台
     再告诉用户稍后交付（无交互宿主如 `claude -p` 会在主线程回复后退出，后台子 agent 随之终止，报告丢失，

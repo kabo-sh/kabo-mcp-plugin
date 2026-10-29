@@ -89,6 +89,17 @@ test("SKILL.md 正文上限 21,000 字符，references 仍为 20,000", () => {
   assert.deepEqual(rules(lintSkill("demo-skill", skill(front, "Run.\n", { "references/a.md": "x".repeat(20_001) }), context)), ["KS3.2"]);
 });
 
+test("KS2.3：compatibility 须写明 allowed-tools 需要的 Kabo 权限与下载主机", () => {
+  const scoped = { ...context, toolScopes: new Map([["youtube_get_video", ["data"]], ["get_research_data_job", ["data"]]]) };
+  const files = compatibility => skill(`name: demo-skill\ndescription: x\ncompatibility: "${compatibility}"\nallowed-tools: youtube_get_video`, "Call `youtube_get_video`.\n", {
+    "scripts/fetch.py": "import urllib.request\n",
+  });
+  const warnings = compatibility => lintSkill("demo-skill", files(compatibility), scoped).filter(f => f.rule === "KS2.3").map(f => f.message);
+  assert.equal(warnings("Requires public data and storage.googleapis.com.").length, 1);
+  assert.equal(warnings("Requires Python 3. Kabo permission: data.").length, 1);
+  assert.deepEqual(warnings("Requires storage.googleapis.com links. Kabo permission: data."), []);
+});
+
 test("脚本：读会话记录报错；网络、安装与他人 skill 名只进审计", () => {
   const findings = lintSkill(
     "demo-skill",

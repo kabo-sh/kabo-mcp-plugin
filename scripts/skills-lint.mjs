@@ -63,7 +63,7 @@ function decode(bytes) {
 }
 
 /** 校验一个 skill 目录。files 的键是相对 skill 根的 posix 路径。 */
-export function lintSkill(id, files, { toolNames, skillIds }) {
+export function lintSkill(id, files, { toolNames, skillIds, toolScopes = new Map() }) {
   const findings = [];
   const add = (rule, level, file, message) => findings.push({ rule, level, file, message });
   const entry = files.get("SKILL.md");
@@ -129,6 +129,15 @@ export function lintSkill(id, files, { toolNames, skillIds }) {
   if (undeclared.length) add("KS2.2", "error", "SKILL.md", `正文用到但未在 allowed-tools 声明的工具：${undeclared.join(", ")}。`);
   const hasScripts = [...files.keys()].some(file => file.startsWith("scripts/"));
   if (hasScripts && !meta.compatibility) add("KS2.3", "warn", "SKILL.md", "带 scripts/ 但未在 compatibility 声明运行前提（如 Python 3 与文件读写）。");
+  // Kabo 权限按 allowed-tools 的工具反推：宿主授权的是连接而非 skill，用户只能从这里看出每个 skill 要哪项。
+  const compatibility = typeof meta.compatibility === "string" ? meta.compatibility : "";
+  const permissionText = [...compatibility.matchAll(/Kabo permissions?\b[^.]*\./g)].map(match => match[0]).join(" ");
+  const scopes = [...new Set([...declared].flatMap(tool => toolScopes.get(tool) ?? []))].sort();
+  const unlisted = scopes.filter(scope => !new RegExp(`(?:^|[\\s,;:])${scope}(?=[\\s,;.]|$)`).test(permissionText));
+  if (unlisted.length) add("KS2.3", "warn", "SKILL.md", `compatibility 未用「Kabo permission: …」写明 allowed-tools 需要的权限：${unlisted.join(", ")}。`);
+  const fetches = [...files].some(([file, bytes]) => file.startsWith("scripts/") && textFile(bytes) && networkUse.test(decode(bytes) ?? ""));
+  if (fetches && !compatibility.includes("storage.googleapis.com"))
+    add("KS2.3", "warn", "SKILL.md", "scripts/ 会联网下载，compatibility 未写明需要访问 storage.googleapis.com。");
   if (/[㐀-鿿]/.test(body)) add("KS2.5", "warn", "SKILL.md", "正文含中文字符；skill 内容一律英文。");
 
   // KS3：长度
@@ -193,13 +202,14 @@ export function lintSkill(id, files, { toolNames, skillIds }) {
 export function lintSkills({ directory = root, only } = {}) {
   const tools = JSON.parse(readFileSync(path.join(directory, "contracts/directory-mcp/tools-list.json"), "utf8")).tools;
   const toolNames = new Set(tools.map(tool => tool.name));
+  const toolScopes = new Map(tools.map(tool => [tool.name, (tool.securitySchemes ?? []).flatMap(scheme => scheme.scopes ?? [])]));
   const enforced = new Set(JSON.parse(readFileSync(path.join(directory, "skills-spec.json"), "utf8")).enforced);
   const skillIds = new Set(readdirSync(path.join(directory, "skills")).filter(name => lstatSync(path.join(directory, "skills", name)).isDirectory()));
   for (const id of enforced) if (!skillIds.has(id)) throw new Error(`skills-spec.json 启用了不存在的 Skill：${id}`);
   const results = [];
   for (const id of [...skillIds].sort()) {
     if (only && id !== only) continue;
-    const findings = lintSkill(id, walk(path.join(directory, "skills", id)), { toolNames, skillIds });
+    const findings = lintSkill(id, walk(path.join(directory, "skills", id)), { toolNames, skillIds, toolScopes });
     results.push({ id, enforced: enforced.has(id), findings });
   }
   return results;
