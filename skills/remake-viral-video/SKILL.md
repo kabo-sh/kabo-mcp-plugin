@@ -1,6 +1,6 @@
 ---
 name: remake-viral-video
-description: "Make a finished remake video of a viral talking-head reference (60 seconds or less) with the creator in it: the reference's scene and lines, the creator on camera, a few lines rewritten in their voice, rendered by Kabo and saved as an MP4. Use when someone asks to remake, recreate or copy a viral video onto themselves or a named creator. Needs a reference link and the creator's Instagram profile or video links. For only a script, use script writing; for only a teardown, use video analysis."
+description: "Make a finished remake video of a viral talking-head reference (90 seconds or less) with the creator in it: the reference's scene and lines, the creator on camera, a few lines rewritten in their voice, rendered by Kabo and saved as an MP4. Use when someone asks to remake, recreate or copy a viral video onto themselves or a named creator. Needs a reference link and the creator's Instagram profile or video links. For only a script, use script writing; for only a teardown, use video analysis."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return."
 allowed-tools: start_remake_video get_remake_video render_remake_video
@@ -22,11 +22,11 @@ follow the same steps in the main thread.
 
 ## What this covers
 
-- A reference of **60 seconds or less** where **one person talks to the camera** for most of the
+- A reference of **90 seconds or less** where **one person talks to the camera** for most of the
   video, at any distance, seated or standing, anywhere, with a fixed or slightly handheld camera.
   This version remakes only this talking-head kind. References that cut to screen recordings or to
   a product the speaker shows, and voice-over references, are not remade yet.
-- Refused by the runner before any video is generated (`out_of_scope`): references over 60
+- Refused by the runner before any video is generated (`out_of_scope`): references over 90
   seconds, walking, vehicle or first-person vlogs where the camera keeps moving, dialogues between
   several people, references with nobody speaking on camera, references where the speaker is on
   camera less than about half the time, and references that are mostly other footage. So are
@@ -73,9 +73,9 @@ rebuild a file from what was displayed.
 The first time the user asks for a remake in a conversation, say in two or three sentences, before
 asking for anything or starting, all three of these:
 
-- what this remakes: a reference of 60 seconds or less where one person talks to the camera;
+- what this remakes: a reference of 90 seconds or less where one person talks to the camera;
 - that references outside this (dialogues between several people, walking or travel vlogs, nobody
-  speaking on camera, over 60 seconds; for now also screen-recording, product-showing and
+  speaking on camera, over 90 seconds; for now also screen-recording, product-showing and
   voice-over videos) are refused before anything is generated, and a refusal is not charged;
 - that borderline references may not come out well.
 
@@ -85,7 +85,7 @@ after it.
 
 A remake needs both of these. Check them before any paid call:
 
-1. **One reference video**: the viral video to remake, as a YouTube or Instagram link, 60 seconds
+1. **One reference video**: the viral video to remake, as a YouTube or Instagram link, 90 seconds
    or less, one person talking to camera.
 2. **The creator's own talking footage**, separate from the reference: their Instagram handle or
    profile link, or one to four YouTube or Instagram links to videos where they talk to camera. It
@@ -102,7 +102,7 @@ Uploaded or local video files are not supported in this version, and neither are
 say so and ask for a YouTube or Instagram link instead. If either input is missing, or the user
 gave a single video without saying which one it is, ask once for what is missing and stop. Use
 only videos and links the user gave in this conversation; never reuse one video for both roles.
-If a length you can see (the user states it) is over 60 seconds, say references are limited to 60
+If a length you can see (the user states it) is over 90 seconds, say references are limited to 90
 seconds and ask for a shorter one.
 
 Whenever you stop before `start_remake_video` has accepted the job (something is missing, a video
@@ -143,7 +143,7 @@ relay it and ask for a corrected input; nothing was started.
   picked up.
 - A tool error carries `code`, `message` and `retryable`. No remake was started by any of them;
   relay `message` in plain words:
-  - `validation_error` (a link or handle that cannot be used, a reference over 60 seconds, a video
+  - `validation_error` (a link or handle that cannot be used, a reference over 90 seconds, a video
     that cannot be fetched, no usable reels, the same video in both roles): no remake fee was charged
     and the daily remake limit was not used. Ask for a different input instead of resubmitting.
   - `quota_exceeded` with `retryable: false`: the daily remake limit (or the daily data allowance)
@@ -303,7 +303,7 @@ moving, like a walking or travel vlog, rather than one person talking to the cam
 stage names or internal terms. Always say whether it was charged:
 
 - `out_of_scope`: relay the reason. For a reference that is not a short talking-head video, suggest
-  one of 60 seconds or less where one person speaks to the camera for most of it. When no clear
+  one of 90 seconds or less where one person speaks to the camera for most of it. When no clear
   frontal face of the creator was found, ask for links to videos where they talk facing the camera.
   Nothing was charged and the daily limit was not used; say so.
 - `failed` with a likeness reason: the generated person did not look like the creator, so the video
