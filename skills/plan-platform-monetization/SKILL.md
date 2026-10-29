@@ -186,8 +186,9 @@ cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill di
    The derivation rules are in `references/derivation-and-income-rows.md`.
 
 5. Read the whole validated report `report/MONETIZATION_PLAN.md` before delivering it, and return
-   that run-relative path as the `creator_report:` artifact. Relay the report as-is. If execution or
-   reading fails, report the failed step and missing result; do not treat a fallback answer as a
+   that run-relative path as the `creator_report:` artifact. Relay the report as-is; never replace or
+   add to its rules from a web search (offer verify-platform-rule for a live official-page check). If
+   execution or reading fails, report the failed step and missing result; do not treat a fallback answer as a
    validated report.
 
 ## Decision rules
