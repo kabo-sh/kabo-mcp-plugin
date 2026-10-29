@@ -17,7 +17,7 @@ the next judgment reads.
     start    [--post URL | --profile F]  run directory; source Reel (get_post + get_transcript),
                                          printed -> Request + plan schemas; or the Creator's saved
                                          account profile -> its signature content
-    discover --policy P [--since --until]
+    discover --policy P [--since --until] [--without-include]
                                          attach the profile -> freeze -> validate the plan per lane
                                          -> collect every lane -> persist (+ bind the two lanes)
                                          (-> eligible candidates, with a profile) -> relevance Gate table
@@ -42,7 +42,9 @@ The manual commands these stages replace, unchanged in what they run and write:
 
 Connector calls are handed to the model (connector_driver.py): the stage prints each call as a
 named /mcp-pub tool call and stops, the model makes it and stages the complete result with
-`static_host.py stage`, and the same stage run again with `--placed` places that response.
+`static_host.py stage`, and the same stage run again with `--placed` places that response. With a
+profile attached the collect calls carry `include`; when Kabo refuses one only for it, the same
+stage run with `--without-include` hands it over once more without it (attach_creator_profile.py).
 """
 
 from __future__ import annotations
@@ -594,7 +596,7 @@ def stage_discover(args: argparse.Namespace) -> None:
                          "--reach-output", LANES["reach"]["candidates"]).rstrip())
 
     # Both lanes in one round: one hand-over names both collector calls for one response.
-    with intake.include_fallback(cd):
+    with intake.include_fallback(cd, args):
         cd.fetch_round(calls, args, place)
     cd.save_state(collected=True, lanes=names)
     lane = LANES["relevance"]
@@ -1022,6 +1024,9 @@ def main() -> int:
     discover.add_argument("--policy", choices=POLICIES, help="the window policy the ask was classified as")
     discover.add_argument("--since", help="user_named_span only: the span's start, kept exactly")
     discover.add_argument("--until", help="user_named_span only: the span's end, kept exactly")
+    discover.add_argument("--without-include", action="store_true",
+                          help="Kabo refused handed-over calls only for their `include` parameter: hand them over "
+                               "once more without it")
     for name in ("gate", "rank", "report"):
         sub.add_parser(name)
     sub.choices["report"].add_argument("--language", help="the Creator's chat language (BCP 47, such as zh-CN)")

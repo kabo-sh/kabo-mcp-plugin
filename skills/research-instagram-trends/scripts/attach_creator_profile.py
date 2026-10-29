@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Attach the Creator's saved account profile to the TrendResearchRequest.
 
-The host may hand this skill the Creator's saved account profile as a file (the account read with
-its content profile included). Its signature content, content language, audience size and formats
+The model saves the Creator's saved account profile as a file: the complete `get_creator_profile`
+result read with `include: ["content_profile"]`, or that result's `structuredContent` object. Its
+signature content, content language, audience size and formats
 steer the search plan and which candidates are eligible, so they reach the Request here, copied by
 this script and never retyped by the model: a seed term retyped with a tidied word or a translation
 retrieves nothing, and a language guessed from the chat would turn a retrieval label into a filter.
@@ -16,7 +17,8 @@ What is written under `creator_profile` (and nothing else is touched):
   retrieval label for writing intents. It is never copied into `locale.language`, which the Gate
   scores `locale_fit` against and would turn into a hard filter.
 - `accepted_languages`: the profile's accepted languages as given (possibly empty).
-- `audience_count`: the account's audience size, when the platform reports one.
+- `audience_count`: the account's audience size, when the platform reports one. It stays in the
+  Request for the eligibility filter and is never printed for the model.
 - `formats`: the formats the account actually published (short_video / long_video).
 - `signature_content`: at most four items, heaviest first (ties by id). Position + 1 is the number
   the relevance Gate shows for an item, so the order is fixed here and nowhere else.
@@ -27,7 +29,7 @@ from a profile file only). A handle in the Request that names another account is
 profile would then describe someone else.
 
 The module also carries what the other profile-aware steps share: the seed matching the query-plan
-validators apply and the one replay of a call the host refused only for its `include` field.
+validators apply and the one hand-over again, without `include`, of calls Kabo refused only for it.
 Standard library only.
 """
 
@@ -72,12 +74,44 @@ class ProfileError(ValueError):
 # --------------------------------------------------------------------------- reading the profile
 
 
+def unwrap_tool_result(value: Any) -> Any:
+    """The account read inside a complete MCP tool result; any other value as it is.
+
+    This host never fetches for scripts: the model saves `get_creator_profile`'s result as the
+    host returned it, so the file is either the whole CallToolResult or its `structuredContent`.
+    An error result holds no profile and is refused rather than read as an empty one, so a refused
+    or failed read never passes for an account without signature content.
+    """
+    if not isinstance(value, dict) or not ({"structuredContent", "isError", "content"} & value.keys()):
+        return value
+    if "account" in value:
+        return value
+    if value.get("isError"):
+        raise ProfileError("the profile file holds a failed get_creator_profile result (isError), not a profile: "
+                           "start without --profile")
+    structured = value.get("structuredContent")
+    if structured is None:
+        # 有的宿主只导出 content：单个 text 块里是同一份 JSON（与 static_host.complete_result 同一读法）。
+        blocks = value.get("content")
+        if (isinstance(blocks, list) and len(blocks) == 1 and isinstance(blocks[0], dict)
+                and blocks[0].get("type") == "text" and isinstance(blocks[0].get("text"), str)):
+            try:
+                structured = json.loads(blocks[0]["text"])
+            except json.JSONDecodeError:
+                structured = None
+    if not isinstance(structured, dict):
+        raise ProfileError("the profile file is a tool result without a structured account read: save the complete "
+                           "get_creator_profile result")
+    return structured
+
+
 def read_profile(value: Any) -> dict[str, Any]:
-    """The profile file's object, when it has the account-read shape this script maps from.
+    """The account read in the profile file, when it has the shape this script maps from.
 
     Only the full account read is accepted: its `account` says whose profile it is. A bare
     content profile carries no handle, so nothing could check that it belongs to this Creator.
     """
+    value = unwrap_tool_result(value)
     if not isinstance(value, dict):
         raise ProfileError("the profile file must hold one JSON object")
     account = value.get("account")
@@ -291,7 +325,11 @@ def attach_file(request_path: Path, profile_path: Path | None, platform: str) ->
 
 
 def describe(profile: dict[str, Any], platform: str) -> list[str]:
-    """What the model reads before writing the plan: language, formats and the signature content."""
+    """What the model reads before writing the plan: language, formats and the signature content.
+
+    Never the audience size: the eligibility filter reads it from the Request, and the plan has no
+    use for a private-looking number in the model's context.
+    """
     profile = read_profile(profile)
     account = profile["account"]
     if account["platform"] != platform:
@@ -307,8 +345,6 @@ def describe(profile: dict[str, Any], platform: str) -> list[str]:
     lines.append("accepted languages: " + (", ".join(fields["accepted_languages"]) or "none listed"))
     if "formats" in fields:
         lines.append("formats: " + ", ".join(fields["formats"]))
-    if "audience_count" in fields:
-        lines.append(f"audience: {fields['audience_count']}")
     for number, item in enumerate(fields["signature_content"], start=1):
         seeds = item["seed_terms"] + [f"#{tag}" for tag in item["seed_hashtags"]]
         lines.append(f"signature content {number} ({item['id']}, weight {item['weight']:.2f}): {item['name']} — "
@@ -434,10 +470,14 @@ def check_plan(queries: list[str], request: dict[str, Any], *, per_intent: str) 
     return {"signature_content_checked": len(wanted)}
 
 
-# --------------------------------------------------------------------------- include, refused locally
+# --------------------------------------------------------------------------- include, refused by Kabo
 
-INCLUDE_REFUSED = re.compile(r"\binclude\b|unrecognized|unknown (?:key|field|property|parameter)|additional propert"
-                             r"|invalid param", re.IGNORECASE)
+# What the model is told under a hand-over whose calls carry `include`. Kabo validates tool input
+# against its own contract: one that predates `include` refuses the call (invalid input, no data,
+# nothing to stage), and this host has no fetch of its own to notice and replay it.
+INCLUDE_HINT = ("If Kabo refuses any call above only for its `include` parameter (an invalid-input error with no "
+                "data), do not retry it by hand: make the other calls as usual, then run this same command with "
+                "--without-include instead of --placed. It hands those calls over once more without `include`.")
 
 
 def _call_includes(call: dict[str, Any]) -> bool:
@@ -461,57 +501,60 @@ def operation_of(call: dict[str, Any]) -> str:
     return str(arguments.get("operation") or call.get("tool") or "")
 
 
-def refused_for_include(call: dict[str, Any], result: dict[str, Any]) -> bool:
-    """The host refused this call itself, before any provider request, for a parameter it validates.
-
-    A host that checks parameters against an older contract rejects the new `include` field locally:
-    an error or refusal with nothing staged and no receipt. The platform never saw the call, so the
-    same call without `include` is not a second retrieval.
-    """
-    if not _call_includes(call) or result.get("status") not in ("error", "refused"):
-        return False
-    staged = sum(len(batch.get("names") or []) for batch in result.get("staged") or [] if isinstance(batch, dict))
-    if staged or result.get("receipt"):
-        return False
-    code = str(result.get("error_code") or result.get("code") or "")
-    return code in ("validation_error", "invalid_params") or bool(INCLUDE_REFUSED.search(str(result.get("message") or "")))
-
-
 @contextlib.contextmanager
-def include_fallback(cd: Any) -> Iterator[None]:
-    """While active, a call the host refuses only for `include` goes out once more without it.
+def include_fallback(cd: Any, args: Any) -> Iterator[None]:
+    """While active, calls Kabo refused only for `include` are handed over once more without it.
 
-    The skill's calls ask for the extra fields with `include`; a platform that predates it drops the
-    field silently and the extra fields are simply missing, which the later steps tolerate. Only a
-    host that validates parameters itself refuses it. The replay happens inside the same round, so
-    the round, its placement and its budget (`max_provider_calls` and the like) are those of the
-    original call; an operation refused once is sent without `include` for the rest of the run.
+    The skill's calls ask for the extra fields with `include`. This host never fetches: each round
+    is handed to the model as `call:` lines, so the refusal is seen by the model, not by a script.
+    The model reports it by running the same stage with `--without-include`; the open round's
+    calls that carry `include` are then handed over again without it, under the same round, so
+    the round's key, hand-over time, placement and budget stay those of the original calls (the
+    calls of that round that were answered are not made twice). An operation refused once is
+    handed over without `include` for the rest of the run.
     """
-    original = cd.fetch
+    original_hand_over, original_round = cd.hand_over, cd.fetch_round
 
-    def fetch(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        refused = set(cd.state().get("include_refused") or [])
-        sent = [without_include(call) if operation_of(call) in refused and _call_includes(call) else call
+    def refused() -> set[str]:
+        return set(cd.state().get("include_refused") or [])
+
+    def sent(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        gone = refused()
+        return [without_include(call) if _call_includes(call) and operation_of(call) in gone else call
                 for call in calls]
-        results = original(sent)
-        again = [i for i, (call, result) in enumerate(zip(sent, results)) if refused_for_include(call, result)]
-        if not again:
-            return results
-        retried = original([without_include(sent[i]) for i in again])
-        results = list(results)
-        for i, result in zip(again, retried):
-            results[i] = result
-        operations = sorted({*refused, *(operation_of(sent[i]) for i in again)})
-        cd.save_state(include_refused=operations)
-        cd.say(f"[drive] the host refused `include` on {', '.join(operations)}; sent the same call without it "
-               "(the extra profile fields are missing for those results)")
-        return results
 
-    cd.fetch = fetch
+    def hand_over(calls: list[dict[str, Any]], why: str = "") -> None:
+        printed = sent(calls)
+        try:
+            original_hand_over(printed, why)
+        except SystemExit:
+            if any(_call_includes(call) for call in printed):
+                cd.say(INCLUDE_HINT)
+            raise
+
+    def fetch_round(calls: list[dict[str, Any]], round_args: Any, place_responses: Any, *rest: Any,
+                    **options: Any) -> bool:
+        current = cd.state()
+        key = cd.round_key(calls)
+        if getattr(round_args, "without_include", False) and key not in (current.get("rounds") or []):
+            pending = [call for call in sent(calls) if _call_includes(call)]
+            if key not in (current.get("handed") or {}) or not pending:
+                raise cd.StageError("--without-include answers a hand-over whose calls carried `include` and were "
+                                    "refused for it; nothing like that is open. Run the command the stage named, "
+                                    "with --placed once its calls were made")
+            operations = sorted({*refused(), *(operation_of(call) for call in pending)})
+            cd.save_state(include_refused=operations)
+            cd.say(f"[drive] Kabo refused `include` on {', '.join(operations)}; handing those calls over once more "
+                   "without it (the extra profile fields are missing for their results)")
+            round_args.without_include = False
+            original_hand_over([without_include(call) for call in pending])
+        return original_round(calls, round_args, place_responses, *rest, **options)
+
+    cd.hand_over, cd.fetch_round = hand_over, fetch_round
     try:
         yield
     finally:
-        cd.fetch = original
+        cd.hand_over, cd.fetch_round = original_hand_over, original_round
 
 
 def main() -> int:

@@ -16,7 +16,7 @@ next judgment reads.
     start    [--video URL | --profile F] run directory; Request + plan schemas; source video
                                          (get_video_by_share_url) -> its caption and author; or the
                                          Creator's saved account profile -> its signature content
-    discover [--policy P [--since --until]] [--region R]
+    discover [--policy P [--since --until]] [--region R] [--without-include]
                                          attach the profile -> freeze + validate -> round 1: the
                                          relevance searches and the D-1 board -> round 2: the
                                          most-liked searches, and the D-2 board when D-1 came back
@@ -34,7 +34,9 @@ D-2 is asked only after D-1 came back empty.
 
 The stages never make connector calls themselves (connector_driver.py): a stage prints the calls
 for the model to make as named public MCP tools and stops, and the same stage run again with
-`--placed` places those responses from this run's staged copies.
+`--placed` places those responses from this run's staged copies. With a profile attached the
+searches carry `include`; when Kabo refuses a call only for it, the same stage run with
+`--without-include` hands those calls over once more without it (attach_creator_profile.py).
 """
 
 from __future__ import annotations
@@ -705,7 +707,7 @@ def stage_discover(args: argparse.Namespace) -> None:
 
     # Every route is its own data_connector_run, never a batch: a host-level batch failure would erase
     # each route's own terminal evidence.
-    with intake.include_fallback(cd):
+    with intake.include_fallback(cd, args):
         cd.fetch_round(first_calls, args, place_first)
 
     second_calls, second_keys = rounds[1]
@@ -715,7 +717,7 @@ def stage_discover(args: argparse.Namespace) -> None:
         second_calls = [*second_calls, cd.run_call(DISCOVERY, "list_top_contents", params[BOARD_KEYS[1]])]
         second_keys = [*second_keys, BOARD_KEYS[1]]
         say("[drive] the D-1 board came back empty; asking D-2 once")
-    with intake.include_fallback(cd):
+    with intake.include_fallback(cd, args):
         cd.fetch_round(second_calls, args, lambda: place_round(second_calls, second_keys))
 
     reorder_runs(ENVELOPES, order)
@@ -906,6 +908,9 @@ def main() -> int:
     discover.add_argument("--policy", choices=POLICIES, help="the window policy the ask was classified as")
     discover.add_argument("--since", help="user_named_span only: the span's start, kept exactly")
     discover.add_argument("--until", help="user_named_span only: the span's end, kept exactly")
+    discover.add_argument("--without-include", action="store_true",
+                          help="Kabo refused handed-over calls only for their `include` parameter: hand them over "
+                               "once more without it")
     discover.add_argument("--region", help="the one search region every call carries, when the Request region is "
                                            "unknown (null)")
     for name in ("rank", "report"):
