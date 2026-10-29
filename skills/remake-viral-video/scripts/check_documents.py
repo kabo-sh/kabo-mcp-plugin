@@ -3,6 +3,7 @@
 
   check        validate script/*.json against the saved brief and print errors and warnings
   render-args  run the same check and, when it passes, write render/render_remake_video.json
+               (voice-over: --preview writes the preview call, --beat-review the picture review)
 
 These are structural checks only. The server runs the full script, opening and decisions checks
 again before anything is generated or charged, and its message is the one that counts.
@@ -50,6 +51,10 @@ FRAMING_WORDS = re.compile(r"\b(close-up|closeup|medium shot|wide shot|waist-up|
                            r"shot size|head and shoulders)\b", re.I)
 SIZE_AT_SPOT = re.compile(r"(right|correct|matching) (size|scale) (and|&) perspective|size and perspective for", re.I)
 BEAT = re.compile(r"\bb(\d+)(?:\s*[-–]\s*b?(\d+))?", re.I)
+# 旁白（runner V2-r63 decisions.check_pictures 同口径）
+MAKE_KINDS = ("composition", "generated", "motion_graphic")
+COMPOSITION_MAX_CHARS = 24_000
+IMAGE_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}\.png$")
 
 
 def text(value):
@@ -414,6 +419,51 @@ def check_decisions(decisions, draft, errors):
                 errors.append(f"decisions.questions[{k}] needs kind ({', '.join(QUESTION_KINDS)}), question, recommended and why")
 
 
+def check_pictures(decisions, script, errors):
+    """Voice-over: the picture plan in decisions (picture_system and one make per row)."""
+    if not text(decisions.get("picture_system")):
+        errors.append("decisions.picture_system must be written (narration.md, the picture plan)")
+    rows = decisions.get("pictures")
+    if not isinstance(rows, list) or not rows:
+        errors.append("decisions.pictures must list every line's picture")
+        return
+    count = len(script.get("lines") or []) if isinstance(script, dict) else 0
+    covered = set()
+    for k, row in enumerate(rows):
+        prefix = f"decisions.pictures[{k}]"
+        lines = row.get("lines") if isinstance(row, dict) else None
+        if not isinstance(lines, list) or not lines or not all(isinstance(x, int) and not isinstance(x, bool) for x in lines):
+            errors.append(f"{prefix}.lines must list the script line numbers it covers")
+            continue
+        covered.update(lines)
+        make = row.get("make")
+        if not isinstance(make, dict) or make.get("kind") not in MAKE_KINDS:
+            errors.append(f"{prefix}.make.kind must be one of {', '.join(MAKE_KINDS)}")
+        elif make["kind"] == "generated" and not text(make.get("prompt")):
+            errors.append(f"{prefix}.make (generated) needs prompt")
+        elif make["kind"] == "composition":
+            markup = str(make.get("markup") or "")
+            size = sum(len(str(make.get(f) or "")) for f in ("markup", "style", "script"))
+            if 'class="clip' not in markup and "clip\"" not in markup:
+                errors.append(f"{prefix}.make (composition) needs markup whose visible elements have class=\"clip\"")
+            if "data:" in markup or "data:" in str(make.get("style") or ""):
+                errors.append(f"{prefix}.make (composition) pastes an image as data:; name it in make.images instead")
+            if size > COMPOSITION_MAX_CHARS:
+                errors.append(f"{prefix}.make (composition) is {size} characters; keep it under {COMPOSITION_MAX_CHARS}")
+            images = make.get("images") or {}
+            if (not isinstance(images, dict) or len(images) > 6 or
+                    any(not IMAGE_NAME.match(str(n)) or not isinstance(v, dict) or not text(v.get("prompt"))
+                        for n, v in images.items())):
+                errors.append(f"{prefix}.make.images maps lowercase name.png to {{prompt}}, at most 6")
+    missing = [i for i in range(count) if i not in covered]
+    if missing:
+        errors.append(f"decisions.pictures has no row for script lines {missing}")
+
+
+def narration_brief(brief):
+    return isinstance(brief, dict) and (brief.get("reference") or {}).get("type") == "narration"
+
+
 def check_jobs(jobs, template, errors, warnings):
     if not isinstance(jobs, dict) or not isinstance(jobs.get("jobs"), list):
         errors.append("route_b_jobs must be the template object with its jobs list")
@@ -470,7 +520,11 @@ def check(run):
     errors, warnings = [], []
     brief = load(run / "brief/work/brief_input.json", errors, "brief_input")
     draft = load(run / "brief/work/decisions.draft.json", errors, "decisions.draft")
-    template = load(run / "brief/work/route_b/jobs.template.json", errors, "jobs.template")
+    narration = narration_brief(brief)
+    template_path = run / "brief/work/route_b/jobs.template.json"
+    # 旁白没有口播首帧任务：route_b_jobs 交 {"jobs": []}
+    template = ({"jobs": []} if narration and not template_path.exists()
+                else load(template_path, errors, "jobs.template"))
     if errors:
         errors.insert(0, "the brief is not saved in this run; run static_host.py fetch on the waiting_script result first")
         return {"status": "errors", "errors": errors, "warnings": warnings}
@@ -481,9 +535,12 @@ def check(run):
         check_opening(documents["opening_review"], errors)
     if documents["decisions"] is not None:
         check_decisions(documents["decisions"], draft, errors)
+        if narration and isinstance(documents["decisions"], dict):
+            check_pictures(documents["decisions"], documents["script"], errors)
     if documents["route_b_jobs"] is not None:
         check_jobs(documents["route_b_jobs"], template, errors, warnings)
-    return {"status": "ready" if not errors else "errors", "errors": errors, "warnings": warnings}
+    return {"status": "ready" if not errors else "errors", "errors": errors, "warnings": warnings,
+            "kind": "narration" if narration else "talking"}
 
 
 def offered_models(path):
@@ -497,20 +554,65 @@ def offered_models(path):
     return [m.get("id") for m in models if isinstance(m, dict)], structured.get("job_id")
 
 
-def render_args(run, model, models_from):
+def beat_review_text(path, script):
+    """The per-line review: one row per script line, each with ok true or false (and a note when
+    not ok); the MCP schema takes it as an opaque string, so it is checked here."""
+    review = json.loads(Path(path).read_bytes())
+    rows = review.get("lines") if isinstance(review, dict) else None
+    count = len((script or {}).get("lines") or []) if isinstance(script, dict) else 0
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("beat_review must be the template with its lines list")
+    seen = set()
+    for k, row in enumerate(rows):
+        line = row.get("line") if isinstance(row, dict) else None
+        if not isinstance(line, int) or isinstance(line, bool) or not 0 <= line < count or line in seen:
+            raise ValueError(f"beat_review.lines[{k}].line must be a script line number (0..{count - 1}), each once")
+        seen.add(line)
+        if not isinstance(row.get("ok"), bool):
+            raise ValueError(f"beat_review.lines[{k}].ok must be true or false")
+        if row["ok"] is False and not text(row.get("note")):
+            raise ValueError(f"beat_review.lines[{k}] is not ok: give a short note")
+    missing = [i for i in range(count) if i not in seen]
+    if missing:
+        raise ValueError(f"beat_review has no row for script lines {missing}; review every line")
+    return json.dumps(review, ensure_ascii=False)
+
+
+def render_args(run, model, models_from, preview=None, beat_review=None):
     result = check(run)
     if result["status"] != "ready":
         return result
-    offered, job_id = offered_models(models_from)
-    if model not in offered:
-        raise ValueError(f"--talking-model must be one of the offered ids: {', '.join(map(str, offered))}")
+    narration = result["kind"] == "narration"
     bundle = json.loads((run / "brief/bundle.json").read_bytes())
-    if job_id and bundle.get("job_id") != job_id:
-        raise ValueError("The model options come from a different job than the saved brief")
     files = {name: (run / path).read_text(encoding="utf-8") for name, path in DOCUMENTS.items()}
-    target = run / "render/render_remake_video.json"
-    body = json.dumps({"job_id": bundle["job_id"], "files": files, "talking_model": model}, ensure_ascii=False)
-    target.write_text(body, encoding="utf-8")
+    body = {"job_id": bundle["job_id"], "files": files}
+    if preview or beat_review:
+        if not narration:
+            raise ValueError("--preview and --beat-review are for voice-over remakes only")
+        if preview and beat_review:
+            raise ValueError("Give --preview or --beat-review, not both")
+        if preview:
+            body["preview"] = preview
+            target = run / "render/preview_remake_video.json"
+        else:
+            body["beat_review"] = beat_review_text(beat_review, json.loads(files["script"]))
+            target = run / "render/review_remake_video.json"
+    elif narration:
+        # 旁白没有口播模型可选
+        if model:
+            raise ValueError("A voice-over remake has no talking model; leave out --talking-model")
+        target = run / "render/render_remake_video.json"
+    else:
+        if not model or not models_from:
+            raise ValueError("--talking-model and --models-from are required for a talking-head remake")
+        offered, job_id = offered_models(models_from)
+        if model not in offered:
+            raise ValueError(f"--talking-model must be one of the offered ids: {', '.join(map(str, offered))}")
+        if job_id and bundle.get("job_id") != job_id:
+            raise ValueError("The model options come from a different job than the saved brief")
+        body["talking_model"] = model
+        target = run / "render/render_remake_video.json"
+    target.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
     return {**result, "render_arguments": str(target)}
 
 
@@ -520,11 +622,14 @@ def main():
     commands.add_parser("check").add_argument("--run-dir")
     command = commands.add_parser("render-args")
     command.add_argument("--run-dir")
-    command.add_argument("--talking-model", required=True)
-    command.add_argument("--models-from", required=True)
+    command.add_argument("--talking-model")
+    command.add_argument("--models-from")
+    command.add_argument("--preview", choices=("pictures", "stills"))
+    command.add_argument("--beat-review")
     args = parser.parse_args()
     run = run_dir(args.run_dir)
-    result = check(run) if args.command == "check" else render_args(run, args.talking_model, args.models_from)
+    result = check(run) if args.command == "check" else render_args(
+        run, args.talking_model, args.models_from, args.preview, args.beat_review)
     print(json.dumps(result, ensure_ascii=False, indent=1))
     if result["status"] != "ready":
         sys.exit(2)
