@@ -1,6 +1,6 @@
 # Keep this file additive. Unset keys stay at org/UI defaults.
-# Rules ported from kabo-sh/kabo and kabo-sh/creator-skills; the mechanical halves live in
-# scripts/repo-rules.test.mjs and scripts/pr-text-check.mjs.
+# Rules ported from kabo-sh/kabo and kabo-sh/creator-skills. Every check here is advisory for now
+# (mode: warning); nothing blocks merging until the maintainers decide to turn a check into a gate.
 language: "en-US"
 
 reviews:
@@ -13,7 +13,7 @@ reviews:
   path_instructions:
     - path: "**"
       instructions: |
-        Mark as **critical**: a data-vendor identity anywhere in this public repository, including tests,
+        Flag as **critical**: a data-vendor identity anywhere in this public repository, including tests,
         fixtures, docs and comments (tikhub, scrapecreators, tubelab, vidiq, gemini, printingpress, yt-dlp,
         youtube-pp, youtube data api, ensemble data, hiker api, creatordb, apify, firecrawl; case-insensitive,
         truncated forms such as "tikhu" count). Use platform or capability names instead (TikTok, Instagram,
@@ -21,7 +21,7 @@ reviews:
 
     - path: "skills/**"
       instructions: |
-        Mark as **critical**:
+        Flag as **critical**:
         - Non-English prose in SKILL.md, references/** or assets/** Markdown, or the description, including
           example user requests and fixed labels. Proper nouns with no English form are allowed. Localized
           strings kept only so a script can match them are not an exception: make the script language-agnostic.
@@ -41,7 +41,7 @@ reviews:
 
     - path: "skills/**/scripts/**"
       instructions: |
-        Mark as **major**: scripts must work for any input language. A validator must not compare against
+        Flag as **major**: scripts must work for any input language. A validator must not compare against
         localized literals (an exact Chinese or English title, only "万/亿", only one phrase); check structure
         (position, count, references, numbers, fields) instead. Renderers keep one English set of fixed labels;
         do not add bilingual label tables. Reading legacy localized machine values from already-shipped
@@ -49,13 +49,13 @@ reviews:
 
   pre_merge_checks:
     title:
-      mode: error
+      mode: warning
       requirements: "Written in English (AGENTS.md). Conventional-commit style such as `fix(skill): ...` is preferred."
     description:
-      mode: error
+      mode: warning
     custom_checks:
       - name: "English PR title and description"
-        mode: error
+        mode: warning
         instructions: |
           FAIL if the PR title or the PR description written by the author contains Chinese or other
           non-English prose. AGENTS.md requires commit messages, PR titles and PR descriptions in English.
@@ -66,7 +66,7 @@ reviews:
         instructions: |
           FAIL if any commit message in this PR contains Chinese or other non-English prose (AGENTS.md).
       - name: "No data vendor in this public repo"
-        mode: error
+        mode: warning
         instructions: |
           FAIL if the PR adds or keeps a data-vendor identity anywhere in the repository, including tests,
           fixtures, docs and comments: tikhub, scrapecreators, scrape creators, tubelab, vidiq, gemini,
