@@ -4,16 +4,32 @@
 
 ## 未发布
 
-- 复刻（`remake-viral-video`）支持旁白类参考视频（没人出镜、配音配画面）：移植网页端 creator-remake-web 0.1.29
-  （creator-skills `1ca23aebc`，runner V2-r61）。带字的画面由 agent 写动效（composition，里面要的图片用
+- 复刻（`remake-viral-video`）支持旁白类参考视频（没人出镜、配音配画面）：移植网页端 creator-remake-web 0.1.30
+  （creator-skills PR #896，runner V2-r63）。带字的画面由 agent 写动效（composition，里面要的图片用
   `make.images` 生成），写稿后先 `render_remake_video` + `preview` 渲出画面分页、用 `fetch-preview` 存到本地看图，
   改到满意再出片；成片前 runner 停一次给逐句对照图，`fetch` 存下后写 `beat_review` 用 `--beat-review` 返工，
   只重做不行的句子。旁白没有口播模型可选。
   依赖 kabo `mark/remake-preview-review`（`/mcp-pub` 放行 narration、`render_remake_video` 加 `preview` 与
   `beat_review`、preview 结果与逐句对照图放在 brief 信封里），`contracts/directory-mcp/` 已重新固定到其 commit
-  `4de826067`（只有两个复刻工具的入参和说明变了，出参不变）；合入后需按 kabo main 的 commit 重新固定。
+  `cf290a6cf`（只有两个复刻工具的入参和说明变了，出参不变）；合入后需按 kabo main 的 commit 重新固定。
 - 第 8 步「没跑完」的细则移到 `references/when-it-does-not-finish.md`（SKILL.md 正文回到 2 万字符以内）。
 - 新增 `scripts/remake-narration.test.mjs`：旁白画面检查、preview / review 参数、分页下载（不联网）。
+
+## 1.0.4（2026-10-28；GitHub Release）
+
+- `remake-viral-video`：参考视频被判为纯口播以外的类型时，告诉用户判成了哪一类（口播时摆弄实物、录屏/画中画、旁白），
+  并说明网页端支持（#16；服务端原因见 kabo#1819）。
+- `remake-viral-video`：两个输入齐了就直接开始，不再要求查已绑定账号、OAuth 或 workspace 数据（#17）。
+- `remake-viral-video`：交稿生成时若同一账号已有另一条复刻在跑，服务端返回 `quota_exceeded`（`reason: in_flight`，
+  kabo#1822），技能等那条结束后用同样的参数重新提交（#17）。
+- 视频分析（#14）：单词后面的点（如 `obs.14`）不再被当作以点开头的小数。
+- `remake-viral-video`：被拒时同时告诉用户判成了哪一类、网页端可以复刻这一类；第一次复刻的开场说明在第一条消息已带齐两个输入时也要先说，
+  且逐条列出（复刻什么、哪些会在生成前被拒且不收费、边缘情况可能效果不好）。
+  生产回归（Codex `gpt-5.6-luna`，OAuth 连 `kabo.sh/mcp-pub`，kabo-api 镜像 `bd4c6798`，runner `sha256:103d39d8…`）：
+  正常口播交付（job `fe1d0da5`，约 21 分钟、$0.55，8 帧逐帧检查通过；27 秒处字幕压到抬起的手，runner 质检未报）；
+  实物参考视频三次均在生成前以 `unsupported_type` 拒绝（`e04da234`、`b5d74607`、`cd8d2432`），原因写明「口播时展示或摆弄实物」
+  并说明网页端支持，未渲染、无花费；修复后的版本会把「网页端支持」转告用户。已知：开场说明里「被拒不收费」一句 GPT 仍常略去。
+  未在生产覆盖：稿件被退回一次后的第二次提交、#1822 的 in_flight 拒绝。
 
 ## 1.0.3（2026-10-28；GitHub Release）
 

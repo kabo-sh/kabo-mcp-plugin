@@ -10271,7 +10271,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Start a Kabo remake of a public talking-head video (YouTube or Instagram, 60 s max) with the creator's own footage. Propose it and call only after the user confirms. Top-level. Fetching the videos uses daily quota. Uses one daily remake (shared with Kabo web) even for a non-talking-head reference; one runs at a time. On fetching_inputs, call again after retry_after_s with the same idempotency_key and inputs. Next: poll get_remake_video.",
+      "description": "Start a Kabo remake of a public talking-head video (YouTube or Instagram, 90 s max) with the creator's own footage. Propose it and call only after the user confirms. Top-level. Fetching the videos uses daily quota. Uses one daily remake (shared with Kabo web) even for a non-talking-head reference; one runs at a time. On fetching_inputs, call again after retry_after_s with the same idempotency_key and inputs. Next: poll get_remake_video.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -10423,7 +10423,7 @@
         "openWorldHint": false,
         "readOnlyHint": true
       },
-      "description": "Read a remake job. Top-level. Send job_id and wait_s. At waiting_script: brief.download is a JSON bundle {schema, job_id, files} to write the four files from, and talking_models lists the model choices with estimated cost. At delivered: video.download is the final MP4. Links are short-lived; call again to re-sign. out_of_scope, failed, timed_out and failure unsupported_type are final and come back as a normal result. No quota.",
+      "description": "Read a remake job. Top-level. Send job_id and wait_s. At waiting_script: brief.download is a JSON bundle {schema, job_id, files} to write the four files from, and talking_models lists the model choices with estimated cost. At delivered: video.download is the final MP4; with include [\"review\"], review has Kabo's final-review verdict (qc, null when unknown) and the runner's notes on what it changed. Links are short-lived; call again to re-sign. out_of_scope, failed, timed_out and failure unsupported_type are final and come back as a normal result. No quota.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -10431,6 +10431,17 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
+          "include": {
+            "description": "Send [\"review\"] to also get review: Kabo's final-review verdict and delivery notes once delivered.",
+            "items": {
+              "enum": [
+                "review"
+              ],
+              "type": "string"
+            },
+            "maxItems": 1,
+            "type": "array"
+          },
           "job_id": {
             "description": "From start_remake_video.",
             "format": "uuid",
@@ -10603,6 +10614,56 @@
                 "type": "null"
               }
             ]
+          },
+          "review": {
+            "additionalProperties": false,
+            "properties": {
+              "delivery_notes": {
+                "anyOf": [
+                  {
+                    "maxLength": 8000,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "qc": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "failed": {
+                        "items": {
+                          "maxLength": 200,
+                          "type": "string"
+                        },
+                        "maxItems": 32,
+                        "type": "array"
+                      },
+                      "status": {
+                        "maxLength": 32,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "failed"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "qc",
+              "delivery_notes"
+            ],
+            "type": "object"
           },
           "spend_usd": {
             "anyOf": [

@@ -51,7 +51,7 @@ FRAMING_WORDS = re.compile(r"\b(close-up|closeup|medium shot|wide shot|waist-up|
                            r"shot size|head and shoulders)\b", re.I)
 SIZE_AT_SPOT = re.compile(r"(right|correct|matching) (size|scale) (and|&) perspective|size and perspective for", re.I)
 BEAT = re.compile(r"\bb(\d+)(?:\s*[-–]\s*b?(\d+))?", re.I)
-# 旁白（runner V2-r61 decisions.check_pictures 同口径）
+# 旁白（runner V2-r63 decisions.check_pictures 同口径）
 MAKE_KINDS = ("composition", "generated", "motion_graphic")
 COMPOSITION_MAX_CHARS = 24_000
 IMAGE_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}\.png$")
