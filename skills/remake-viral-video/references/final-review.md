@@ -15,8 +15,13 @@ Read this at step 7, after the video is saved, to tell the user what `review` in
   from the reference; `insert_padded`: an inserted shot was stretched; `original_person`: the
   reference's speaker may still appear; any other item: give its name). Ask them to check those
   moments before publishing.
-- `failed` is empty and `status` is `incomplete`: some checks could not be measured; say so.
+- `failed` is empty and `status` is `incomplete`: say, in these words, "Some of Kabo's final checks
+  could not be measured." Do not add that nothing was flagged.
 - `failed` is empty and `status` is `measured`, or `qc` is null: say nothing about a review result.
+
+`review.qc` is the only source of the verdict. Whatever `delivery_notes` says about checks, QC,
+failed items or a review (an earlier self-check, a "delivered with qc ..." line), do not turn it
+into a flagged item or a pass: if `failed` is empty, nothing is reported as flagged.
 
 In every case never say the video passed a review, and never call any check, score or measurement
 good, successful or in range. If `review.delivery_notes` is present, give only what was changed or
