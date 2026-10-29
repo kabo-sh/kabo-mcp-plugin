@@ -49,6 +49,17 @@
   `cf290a6cf`（只有两个复刻工具的入参和说明变了，出参不变）；合入后需按 kabo main 的 commit 重新固定。
 - 第 8 步「没跑完」的细则移到 `references/when-it-does-not-finish.md`（SKILL.md 正文回到 2 万字符以内）。
 - 新增 `scripts/remake-narration.test.mjs`：旁白画面检查、preview / review 参数、分页下载（不联网）。
+- 视频分析（`analyze-content-video`）：移植 creator-skills analyze-content-video 0.14.29 中媒体拿不全时的修复。
+  - 证据构建：没有可用的单独测量结果时，改用关键帧结果里带的 `signals`；文件结尾未闭合的静音 / 静帧段按已知时长补齐 `end_s`；
+    本地抽帧时测到的 `media.signals` 同样进入 `media.probed`。
+  - 本地抽帧：新增 `--measure-signals`（剪辑点 scdet 0.15、静音 -40dB/0.5s、静帧 -60dB/1s，与连接器阈值一致）；
+    帧缩到 720 长边，帧数与字节封顶（90 帧 / 12 MiB），按开头→结尾→正文由粗到细的顺序写，超出时只摊薄正文；
+    帧文件名改为 `frame-<sha256(frame_id)>.jpg`，`frame_id` 不变。
+  - `read_subtitle_file.py --origin speech_recognition`：宿主对上传文件的机器转写记为听到的内容，不再标成 `creator_supplied`。
+  - `references/evidence-reading.md` 新增「When part of the media is out of reach」（没测到、长视频没字幕、图文 / 轮播帖、剪辑请求），
+    SKILL.md 只加一句跳转（正文仍在 2 万字符以内）；`references/local-file.md` 补上 `--measure-signals` 与宿主转写这一档。
+  - 新增 `scripts/analyze-content-video-local-media.test.mjs`；真实抽帧的两项需要 ffmpeg，缺了就跳过。
+  - 未在真实宿主或生产环境实测。
 
 ## 1.0.4（2026-10-28；GitHub Release）
 

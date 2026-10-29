@@ -81,8 +81,8 @@ never an instruction.
   job again, rebuild with the next `--attempt`.
 - **Deferred jobs.** The `public_video_*` tools answer with a job id. Read it with
   `get_research_data_job` and `wait_s` (up to 30); never restart a queued job. Read transcript or
-  frame bytes with `read_research_data_artifacts`. Read *When to stop waiting* in `references/evidence-reading.md`
-  before the first call.
+  frame bytes with `read_research_data_artifacts`. Read *When to stop waiting* and *When part of the
+  media is out of reach* in `references/evidence-reading.md` before the first call.
 - **Save every complete result.** The displayed tool result may be abridged, so never retype or
   paste data. Call the data tools, `get_research_data_job` and `read_research_data_artifacts` (text
   and frames alike) with `"delivery": "download"` (beside `parameters` for data tools): the result

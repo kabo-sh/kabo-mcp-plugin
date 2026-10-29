@@ -1,7 +1,7 @@
 # Reading the evidence
 
-Shared by both modes. Read the section a step points you to; read *When to stop waiting* before
-the first data call of a run.
+Shared by both modes. Read the section a step points you to; read *When to stop waiting* and
+*When part of the media is out of reach* before the first data call of a run.
 
 ## Frame sampling
 
@@ -159,3 +159,24 @@ builder records `frames.status` as `not_attempted`; list the visual dimensions i
 `unavailable_dimensions[]`, and say in one sentence beside the affected claim that this reading
 rests on speech and metadata alone. A report that arrives without the frame track beats a report
 that never arrives.
+
+## When part of the media is out of reach
+
+- **No measurement.** When `public_video_measure_media_signals` is missing or says the media could
+  not be retrieved, and no keyframe result carries `signals`, say the cuts were not measured because
+  the platform refused the download, never that the video cannot be analysed. Place each visible
+  change between the two frames that bracket it ("between 1:03 and 1:05"), read the on-screen text
+  of every frame with its second, and mark the spans between frames unconfirmed.
+- **No words on a long video.** A quick transcript lookup (`instagram_get_transcript`,
+  `tiktok_search_get_transcript`) that returns none is not the final answer: call
+  `public_video_fetch_transcript`, which falls back to machine transcription inside the same call,
+  before saying the words were not read. When a whole-video reading is capped by length but accepts
+  segments, read the opening window and the spans the question names, deliver, and only then ask
+  for timestamps.
+- **Photo and carousel posts.** Metadata naming a photo or slideshow post, or a video reading that
+  answers `source_not_video`, makes it a still-image post: make no further video call. Read its
+  slides where the post's images can be fetched, quote the caption as the platform's text, and ask
+  the creator to paste text only when both came back empty. After a share link resolves, use the
+  canonical URL it returned for every later call.
+- **Edit requests.** This Skill diagnoses; it does not edit, mix or render video. Asked to edit, add
+  sound or export, say so in one sentence and deliver the timed edit plan in its place.
