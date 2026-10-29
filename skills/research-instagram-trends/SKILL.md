@@ -2,8 +2,8 @@
 name: research-instagram-trends
 description: "Find what is working on Instagram Reels: scan a niche or a supplied Reel for repeated mechanisms, the hottest posts, account-relative outliers and emerging creators; list the hottest Reels of the last seven days; read the daily Reels audio board of trending and rising sounds; suggest soundtrack for named scenes; or analyze a supplied public-content Snapshot. Use for Reels trend scans and more hot Reels like this one. Not for a known creator's profile, YouTube, private Insights or scripts."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permission: data."
-allowed-tools: get_research_capabilities get_research_data_job get_research_data_download collect_instagram_trend_candidates enrich_instagram_shortlist lookup_instagram_post instagram_get_transcript instagram_baseline_search_reels instagram_baseline_search_music creator_trends_get_instagram_audio_board
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permissions: data; optional workspace:read to read the Creator's saved account profile."
+allowed-tools: get_research_capabilities get_research_data_job get_research_data_download collect_instagram_trend_candidates enrich_instagram_shortlist lookup_instagram_post instagram_get_transcript instagram_baseline_search_reels instagram_baseline_search_music creator_trends_get_instagram_audio_board list_connected_accounts get_creator_profile
 ---
 
 # Research Instagram Trends
@@ -188,9 +188,18 @@ runs. A `needs_correction` answer (exit 0) is unfinished authoring: correct only
 once, and follow its `next_stage`.
 
 1. **Start.** Run `drive.py start --post '<the Reel URL as the user gave it>'` when the ask supplies
-   a Reel or post URL, otherwise `drive.py start`. Run `start` once per request; run it again for the
+   a Reel or post URL, `drive.py start --profile '<the saved profile file>'` with a saved profile,
+   otherwise `drive.py start`. Run `start` once per request; run it again for the
    same request only with the same arguments and `--placed`. Read `references/request-and-query-plan.md` whole, then write
    the Request and the query plan.
+
+   **Saved account profile.** For the user's own account with no Reel supplied, call
+   `list_connected_accounts`, then `get_creator_profile` with `{"account_id": …, "include":
+   ["content_profile"]}` for the Instagram account the ask is about (named, or the only one linked).
+   Save that complete result unchanged outside `<skill directory>` and the run; pass its absolute
+   path to `--profile`, never with `--post`. A tool unavailable or refused, a missing permission, no
+   fitting account or a null `contentProfile`: no `--profile`. Never write a profile file. When
+   `start` prints signature content, also read `references/signature-content.md`.
 2. **Discover.** Read `references/discovery-and-gate.md` whole, then chain the two heredocs with
    `drive.py discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>]`.
    It freezes the window once, validates the plan per lane, hands over one
