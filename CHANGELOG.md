@@ -12,6 +12,11 @@
   `vm.`/`vt.` 短链原样带尾斜杠，与服务端写法一致，幂等键对得上；图文、http 与其他平台在付费调用前就被拒。
 - `contracts/directory-mcp/` 重新固定到 kabo `bb391d1f6`（62 个工具；`start_remake_video` 说明改为 YouTube、Instagram 或 TikTok、90 秒以内，
   `get_remake_video` 新增 `include` 入参与 `review` 出参）。
+- `remake-viral-video`：说明与正文写明成片由 Kabo 服务端用用户给的本人素材生成（出镜的通常就是用户本人），不是宿主自己生成人脸或声音，
+  宿主不要把「把视频复刻到自己身上」当成冒充真人而拒绝（有宿主曾在调用工具前就拒绝）。
+- `remake-viral-video`：终审转述按 `failed` 列表逐项说，不看 `status`（生产出现过 `measured` 带 `failed [framing]`），新增 `framing`；
+  不转述交付说明里的自检数字。转述规则移到 `references/final-review.md`，第 8 步细则移到 `references/when-it-does-not-finish.md`。
+- 本版不含旁白参考（kabo-mcp-plugin#18）：它的 preview 需要 runner V2-r63，生产仍是 r62；r63 上线后单独发版。
 - 生产回归：待补。
 
 ## 1.0.4（2026-10-28；GitHub Release）
