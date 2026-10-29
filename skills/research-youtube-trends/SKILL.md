@@ -176,7 +176,7 @@ and fetch (or stage) each result, then run the same stage again with its exact a
 
 1. `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' start [--video "<the video URL or id as the user gave it>"]`
 2. Write `trend-research-request.json` and `trend-query-plan.json`, then
-   `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO> | --last-days <N>]`
+   `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO> | --last-days <N>] --question-file -` with the ask verbatim on standard input
    (once more with a replacement plan only when the first collection fails coverage)
 3. Score every numbered Gate line by judgment into `trend-relevance-gate.tsv`, then
    `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' rank`

@@ -218,7 +218,7 @@ save and fetch (or stage) each result, then run the same stage again with `--pla
 
 1. `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' start [--video "<the TikTok URL as the user gave it>"]`
 2. Write `trend-research-request.json` and `tiktok-trend-query-plan.json`, then
-   `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>] [--region <code>]`
+   `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>] [--region <code>] --question-file -` with the ask verbatim on standard input
 3. Score every numbered Gate line by judgment into `trend-relevance-gate.tsv`, then
    `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' rank`
 4. Write `trend-research-synthesis.json`, then

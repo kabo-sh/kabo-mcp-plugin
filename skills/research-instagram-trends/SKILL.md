@@ -192,7 +192,7 @@ once, and follow its `next_stage`.
    same request only with the same arguments and `--placed`. Read `references/request-and-query-plan.md` whole, then write
    the Request and the query plan.
 2. **Discover.** Read `references/discovery-and-gate.md` whole, then chain the two heredocs with
-   `drive.py discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>]`.
+   `drive.py discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>] --question-file -`.
    It freezes the window once, validates the plan per lane, hands over one
    `collect_instagram_trend_candidates` call per lane, places and binds the results, and prints the
    relevance Gate table. When the relevance lane returned no candidates at all, `discover` stops

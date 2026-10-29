@@ -15,7 +15,7 @@ next judgment reads.
 
     start    [--video URL]               run directory; Request + plan schemas; source video
                                          (get_video_by_share_url) -> its caption and author
-    discover [--policy P [--since --until]] [--region R]
+    discover [--policy P [--since --until]] [--region R] [--question-file -]
                                          freeze + validate -> round 1: the relevance searches and the
                                          D-1 board -> round 2: the most-liked searches, and the D-2
                                          board when D-1 came back empty -> provenance -> candidate
@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import re
 import sys
@@ -86,6 +87,8 @@ ANALYSIS = "public-content-analysis.json"
 SYNTHESIS = "trend-research-synthesis.json"
 REPORT = "trend-research-report.json"
 CREATOR_REPORT = "creator-report.md"
+# 用户原话逐字存在 run 里，冻结 Request 时据此核对 locale.named_in_ask。
+QUESTION = Path("analysis") / "original-question.txt"
 
 POLICIES = ("default_1y", "recent_90d", "user_named_span")
 # search_videos: one call per intent and sort, 30 results each. sort_type 0 is relevance, 1 most liked.
@@ -104,6 +107,18 @@ SOURCE_SKIP = {"thumbnail_url"}
 TIKTOK_VIDEO = re.compile(r"^(?:https?://)?(?:www\.|m\.)?tiktok\.com/(@[A-Za-z0-9._]{1,64})/video/([0-9]{8,25})(?:[/?#].*)?$",
                           re.IGNORECASE)
 TIKTOK_SHORT = re.compile(r"^(?:https?://)?(v[mt])\.tiktok\.com/([A-Za-z0-9]{5,16})(?:[/?#].*)?$", re.IGNORECASE)
+
+
+def _validator(name: str):
+    # 同名模块在各趋势包里字节可能不同，不复用别的包留在 sys.modules 里的那份。
+    path = Path(__file__).with_name(name + ".py")
+    spec = importlib.util.spec_from_file_location(f"{path.parent.parent.name}:{name}", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+window_rules = _validator("freeze_request_window")
 
 
 def say(text: str = "") -> None:
@@ -156,6 +171,118 @@ def need_authored(*names: str) -> bool:
                        "instruction": "Write the named files in this run directory with the host's normal file-writing "
                                       "tool, then repeat this same non-final stage in this same "
                                       "open run. Discovery has fetched nothing yet. Do not replace the run."}, ensure_ascii=False))
+    return True
+
+
+def _locale_correction(args: argparse.Namespace, originals: dict[str, bytes], error: str) -> bool:
+    """作者输入的一次改正（与 YouTube / Instagram 的 discovery 输入改正同一约定），只在任何取数之前。
+
+    TikTok 原先没有这条改正通道；这里只服务 locale 核对：原始字节留档，第二次仍不对就终止。
+    """
+    state = cd.state()
+    try:
+        receipt = json.loads(Path("run-manifest.json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        receipt = {}  # 旧宿主可能没有 wrapper manifest；其余 I/O 仍是致命错误
+    if receipt and receipt.get("status") != "running":
+        raise cd.StageError("discovery input correction requires this same open run")
+    if state.get("discovery") or Path(ENVELOPES).exists():
+        raise cd.StageError(f"discovery inputs are frozen after data work began: {error}")
+    previous = list(state.get("discovery_input_errors") or [])
+    directory = Path("analysis") / "discovery-input-errors" / f"attempt-{len(previous) + 1:02d}"
+    directory.mkdir(parents=True, exist_ok=False)
+    hashes = {}
+    for name, raw in originals.items():
+        with (directory / name).open("xb") as stream:
+            stream.write(raw)
+        hashes[name] = hashlib.sha256(raw).hexdigest()
+    with (directory / "error.json").open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps({"error": error, "input_sha256": hashes}, ensure_ascii=False, indent=2) + "\n")
+    cd.save_state(discovery_input_errors=[*previous, str(directory)])
+    if previous:
+        raise cd.StageError(f"discovery input remains invalid after its one allowed correction: {error}")
+    next_arguments = ["discover"]
+    for key in ("policy", "since", "until", "region"):
+        value = getattr(args, key, None)
+        if value is not None:
+            next_arguments.extend(["--" + key, str(value)])
+    say(json.dumps({"status": "needs_correction", "reason": "invalid_discovery_input",
+                    "errors": [error], "original_input_record": str(directory),
+                    "corrections_remaining": 1, "run_id": cd.run_id(),
+                    "next_stage": {"script": "scripts/drive.py", "arguments": next_arguments},
+                    "instruction": "Correct only these authored inputs and repeat the documented non-final discover stage in this same open run with its required window arguments. No data was fetched. Do not replace the run, broaden its window or repeat completed calls. A second invalid input is fatal."}, ensure_ascii=False))
+    return False
+
+
+def standard_input(wait: bool) -> str:
+    """What standard input holds: all of it when `wait`, else only what is already there."""
+    stream = sys.stdin
+    if stream is None or stream.isatty():
+        return ""  # 漏了 heredoc 的终端，绝不等待
+    if not wait:
+        try:
+            import select
+
+            ready, _, _ = select.select([stream], [], [], 0)
+        except (OSError, ValueError, TypeError, AttributeError):
+            ready = [stream]  # 内存流（测试）读取不会阻塞
+        if not ready:
+            return ""
+    return stream.read().rstrip("\r\n")
+
+
+def original_question(args: argparse.Namespace) -> str | None:
+    """用户原话：本次 `--question-file` 给的优先，否则沿用本 run 已存的；都没有时返回 None（旧调用方）。
+
+    与 review-creator-account `fetch --question-file` 同一约定：`-` 从标准输入读（同一命令的 heredoc），
+    否则读该文件。heredoc 末尾的换行不是用户打的字，去掉。
+    """
+    source = getattr(args, "question_file", None)
+    source = source if isinstance(source, str) else None  # 直接调用阶段函数的旧调用方没有这个参数
+    given = ""
+    if source == "-":
+        given = standard_input(wait=not getattr(args, "placed", False))
+    elif source:
+        given = Path(source).read_text(encoding="utf-8").rstrip("\r\n")
+    stored = QUESTION.read_text(encoding="utf-8").rstrip("\r\n") if QUESTION.is_file() else None
+    if not given.strip():
+        return stored
+    if stored is not None and stored != given:
+        raise cd.StageError(f"this run already holds a different original ask ({QUESTION}); a different request "
+                            "starts in a new run")
+    if stored is None:
+        QUESTION.parent.mkdir(parents=True, exist_ok=True)
+        QUESTION.write_text(given + "\n", encoding="utf-8")
+    return given
+
+
+def _locale_preflight(args: argparse.Namespace, originals: dict[str, bytes]) -> bool:
+    """region / language 非空时，`locale.named_in_ask` 必须逐字出自用户原话；否则在任何取数前要求改一次。
+
+    10-29 plugins K2：中文问句、没点名市场，模型仍写 language=zh-CN，搜索被偏到中文。核对通过后把引语
+    从 Request 移到 state：下游 Report 的 scope.locale 只有 region/language 两项，Request 其余字节不变。
+    宿主没给原话（旧调用方）时保持原行为，只打印一行警告。
+    """
+    question = original_question(args)
+    request = cd.load(REQUEST)
+    locale = request.get("locale") if isinstance(request, dict) else None
+    if not isinstance(locale, dict):
+        return True  # Request 自身的形状校验会指出
+    if question is None:
+        say("[drive] warning: no --question-file was given, so locale.region / locale.language were not "
+            "checked against the user's ask")
+    key = [locale.get("region"), locale.get("language")]
+    error = window_rules.locale_named_error(request, question)
+    checked = cd.state().get("locale_named_in_ask") or {}
+    if error and "named_in_ask" not in locale and checked.get("locale") == key:
+        error = None  # 同一 locale 本 run 已核对过，引语已移进 state（重跑 / --placed）
+    if error:
+        return _locale_correction(args, originals, error)
+    if question is not None and any(key):
+        cd.save_state(locale_named_in_ask={"locale": key, "quote": locale.get("named_in_ask", checked.get("quote"))})
+    if "named_in_ask" in locale:
+        locale.pop("named_in_ask")
+        Path(REQUEST).write_text(json.dumps(request, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return True
 
 
@@ -581,7 +708,10 @@ def board_needs_fallback() -> bool:
 def stage_discover(args: argparse.Namespace) -> None:
     if need_authored(REQUEST, PLAN):
         return
+    originals = {name: Path(name).read_bytes() for name in (REQUEST, PLAN)}
     complete_request_and_plan("tiktok-trend-query-plan.v1")
+    if not _locale_preflight(args, originals):
+        return
     place_pending_source()
     freeze(args)
     cd.script("validate_tiktok_query_plan.py", PLAN, show=True)
@@ -856,6 +986,8 @@ def main() -> int:
     discover.add_argument("--policy", choices=POLICIES, help="the window policy the ask was classified as")
     discover.add_argument("--since", help="user_named_span only: the span's start, kept exactly")
     discover.add_argument("--until", help="user_named_span only: the span's end, kept exactly")
+    discover.add_argument("--question-file", help="- to read the user's original ask, verbatim, from standard input "
+                                                  "(a heredoc on the same command); or a file holding it")
     discover.add_argument("--region", help="the one search region every call carries, when the Request region is "
                                            "unknown (null)")
     for name in ("rank", "report"):

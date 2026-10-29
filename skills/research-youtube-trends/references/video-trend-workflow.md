@@ -60,7 +60,7 @@ schemas.
 
 ## 2. The Request, the query plan and discovery
 
-Build one `TrendResearchRequest`. Freeze niche, locale, formats and exact UTC window. Set `locale.region` and `locale.language` only from a market or content language the user names ("Spanish videos", "in Brazil"); the language the ask is written in sets only the reply language, so otherwise leave both null.
+Build one `TrendResearchRequest`. Freeze niche, locale, formats and exact UTC window. Leave `locale.region` and `locale.language` null unless the user names a market or content language ("Spanish videos", "in Brazil"); then quote those words verbatim in `locale.named_in_ask`; `discover` checks it against the ask from `--question-file -`. The ask's own language sets only the reply language.
 
 - **Creator.** When the ask supplies a video instead of naming an account, the Creator is that
   video's author: take `creator_profile.handle` from what the source call returned for it
@@ -102,7 +102,9 @@ JSON
 cat > trend-query-plan.json <<'JSON'
 …
 JSON
-KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO> | --last-days <N>]
+KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO> | --last-days <N>] --question-file - <<'ASK'
+<the ask, verbatim>
+ASK
 ```
 
 (chain the three with `&&`). What `discover` does:

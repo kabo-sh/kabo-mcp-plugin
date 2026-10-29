@@ -69,9 +69,7 @@ from. A private, removed or photo post prints as not resolved; go on without it.
 ## 2. The Request, the query plan and discovery
 
 Freeze one `trend-research-request.v3` with `platforms: ["tiktok"]`, a narrow niche, locale,
-`tiktok_video` format and exact UTC window. Set `locale.region` and `locale.language` only from a
-market or content language the user names ("Spanish videos", "in Brazil"); the language the ask
-is written in sets only the reply language, so otherwise leave both null.
+`tiktok_video` format and exact UTC window. Leave `locale.region` and `locale.language` null unless the user names a market or content language ("Spanish videos"); then quote those words verbatim in `locale.named_in_ask`; `discover` checks it against the ask from `--question-file -`. The ask's own language sets only the reply language.
 
 - **Creator.** When the ask supplies a video instead of naming an account, the Creator is that
   video's author: take `creator_profile.handle` from what `start` printed for it
@@ -92,10 +90,9 @@ is written in sets only the reply language, so otherwise leave both null.
   search intents; a query in a script written without spaces (Chinese, Japanese, Thai) is one
   natural phrase of 2–20 characters instead, with no spaces inserted to pass. With only two slots,
   spend one on the source's own wording and one on the format's common name — a phrase another
-  community would search for the same thing, carrying none of the source's words. Measured
-  2026-09-16: every plan that spent both slots on the source's own words returned nothing outside
-  it, while the plans that reserved the second slot for the common name were the only ones that
-  reached beyond it.
+  community would search for the same thing, carrying none of the source's words. In tests,
+  only the plans that reserved the second slot for the common name reached beyond the source's own
+  words.
 - **Region.** The search region is the Request region: every search carries it as `region` and the
   ranked board as `country_code`, one and the same value on every call. When the Request region is
   unknown, leave it `null` and either name one region with `--region <code>` (it is then used on
@@ -111,7 +108,9 @@ JSON
 cat > tiktok-trend-query-plan.json <<'JSON'
 …
 JSON
-KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>] [--region <code>]
+KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>] [--region <code>] --question-file - <<'ASK'
+<the ask, verbatim>
+ASK
 ```
 
 (chain the three with `&&`). What `discover` does:

@@ -19,7 +19,7 @@ a call whose result could not be staged at all stops `start --placed`, and the r
 
 ## The Request
 
-Build one `TrendResearchRequest`. Freeze niche, locale, Reel format and exact UTC window. Set `locale.region` and `locale.language` only from a market or content language the user names ("Spanish videos", "in Brazil"); the language the ask is written in sets only the reply language, so otherwise leave both null. Resolve
+Build one `TrendResearchRequest`. Freeze niche, locale, Reel format and exact UTC window. Leave `locale.region` and `locale.language` null unless the user names a market or content language ("Spanish videos", "in Brazil"); then quote those words verbatim in `locale.named_in_ask`; `discover` checks it against the ask from `--question-file -`. The ask's own language sets only the reply language. Resolve
 relative durations from the current UTC clock, not from a run-directory name. Leave
 `schema_version` and `request_id` out (`discover` fills them, and keeps any value you do write).
 
@@ -162,7 +162,9 @@ JSON
 cat > trend-query-plan.json <<'JSON'
 …
 JSON
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>]
+cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>] --question-file - <<'ASK'
+<the ask, verbatim>
+ASK
 ```
 
 `discover` freezes the window (once per run: running it again keeps the window it froze), then
