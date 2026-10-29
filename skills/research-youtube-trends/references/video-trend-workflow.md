@@ -60,7 +60,7 @@ schemas.
 
 ## 2. The Request, the query plan and discovery
 
-Build one `TrendResearchRequest`. Freeze niche, locale, formats and exact UTC window.
+Build one `TrendResearchRequest`. Freeze niche, locale, formats and exact UTC window. Set `locale.region` and `locale.language` only from a market or content language the user names ("Spanish videos", "in Brazil"); the language the ask is written in sets only the reply language, so otherwise leave both null.
 
 - **Creator.** When the ask supplies a video instead of naming an account, the Creator is that
   video's author: take `creator_profile.handle` from what the source call returned for it

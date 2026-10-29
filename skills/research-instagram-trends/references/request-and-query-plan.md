@@ -19,7 +19,7 @@ a call whose result could not be staged at all stops `start --placed`, and the r
 
 ## The Request
 
-Build one `TrendResearchRequest`. Freeze niche, locale, Reel format and exact UTC window. Resolve
+Build one `TrendResearchRequest`. Freeze niche, locale, Reel format and exact UTC window. Set `locale.region` and `locale.language` only from a market or content language the user names ("Spanish videos", "in Brazil"); the language the ask is written in sets only the reply language, so otherwise leave both null. Resolve
 relative durations from the current UTC clock, not from a run-directory name. Leave
 `schema_version` and `request_id` out (`discover` fills them, and keeps any value you do write).
 

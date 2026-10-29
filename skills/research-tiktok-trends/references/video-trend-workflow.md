@@ -69,7 +69,7 @@ from. A private, removed or photo post prints as not resolved; go on without it.
 ## 2. The Request, the query plan and discovery
 
 Freeze one `trend-research-request.v3` with `platforms: ["tiktok"]`, a narrow niche, locale,
-`tiktok_video` format and exact UTC window.
+`tiktok_video` format and exact UTC window. Set `locale.region` and `locale.language` only from a market or content language the user names ("Spanish videos", "in Brazil"); the language the ask is written in sets only the reply language, so otherwise leave both null.
 
 - **Creator.** When the ask supplies a video instead of naming an account, the Creator is that
   video's author: take `creator_profile.handle` from what `start` printed for it
