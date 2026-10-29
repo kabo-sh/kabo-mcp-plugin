@@ -31,8 +31,10 @@ from a public-profile binding. Keep complete responses as context files, separat
 research evidence expected by the driver below; do not fabricate connector envelopes for them.
 Only when the user asks to connect a public account, use `connect_public_account`. A replacement
 requires user confirmation plus the current id and bindingVersion. This can use data allowance;
-it neither starts an official social OAuth flow nor runs an account analysis. If these tools or
-permissions are unavailable, explain the gap and continue public review using a supplied handle.
+it neither starts an official social OAuth flow nor runs an account analysis. Write access is granted
+on first use: if it fails with `insufficient_scope`, ask the user to approve the host's prompt and
+retry once. If these tools or permissions are unavailable, explain the gap and continue public
+review using a supplied handle.
 
 `<skill directory>` is the folder holding this `SKILL.md`. One run serves one request (a question,
 a window and an account): never reserve a second run for the same request, and start a different

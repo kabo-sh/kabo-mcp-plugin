@@ -362,5 +362,7 @@ grant workspace access. `get_kabo_info` shows basic identity and permissions wit
 Ask the agent to save a completed script or update an existing one; it keeps the saved version
 and rejects conflicting edits. You can also ask to connect a public Instagram, TikTok or YouTube
 account. Public Connect uses data allowance and does not start official social OAuth or analysis.
-Existing connections may need authorization for the new workspace permissions. If these tools
-are unavailable, the original public research and local drafting workflows remain usable.
+Connecting Kabo asks only for read access. The first time you save a script or connect an account,
+your host asks you to approve write access. Existing connections may need authorization for the
+new workspace permissions. If these tools are unavailable, the original public research and local
+drafting workflows remain usable.
