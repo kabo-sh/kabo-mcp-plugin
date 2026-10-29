@@ -886,6 +886,45 @@ def language_option(args: argparse.Namespace) -> tuple[str, ...]:
     return ("--language", language.strip()) if isinstance(language, str) and language.strip() else ()
 
 
+def restore(files: dict[str, bytes | None]) -> None:
+    """Put each file back to its bytes from before this stage, removing one the stage created."""
+    for name, raw in files.items():
+        path = Path(name)
+        if raw is None:
+            path.unlink(missing_ok=True)
+        elif not path.exists() or path.read_bytes() != raw:
+            path.write_bytes(raw)
+
+
+def report_correction(args: argparse.Namespace, authored: dict[str, bytes | None], error: Exception) -> None:
+    """One correction of the authored synthesis after Compose or Validate rejects it; never a fetch."""
+    try:
+        receipt = json.loads(Path("run-manifest.json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        receipt = {}  # legacy source hosts may have no wrapper manifest; other I/O stays fatal
+    if receipt and receipt.get("status") != "running":
+        raise cd.StageError(f"synthesis correction requires this same open run: {error}")
+    state = cd.state()
+    previous = list(state.get("report_input_errors") or [])
+    if previous:
+        raise cd.StageError(f"the synthesis remains invalid after its one allowed correction: {error}")
+    directory = Path("analysis") / "report-input-errors" / f"attempt-{len(previous) + 1:02d}"
+    directory.mkdir(parents=True, exist_ok=False)
+    raw = authored.get(SYNTHESIS)
+    if raw is not None:
+        with (directory / SYNTHESIS).open("xb") as stream:
+            stream.write(raw)
+    diagnostic = {"error": str(error), "synthesis_sha256": hashlib.sha256(raw).hexdigest() if raw is not None else None}
+    with (directory / "error.json").open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\n")
+    cd.save_state(report_input_errors=[*previous, str(directory)])
+    cd.say(json.dumps({"status": "needs_correction", "reason": "invalid_synthesis",
+                       "errors": [str(error)], "original_input_record": str(directory),
+                       "corrections_remaining": 1, "run_id": cd.run_id(),
+                       "next_stage": {"script": "scripts/drive.py", "arguments": ["report", *language_option(args)]},
+                       "instruction": f"Correct only the fields of {SYNTHESIS} that these errors name, from the evidence already in this run, and repeat the report stage once in this same open run. No data was fetched and the run is unchanged. Do not refetch, replace the run or deliver an older report. A second rejection is fatal."}, ensure_ascii=False))
+
+
 def stage_report(args: argparse.Namespace) -> None:
     need(REQUEST, SNAPSHOT, ANALYSIS, SYNTHESIS)
     # The Request's own id and the synthesis schema are not the model's to retype (audit item 7):
@@ -895,12 +934,22 @@ def stage_report(args: argparse.Namespace) -> None:
     # out of two runs on 2026-09-20, each costing a whole round-trip to a field that carries no
     # judgment. A slug the model does write is still kept.
     request = cd.load(REQUEST)
+    authored = {name: Path(name).read_bytes() if Path(name).exists() else None for name in (SYNTHESIS, REPORT)}
     cd.complete_artifact(SYNTHESIS, {"schema_version": "trend-research-synthesis.v3.3",
                                      "request_id": request.get("request_id"),
                                      "report_id": report_id_of(request)})
-    cd.script("compose_report.py", "--request", REQUEST, "--snapshot", SNAPSHOT, "--analysis", ANALYSIS,
-              "--synthesis", SYNTHESIS, "--output", REPORT)
-    cd.script("validate_output.py", REPORT, "--request", REQUEST, "--analysis", ANALYSIS)
+    try:
+        cd.script("compose_report.py", "--request", REQUEST, "--snapshot", SNAPSHOT, "--analysis", ANALYSIS,
+                  "--synthesis", SYNTHESIS, "--output", REPORT)
+        cd.script("validate_output.py", REPORT, "--request", REQUEST, "--analysis", ANALYSIS)
+    except cd.StageError as error:
+        # Nothing is fetched here, so a synthesis that Compose or Validate rejects (a momentum claim
+        # from one snapshot, a ref outside the evidence) is the model's to fix. Putting the run back
+        # as it was and answering needs_correction keeps the run open for one corrected repeat
+        # instead of closing it with every fetched result (plugins, 2026-10-28).
+        restore(authored)
+        report_correction(args, authored, error)
+        return
     cd.script("render_creator_report.py", REPORT, CREATOR_REPORT, *language_option(args))
     report = Path(CREATOR_REPORT).resolve()
     # Deliver by this path where the host can send a file as one block; its text follows unchanged.

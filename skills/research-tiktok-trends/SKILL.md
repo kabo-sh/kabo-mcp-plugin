@@ -225,6 +225,7 @@ save and fetch (or stage) each result, then run the same stage again with `--pla
    `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' report --language <the user's chat language>`.
    This is the final step: it composes, validates and renders `creator-report.md` and prints
    `creator_report: <absolute path>` followed by the report.
+   If `report` returns `needs_correction`, follow its instruction once in the same run.
 
 ### Idea handoff
 

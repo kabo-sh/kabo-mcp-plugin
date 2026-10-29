@@ -218,8 +218,8 @@ once, and follow its `next_stage`.
    ```
 
    `report` composes, validates and renders, then prints `creator_report: <absolute path>`
-   followed by the report. If Validate or Render rejects the synthesis, correct the field it names
-   and run `report` again in the same run.
+   followed by the report.
+   If `report` returns `needs_correction`, follow its instruction once in the same run.
 
 A collection or enrichment result that was not recorded ends the run as described under *What a
 failed call does to each path*: never write or reconstruct items yourself or call the tool again
