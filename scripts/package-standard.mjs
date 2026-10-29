@@ -39,7 +39,8 @@ const mcpSchema = ajv.compile(
 const publicEndpoint = "https://kabo.sh/mcp-pub";
 const scopesByResource = new Map([
   ["https://kabo.sh/mcp", ["account:read", "registry", "telemetry", "data"]],
-  [publicEndpoint, ["data", "video", "workspace:read", "workspace:write"]],
+  // workspace:write 不在首次授权里：写工具缺权时由 /mcp-pub 的 403 challenge 按需补权（kabo#1837）。
+  [publicEndpoint, ["data", "video", "workspace:read"]],
 ]);
 
 function object(value) {

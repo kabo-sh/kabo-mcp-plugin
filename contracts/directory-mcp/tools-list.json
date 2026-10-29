@@ -10271,7 +10271,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Start a Kabo remake of a public talking-head video (YouTube or Instagram, 60 s max) with the creator's own footage. Propose it and call only after the user confirms. Top-level. Fetching the videos uses daily quota. Uses one daily remake (shared with Kabo web) even for a non-talking-head reference; one runs at a time. On fetching_inputs, call again after retry_after_s with the same idempotency_key and inputs. Next: poll get_remake_video.",
+      "description": "Start a Kabo remake of a public talking-head video (YouTube or Instagram, 90 s max) with the creator's own footage. Propose it and call only after the user confirms. Top-level. Fetching the videos uses daily quota. Uses one daily remake (shared with Kabo web) even for a non-talking-head reference; one runs at a time. On fetching_inputs, call again after retry_after_s with the same idempotency_key and inputs. Next: poll get_remake_video.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -10423,7 +10423,7 @@
         "openWorldHint": false,
         "readOnlyHint": true
       },
-      "description": "Read a remake job. Top-level. Send job_id and wait_s. At waiting_script: brief.download is a JSON bundle {schema, job_id, files} to write the four files from, and talking_models lists the model choices with estimated cost. At delivered: video.download is the final MP4. Links are short-lived; call again to re-sign. out_of_scope, failed, timed_out and failure unsupported_type are final and come back as a normal result. No quota.",
+      "description": "Read a remake job. Top-level. Send job_id and wait_s. At waiting_script: brief.download is a JSON bundle {schema, job_id, files} to write the four files from, and talking_models lists the model choices with estimated cost. At delivered: video.download is the final MP4; with include [\"review\"], review has Kabo's final-review verdict (qc, null when unknown) and the runner's notes on what it changed. Links are short-lived; call again to re-sign. out_of_scope, failed, timed_out and failure unsupported_type are final and come back as a normal result. No quota.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -10431,6 +10431,17 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
+          "include": {
+            "description": "Send [\"review\"] to also get review: Kabo's final-review verdict and delivery notes once delivered.",
+            "items": {
+              "enum": [
+                "review"
+              ],
+              "type": "string"
+            },
+            "maxItems": 1,
+            "type": "array"
+          },
           "job_id": {
             "description": "From start_remake_video.",
             "format": "uuid",
@@ -10603,6 +10614,56 @@
                 "type": "null"
               }
             ]
+          },
+          "review": {
+            "additionalProperties": false,
+            "properties": {
+              "delivery_notes": {
+                "anyOf": [
+                  {
+                    "maxLength": 8000,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "qc": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "failed": {
+                        "items": {
+                          "maxLength": 200,
+                          "type": "string"
+                        },
+                        "maxItems": 32,
+                        "type": "array"
+                      },
+                      "status": {
+                        "maxLength": 32,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "failed"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "qc",
+              "delivery_notes"
+            ],
+            "type": "object"
           },
           "spend_usd": {
             "anyOf": [
@@ -10824,7 +10885,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Submit the four script files for a remake at waiting_script and start paid generation. Top-level. Call only after the user picks a talking_model. Talking-head references only (else failure unsupported_type, nothing charged). running does not mean the script passed: if rejected, get_remake_video returns waiting_script with gate_message; fix the files and call again. Next: poll get_remake_video.",
+      "description": "Submit the four script files at waiting_script and start paid generation; with preview only render pictures, with review answer the picture review. Top-level. Talking-head and voice-over only (else unsupported_type, free). If rejected, get_remake_video returns waiting_script with gate_message; fix and resubmit. Next: poll get_remake_video.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -10832,6 +10893,11 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
+          "beat_review": {
+            "maxLength": 262144,
+            "minLength": 1,
+            "type": "string"
+          },
           "files": {
             "additionalProperties": false,
             "description": "JSON text of each work/ file, up to 256 KiB each.",
@@ -10869,6 +10935,13 @@
             "description": "A job at waiting_script.",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "preview": {
+            "enum": [
+              "pictures",
+              "stills"
+            ],
             "type": "string"
           },
           "talking_model": {

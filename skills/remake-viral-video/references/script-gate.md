@@ -27,6 +27,8 @@ Read the matching sections of the bundled references for the judgement in front 
 - `references/rewrite-and-sources.md` for sourcing: every fact and number traces back to the
   creator's own line or is marked as an inference.
 - `references/formats/talking-head.md` for the talking-head format.
+- `references/formats/narration.md` for a voice-over reference (`reference_type` `narration`):
+  the picture plan, previewing the pictures and the one picture review.
 
 These references were written for a local command-line kit. Every command they name is run by the
 hosted runner here; take only the writing rules from them. Do not ask the user to run anything.
