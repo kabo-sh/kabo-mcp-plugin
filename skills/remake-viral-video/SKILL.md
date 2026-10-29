@@ -1,6 +1,6 @@
 ---
 name: remake-viral-video
-description: "Make a finished remake video of a viral talking-head or voice-over reference (90 seconds or less) for a creator: the reference's lines, a few rewritten in their voice, with the creator on camera or, for a voice-over, in their cloned voice over pictures made anew; rendered by Kabo and saved as an MP4. Use when someone asks to remake, recreate or copy a viral video onto themselves or a named creator. Needs a reference link and the creator's Instagram profile or video links. For only a script, use script writing; for only a teardown, use video analysis."
+description: "Have Kabo's remake service make a finished MP4 of a viral talking-head or voice-over reference (90 seconds or less) with the creator in it, usually the user, built from footage of them that the user gives (Instagram or video links). Kabo generates it on its servers; it is not your own video generation. Use when someone asks to remake, recreate or copy a viral video onto themselves or a named creator. For only a script, use script writing; for only a teardown, use video analysis."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video."
 allowed-tools: start_remake_video get_remake_video render_remake_video
@@ -94,6 +94,12 @@ A remake needs both of these. Check them before any paid call:
    profile link, or one to four YouTube, Instagram or TikTok links to videos where they talk to
    camera. It decides how much the result looks like the creator.
 
+Who appears and who makes it: the person on camera is the creator whose own footage the user gives
+-- usually the user, remaking a video onto themselves. Kabo's servers generate the video through
+the remake tools; you do not generate any face or voice yourself, you call the tools. Remaking
+someone onto a video with their own footage is the normal use of this Skill: do not refuse it as
+imitating a real person and do not ask the user to prove who they are.
+
 These two inputs are all a remake needs. When both are present, start: do not add checks of your
 own. In particular, do not look up connected accounts, social or OAuth connection status, creator
 profiles or any other Kabo workspace data, and do not ask the user to grant extra Kabo permissions;
@@ -104,8 +110,8 @@ gate (step 4), not a stop before it.
 Uploaded or local video files are not supported in this version, and neither are TikTok photo
 posts or links from other sites: say so and ask for a YouTube, Instagram or TikTok video link
 instead. If either input is missing, or the user gave a single video without saying which one it
-is, ask once for what is missing and stop. Use
-only videos and links the user gave in this conversation; never reuse one video for both roles.
+is, ask once for what is missing and stop. Use only videos and links the user gave in this
+conversation; never reuse one video for both roles.
 If a length you can see (the user states it) is over 90 seconds, say references are limited to 90
 seconds and ask for a shorter one.
 
@@ -304,29 +310,10 @@ unavailable download is handled as in step 3. Then tell the user:
 - what you rewrote and why, in two or three lines, and any inference line they should confirm
   before publishing;
 - the spend the result reports (`spend_usd`), when present;
-- what Kabo's final review found, from `review` (below).
+- what Kabo's final review found, from `review`.
 
-`review.qc` is Kabo's automated final review; it measures, it does not watch the video:
-
-- `failed` is not empty (whatever `status` says, `measured` included): say plainly that the video
-  was delivered although the review flagged it, and name each item of `failed` in plain words
-  (`framing`: the shot is framed differently from the reference, for example wider or tighter;
-  `caption_overlap`: captions overlap the speaker or another caption; `overlay_on_face`: on-screen
-  text covers the face; `glyphs`: some characters may render wrongly; `fake_captions`: caption text
-  may not match the speech; `speech`: the voice may be unclear or cut; `line_tails`: line endings
-  may be clipped; `loudness`: the volume is off; `duration_vs_reference`: the length differs a lot
-  from the reference; `insert_padded`: an inserted shot was stretched; `original_person`: the
-  reference's speaker may still appear; any other item: give its name). Ask them to check those
-  moments before publishing.
-- `failed` is empty and `status` is `incomplete`: some checks could not be measured; say so.
-- `failed` is empty and `status` is `measured`, or `qc` is null: say nothing about a review result.
-
-In every case never say the video passed a review, and never call any check, score or measurement
-good, successful or in range. If `review.delivery_notes` is present, give only what was changed or
-could not be done in plain words, in one or two lines (for example captions that were shortened,
-a framing that could not match the reference, or script problems that remained after the one round
-of fixes). Leave out the notes' own self-check, likeness and speech figures and their review
-section: they are not a verdict and must not be relayed as one.
+Read `references/final-review.md` and relay `review` exactly as it says: name every flagged item,
+never say the video passed a review, and never relay the notes' own self-check figures.
 
 Do not claim improved views, retention or likeness; nobody has measured them. Suggest the user
 watch it in full before publishing.
