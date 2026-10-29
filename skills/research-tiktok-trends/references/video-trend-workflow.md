@@ -69,7 +69,9 @@ from. A private, removed or photo post prints as not resolved; go on without it.
 ## 2. The Request, the query plan and discovery
 
 Freeze one `trend-research-request.v3` with `platforms: ["tiktok"]`, a narrow niche, locale,
-`tiktok_video` format and exact UTC window. Set `locale.region` and `locale.language` only from a market or content language the user names ("Spanish videos", "in Brazil"); the language the ask is written in sets only the reply language, so otherwise leave both null.
+`tiktok_video` format and exact UTC window. Set `locale.region` and `locale.language` only from a
+market or content language the user names ("Spanish videos", "in Brazil"); the language the ask
+is written in sets only the reply language, so otherwise leave both null.
 
 - **Creator.** When the ask supplies a video instead of naming an account, the Creator is that
   video's author: take `creator_profile.handle` from what `start` printed for it
@@ -165,10 +167,8 @@ Score from the numbered table only.
   visible content, not route, rank, followers or metrics.
 - Score `topic_relevance` and `locale_fit` for every item, and `creator_transferability` whenever
   the table's first line carries `subject.anchor_handle` or `subject.anchor_mechanisms`. **Omit
-  `creator_transferability` entirely when it carries neither.** With no anchor there is nothing to
-  judge adaptability against, and a number invented there is indistinguishable from a real verdict
-  — a run that never learned who the Creator is would otherwise carry a fabricated score at a
-  quarter of the ranking weight. Omitting it is a supported state, not an error: the contract
+  `creator_transferability` entirely when it carries neither.** With no anchor the score would be
+  invented, yet carry a quarter of the ranking weight. Omitting it is a supported state, not an error: the contract
   accepts the field's absence and the ranking redistributes its weight proportionally across the
   other two. Never write a placeholder such as 0 or 50 in its place, and never omit it when an
   anchor is present.
