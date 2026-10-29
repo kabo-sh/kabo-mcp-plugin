@@ -148,14 +148,23 @@ that was already dead. Record each attempt and its failure verbatim, then contin
 
 Make the run's independent calls in the same turn — they take no input from each other.
 
+A job that answered with a job id is healthy, the opposite case from the dead calls above: keep
+polling it inside this same turn with `get_research_data_job` and `wait_s`, until about three minutes
+after it was submitted or until the turn has only enough time left to build and deliver. Where the
+host scopes a job id to the turn that submitted it, ending the turn to wait throws the job away and
+the next turn pays for the same analysis again; where the host keeps jobs across turns, a later turn
+polls the same id instead of submitting again. On a real run a 27-minute video's keyframes finished
+ten seconds after the model stopped at 75 seconds of polling, and the creator got neither frames nor
+the transcript-based reading — only a note that frames were still processing.
+
 When a valid job id exists but the waiting window ends before a terminal result, pass it to
 `build_content_evidence.py` as `--pending <operation>=<job id>` (recorded `pending`), or as
 `--deferred-incomplete <operation>=<job id>` when this run is closing (recorded
 `deferred_incomplete`), rather than recording `failed`. These carry no media evidence and keep the
 affected stages unassessed.
 
-When the window closes with frames still outstanding, deliver. With no keyframe envelope the
-builder records `frames.status` as `not_attempted`; list the visual dimensions in
+When the window closes with frames still outstanding, deliver; a reply that only says the analysis
+is still processing is not a delivery. With no keyframe envelope the builder records `frames.status` as `not_attempted`; list the visual dimensions in
 `unavailable_dimensions[]`, and say in one sentence beside the affected claim that this reading
 rests on speech and metadata alone. A report that arrives without the frame track beats a report
 that never arrives.

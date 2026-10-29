@@ -2,6 +2,10 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 未发布
+
+- `analyze-content-video`：job 返回了 id 就算健康，在同一轮里用 `get_research_data_job` + `wait_s` 等到提交后约 3 分钟；只回一句「还在处理」不算交付。`create-script-and-packaging`：宿主以「不属于本轮」为由拒收旧 job id 时，在本轮重新提交分析，不让用户来描述视频。同步自 creator-skills `ff4b3bb6`（#903，上游 0.14.28 / 0.2.25），只改文字。
+
 ## 1.0.4（2026-10-28；GitHub Release）
 
 - `remake-viral-video`：参考视频被判为纯口播以外的类型时，告诉用户判成了哪一类（口播时摆弄实物、录屏/画中画、旁白），
