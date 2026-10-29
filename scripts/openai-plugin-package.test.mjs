@@ -97,12 +97,14 @@ test("MCP-only 包可构建且不强制 Skills；ZIP 不受传入顺序影响", 
   assert.equal(validatePackage(files).version, "1.0.0");
 });
 
-test("公开 OAuth 明确声明身份与个人资产读写权限", () => {
+test("公开 OAuth 首次只声明身份、研究与个人资产读权限，写权限按需补权", () => {
   const files = packageFiles();
   const record = files.find(file => file.name === "host-auth.json");
   const auth = JSON.parse(record.bytes);
   assert.deepEqual(auth.baseScopes, ["openid", "profile", "email", "offline_access"]);
-  assert.deepEqual(auth.defaultScopes, ["data", "video", "workspace:read", "workspace:write"]);
+  assert.deepEqual(auth.defaultScopes, ["data", "video", "workspace:read"]);
+  record.bytes = Buffer.from(JSON.stringify({ ...auth, defaultScopes: [...auth.defaultScopes, "workspace:write"] }));
+  assert.throws(() => validatePackage(files), /OAuth 配置/);
   for (const scopes of [["openid", "offline_access"], [...auth.baseScopes, "profile"]]) {
     record.bytes = Buffer.from(JSON.stringify({ ...auth, baseScopes: scopes }));
     assert.throws(() => validatePackage(files), /OAuth 配置/);

@@ -4,7 +4,7 @@ description: "Write a script, hooks and platform packaging (titles, captions, ta
 license: MIT
 metadata:
   version: "0.2.24"
-compatibility: "Requires Python 3 and read and write access to a local workspace. Optional saved-script access requires the Kabo MCP at https://kabo.sh/mcp-pub. Source-video facts and channel samples come from the creator or existing evidence. Optional image operations need host image download, resize and preview."
+compatibility: "Requires Python 3 and read and write access to a local workspace. Optional saved-script access requires the Kabo MCP at https://kabo.sh/mcp-pub. Source-video facts and channel samples come from the creator or existing evidence. Optional image operations need host image download, resize and preview. Kabo permissions, saved scripts only: workspace:read to read, workspace:write to save or replace on request."
 allowed-tools: list_scripts get_script save_script update_script
 ---
 
