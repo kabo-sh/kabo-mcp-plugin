@@ -66,7 +66,11 @@ RUN_DIRS = ("host-results", "brief", "script", "render", "output")
 # 与 start_remake_video 的入参约束一致；服务端仍会再校验一次。
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
 INSTAGRAM_HOSTS = {"instagram.com", "www.instagram.com"}
-TIKTOK_HOSTS = {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com"}
+TIKTOK_HOSTS = {"tiktok.com", "www.tiktok.com", "m.tiktok.com"}
+TIKTOK_SHORT_HOSTS = {"vm.tiktok.com", "vt.tiktok.com"}
+TIKTOK_USER = re.compile(r"^@[A-Za-z0-9._]{1,64}$")
+TIKTOK_ID = re.compile(r"^[0-9]{6,25}$")
+TIKTOK_CODE = re.compile(r"^[A-Za-z0-9]{5,20}$")
 CREATOR_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 LANGUAGE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 HANDLE = re.compile(r"^@?[A-Za-z0-9._]{1,30}$")
@@ -120,14 +124,25 @@ def _url(raw, role):
     url = raw.strip()
     parts = urlsplit(url)
     host = (parts.hostname or "").lower()
-    if host in TIKTOK_HOSTS:
-        raise ValueError(f"{role}: TikTok links are not supported by this version; use a YouTube or Instagram link")
-    if parts.scheme != "https" or host not in YOUTUBE_HOSTS | INSTAGRAM_HOSTS or parts.username or parts.port:
-        raise ValueError(f"{role} must be an https YouTube or Instagram video link")
+    if parts.scheme != "https" or host not in YOUTUBE_HOSTS | INSTAGRAM_HOSTS | TIKTOK_HOSTS | TIKTOK_SHORT_HOSTS \
+            or parts.username or parts.port:
+        raise ValueError(f"{role} must be an https YouTube, Instagram or TikTok video link")
     if not parts.path.strip("/"):
         raise ValueError(f"{role} must link to one video, not a home page")
     if any(ord(char) <= 32 or ord(char) == 127 for char in url):
         raise ValueError(f"{role} link contains spaces or control characters")
+    # TikTok 与服务端 remakeVideoLink 一致：长链规范成 www 写法（幂等键对得上），短链原样交给服务端解析。
+    segments = [s for s in parts.path.split("/") if s]
+    if host in TIKTOK_HOSTS:
+        if len(segments) != 3 or not TIKTOK_USER.match(segments[0]) or segments[1] != "video" \
+                or not TIKTOK_ID.match(segments[2]):
+            raise ValueError(f"{role} must be a TikTok video link like https://www.tiktok.com/@name/video/123..."
+                             " (photo posts are not supported)")
+        return f"https://www.tiktok.com/{segments[0]}/video/{segments[2]}"
+    if host in TIKTOK_SHORT_HOSTS:
+        if len(segments) != 1 or not TIKTOK_CODE.match(segments[0]):
+            raise ValueError(f"{role} must be a TikTok share link like https://vm.tiktok.com/ABC123/")
+        return f"https://{host}/{segments[0]}/"
     return url
 
 
@@ -136,7 +151,7 @@ def _same_video(a, b):
     def key(url):
         parts = urlsplit(url)
         host = (parts.hostname or "").lower()
-        family = "youtube" if host in YOUTUBE_HOSTS else "instagram"
+        family = "youtube" if host in YOUTUBE_HOSTS else "tiktok" if host in TIKTOK_HOSTS | TIKTOK_SHORT_HOSTS else "instagram"
         path = parts.path.rstrip("/").lower()
         video = parse_qs(parts.query).get("v", [""])[0]
         if host == "youtu.be":

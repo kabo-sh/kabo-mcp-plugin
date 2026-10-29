@@ -87,11 +87,12 @@ after it.
 
 A remake needs both of these. Check them before any paid call:
 
-1. **One reference video**: the viral video to remake, as a YouTube or Instagram link, 90 seconds
-   or less, one person talking to camera or a voice-over.
+1. **One reference video**: the viral video to remake, as a YouTube, Instagram or TikTok link,
+   90 seconds or less, one person talking to camera or a voice-over. TikTok short links
+   (vm.tiktok.com, vt.tiktok.com) work too.
 2. **The creator's own talking footage**, separate from the reference: their Instagram handle or
-   profile link, or one to four YouTube or Instagram links to videos where they talk to camera. It
-   decides how much the result looks like the creator.
+   profile link, or one to four YouTube, Instagram or TikTok links to videos where they talk to
+   camera. It decides how much the result looks like the creator.
 
 These two inputs are all a remake needs. When both are present, start: do not add checks of your
 own. In particular, do not look up connected accounts, social or OAuth connection status, creator
@@ -100,9 +101,10 @@ none of that is part of a remake, and a missing workspace permission is not a re
 user's right to use the creator's face and voice is the single `rights` line written at the script
 gate (step 4), not a stop before it.
 
-Uploaded or local video files are not supported in this version, and neither are TikTok links:
-say so and ask for a YouTube or Instagram link instead. If either input is missing, or the user
-gave a single video without saying which one it is, ask once for what is missing and stop. Use
+Uploaded or local video files are not supported in this version, and neither are TikTok photo
+posts or links from other sites: say so and ask for a YouTube, Instagram or TikTok video link
+instead. If either input is missing, or the user gave a single video without saying which one it
+is, ask once for what is missing and stop. Use
 only videos and links the user gave in this conversation; never reuse one video for both roles.
 If a length you can see (the user states it) is over 90 seconds, say references are limited to 90
 seconds and ask for a shorter one.
