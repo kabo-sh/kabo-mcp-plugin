@@ -1,0 +1,54 @@
+{
+  "account": {
+    "id": "acct-tiktok-0001",
+    "platform": "tiktok",
+    "handle": "@Bead.Studio",
+    "displayName": "Synthetic Creator",
+    "avatarUrl": null,
+    "audienceLabel": "followers",
+    "dataState": "available",
+    "postCount": 120,
+    "audienceCount": 2000,
+    "engagementRate": 0.05,
+    "grantState": "observed"
+  },
+  "review": null,
+  "diagnosis": null,
+  "contentProfile": null,
+  "effectiveContentProfile": {
+    "base": null,
+    "edited": true,
+    "excludedTopics": [
+      "Pranks"
+    ],
+    "formats": [],
+    "hiddenSignatureContent": [],
+    "language": {
+      "accepted": [],
+      "confidence": "none",
+      "primary": null,
+      "source": "profile"
+    },
+    "observedHashtags": [],
+    "ownContentIds": [],
+    "platform": "tiktok",
+    "preferences": {
+      "status": "ok",
+      "updatedAt": "2026-10-25T08:30:00.000Z",
+      "version": 3
+    },
+    "region": "GB",
+    "regionSource": "user",
+    "ruleVersion": "effective-content-profile.v1",
+    "signatureContent": [],
+    "signatureContentStatus": "no_profile",
+    "unresolvedEdits": [
+      {
+        "kind": "rename",
+        "name": "Leg workouts",
+        "ref": "e_0b24387e"
+      }
+    ],
+    "version": 1
+  }
+}

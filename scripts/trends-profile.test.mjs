@@ -295,3 +295,148 @@ test("RYT discover 带画像：collect 调用不带 include，Request 抄入画�
   assert.deepEqual(request.creator_profile.signature_content.map((item) => item.id), ["sc1", "sc2"]);
   assert.equal(request.locale.language, null);
 });
+
+// ---------------------------------------------------------------------------------------------
+// 有效画像（creator-skills #920 移植，读口 get_creator_profile 带 effective:true）。
+// *-effective*.json 夹具：TikTok 三份取自 kabo effective-content-profile-v1 golden 的向量
+// （输入的后台画像放进 contentProfile，期望的合成结果放进 effectiveContentProfile），
+// Instagram / YouTube 两份是在第一批夹具上手写的镜像，加了本人设的排除话题与市场。全部先过钉住的 outputSchema。
+
+const EFFECTIVE = ["tiktok-effective", "tiktok-effective-main", "tiktok-effective-no-base", "instagram-effective", "youtube-effective"];
+const RTT_EFFECTIVE_PLAN = { schema_version: "tiktok-trend-query-plan.v1", request_id: "tt-profile", intents: [{ intent_id: "legs", search_query: "leg day routine" }, { intent_id: "prep", search_query: "meal prep ideas" }] };
+
+async function startedWith(t, skill, value) {
+  const temp = await workspace(t);
+  const run = await newRun(temp, skill);
+  const started = drive(skill, run, "start", "--profile", await profileFile(temp, value));
+  assert.equal(started.exit, 0, `${skill}：${started.stderr}${started.stdout}`);
+  return { temp, run, started };
+}
+
+test("有效画像夹具与钉住的 schema 一致；读画像有 effective 开关，effectiveContentProfile 可缺可为 null", async () => {
+  const input = pinned.get("get_creator_profile").inputSchema;
+  assert.deepEqual(input.properties.effective, { description: input.properties.effective.description, type: "boolean" });
+  assert.ok(!input.required.includes("effective"));
+  for (const name of EFFECTIVE) {
+    const value = await fixture(name);
+    assert.ok(profileSchema(value), `${name}：${JSON.stringify(profileSchema.errors)}`);
+    assert.ok("contentProfile" in value, name);
+    assert.equal(value.effectiveContentProfile.ruleVersion, "effective-content-profile.v1");
+    assert.ok(profileSchema({ ...value, effectiveContentProfile: null }), name);
+    const { effectiveContentProfile: _gone, ...withoutKey } = value;
+    assert.ok(profileSchema(withoutKey), name);
+  }
+});
+
+test("start --profile 有效画像：打印本人修改、主打标记、排除话题与市场，不打印受众数；两种文件形状一样读", async (t) => {
+  const tiktok = await fixture("tiktok-effective");
+  for (const shape of [toolResult(tiktok), tiktok]) {
+    const { started } = await startedWith(t, RTT, shape);
+    assert.match(started.stdout, /^creator profile: carries the Creator's own edits; use it as it is$/m);
+    assert.match(started.stdout, /^content language: es \(set by the Creator\)$/m);
+    assert.match(started.stdout, /^accepted languages: es, en$/m);
+    assert.match(started.stdout, /^excluded topics \(never search for them\): \["Supplement reviews", "CROSSFIT"\]$/m);
+    assert.match(started.stdout, /^market: MX \(set by the Creator; the default search region when the ask names none; never locale\.region\)$/m);
+    const printed = started.stdout.slice(started.stdout.indexOf("creator profile: "));
+    assert.doesNotMatch(printed, /audience/i);
+    assert.doesNotMatch(printed, new RegExp(`\\b${tiktok.account.audienceCount}\\b`));
+  }
+  // 主打项排第一并标 main，同权时也在前。
+  const { started: main } = await startedWith(t, RTT, await fixture("tiktok-effective-main"));
+  assert.match(main.stdout, /^signature content 1 \(sc4, main, weight 0\.31\): Form checks/m);
+  assert.match(main.stdout, /^signature content 2 \(sc1, weight 0\.31\)/m);
+  // 没有后台画像、只有本人设定：照样用，说明没有主打内容，列出对不上的修改。
+  const { started: noBase } = await startedWith(t, RTT, await fixture("tiktok-effective-no-base"));
+  assert.match(noBase.stdout, /no signature content \(settings_only \(no_profile\)\); plan as without signature content, keeping the Creator's settings below/);
+  assert.match(noBase.stdout, /^excluded topics \(never search for them\): \["Pranks"\]$/m);
+  assert.match(noBase.stdout, /1 of the Creator's edits no longer match the current profile and are not applied: \["Leg workouts"\]/);
+  assert.doesNotMatch(noBase.stdout, /it is not used in this run|plan as without a profile/);
+  // Instagram 没有地区参数：市场照印，但写明不用。
+  const { started: instagram } = await startedWith(t, RIT, toolResult(await fixture("instagram-effective")));
+  assert.match(instagram.stdout, /^market: BR \(set by the Creator; Instagram search takes no region, so it is not used here\)$/m);
+});
+
+test("有效画像字面量不认得时退回 contentProfile；两份都不认得时按未使用", async (t) => {
+  const value = await fixture("tiktok-effective-main");
+  const unknown = { ...value, effectiveContentProfile: { ...value.effectiveContentProfile, version: 2 } };
+  const { started } = await startedWith(t, RTT, unknown);
+  assert.doesNotMatch(started.stdout.slice(started.stdout.indexOf("creator profile: ")), /own edits|, main,/);
+  assert.match(started.stdout, /^signature content 1 \(sc1, weight 0\.40\)/m);
+  const neither = { ...unknown, contentProfile: { ...value.contentProfile, ruleVersion: "content-profile.v9" } };
+  const { started: none } = await startedWith(t, RTT, neither);
+  assert.match(none.stdout, /no signature content to attach \(content_profile_version_not_recognized/);
+});
+
+test("RTT discover 有效画像：Request 抄入排除话题、市场与本人作品；市场只在 Request 与 --region 都没给时作搜索地区", async (t) => {
+  const value = await fixture("tiktok-effective");
+  const discover = async (locale, ...extra) => {
+    const { run } = await startedWith(t, RTT, toolResult(value));
+    await writeFile(path.join(run, "trend-research-request.json"), JSON.stringify({ ...REQUEST[RTT], locale }));
+    await writeFile(path.join(run, PLAN[RTT][0]), JSON.stringify(RTT_EFFECTIVE_PLAN));
+    const discovered = drive(RTT, run, "discover", "--policy", "default_1y", ...extra);
+    assert.equal(discovered.exit, 0, discovered.stderr + discovered.stdout);
+    const request = JSON.parse(await readFile(path.join(run, "trend-research-request.json"), "utf8"));
+    const searches = callsOf(discovered.stdout).filter((call) => call.tool === "tiktok_discovery_search_videos");
+    return { request, regions: [...new Set(searches.map((call) => call.arguments.parameters.region))] };
+  };
+  const { request, regions } = await discover({ region: null, language: null });
+  assert.deepEqual(regions, ["MX"]);
+  const creator = request.creator_profile;
+  assert.deepEqual(creator.excluded_topics, ["Supplement reviews", "CROSSFIT"]);
+  assert.equal(creator.market_region, "MX");
+  assert.equal(creator.profile_basis, "profile_with_edits");
+  assert.deepEqual(creator.own_content_ids, value.effectiveContentProfile.ownContentIds);
+  assert.equal(creator.content_language, "es");
+  // 语言与市场都不进 locale。
+  assert.deepEqual(request.locale, { region: null, language: null });
+  assert.deepEqual((await discover({ region: "US", language: null })).regions, ["US"]);
+  assert.deepEqual((await discover({ region: null, language: null }, "--region", "CA")).regions, ["CA"]);
+});
+
+test("计划里带排除话题一律被拒：有主打内容与只有设定两种画像都一样", async (t) => {
+  for (const [name, query] of [["tiktok-effective", "crossfit leg day"], ["tiktok-effective-no-base", "pranks gone wrong"]]) {
+    const { run } = await startedWith(t, RTT, await fixture(name));
+    await writeFile(path.join(run, "trend-research-request.json"), JSON.stringify(REQUEST[RTT]));
+    const plan = { ...RTT_EFFECTIVE_PLAN, intents: [{ intent_id: "legs", search_query: query }, RTT_EFFECTIVE_PLAN.intents[1]] };
+    await writeFile(path.join(run, PLAN[RTT][0]), JSON.stringify(plan));
+    const refused = drive(RTT, run, "discover", "--policy", "default_1y");
+    assert.notEqual(refused.exit, 0, name);
+    assert.match(refused.stderr + refused.stdout, /a topic the Creator\s+excluded/, name);
+  }
+});
+
+test("同一运行中途换画像文件被拒；同一份文件重跑 start 照常", async (t) => {
+  for (const skill of [RTT, RIT, RYT]) {
+    // 同一条命令（同一路径）重跑：字节没变照常；用户在网页改了画像、宿主重读后覆盖了同一文件：拒收。
+    const { temp, run } = await startedWith(t, skill, await fixture(PLATFORM[skill]));
+    const same = drive(skill, run, "start", "--profile", await profileFile(temp, await fixture(PLATFORM[skill])));
+    assert.equal(same.exit, 0, `${skill}：${same.stderr}`);
+    const changed = drive(skill, run, "start", "--profile", await profileFile(temp, await fixture(`${PLATFORM[skill]}-effective`)));
+    assert.notEqual(changed.exit, 0, skill);
+    assert.match(changed.stderr + changed.stdout, /the profile changed during the run\. Start a new run with the new file/, skill);
+  }
+});
+
+test("RYT 有效画像：collect 只在 locale.region 为空时带市场，language 不取画像；RIT collect 不带地区", async (t) => {
+  const collect = async (locale) => {
+    const { run } = await startedWith(t, RYT, await fixture("youtube-effective"));
+    await writeFile(path.join(run, "trend-research-request.json"), JSON.stringify({ schema_version: "trend-research-request.v3", request_id: "yt-profile", mode: "current_popular", niche: "fuse bead tutorials", platforms: ["youtube"], locale, formats: ["youtube_short"] }));
+    await writeFile(path.join(run, "trend-query-plan.json"), JSON.stringify({ schema_version: "trend-query-plan.v1", request_id: "yt-profile", intents: [{ intent_id: "a", search_query: "fuse beads tutorial" }, { intent_id: "b", search_query: "拼豆教程 新手" }] }));
+    const discovered = drive(RYT, run, "discover", "--policy", "default_1y");
+    assert.equal(discovered.exit, 0, discovered.stderr + discovered.stdout);
+    return callsOf(discovered.stdout)[0].arguments;
+  };
+  const defaulted = await collect({ region: null, language: null });
+  assert.equal(defaulted.region, "GB");
+  assert.equal(defaulted.language, undefined);
+  assert.equal((await collect({ region: "US", language: null })).region, "US");
+
+  const { run } = await startedWith(t, RIT, await fixture("instagram-effective"));
+  await authored(RIT, run);
+  const discovered = drive(RIT, run, "discover", "--policy", "default_1y");
+  assert.equal(discovered.exit, 0, discovered.stderr + discovered.stdout);
+  for (const call of callsOf(discovered.stdout)) assert.equal(JSON.stringify(call.arguments).includes("BR"), false);
+  const request = JSON.parse(await readFile(path.join(run, "trend-research-request.json"), "utf8"));
+  assert.deepEqual(request.creator_profile.excluded_topics, ["Dessert reviews"]);
+  assert.deepEqual(request.locale, { region: null, language: null });
+});
