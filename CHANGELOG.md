@@ -5,7 +5,7 @@
 ## 未发布
 
 - 复刻（`remake-viral-video`）支持旁白类参考视频（没人出镜、配音配画面）：移植网页端 creator-remake-web 0.1.29
-  （creator-skills `8c0ffa32d`，runner V2-r61）。带字的画面由 agent 写动效（composition，里面要的图片用
+  （creator-skills `1ca23aebc`，runner V2-r61）。带字的画面由 agent 写动效（composition，里面要的图片用
   `make.images` 生成），写稿后先 `render_remake_video` + `preview` 渲出画面分页、用 `fetch-preview` 存到本地看图，
   改到满意再出片；成片前 runner 停一次给逐句对照图，`fetch` 存下后写 `beat_review` 用 `--beat-review` 返工，
   只重做不行的句子。旁白没有口播模型可选。
