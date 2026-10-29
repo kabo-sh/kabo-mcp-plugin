@@ -4,6 +4,21 @@
 
 ## 未发布
 
+- 新增三个 Skill，组成创作者日常流程（本仓原创，不是从 creator-skills 搬运）：
+  - `build-creator-library`：新用户开通。绑定一个 Instagram / TikTok / YouTube 公开账号，读近期作品与转写，
+    在工作区建素材库（`kabo-library/<平台>-<账号>/`）；按「说的是什么、给观众什么」聚类，用固定规则选出 1–2 个
+    内容支柱（中位播放不低于账号常规水平 0.8 倍才算，再按播放占比排序；创作者可改选）；记下说话方式与可用于复刻的
+    本人素材；引导创作者用宿主自己的定时任务开「每日精选」与「每小时查新作品」。
+  - `pick-daily-viral-videos`：按内容支柱的检索词找近 7 天的爆款，只收作者基线样本够（moderate / strong）且至少
+    2 倍的视频，每个支柱至少一条、作者不重复、跨天不重复，不足三条不凑数；默认只搜 Instagram，YouTube 检索有全站
+    每日上限，只给主平台是 YouTube 的创作者用；每条标明能否交给 `remake-viral-video`。
+  - `review-new-posts`：绑定后发布的每条作品在约 1 小时、24 小时、7 天各复盘一次：公开播放与互动对比本人更早作品
+    在同一时点的中位数（满 3 条才比），24 小时与 7 天读评论，给出下一条的具体建议；错过的时点不补。TikTok 只给
+    日期时用视频编号里的时间（同一天才采用），否则按第一次看到的时间计龄并在复盘里说明。
+  - 三者共用 `creator_library.py`（三份副本逐字相同，测试校验）；取数沿用 `static_host.py` 的下载交付与
+    `build_public_snapshot.py`。Kabo 不代发：发布交给创作者本人或其宿主自己的发帖工具、逐条确认。
+  - 只做了离线测试（新增 `scripts/creator-library.test.mjs`，其中快照拼装与支柱规则用 Instagram 公开数据实跑过），
+    未在真实宿主（含 Grok Bot）或生产环境端到端跑过；X 账号与未发布素材上传均不支持。
 - 复刻（`remake-viral-video`）支持旁白类参考视频（没人出镜、配音配画面）：移植网页端 creator-remake-web 0.1.30
   （creator-skills PR #896，runner V2-r63）。带字的画面由 agent 写动效（composition，里面要的图片用
   `make.images` 生成），写稿后先 `render_remake_video` + `preview` 渲出画面分页、用 `fetch-preview` 存到本地看图，

@@ -1,8 +1,9 @@
 # Kabo plugin
 
 Kabo helps you research public creator accounts, compare competitors, find trends, analyze videos,
-develop content ideas and scripts, and remake a viral talking-head video with you in it. This
-repository contains one plugin: a `kabo` MCP connection, eleven bundled Skills, and the metadata
+develop content ideas and scripts, remake a viral talking-head video with you in it, and keep a daily
+routine of viral picks and post reviews. This
+repository contains one plugin: a `kabo` MCP connection, fourteen bundled Skills, and the metadata
 needed by each host. The AI host runs the workflows and writes
 reports; Kabo provides the data tools. The plugin does not hand work to Kabo's web agent, download
 Skills at runtime, or register lifecycle hooks.
@@ -16,7 +17,7 @@ review and production acceptance remain separate from this GitHub release.
 
 | Your setup | Install |
 | --- | --- |
-| You already connected Kabo MCP in your AI host | [Skills only](#skills-only): use Git, ZIP or the optional skills CLI to add the eleven workflows and keep your existing connection. |
+| You already connected Kabo MCP in your AI host | [Skills only](#skills-only): use Git, ZIP or the optional skills CLI to add the fourteen workflows and keep your existing connection. |
 | You want the MCP connection and workflows together | [Full plugin](#installation-and-authentication): use your host's plugin installer. |
 
 [MCP setup and Skills guide](https://kabo.sh/docs/mcp#skills) ·
@@ -264,7 +265,7 @@ Normal update commands:
 
 The connection and OAuth resource stay at `/mcp-pub` when moving from the old 3.0.1 or 3.1.x versions.
 Renumbering alone does not change authorization. Older installations using `/mcp-directory` must
-reauthorize for `/mcp-pub`. The current package has eleven fixed Skills, downloads full evidence, and
+reauthorize for `/mcp-pub`. The current package has fourteen fixed Skills, downloads full evidence, and
 stores raw tool results in each run's `host-results/` directory. The old dynamic menu, channel switch,
 download cache and Node runner are no longer included. Validate in a separate workspace before
 updating the existing `kabo` entry. Old research directories are not migrated or deleted automatically.
@@ -283,17 +284,25 @@ mcp.json                        # Production MCP connection
 .claude-plugin/marketplace.json  # Claude Code marketplace (not included in the ZIP)
 .agents/plugins/marketplace.json # Codex marketplace (not included in the ZIP)
 .mcp.json                       # Claude Code HTTP MCP configuration
-skills/                         # Eleven complete Skills and their resources
+skills/                         # Fourteen complete Skills and their resources
 skills.lock.json                # Original Skill source and versions
 runtime-contract.json           # Fixed tool and Skill inventory
 CHANGELOG.md                    # Version history (Chinese)
 ```
 
-The eleven Skills cover video analysis, standard and deep account reviews, scripts and packaging,
-content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor research, and
+The fourteen Skills cover video analysis, standard and deep account reviews, scripts and packaging,
+content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor research,
 `remake-viral-video`, which remakes a viral talking-head video of 60 seconds or less with the creator
-in it. See [skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
+in it, and a creator routine: `build-creator-library` (onboarding: the creator's posts, content
+pillars, voice and footage), `pick-daily-viral-videos` (three viral picks a day matched to those
+pillars) and `review-new-posts` (a review of every new post at 1 hour, 24 hours and 7 days). See [skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
 same Skills.
+
+`build-creator-library`, `pick-daily-viral-videos` and `review-new-posts` are not released yet and have
+not been run in a real host; their scripts passed offline tests on recorded public data. They keep the
+creator's library in the workspace (`kabo-library/<platform>-<handle>/`), so the daily and hourly runs
+need a workspace that persists. Schedules use the host's own scheduled tasks. Kabo never publishes:
+posting stays with the creator or a posting tool of the host that they approve post by post.
 
 `remake-viral-video` is not released yet. It needs the `start_remake_video`, `get_remake_video` and
 `render_remake_video` tools on `/mcp-pub`, which are not yet in the pinned tool contract, and it has

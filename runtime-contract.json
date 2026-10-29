@@ -15,7 +15,10 @@
     "research-youtube-trends",
     "analyze-creator-competitors",
     "analyze-tiktok-competitors",
-    "remake-viral-video"
+    "remake-viral-video",
+    "build-creator-library",
+    "pick-daily-viral-videos",
+    "review-new-posts"
   ],
   "requiredTools": [
     "analyze_content_video",
