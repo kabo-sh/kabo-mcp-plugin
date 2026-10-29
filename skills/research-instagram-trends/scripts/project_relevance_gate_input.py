@@ -130,7 +130,15 @@ TABLE_BUDGET_BYTES = 32_000
 
 def table_parts(output: dict[str, Any]):
     """Yield the original table records without shortening any evidence."""
-    yield 0, json.dumps({key: output[key] for key in ("request_id", "platform", "subject")}, ensure_ascii=False)
+    header = {key: output[key] for key in ("request_id", "platform", "subject")}
+    subject = output["subject"]
+    if subject.get("region") is None and subject.get("language") is None:
+        # The rule sits in SKILL.md, but the Gate is scored from this table: plugins 2026-10-29 J1
+        # (a Chinese ask, no market named) scored six of seven English home-workout videos 75 on
+        # locale_fit against 95 for the Chinese ones. Say it where the scoring happens.
+        header["locale_fit_rule"] = ("No market or content language was named: the ask's language sets only the "
+                                     "reply language. Do not score locale_fit down for an item's language.")
+    yield 0, json.dumps(header, ensure_ascii=False)
     for index, row in enumerate(output["items"], start=1):
         text = " / ".join(part.strip() for part in str(row.get("visible_text") or "").splitlines() if part.strip())
         queries = "; ".join(row.get("matched_queries") or [])

@@ -5,6 +5,7 @@
 ## 未发布
 
 - 三个 trends Skill：`report` 阶段 Compose/Validate 拒收 synthesis 时，把 run 还原并返回 `needs_correction`（exit 0），在同一个 run 里修一次；第二次拒收才结束。同步自 creator-skills `4231cfa36`（#902，上游 IG 0.3.108 / TT 0.1.98 / YT 0.1.96）。只搬了这一处修复，`skills.lock.json` 的 `derivedFromVersion` 不变。
+- 三个 trends Skill：Gate 打分表头在没指定地区和语言时加 `locale_fit_rule`，写明问句语言只决定回复语言，不要因为内容语言压低 `locale_fit`。同步自 creator-skills `e4b807f4`（#906，上游 IG 0.3.109 / TT 0.1.99 / YT 0.1.97）。
 
 ## 1.0.4（2026-10-28；GitHub Release）
 
