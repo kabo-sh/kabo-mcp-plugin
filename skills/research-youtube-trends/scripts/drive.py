@@ -317,7 +317,10 @@ def read_profile_argument(args: argparse.Namespace) -> bytes | None:
 
 
 def attach_profile() -> bool:
-    """Copy the saved account profile's fields into the Request; whether a profile is attached.
+    """Copy the saved account profile's fields into the Request; whether any profile field is attached.
+
+    Signature content may be missing while the topics the Creator excluded are not; the plan check,
+    the `include` fields and the eligibility filter follow any field, the seats only signature content.
 
     Runs before the window is frozen, so the frozen Request already carries them and a rerun finds
     nothing to change. Without a profile file it only removes profile fields written by hand.
@@ -332,7 +335,7 @@ def attach_profile() -> bool:
                "supplied profile file")
     if source.is_file():
         cd.say(f"[drive] creator profile: {json.dumps(report, ensure_ascii=False)}")
-    return intake.attached(cd.load(REQUEST))
+    return intake.profile_fields_attached(cd.load(REQUEST))
 
 
 def candidates_file() -> str:
@@ -352,7 +355,13 @@ def stage_start(args: argparse.Namespace) -> None:
         print_source_video()
     cd.show_schema("trend-research-request.schema.json", "trend-query-plan.schema.json")
     if profile is not None:
-        Path(PROFILE_SOURCE).write_bytes(profile)
+        placed = Path(PROFILE_SOURCE)
+        # 用户可能在本轮中途改了画像。冻结后的 Request 已经带着旧画像的字段，换文件会让同一轮前后两半口径
+        # 不一致，所以字节不同就停下，让模型开一个新 run；同一份文件重跑 start 照常。
+        if placed.is_file() and placed.read_bytes() != profile:
+            raise cd.StageError("the profile file differs from the one this run started with: the profile changed "
+                                "during the run. Start a new run with the new file")
+        placed.write_bytes(profile)
         for line in intake.describe(json.loads(profile.decode("utf-8")), PLATFORM):
             cd.say(line)
 
@@ -414,10 +423,16 @@ def collect_call(request: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any
         "published_before": window["until"],
         "budget": dict(COLLECT_BUDGET),
     }
+    # language 只取 Request 的 locale：collect 把它当搜索语言过滤传出去，是硬过滤，画像里的语言只是检索标签，
+    # 绝不进这里。region 在 locale 没给时退到创作者自己设的市场，那只是缺省检索地区。
     if locale.get("language"):
         arguments["language"] = locale["language"]
+    creator = request.get("creator_profile") if isinstance(request.get("creator_profile"), dict) else {}
+    market = creator.get("market_region")
     if locale.get("region"):
         arguments["region"] = locale["region"]
+    elif isinstance(market, str) and intake.REGION.match(market):
+        arguments["region"] = market
     return {"tool": "collect_youtube_trend_candidates", "arguments": arguments}
 
 

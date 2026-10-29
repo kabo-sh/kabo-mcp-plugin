@@ -2,9 +2,10 @@
 """Keep the candidates a Creator with a saved account profile could learn from; write the rest down.
 
 With the Creator's account profile attached to the Request (`creator_profile.signature_content`,
-`audience_count`, `formats`), a candidate set holds content no recommendation should lead with: the
-Creator's own posts, photo posts on a video scan, the other video format, paid ads, and accounts far
-larger or smaller than the Creator's. This script removes those and keeps everything it cannot judge.
+`audience_count`, `formats`, `excluded_topics`, `own_content_ids`), a candidate set holds content no
+recommendation should lead with: the Creator's own posts, photo posts on a video scan, the other
+video format, paid ads, accounts far larger or smaller than the Creator's, and topics the Creator
+excluded. This script removes those and keeps everything it cannot judge.
 
   python3 scripts/filter_candidate_eligibility.py --request trend-research-request.json \\
     --candidates tiktok-trend-candidate-set.json --output tiktok-trend-candidate-set-eligible.json \\
@@ -13,9 +14,10 @@ larger or smaller than the Creator's. This script removes those and keeps everyt
 Rules, applied per candidate:
 
 - own content: the candidate's author is the Creator (handle; on YouTube the channel id), or the
-  candidate is one of the Creator's own example posts the profile lists. The profile names a YouTube
-  Creator by handle while a YouTube candidate carries only its channel id and title, so there the
-  example posts are often the only own content the filter can recognise.
+  candidate is one of the Creator's own example posts the profile lists (`own_content_ids`, which
+  keeps the posts of signature content the Creator removed, else the items' example ids). The
+  profile names a YouTube Creator by handle while a YouTube candidate carries only its channel id
+  and title, so there the example posts are often the only own content the filter can recognise.
 - photo post: a TikTok item whose duration is 0 seconds (a photo carousel). The account profile counts
   formats by the same rule, so a post it leaves out of the Creator's formats is left out here too.
 - format mismatch: the duration says short_video (180 s or less) or long_video, and the Creator
@@ -23,6 +25,11 @@ Rules, applied per candidate:
 - advertisement: the platform marks the item as an ad.
 - audience out of range: the author's followers are outside 0.3–3 times the Creator's audience.
   No follower count, no judgment.
+- excluded topic: the candidate's hashtags, title, caption or description name a topic the Creator
+  excluded, by the plan validators' seed matching (casefolded; whole words in spaced scripts,
+  substrings in unspaced ones; a hashtag that spells the topic as one word). Only a literal match
+  is removed here; an item about the topic in other words or another language is the Gate's to
+  score 0.
 
 Language is never a reason: it is a retrieval label, and a filter on it would drop the cross-language
 content the Creator's format often reaches first.
@@ -37,19 +44,42 @@ resolves every kept `content_key`. Standard library only.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import math
 import os
+import re
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
-RULE_VERSION = "candidate-eligibility.v1"
+# Sibling imports must not leave a __pycache__ in the signed, checksummed skill directory.
+sys.dont_write_bytecode = True
+
+
+def _sibling(name: str):
+    # 排除话题与计划校验用同一套匹配，所以直接借画像接收脚本的实现；按路径加载本包自己那份，
+    # 不借别的包留在 sys.modules 里的同名模块。
+    path = Path(__file__).with_name(name + ".py")
+    spec = importlib.util.spec_from_file_location(f"{path.parent.parent.name}:{name}", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader
+    spec.loader.exec_module(module)
+    return module
+
+
+intake = _sibling("attach_creator_profile")
+
+# v2 加了 excluded_topic 规则，本人作品也改认 own_content_ids。
+RULE_VERSION = "candidate-eligibility.v2"
 PLATFORMS = ("instagram", "tiktok", "youtube")
 AUDIENCE_RANGE = (0.3, 3.0)
 MINIMUM_KEPT = 20
 SHORT_VIDEO_MAX_SECONDS = 180
 AUDIENCE_ONLY = ["audience_out_of_range"]
+HASHTAG = re.compile(r"#(\w+)", re.UNICODE)
+TEXT_FIELDS = ("title", "caption", "description")
 
 
 def load(path: Path) -> dict[str, Any]:
@@ -121,18 +151,44 @@ def format_of(item: dict[str, Any], platform: str) -> str | None:
     return "short_video" if seconds <= SHORT_VIDEO_MAX_SECONDS else "long_video"
 
 
+def hashtags_of(item: dict[str, Any]) -> list[str]:
+    """The candidate's hashtags: the structured list when the platform gave one, else those in its text."""
+    tags = item.get("hashtags")
+    if isinstance(tags, list):
+        names = [tag.get("name") if isinstance(tag, dict) else tag for tag in tags]
+        return [str(name).strip().lstrip("#") for name in names if str(name or "").strip().lstrip("#")]
+    return HASHTAG.findall(" ".join(str(item.get(field) or "") for field in TEXT_FIELDS))
+
+
+def excluded_topics_named(item: dict[str, Any], topics: list[str]) -> list[str]:
+    """The excluded topics this candidate names literally, in the Request's order."""
+    if not topics:
+        return []
+    text = " ".join(str(item.get(field) or "") for field in TEXT_FIELDS if isinstance(item.get(field), str))
+    tags = hashtags_of(item)
+    return [topic for topic in topics if intake.mentions_topic(text, tags, topic)]
+
+
 def creator_fields(request: dict[str, Any]) -> dict[str, Any]:
     creator = request.get("creator_profile") if isinstance(request.get("creator_profile"), dict) else {}
     formats = [value for value in creator.get("formats") or [] if value in ("short_video", "long_video")]
     signature = [item for item in creator.get("signature_content") or [] if isinstance(item, dict)]
     own_ids = {str(value).strip() for item in signature for value in item.get("example_content_ids") or []
                if isinstance(value, str) and value.strip()}
+    own_ids |= {value.strip() for value in creator.get("own_content_ids") or []
+                if isinstance(value, str) and value.strip()}
+    # 有画像字段就判：主打内容被用户删光、只留排除话题时，过滤照样要跑。字段只能来自画像文件
+    # （画像接收会删掉模型手写的），没有画像时这里一项都不会有。
     return {"handle": handle_key(creator.get("handle")), "audience": _count(creator.get("audience_count")),
-            "formats": formats, "own_ids": own_ids, "attached": bool(signature)}
+            "formats": formats, "own_ids": own_ids, "excluded": intake.excluded_topics(request),
+            "attached": intake.profile_fields_attached(request)}
 
 
 def judge(item: dict[str, Any], platform: str, creator: dict[str, Any]) -> tuple[list[str], float | None]:
-    """The reasons this candidate is ineligible (empty when it stays) and its audience ratio."""
+    """The reasons this candidate is ineligible (empty when it stays) and its audience ratio.
+
+    An excluded topic is never backfilled: only a candidate removed for its audience alone comes back.
+    """
     reasons: list[str] = []
     if ((creator["handle"] and creator["handle"] in author_keys(item, platform))
             or creator["own_ids"] & content_ids(item)):
@@ -150,6 +206,8 @@ def judge(item: dict[str, Any], platform: str, creator: dict[str, Any]) -> tuple
         ratio = count / creator["audience"]
         if not AUDIENCE_RANGE[0] <= ratio <= AUDIENCE_RANGE[1]:
             reasons.append("audience_out_of_range")
+    if excluded_topics_named(item, creator["excluded"]):
+        reasons.append("excluded_topic")
     return reasons, ratio
 
 
@@ -180,14 +238,20 @@ def filter_set(request: dict[str, Any], candidates: dict[str, Any], platform: st
             break
         kept.add(position)
         backfilled.append({"content_key": item.get("content_key"), "audience_ratio": round(ratio, 4)})
-    excluded = [{"content_key": item.get("content_key"), "reasons": reasons}
-                for position, item, reasons, _ in verdicts if reasons and position not in kept]
+    excluded = []
+    for position, item, reasons, _ in verdicts:
+        if reasons and position not in kept:
+            row: dict[str, Any] = {"content_key": item.get("content_key"), "reasons": reasons}
+            if "excluded_topic" in reasons:
+                row["excluded_topics"] = excluded_topics_named(item, creator["excluded"])
+            excluded.append(row)
     audit.update({
         "kept_items": len(kept),
         "minimum_kept": MINIMUM_KEPT,
         "audience_count": creator["audience"],
         "audience_range": list(AUDIENCE_RANGE),
         "formats": creator["formats"],
+        **({"excluded_topics": creator["excluded"]} if creator["excluded"] else {}),
         "excluded": excluded,
         "backfilled": backfilled,
         "unjudged": {

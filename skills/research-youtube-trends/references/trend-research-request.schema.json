@@ -141,7 +141,7 @@
         "content_language": {
           "type": "string",
           "minLength": 2,
-          "description": "The Creator's primary content language from the saved account profile, present only when its confidence is high. A retrieval label for writing intents in the language the Creator publishes in, never a filter: never copy it into locale.language. Written by the skill's driver from the profile file the host supplied, never by the model; leave it out when writing the Request."
+          "description": "The Creator's primary content language from the saved account profile, present only when its confidence is high or the Creator set it. A retrieval label for writing intents in the language the Creator publishes in, never a filter: never copy it into locale.language. Written by the skill's driver from the profile file the host supplied, never by the model; leave it out when writing the Request."
         },
         "accepted_languages": {
           "type": "array",
@@ -174,7 +174,7 @@
           "type": "array",
           "minItems": 1,
           "maxItems": 4,
-          "description": "The Creator's signature content from the saved account profile, heaviest first: position + 1 is the number the relevance Gate shows for an item. Each intent of the query plan belongs to one item and carries one of its seed terms or hashtags verbatim. Written by the skill's driver from the profile file the host supplied, never by the model; leave it out when writing the Request.",
+          "description": "The Creator's signature content from the saved account profile, the Creator's main item first, then heaviest first: position + 1 is the number the relevance Gate shows for an item. Each intent of the query plan belongs to one item and carries one of its seed terms or hashtags verbatim. Written by the skill's driver from the profile file the host supplied, never by the model; leave it out when writing the Request.",
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -244,9 +244,46 @@
                 "type": "number",
                 "minimum": 0,
                 "maximum": 1
+              },
+              "primary": {
+                "type": "boolean",
+                "description": "The Creator's main signature content; it comes first."
               }
             }
           }
+        },
+        "excluded_topics": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "description": "Topics the Creator excluded in their saved account profile, in their own words. No intent may carry one (the plan validator refuses it), the eligibility filter removes candidates that name one, and the Gate scores an item about one 0 on topic_relevance. Written by the skill's driver from the profile file the host supplied, never by the model; leave it out when writing the Request."
+        },
+        "market_region": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$",
+          "description": "The market the Creator set in their saved account profile. Only the default search region when the ask names none, never a filter: never copy it into locale.region. Written by the skill's driver from the profile file the host supplied, never by the model; leave it out when writing the Request."
+        },
+        "own_content_ids": {
+          "type": "array",
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Every own example post the saved account profile lists, those of signature content the Creator removed included, so the eligibility filter never recommends one back. Written by the skill's driver from the profile file the host supplied, never by the model; leave it out when writing the Request."
+        },
+        "profile_basis": {
+          "enum": [
+            "profile",
+            "profile_with_edits"
+          ],
+          "description": "Whether the attached profile carries the Creator's own edits; for the audit only. Written by the skill's driver from the profile file the host supplied, never by the model; leave it out when writing the Request."
         }
       }
     },

@@ -147,6 +147,8 @@ def validate_against_request(plan: dict[str, Any], request: dict[str, Any]) -> N
     what the account is known for, and the two rules would compete for the same six slots.
     """
     intake = _profile_intake()
+    # 排除话题不依赖主打内容：只有设定、没有主打内容时 caption phrase 那套规则照常，排除话题照样拒收。
+    intake.check_excluded([str(intent["search_query"]) for intent in plan["intents"]], request)
     if intake.attached(request):
         intake.check_plan([str(intent["search_query"]) for intent in plan["intents"]], request,
                           per_intent="covering")
@@ -244,7 +246,7 @@ def collection_input(plan: dict[str, Any], request: dict[str, Any], window: str)
                    "challenger_pages_per_intent": 1, "max_provider_calls": 24,
                    "max_candidates": 160, "max_detail_calls": 0},
     }
-    if _profile_intake().attached(request):
+    if _profile_intake().profile_fields_attached(request):
         # Audio and duration per Reel, for the eligibility filter and the Gate. Asked only with a
         # profile attached, so a run without one sends the collector exactly what it always did.
         result["include"] = ["media_signals"]
@@ -300,6 +302,9 @@ def main() -> int:
             result["caption_phrases_checked"] = anchored
         if signature:
             result["signature_content_checked"] = signature
+        excluded = len(_profile_intake().excluded_topics(request)) if request is not None else 0
+        if excluded:
+            result["excluded_topics_checked"] = excluded
         if request is not None:
             # Recorded so a finished run says which regime it ran under. Three separate rules
             # switch on this one fact, and a run that silently took the short-window branch is
