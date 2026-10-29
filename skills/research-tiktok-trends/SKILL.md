@@ -2,7 +2,7 @@
 name: research-tiktok-trends
 description: "Research what is trending on TikTok: hot videos and repeatable mechanisms in a niche or like a given TikTok video, the daily trending sound board with today's fastest risers, sounds that fit named video scenes, rising search terms and content gaps, or viral videos from the last seven days. Use for what is hot, rising or worth copying on TikTok now. Not for private analytics, TikTok Shop research, an account-history audit or full scripts."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and a host that can save a tool's complete result to a file."
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permission: data."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download creator_trends_get_tiktok_sound_board tiktok_discovery_search_videos tiktok_discovery_search_sounds tiktok_discovery_list_top_contents tiktok_discovery_list_search_insights tiktok_discovery_get_search_insight_trend lookup_tiktok_video tiktok_list_account_posts
 ---
 
