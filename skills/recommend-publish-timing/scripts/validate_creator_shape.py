@@ -205,31 +205,71 @@ NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
 # decide which notation a figure arrives in.
 #
 # The single letters need the lookahead: without it "5 km" reads as five thousand and "3 more"
-# reads as three million.
+# reads as three million. "万亿" is listed before "万" so "5万亿" reads as five trillion, not
+# 5万 followed by a stray 亿, and ".5B" reads as 0.5B, not 5B. A dot after a letter, digit or dot
+# is not a leading-dot decimal: "obs.14" in a reference stays 14, as it always read.
 MAGNITUDES = {
     "": 1,
-    "万": 10_000, "亿": 100_000_000,
+    "万": 10_000, "亿": 100_000_000, "万亿": 1_000_000_000_000,
     "k": 1_000, "thousand": 1_000,
     "m": 1_000_000, "million": 1_000_000,
     "b": 1_000_000_000, "bn": 1_000_000_000, "billion": 1_000_000_000,
 }
 FIGURE = re.compile(
-    r"(\d+(?:[.,]\d+)*)\s*(万|亿|thousand|million|billion|bn|[kmb](?![a-z]))?",
+    r"(\d+(?:[.,]\d+)*|(?<![A-Za-z0-9.])\.\d+)\s*(万亿|万|亿|thousand|million|billion|bn|[kmb](?![a-z]))?",
     re.IGNORECASE)
 # A clock is not a figure the creator stands behind, and splitting one produces two that nobody
 # wrote: `14:00` yields `14` and `00`. Hours are governed by the block rules above, which already
 # know a time range from a UTC offset, so times are lifted out before figures are read.
 CLOCK = re.compile(r"\d{1,2}:\d{2}(?::\d{2})?")
+# A scaled figure in the source must stand on its own: nothing alphanumeric right before the
+# number or right after the unit. Without that, "5 billionaires" reads as five billion and an
+# identifier fragment such as "-5b2e" in a UUID or "c5b3" in a hash reads as 5B, and either would
+# ground a figure nobody stated. A single letter after a space counts only in capitals: speech
+# recognition writes "27 B", while "5 m tall" is metres, not five million. Attached letters
+# ("5M", "27b") count in either case, and ".5 billion" is read as 0.5 billion.
+# The report side reads ".5" as 0.5, so the source keeps that reading next to the bare digits.
+LEADING_DOT = re.compile(r"(?<![A-Za-z0-9.])\.\d+")
+SOURCE_FIGURE = re.compile(
+    r"(?<![A-Za-z0-9.])(\d+(?:[.,]\d+)*|\.\d+)"
+    r"(?:\s*(万亿|万|亿|(?i:thousand|million|billion|bn))|([kmbKMB])|\s+([KMB]))"
+    r"(?![A-Za-z0-9])")
+
+
+def _strings(node):
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for child in node.values():
+            yield from _strings(child)
+    elif isinstance(node, list):
+        for child in node:
+            yield from _strings(child)
 
 
 def source_values(*objects) -> set:
+    # The source can carry a magnitude word too: a transcript says "27 B" or "27 billion" and a
+    # caption says "27B" for a model's parameter count. Reading only the digits keeps 27, and the
+    # report's "27B" is then compared as 27 billion against 27 and called invented. Each scaled
+    # figure is kept alongside its bare digits, so a source "27B" grounds "27B" and "27 billion",
+    # while a bare 27 elsewhere still does not ground "27B". Scaled figures are read from the
+    # string values themselves, not the JSON text, so a transcript line break between "27" and
+    # "billion" stays whitespace instead of becoming a literal "\n".
     values = set()
     for obj in objects:
-        for raw in NUMBER.findall(json.dumps(obj, ensure_ascii=False)):
+        text = json.dumps(obj, ensure_ascii=False)
+        for raw in NUMBER.findall(text) + LEADING_DOT.findall(text):
             try:
                 values.add(float(raw.replace(",", "")))
             except ValueError:
                 continue
+        for text in _strings(obj):
+            for raw, *units in SOURCE_FIGURE.findall(text):
+                unit = next(u for u in units if u)
+                try:
+                    values.add(float(raw.replace(",", "")) * MAGNITUDES[unit.lower()])
+                except (ValueError, KeyError):
+                    continue
     return values
 
 

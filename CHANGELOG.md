@@ -5,7 +5,7 @@
 ## 未发布
 
 - 新增四个 Skill，均从 creator-skills `8fc3371e6` 按 KS1–KS8 改造搬运（固定这一版搬运，与上游后续版本的差异上线前再对齐）：
-  `diagnose-reach-drop` 0.4.10、`recommend-publish-timing` 0.5.14、`plan-platform-monetization` 0.7.13、
+  `diagnose-reach-drop` 0.4.10、`recommend-publish-timing` 0.5.15（`2947e5ea`，含证据侧量级词数字修复）、`plan-platform-monetization` 0.7.13、
   `verify-platform-rule` 0.18.23。去掉 `manifest.json`、`agents/` 与读宿主会话记录的脚本，取数改为 `/mcp-pub`
   工具名 + `delivery:"download"` + `static_host.py`；超过 KS3.2 上限的数据文件拆分或删去脚本与正文都不读的字段。
   `recommend-publish-timing` 修正上游校验器与引擎对小时级推荐置信度判定不一致（校验器按指标一致率重算，引擎按同行佐证），

@@ -75,9 +75,9 @@
     },
     {
       "id": "recommend-publish-timing",
-      "derivedFromVersion": "0.5.14",
+      "derivedFromVersion": "0.5.15",
       "sourcePath": "creator-skills/runtime/recommend-publish-timing",
-      "derivedFromCommit": "8fc3371e6950478a724740bb4c5cf7a03e7e655c"
+      "derivedFromCommit": "2947e5ea27658da7103529b04574f8f8f3057583"
     },
     {
       "id": "plan-platform-monetization",
