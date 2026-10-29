@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import secrets
+import ssl
 import sys
 import urllib.error
 import urllib.request
@@ -300,9 +301,28 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def tls_context():
+    # macOS 上 python.org 装的 Python 没跑过 Install Certificates 时默认信任库是空的，每个 HTTPS 下载都报证书失败
+    # （插件实测 T-20261028-04）。只在默认信任库确实不存在时换用 certifi 或系统 CA 包，证书照常校验。
+    paths = ssl.get_default_verify_paths()
+    if (paths.cafile and os.path.isfile(paths.cafile)) or (paths.capath and os.path.isdir(paths.capath)
+                                                            and any(os.scandir(paths.capath))):
+        return None
+    candidates = []
+    try:
+        import certifi
+        candidates.append(certifi.where())
+    except ImportError:
+        pass
+    candidates += ["/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt"]
+    return next((ssl.create_default_context(cafile=path) for path in candidates if os.path.isfile(path)), None)
+
+
 def build_opener():
     # 测试在进程内替换这个函数以注入假的 HTTPS 处理器；命令行没有入口能改它。
-    return urllib.request.build_opener(NoRedirect())
+    context = tls_context()
+    handlers = [NoRedirect()] + ([urllib.request.HTTPSHandler(context=context)] if context else [])
+    return urllib.request.build_opener(*handlers)
 
 
 def renew_hint(tool, envelope):
