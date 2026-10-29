@@ -102,6 +102,6 @@ Kabo 网页端 agent 的部署和可用性不是此插件的前置条件。官�
   不支持补权的宿主上不保存，研究照常。写工具不在 tools/list 里时说明能力不可用。
 - 这次改动了 OpenAI 目录审核过的工具面（新增写工具、改了读工具入参），上线前要按 kabo ADR-0081 重新走目录审核，
   并按 [acceptance](acceptance.md) 重新做插件验收（`mcp.tools-list` 摘要已变）；本地测试与 ZIP 构建不替代这两项。
-  kabo#1875 合入 main 后要按 main 的提交重新固定 `contracts/directory-mcp/`。
+  kabo-sh/kabo#1875 合入 main 后要按 main 的提交重新固定 `contracts/directory-mcp/`。
 
 本次 pin 为提供方 PR 的固定提交，不代表生产已部署。生产授权迁移、实际工具可用性、真实宿主以及目录审核仍须单独验收；ZIP 构建与本地测试不替代上述事实。

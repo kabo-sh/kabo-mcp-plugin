@@ -4,9 +4,10 @@
 The model saves the Creator's saved account profile as a file: the complete `get_creator_profile`
 result read with `include: ["content_profile"]` and `effective: true` (or, from a Kabo that refuses
 `effective`, without it), or that result's `structuredContent` object. Its signature content,
-content language, audience size and formats steer the search plan and which candidates are eligible, so they reach the Request here, copied by
-this script and never retyped by the model: a seed term retyped with a tidied word or a translation
-retrieves nothing, and a language guessed from the chat would turn a retrieval label into a filter.
+content language, audience size and formats steer the search plan and which candidates are
+eligible, so they reach the Request here, copied by this script and never retyped by the model: a
+seed term retyped with a tidied word or a translation retrieves nothing, and a language guessed
+from the chat would turn a retrieval label into a filter.
 
   python3 scripts/attach_creator_profile.py --request trend-research-request.json \\
     --profile creator-profile-source.json --platform tiktok

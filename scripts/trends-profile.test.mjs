@@ -17,7 +17,7 @@ const tools = JSON.parse(await readFile(path.join(root, "contracts/directory-mcp
 const pinned = new Map(tools.map((tool) => [tool.name, tool]));
 const fixture = async (platform) => JSON.parse(await readFile(path.join(root, "scripts/fixtures/creator-profile", `${platform}.json`), "utf8"));
 // 钉住的 schema 是 draft-07；uuid、date-time 这类 format 不在这里校验（它们另有 pattern 兜底）。
-// kabo#1875 起 effectiveContentProfile.formats 的第一支是 `{"type":"array","items":[]}`（zod 的空元组），
+// kabo-sh/kabo#1875 起 effectiveContentProfile.formats 的第一支是 `{"type":"array","items":[]}`（zod 的空元组），
 // draft-07 元模式要求数组形 items 至少一项，ajv 默认会拒绝编译整份 schema。这是提供方制品的问题，不在本仓改；
 // 这里关掉元模式校验，另由下面那条测试钉住「元模式错误恰好只有这一处」，提供方修好后那条会红，届时删掉这段绕行。
 const ajv = () => new Ajv({ allErrors: true, strict: false, logger: false, validateSchema: false });

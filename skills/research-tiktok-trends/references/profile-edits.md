@@ -54,7 +54,7 @@ the length limits.
 | `emphasis` | Makes an item the main one, or sets its share | `basis`, `ids` (one id), and `primary` or `share` or both (`share`: whole percent 5–95; null clears it) |
 | `exclude_topic` | Never recommends content on a topic | `text` |
 | `unexclude_topic` | Lifts that | `text` |
-| `set_language` | The language the user makes content in | `language` (code such as `es`; null follows the profile), `accepted`? |
+| `set_language` | The language the user makes content in | `language` (code such as `es`; null follows the profile), `accepted`? (up to 5 more codes, only with a language) |
 | `set_market` | The default search market | `region` (two capital letters such as `MX`; null follows the profile) |
 | `discard_unresolved` | Drops an edit that no longer matches the profile | `ids` (one `ref`) |
 | `reset` | Drops every edit | none |
