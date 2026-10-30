@@ -17,8 +17,8 @@
   - 读画像被拒、工具不可用、缺 `workspace:read`、没有对应账号或 `contentProfile` 为 null 时不带画像，交出的调用与之前逐字节相同
     （`scripts/mcp-pub-sync.test.mjs` 钉住）。新增 `scripts/trends-profile.test.mjs` 与合成夹具 `scripts/fixtures/creator-profile/`。
   - 依赖 kabo #1849（连接器 `include`）与 #1851（`get_creator_profile` 的 `include`）。`contracts/directory-mcp/` 重新固定到
-    两者在本机的合并提交 `17baafc80`（工具数仍是 62，`annotations.md` 与 `data-tool-bindings.json` 字节不变）；该提交没有推到
-    GitHub，两个 PR 合入 kabo main 后需按 main 的提交重新固定并重新验收。服务端还没上线这两项时，读画像会被拒或拿到 null，
+    kabo main 的提交 `48d5ee773`（工具数仍是 62，与该提交的 tools/list golden 逐字节一致；`annotations.md` 与
+    `data-tool-bindings.json` 字节不变）。服务端还没上线这两项时，读画像会被拒或拿到 null，
     Skill 按「不带画像」运行。
 - 复刻（`remake-viral-video`）支持旁白类参考视频（没人出镜、配音配画面）：移植网页端 creator-remake-web 0.1.30
   （creator-skills PR #896，runner V2-r63）。带字的画面由 agent 写动效（composition，里面要的图片用
