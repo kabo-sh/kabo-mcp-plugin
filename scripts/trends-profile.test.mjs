@@ -17,10 +17,7 @@ const tools = JSON.parse(await readFile(path.join(root, "contracts/directory-mcp
 const pinned = new Map(tools.map((tool) => [tool.name, tool]));
 const fixture = async (platform) => JSON.parse(await readFile(path.join(root, "scripts/fixtures/creator-profile", `${platform}.json`), "utf8"));
 // 钉住的 schema 是 draft-07；uuid、date-time 这类 format 不在这里校验（它们另有 pattern 兜底）。
-// kabo-sh/kabo#1875 起 effectiveContentProfile.formats 的第一支是 `{"type":"array","items":[]}`（zod 的空元组），
-// draft-07 元模式要求数组形 items 至少一项，ajv 默认会拒绝编译整份 schema。这是提供方制品的问题，不在本仓改；
-// 这里关掉元模式校验，另由下面那条测试钉住「元模式错误恰好只有这一处」，提供方修好后那条会红，届时删掉这段绕行。
-const ajv = () => new Ajv({ allErrors: true, strict: false, logger: false, validateSchema: false });
+const ajv = () => new Ajv({ allErrors: true, strict: false, logger: false });
 const profileSchema = ajv().compile(pinned.get("get_creator_profile").outputSchema);
 
 const RTT = "research-tiktok-trends";
@@ -93,20 +90,13 @@ test("夹具与钉住的 get_creator_profile outputSchema 一致；无主打内�
   assert.equal(input.additionalProperties, false);
 });
 
-test("钉住的 schema 过不了 draft-07 元模式的只有 effectiveContentProfile.formats 的空元组", () => {
+test("提供方修复空元组后，全部钉住的工具 schema 均通过 draft-07 元模式", () => {
   const strictAjv = new Ajv({ allErrors: true, strict: false, logger: false });
-  const known = /effectiveContentProfile\/(?:anyOf\/0\/)?properties\/formats\/anyOf\/0\/items/;
-  const failing = [];
   for (const tool of tools) {
     for (const schema of [tool.inputSchema, tool.outputSchema].filter(Boolean)) {
-      if (strictAjv.validateSchema(schema)) continue;
-      const errors = strictAjv.errors.map((error) => error.instancePath);
-      assert.ok(errors.every((where) => known.test(where)), `${tool.name}: ${errors.join(", ")}`);
-      failing.push(tool.name);
+      assert.ok(strictAjv.validateSchema(schema), `${tool.name}: ${JSON.stringify(strictAjv.errors)}`);
     }
   }
-  // 提供方修好后这里先红：删掉上面的 validateSchema:false 绕行与本条测试。
-  assert.deepEqual(failing.sort(), ["get_creator_profile", "update_content_preferences"]);
 });
 
 test("start --profile：完整工具结果与裸 structuredContent 都能读，打印主打内容，不打印受众数", async (t) => {

@@ -5,12 +5,12 @@
 ## 未发布
 
 - 账号画像的有效画像与按人修改（三个 trends Skill 与 `review-creator-account`）：
-  - `contracts/directory-mcp/` 重新固定到 kabo-sh/kabo#1875（`feat/reco2-mcp-preferences`，`43cb78325`），工具数 62 → 63：
+  - `contracts/directory-mcp/` 重新固定到 kabo-sh/kabo#1875 的 main 合并提交 `927b75c47`，工具数 62 → 63：
     `get_creator_profile` 加可选布尔入参 `effective` 与门控出参 `effectiveContentProfile`，新增写工具
-    `update_content_preferences`（`workspace:write`，不带 `idempotency_key`，待目录面负责人确认）；`runtime-contract.json`
-    的 `requiredTools` 加上写工具。该 PR 未合入，合入 kabo main 后需按 main 重新固定并重新验收。
-  - 钉住的 outputSchema 里 `effectiveContentProfile.formats` 的第一支是 `{"type":"array","items":[]}`（zod 空元组），
-    过不了 draft-07 元模式；`trends-profile.test.mjs` 关掉元模式校验编译，并钉住「只有这一处」，提供方修好后删掉绕行。
+    `update_content_preferences`（`workspace:write`，不带 `idempotency_key`）；`runtime-contract.json`
+    的 `requiredTools` 加上写工具。tools/list 与该提交的 golden 逐字节一致。
+  - 提供方已用 `maxItems: 0` 修复 `effectiveContentProfile.formats` 的空数组 schema；撤掉元模式校验的临时绕行，
+    全部钉住的工具入参、出参均通过 draft-07 元模式校验。
   - 手工移植 creator-skills `feat/reco2-trends-effective-profile`（kabo-sh/creator-skills#920，`12b91ffef`）：画像文件里有
     `effectiveContentProfile` 且字面量认得时读它，否则退回 `contentProfile` v1；Request 新增 `excluded_topics`、
     `market_region`、`own_content_ids`、`profile_basis`；计划校验、资格过滤与 Gate 都执行排除话题；主打项排第一；

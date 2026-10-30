@@ -1736,7 +1736,8 @@
                   "formats": {
                     "anyOf": [
                       {
-                        "items": [],
+                        "items": {},
+                        "maxItems": 0,
                         "type": "array"
                       },
                       {
@@ -5735,7 +5736,8 @@
               "formats": {
                 "anyOf": [
                   {
-                    "items": [],
+                    "items": {},
+                    "maxItems": 0,
                     "type": "array"
                   },
                   {
