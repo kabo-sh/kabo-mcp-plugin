@@ -34,6 +34,42 @@ def nonempty(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def signature_coverage_errors(
+    report: dict[str, Any],
+    analysis: dict[str, Any],
+    content_ids: set[Any],
+    candidate_ids: set[str] | None,
+) -> list[str]:
+    """带名额分配的 Analysis：每个分到条目的主打内容，报告里至少引用它的一条。
+
+    名额只决定「推荐里每个主打内容都有代表」，排序与证据规则不变。只检查确实能被引用的条目
+    （进了 ranked_content、且是闸门保留的候选），否则一条都引不了的主打内容会让报告永远过不了。
+    引用集合取报告的 top_content：Composer 把 featured、pattern 与 emerging creator 的引用都收进去，
+    SKILL.md 允许在 featured 或 pattern 里引用，只看 featured 会把引在 pattern 里的合格报告误拒。
+    """
+    cited = {str(ref) for ref in content_ids}
+    seated: dict[str, set[str]] = {}
+    for item in analysis.get("ranked_content") or []:
+        if not isinstance(item, dict) or not isinstance(item.get("signature_content_id"), str):
+            continue
+        content_id = str(item.get("content_id"))
+        if candidate_ids is not None and content_id not in candidate_ids:
+            continue
+        seated.setdefault(item["signature_content_id"], set()).add(content_id)
+    errors = []
+    for entry in analysis.get("signature_content") or []:
+        if not isinstance(entry, dict):
+            continue
+        filled, entry_id = entry.get("filled"), str(entry.get("id"))
+        options = seated.get(entry_id) or set()
+        if isinstance(filled, int) and not isinstance(filled, bool) and filled > 0 and options and not options & cited:
+            errors.append(
+                f"signature content {entry_id} ({entry.get('name')}) holds {filled} seat(s) but the report cites none "
+                f"of them: feature at least one of {sorted(options)}"
+            )
+    return errors
+
+
 def validate(
     report: dict[str, Any],
     request: dict[str, Any] | None = None,
@@ -131,6 +167,9 @@ def validate(
                 errors.append("coverage.raw_count must equal analysis analyzed-item count")
             if report.get("status") == "complete" and not content_ids:
                 errors.append("status cannot be complete with no selected niche evidence")
+
+    if analysis is not None and isinstance(analysis.get("signature_content"), list) and report.get("status") != "blocked":
+        errors.extend(signature_coverage_errors(report, analysis, content_ids, candidate_ids))
 
     for index, pattern in enumerate(report.get("patterns") or []):
         path = f"patterns[{index}]"

@@ -8,6 +8,42 @@
 - 三个 trends Skill：Gate 打分表头在没指定地区和语言时加 `locale_fit_rule`，写明问句语言只决定回复语言，不要因为内容语言压低 `locale_fit`。同步自 creator-skills `e4b807f4`（#906，上游 IG 0.3.109 / TT 0.1.99 / YT 0.1.97）。
 - 三个 trends Skill：`locale.region` / `locale.language` 只取用户明确点名的市场或内容语言，问句语言只决定回复语言，没点名时两项留空。同步自 creator-skills `77dd6179`（#909，上游 IG 0.3.110 / TT 0.1.100 / YT 0.1.98），写在各自的 references 里，SKILL.md 正文不增加。
 - 三个 trends Skill：`discover` 新增 `--question-file`（`-` 从标准输入读用户原话）；`locale.region` / `locale.language` 不为空时必须在 `locale.named_in_ask` 里逐字引用原话中的片段，否则返回 `needs_correction`，只给一次修正机会。同步自 creator-skills `92824da5`（#919，上游 IG 0.3.111 / TT 0.1.101 / YT 0.1.99）。
+
+## 1.0.5（2026-10-30）
+
+- 账号画像的有效画像与按人修改（三个 trends Skill 与 `review-creator-account`）：
+  - `contracts/directory-mcp/` 重新固定到 kabo-sh/kabo#1875 的 main 合并提交 `927b75c47`，工具数 62 → 63：
+    `get_creator_profile` 加可选布尔入参 `effective` 与门控出参 `effectiveContentProfile`，新增写工具
+    `update_content_preferences`（`workspace:write`，不带 `idempotency_key`）；`runtime-contract.json`
+    的 `requiredTools` 加上写工具。tools/list 与该提交的 golden 逐字节一致。
+  - 提供方已用 `maxItems: 0` 修复 `effectiveContentProfile.formats` 的空数组 schema；撤掉元模式校验的临时绕行，
+    全部钉住的工具入参、出参均通过 draft-07 元模式校验。
+  - 手工移植 creator-skills `feat/reco2-trends-effective-profile`（kabo-sh/creator-skills#920，`12b91ffef`）：画像文件里有
+    `effectiveContentProfile` 且字面量认得时读它，否则退回 `contentProfile` v1；Request 新增 `excluded_topics`、
+    `market_region`、`own_content_ids`、`profile_basis`；计划校验、资格过滤与 Gate 都执行排除话题；主打项排第一；
+    市场只作缺省检索地区（TikTok 搜索、YouTube collect，Instagram 不用）；同一运行中途换画像文件报错。本仓的 MCP 外壳拆读、
+    不打印受众数与 `--without-include` 交接保持不变。
+  - 读画像带 `effective: true`，被拒时去掉重发一次。四个 Skill 的 `allowed-tools` 加 `update_content_preferences`、
+    `compatibility` 加 `workspace:write`；写入规则在新增的 `references/profile-edits.md`（四份同文），按 kabo CONTRACT §16.6
+    （kabo-sh/kabo#1869）的确认规则执行，409 先重读，`insufficient_scope` 请用户批准补权后重试一次。
+  - 新增有效画像夹具（TikTok 三份取自 kabo `effective-content-profile-v1` golden 的向量）与相应测试；README、
+    `docs/submission.md` 补说明。上线前要重新走目录审核并重新做插件验收。
+- 三个 trends Skill（`research-tiktok-trends`、`research-instagram-trends`、`research-youtube-trends`）接收后台账号画像：
+  手工移植 creator-skills #918（`feat/reco-trends-allocation`，`e6fd8cfe7`）的 S1–S3。用户问自己已绑定账号的趋势时，
+  先 `list_connected_accounts`、再 `get_creator_profile`（`include: ["content_profile"]`），完整结果原样存成文件交给
+  `drive.py start --profile`；`--profile` 与 `--video` / `--post` 互斥。带画像时检索意图带上主打内容的种子词，
+  TikTok 搜索带 `include: ["content_signals"]`、Instagram collect 带 `include: ["media_signals"]`，候选先过资格过滤，
+  Gate 多一列主打内容编号，名额按主打内容权重分配，报告每类主打内容至少引用一条。规则在各自的
+  `references/signature-content.md`。语言只是检索标签，不做硬过滤，不写进 `locale`。
+  - 与 creator-skills 读法的差别：画像文件可以是完整的 `get_creator_profile` 结果（先拆 MCP 外壳，`isError` 拒收）或其
+    `structuredContent`；`start` 不再打印受众数（只留在 Request 里给资格过滤用）；本宿主不替脚本取数，`include`
+    被拒时由交接提示模型用 `--without-include` 重跑同一 stage，只把那一轮带 `include` 的调用去掉 `include` 再交一次。
+  - 读画像被拒、工具不可用、缺 `workspace:read`、没有对应账号或 `contentProfile` 为 null 时不带画像，交出的调用与之前逐字节相同
+    （`scripts/mcp-pub-sync.test.mjs` 钉住）。新增 `scripts/trends-profile.test.mjs` 与合成夹具 `scripts/fixtures/creator-profile/`。
+  - 依赖 kabo #1849（连接器 `include`）与 #1851（`get_creator_profile` 的 `include`）。`contracts/directory-mcp/` 重新固定到
+    kabo main 的提交 `48d5ee773`（工具数仍是 62，与该提交的 tools/list golden 逐字节一致；`annotations.md` 与
+    `data-tool-bindings.json` 字节不变）。服务端还没上线这两项时，读画像会被拒或拿到 null，
+    Skill 按「不带画像」运行。
 - 复刻（`remake-viral-video`）支持旁白类参考视频（没人出镜、配音配画面）：移植网页端 creator-remake-web 0.1.30
   （creator-skills PR #896，runner V2-r63）。带字的画面由 agent 写动效（composition，里面要的图片用
   `make.images` 生成），写稿后先 `render_remake_video` + `preview` 渲出画面分页、用 `fetch-preview` 存到本地看图，

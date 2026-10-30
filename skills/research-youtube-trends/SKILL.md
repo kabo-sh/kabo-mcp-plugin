@@ -2,8 +2,8 @@
 name: research-youtube-trends
 description: "Research what is working on YouTube now: current high-performing videos, repeated mechanisms, emerging creators and Creator-fit directions in a niche or like a given video, ranked by exact public metrics and channel-relative baselines; the hottest videos of the last seven days; or an analysis of a supplied public-content Snapshot. Use for YouTube trend scans and outlier videos; a Shorts soundtrack ask gets an honest no-evidence answer. Not for private Analytics or full scripts."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permission: data."
-allowed-tools: get_research_capabilities get_research_data_job get_research_data_download collect_youtube_trend_candidates enrich_youtube_shortlist youtube_search_videos youtube_get_video
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permissions: data; optional workspace:read to read the Creator's saved account profile and workspace:write to save edits to it the user asks for."
+allowed-tools: get_research_capabilities get_research_data_job get_research_data_download collect_youtube_trend_candidates enrich_youtube_shortlist youtube_search_videos youtube_get_video list_connected_accounts get_creator_profile update_content_preferences
 ---
 
 # Research YouTube Trends
@@ -174,7 +174,19 @@ call over to you as a `call:` line: make exactly those calls, each as its own in
 and fetch (or stage) each result, then run the same stage again with its exact arguments and
 `--placed`.
 
-1. `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' start [--video "<the video URL or id as the user gave it>"]`
+**Saved account profile.** When the ask is for the user's own YouTube channel and supplies no video,
+first call `list_connected_accounts`, then `get_creator_profile` with `{"account_id": …, "include":
+["content_profile"], "effective": true}` (once more without `effective` if Kabo refuses only that)
+for the one YouTube account the ask is about (the one named, or the only one linked). Save that
+complete result unchanged as a file outside `<skill directory>` and the run directory and pass its
+absolute path to `start --profile`, never together with `--video`. If a tool is unavailable or
+refused, a permission is missing, no account fits, or both `contentProfile` and
+`effectiveContentProfile` are null or absent, run `start` without `--profile`; never write or edit a
+profile file. When `start` prints the profile as used, read `references/signature-content.md` before
+writing the plan. When the user asks to change their saved profile, follow
+`references/profile-edits.md`.
+
+1. `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' start [--video "<the video URL or id as the user gave it>" | --profile '<the saved profile file>']`
 2. Write `trend-research-request.json` and `trend-query-plan.json`, then
    `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO> | --last-days <N>] --question-file -` with the ask verbatim on standard input
    (once more with a replacement plan only when the first collection fails coverage)

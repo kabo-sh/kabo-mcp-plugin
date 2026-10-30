@@ -160,6 +160,47 @@ def semantic_relevance_of(
     }
 
 
+ALLOCATION_SCHEMA = "signature-content-allocation.v1"
+ALLOCATION_RULE = "signature-allocation.v1"
+
+
+def signature_allocation_of(
+    allocation: dict[str, Any],
+    request: dict[str, Any] | None,
+) -> tuple[list[tuple[str, str | None]], list[dict[str, Any]]]:
+    """名额分配文件里的 (content_key, 主打内容 id) 与每个主打内容的 {id, name, quota, filled}。
+
+    名字取 Request 的 signature_content：分配文件只记 id，名字以 Request 为准，免得两处各写一份。
+    """
+    if allocation.get("schema") != ALLOCATION_SCHEMA or allocation.get("rule_version") != ALLOCATION_RULE:
+        raise ValueError(f"allocation must be {ALLOCATION_SCHEMA} with rule_version {ALLOCATION_RULE}")
+    if request is None:
+        raise ValueError("--allocation requires --request: the signature content names come from the Request")
+    entries = [
+        item for item in ((request.get("creator_profile") or {}).get("signature_content") or [])
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    ]
+    names = {item["id"]: str(item.get("name") or "") for item in entries}
+    per_content = allocation.get("per_content")
+    if not isinstance(per_content, dict) or set(per_content) != set(names):
+        raise ValueError("allocation per_content must list exactly the Request's signature content ids")
+    summary = []
+    for item in entries:
+        counts = per_content[item["id"]]
+        quota, filled = (counts or {}).get("quota"), (counts or {}).get("filled")
+        if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in (quota, filled)):
+            raise ValueError(f"allocation per_content.{item['id']} needs non-negative integer quota and filled")
+        summary.append({"id": item["id"], "name": names[item["id"]], "quota": quota, "filled": filled})
+    slots = []
+    for slot in allocation.get("slots") or []:
+        key = slot.get("content_key") if isinstance(slot, dict) else None
+        value = slot.get("signature_content_id") if isinstance(slot, dict) else None
+        if not isinstance(key, str) or not key or (value is not None and value not in names):
+            raise ValueError(f"invalid allocation slot: {slot!r}")
+        slots.append((key, value))
+    return slots, summary
+
+
 def metric(item: dict[str, Any], name: str) -> float | None:
     entry = item.get("metrics", {}).get(name)
     if not isinstance(entry, dict) or entry.get("status") not in AVAILABLE:
@@ -246,6 +287,7 @@ def analyze(
     request: dict[str, Any] | None = None,
     relevance_gate: dict[str, Any] | None = None,
     trend_enrichment: dict[str, Any] | None = None,
+    allocation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     observed, start, end, creator_ids = validate_snapshot(snapshot)
     if focus_creator_id and focus_creator_id not in creator_ids:
@@ -339,6 +381,17 @@ def analyze(
     ranked.sort(key=lambda row: (-row["ranking_value"], row["published_at"], row["content_id"]))
     for index, row in enumerate(ranked, 1):
         row["rank"] = index
+    signature_summary = None
+    if allocation is not None:
+        # 排名本身不动（按公开指标，可复算）；只给进了名额的条目标上它代表的主打内容，
+        # 没进名额的标 null。synthesis 按这一列保证每个有名额的主打内容至少被引用一条。
+        slots, signature_summary = signature_allocation_of(allocation, request)
+        for row in ranked:
+            content_id = str(row["content_id"])
+            hits = [value for key, value in slots if key == content_id or key.endswith(f":{content_id}")]
+            if len(hits) > 1:
+                raise ValueError(f"ambiguous allocation slots for content_id: {content_id}")
+            row["signature_content_id"] = hits[0] if hits else None
     outliers.sort(key=lambda row: (row["account_median_multiple"] is None, -(row["account_median_multiple"] or -1), row["content_id"]))
 
     # The product path consumes the server-owned baseline directly. Legacy Snapshot
@@ -420,7 +473,7 @@ def analyze(
         if mode == "trend" and relevance_gate is not None
         else relevance_of(items, request) if mode == "trend" else None
     )
-    return {
+    result = {
         "schema_version": "public-content-analysis.v1",
         "analysis_id": analysis_id,
         "mode": mode,
@@ -457,6 +510,10 @@ def analyze(
             "window": {"start": start.isoformat(), "end": end.isoformat()},
         },
     }
+    if allocation is not None:
+        result["signature_content"] = signature_summary
+        result["reproducibility"]["allocation_sha256"] = digest(allocation)
+    return result
 
 
 def main() -> int:
@@ -470,6 +527,8 @@ def main() -> int:
                         help="Semantic direct/adjacent/reject gate produced once over the candidate union")
     parser.add_argument("--trend-enrichment", type=Path,
                         help="Product-level exact detail and same-account baseline results")
+    parser.add_argument("--allocation", type=Path,
+                        help="signature-content-allocation.v1 seats, when the Creator's account profile is attached")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     try:
@@ -477,7 +536,9 @@ def main() -> int:
         request = json.loads(args.request.read_text(encoding="utf-8")) if args.request else None
         relevance_gate = json.loads(args.relevance_gate.read_text(encoding="utf-8")) if args.relevance_gate else None
         trend_enrichment = json.loads(args.trend_enrichment.read_text(encoding="utf-8")) if args.trend_enrichment else None
-        result = analyze(snapshot, args.mode, args.focus_creator_id, request, relevance_gate, trend_enrichment)
+        allocation = json.loads(args.allocation.read_text(encoding="utf-8")) if args.allocation else None
+        result = analyze(snapshot, args.mode, args.focus_creator_id, request, relevance_gate, trend_enrichment,
+                         allocation)
         text = json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)

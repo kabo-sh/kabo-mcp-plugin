@@ -12,9 +12,12 @@ connector calls the judgment implies, places each response with the same persist
 workflow ran, runs the same deterministic scripts with the same arguments, and prints exactly what
 the next judgment reads.
 
-    start    [--video URL|ID]            run directory; source video (get_video) -> Request + plan schemas
+    start    [--video URL|ID | --profile F]
+                                         run directory; source video (get_video), or the Creator's
+                                         saved account profile -> Request + plan schemas
     discover [--policy P [--since --until]] [--question-file -]
-                                         freeze + validate -> collect -> persist -> coverage -> Gate table
+                                         attach the profile -> freeze + validate -> collect -> persist
+                                         -> coverage (-> eligible candidates, with a profile) -> Gate table
     rank                                 Gate -> ranking input -> enrich -> persist -> Snapshot -> Analyze
                                          -> Analysis + synthesis schema
     report                               Compose -> Validate -> Render -> creator-report.md
@@ -66,6 +69,8 @@ RANKING_INPUT = "trend-ranking-input.json"
 ENRICHMENT_SCHEMA = "youtube-trend-enrichment.v1"
 ENRICHMENT_RESPONSE = "trend-enrichment-01.json"
 ENRICHMENT = "trend-enrichment.json"
+# With the Creator's account profile attached: the seats each signature content item holds.
+ALLOCATION = "signature-content-allocation.json"
 SNAPSHOT = "public-content-snapshot.json"
 ANALYSIS = "public-content-analysis.json"
 SYNTHESIS = "trend-research-synthesis.json"
@@ -92,6 +97,11 @@ def _validator(name: str):
 
 query_input_validator = _validator("validate_query_plan")
 window_input_validator = _validator("freeze_request_window")
+intake = _validator("attach_creator_profile")
+PLATFORM = "youtube"
+PROFILE_SOURCE = intake.PROFILE_SOURCE
+# With the Creator's account profile attached, every step after coverage reads this subset instead.
+ELIGIBLE = "youtube-trend-candidate-set-eligible.json"
 
 
 def _utc_now() -> datetime:
@@ -365,7 +375,52 @@ def print_source_video() -> None:
                "channel_id here): " + json.dumps(shown, ensure_ascii=False))
 
 
+def read_profile_argument(args: argparse.Namespace) -> bytes | None:
+    """The profile file's bytes, checked before a run directory is reserved for it."""
+    given = getattr(args, "profile", None)
+    if not isinstance(given, str) or not given.strip():
+        return None
+    if isinstance(getattr(args, "video", None), str) and args.video.strip():
+        raise cd.StageError("--profile and --video are two different starts: a supplied video names its own channel as "
+                            "the Creator, the profile names the account it was read for. Pass one of them")
+    path = Path(given).expanduser().resolve()
+    try:
+        raw = path.read_bytes()
+        intake.read_profile(json.loads(raw.decode("utf-8")))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, intake.ProfileError) as error:
+        raise cd.StageError(f"the profile file {given} cannot be used: {error}") from error
+    return raw
+
+
+def attach_profile() -> bool:
+    """Copy the saved account profile's fields into the Request; whether any profile field is attached.
+
+    Signature content may be missing while the topics the Creator excluded are not; the plan check,
+    the `include` fields and the eligibility filter follow any field, the seats only signature content.
+
+    Runs before the window is frozen, so the frozen Request already carries them and a rerun finds
+    nothing to change. Without a profile file it only removes profile fields written by hand.
+    """
+    source = Path(PROFILE_SOURCE)
+    try:
+        report = intake.attach_file(Path(REQUEST), source if source.is_file() else None, PLATFORM)
+    except intake.ProfileError as error:
+        raise cd.StageError(str(error)) from error
+    if report.get("dropped"):
+        cd.say(f"[drive] removed {', '.join(report['dropped'])} from creator_profile: those fields come only from a "
+               "supplied profile file")
+    if source.is_file():
+        cd.say(f"[drive] creator profile: {json.dumps(report, ensure_ascii=False)}")
+    return intake.profile_fields_attached(cd.load(REQUEST))
+
+
+def candidates_file() -> str:
+    """The candidate set every step after coverage reads: the eligible subset when a profile made one."""
+    return ELIGIBLE if Path(ELIGIBLE).is_file() else CANDIDATES
+
+
 def stage_start(args: argparse.Namespace) -> None:
+    profile = read_profile_argument(args)
     cd.reserve_run_directory(args.placed, args=args)
     if args.video:
         video = video_id_of(args.video)
@@ -375,6 +430,16 @@ def stage_start(args: argparse.Namespace) -> None:
                 "--dest", SOURCE_VIDEO)))
         print_source_video()
     cd.show_schema("trend-research-request.schema.json", "trend-query-plan.schema.json")
+    if profile is not None:
+        placed = Path(PROFILE_SOURCE)
+        # 用户可能在本轮中途改了画像。冻结后的 Request 已经带着旧画像的字段，换文件会让同一轮前后两半口径
+        # 不一致，所以字节不同就停下，让模型开一个新 run；同一份文件重跑 start 照常。
+        if placed.is_file() and placed.read_bytes() != profile:
+            raise cd.StageError("the profile file differs from the one this run started with: the profile changed "
+                                "during the run. Start a new run with the new file")
+        placed.write_bytes(profile)
+        for line in intake.describe(json.loads(profile.decode("utf-8")), PLATFORM):
+            cd.say(line)
 
 
 # --------------------------------------------------------------------------- discover
@@ -434,10 +499,16 @@ def collect_call(request: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any
         "published_before": window["until"],
         "budget": dict(COLLECT_BUDGET),
     }
+    # language 只取 Request 的 locale：collect 把它当搜索语言过滤传出去，是硬过滤，画像里的语言只是检索标签，
+    # 绝不进这里。region 在 locale 没给时退到创作者自己设的市场，那只是缺省检索地区。
     if locale.get("language"):
         arguments["language"] = locale["language"]
+    creator = request.get("creator_profile") if isinstance(request.get("creator_profile"), dict) else {}
+    market = creator.get("market_region")
     if locale.get("region"):
         arguments["region"] = locale["region"]
+    elif isinstance(market, str) and intake.REGION.match(market):
+        arguments["region"] = market
     return {"tool": "collect_youtube_trend_candidates", "arguments": arguments}
 
 
@@ -478,6 +549,7 @@ def stage_discover(args: argparse.Namespace) -> None:
     if originals is None:
         return
     complete_request_and_plan("trend-query-plan.v1")
+    profiled = attach_profile()
     if not _locale_preflight(args, originals):
         return
     if not _window_preflight(args, originals):
@@ -485,11 +557,13 @@ def stage_discover(args: argparse.Namespace) -> None:
     freeze(args)
     try:
         query_input_validator.validate(cd.load(PLAN))
+        if profiled:
+            query_input_validator.validate_against_request(cd.load(PLAN), cd.load(REQUEST))
     except ValueError as error:
         if not _input_error(args, originals, error):
             return
     cd.script("validate_request_window.py", REQUEST, show=True)
-    cd.script("validate_query_plan.py", PLAN, show=True)
+    cd.script("validate_query_plan.py", PLAN, *(("--request", REQUEST) if profiled else ()), show=True)
     request, plan = cd.load(REQUEST), cd.load(PLAN)
     calls = [collect_call(request, plan)]
     key = round_key(calls)
@@ -556,7 +630,14 @@ def stage_discover(args: argparse.Namespace) -> None:
         if c.get("key") == key:
             c["covered"] = True
     cd.save_state(collections=collections)
-    cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", CANDIDATES,
+    # Coverage judges the collection as the backend returned it; eligibility then narrows what the
+    # Creator is shown, so a thin eligible set never reads as a failed route.
+    if profiled:
+        cd.script("filter_candidate_eligibility.py", "--request", REQUEST, "--candidates", CANDIDATES,
+                  "--output", ELIGIBLE, "--platform", PLATFORM, show=True)
+    else:
+        Path(ELIGIBLE).unlink(missing_ok=True)
+    cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", candidates_file(),
               "--output", GATE_INPUT, "--table", show=True)
     cd.say(json.dumps(gate_builder.stage_contract(cd.load(GATE_INPUT), GATE_SCORES, "rank", __file__), ensure_ascii=False))
 
@@ -566,7 +647,7 @@ def stage_discover(args: argparse.Namespace) -> None:
 
 def build_ranking_input() -> dict[str, Any]:
     """The ranking input for this Gate, built once; the builder refuses to overwrite its output."""
-    args = ["--request", REQUEST, "--candidates", CANDIDATES, "--gate", GATE]
+    args = ["--request", REQUEST, "--candidates", candidates_file(), "--gate", GATE]
     if not Path(RANKING_INPUT).exists():
         cd.say(cd.script("build_youtube_ranking_input.py", *args, "--output", RANKING_INPUT).rstrip())
         return cd.load(RANKING_INPUT)
@@ -587,14 +668,14 @@ def build_ranking_input() -> dict[str, Any]:
 
 
 def stage_rank(args: argparse.Namespace) -> None:
-    need(REQUEST, CANDIDATES, GATE_INPUT, GATE_SCORES)
+    need(REQUEST, candidates_file(), GATE_INPUT, GATE_SCORES)
     if not gate_preflight([(GATE_INPUT, GATE_SCORES, GATE)], "rank",
                           Path(ENRICHMENT_RESPONSE).exists() or (Path(RANKING_INPUT).exists() and bool(cd.state().get("handed")))):
         return
     cd.script("build_relevance_gate.py", "--input", GATE_INPUT, "--scores", GATE_SCORES, "--output", GATE, show=True)
     ranking = build_ranking_input()
     selected = ranking.get("selected", ranking.get("items")) or []
-    base = ["--request", REQUEST, "--candidates", CANDIDATES, "--gate", GATE]
+    base = ["--request", REQUEST, "--candidates", candidates_file(), "--gate", GATE]
     if not selected:
         # No item reached both floors: never call enrichment with an empty array.
         cd.say("[drive] no candidate reached both Gate floors; building the empty Snapshot without enrichment")
@@ -614,8 +695,15 @@ def stage_rank(args: argparse.Namespace) -> None:
         need(ENRICHMENT_RESPONSE)
         cd.script("build_trend_workflow_snapshot.py", *base, "--enrichment", ENRICHMENT_RESPONSE,
                   "--merged-enrichment-output", ENRICHMENT, "--output", SNAPSHOT)
+    # 带画像时在服务端 enrich 定下的条目上按主打内容分名额；不带画像时命令与参数和原来一样。
+    profiled = intake.attached(cd.load(REQUEST))
+    if profiled:
+        cd.say(cd.script("allocate_signature_content.py", "--platform", PLATFORM, "--request", REQUEST,
+                         "--gate", GATE, "--candidates", candidates_file(), "--enrichment", ENRICHMENT,
+                         "--output", ALLOCATION).rstrip())
     cd.script("analyze_public_snapshot.py", SNAPSHOT, "--mode", "trend", "--request", REQUEST,
-              "--relevance-gate", GATE, "--trend-enrichment", ENRICHMENT, "--output", ANALYSIS)
+              "--relevance-gate", GATE, "--trend-enrichment", ENRICHMENT,
+              *(("--allocation", ALLOCATION) if profiled else ()), "--output", ANALYSIS)
     cd.say(Path(ANALYSIS).read_text(encoding="utf-8").rstrip())
     cd.script("prepare_hook_context.py", "--platform", "youtube", "--purpose", "trends",
               "--output", "hook-context.json", show=True)
@@ -740,6 +828,7 @@ def main() -> int:
     sub = parser.add_subparsers(dest="stage", required=True)
     start = sub.add_parser("start")
     start.add_argument("--video", help="the source video's URL or id, when the ask supplies one")
+    start.add_argument("--profile", help="the Creator's saved account profile file, when the host supplies one")
     discover = sub.add_parser("discover")
     discover.add_argument("--policy", choices=POLICIES, help="the window policy the ask was classified as")
     discover.add_argument("--since", help="user_named_span only: the span's start, kept exactly")

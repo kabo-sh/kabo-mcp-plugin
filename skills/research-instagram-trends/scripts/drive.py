@@ -14,11 +14,13 @@ connector calls the judgment implies, places each response with the same persist
 workflow ran, runs the same deterministic scripts with the same arguments, and prints exactly what
 the next judgment reads.
 
-    start    [--post URL]                run directory; source Reel (get_post + get_transcript),
-                                         printed -> Request + plan schemas
-    discover --policy P [--since --until] [--question-file -]
-                                         freeze -> validate the plan per lane -> collect every lane
-                                         -> persist (+ bind the two lanes) -> relevance Gate table
+    start    [--post URL | --profile F]  run directory; source Reel (get_post + get_transcript),
+                                         printed -> Request + plan schemas; or the Creator's saved
+                                         account profile -> its signature content
+    discover --policy P [--since --until] [--without-include] [--question-file -]
+                                         attach the profile -> freeze -> validate the plan per lane
+                                         -> collect every lane -> persist (+ bind the two lanes)
+                                         (-> eligible candidates, with a profile) -> relevance Gate table
     gate                                 two lanes only: relevance Gate -> reach Gate table
     rank                                 Gate(s) -> ranking input -> enrich -> persist -> Snapshot
                                          -> Analyze -> Analysis + synthesis schema
@@ -40,7 +42,9 @@ The manual commands these stages replace, unchanged in what they run and write:
 
 Connector calls are handed to the model (connector_driver.py): the stage prints each call as a
 named /mcp-pub tool call and stops, the model makes it and stages the complete result with
-`static_host.py stage`, and the same stage run again with `--placed` places that response.
+`static_host.py stage`, and the same stage run again with `--placed` places that response. With a
+profile attached the collect calls carry `include`; when Kabo refuses one only for it, the same
+stage run with `--without-include` hands it over once more without it (attach_creator_profile.py).
 """
 
 from __future__ import annotations
@@ -82,6 +86,8 @@ RANKING_INPUT = "trend-ranking-input.json"
 ENRICH_CALL = "trend-enrichment-call.json"
 ENRICHMENT_RESPONSE = "trend-enrichment-01.json"
 ENRICHMENT = "trend-enrichment.json"
+# With the Creator's account profile attached: the seats each signature content item holds.
+ALLOCATION = "signature-content-allocation.json"
 SNAPSHOT = "public-content-snapshot.json"
 ANALYSIS = "public-content-analysis.json"
 SYNTHESIS = "trend-research-synthesis.json"
@@ -101,6 +107,9 @@ def _validator(name: str):
 
 query_input_validator = _validator("validate_query_plan")
 window_input_validator = _validator("freeze_request_window")
+intake = _validator("attach_creator_profile")
+PLATFORM = "instagram"
+PROFILE_SOURCE = intake.PROFILE_SOURCE
 
 
 def _utc_now() -> datetime:
@@ -266,14 +275,26 @@ def _locale_preflight(args: argparse.Namespace, originals: dict[str, bytes]) -> 
 # Each discovery lane's files. The relevance lane keeps the names the one-lane workflow always used;
 # the reach lane's carry `-reach`, and the two collector results are persisted under neutral names
 # first, because both return the same schema and only their echoed window says which lane is which.
+# `eligible` is the subset every step after collection reads when the Creator's account profile is
+# attached (scripts/filter_candidate_eligibility.py); without a profile it is never written.
 LANES = {
     "relevance": {"input": "trend-collection-input.json", "candidates": "trend-candidate-set.json",
+                  "eligible": "trend-candidate-set-eligible.json",
                   "gate_input": "trend-relevance-gate-input.json", "scores": "trend-relevance-gate.tsv",
                   "gate": "trend-relevance-gate.json"},
     "reach": {"input": "trend-collection-input-reach.json", "candidates": "trend-candidate-set-reach.json",
+              "eligible": "trend-candidate-set-reach-eligible.json",
               "gate_input": "trend-relevance-gate-input-reach.json", "scores": "trend-relevance-gate-reach.tsv",
               "gate": "trend-relevance-gate-reach.json"},
 }
+
+
+def lane_candidates(name: str) -> str:
+    """The candidate set of a lane that the Gate, ranking and Snapshot read."""
+    eligible = LANES[name]["eligible"]
+    return eligible if Path(eligible).is_file() else LANES[name]["candidates"]
+
+
 NEUTRAL_SETS = ("trend-candidate-set-lane-1.json", "trend-candidate-set-lane-2.json")
 
 POST_URL = re.compile(r"instagram\.com/(?:[A-Za-z0-9._]+/)?(reels?|p|tv)/([A-Za-z0-9_-]{5,64})", re.IGNORECASE)
@@ -461,7 +482,47 @@ def print_source() -> None:
                f"{str(data.get('transcript_evidence') or transcript.get('summary') or '')[:200]})")
 
 
+def read_profile_argument(args: argparse.Namespace) -> bytes | None:
+    """The profile file's bytes, checked before a run directory is reserved for it."""
+    given = getattr(args, "profile", None)
+    if not isinstance(given, str) or not given.strip():
+        return None
+    if isinstance(getattr(args, "post", None), str) and args.post.strip():
+        raise cd.StageError("--profile and --post are two different starts: a supplied Reel names its own author as "
+                            "the Creator, the profile names the account it was read for. Pass one of them")
+    path = Path(given).expanduser().resolve()
+    try:
+        raw = path.read_bytes()
+        intake.read_profile(json.loads(raw.decode("utf-8")))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, intake.ProfileError) as error:
+        raise cd.StageError(f"the profile file {given} cannot be used: {error}") from error
+    return raw
+
+
+def attach_profile() -> bool:
+    """Copy the saved account profile's fields into the Request; whether any profile field is attached.
+
+    Signature content may be missing while the topics the Creator excluded are not; the plan check,
+    the `include` fields and the eligibility filter follow any field, the seats only signature content.
+
+    Runs before the window is frozen, so the frozen Request already carries them and a rerun finds
+    nothing to change. Without a profile file it only removes profile fields written by hand.
+    """
+    source = Path(PROFILE_SOURCE)
+    try:
+        report = intake.attach_file(Path(REQUEST), source if source.is_file() else None, PLATFORM)
+    except intake.ProfileError as error:
+        raise cd.StageError(str(error)) from error
+    if report.get("dropped"):
+        cd.say(f"[drive] removed {', '.join(report['dropped'])} from creator_profile: those fields come only from a "
+               "supplied profile file")
+    if source.is_file():
+        cd.say(f"[drive] creator profile: {json.dumps(report, ensure_ascii=False)}")
+    return intake.profile_fields_attached(cd.load(REQUEST))
+
+
 def stage_start(args: argparse.Namespace) -> None:
+    profile = read_profile_argument(args)
     cd.reserve_run_directory(args.placed, args=args)
     if args.post:
         url = post_url_of(args.post)
@@ -482,6 +543,16 @@ def stage_start(args: argparse.Namespace) -> None:
         cd.fetch_round(cd.batch_calls(requests), args, place)
         print_source()
     cd.show_schema("trend-research-request.schema.json", "trend-query-plan.schema.json")
+    if profile is not None:
+        placed = Path(PROFILE_SOURCE)
+        # 用户可能在本轮中途改了画像。冻结后的 Request 已经带着旧画像的字段，换文件会让同一轮前后两半口径
+        # 不一致，所以字节不同就停下，让模型开一个新 run；同一份文件重跑 start 照常。
+        if placed.is_file() and placed.read_bytes() != profile:
+            raise cd.StageError("the profile file differs from the one this run started with: the profile changed "
+                                "during the run. Start a new run with the new file")
+        placed.write_bytes(profile)
+        for line in intake.describe(json.loads(profile.decode("utf-8")), PLATFORM):
+            cd.say(line)
 
 
 # --------------------------------------------------------------------------- discover
@@ -581,6 +652,7 @@ def stage_discover(args: argparse.Namespace) -> None:
     if originals is None:
         return
     complete_request_and_plan("trend-query-plan.v1")
+    profiled = attach_profile()
     if not _locale_preflight(args, originals):
         return
     if not _window_preflight(args, originals):
@@ -615,11 +687,18 @@ def stage_discover(args: argparse.Namespace) -> None:
                          "--reach-output", LANES["reach"]["candidates"]).rstrip())
 
     # Both lanes in one round: one hand-over names both collector calls for one response.
-    cd.fetch_round(calls, args, place)
+    with intake.include_fallback(cd, args):
+        cd.fetch_round(calls, args, place)
     cd.save_state(collected=True, lanes=names)
     lane = LANES["relevance"]
     need(lane["candidates"])
-    cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", lane["candidates"],
+    for name in names:
+        if profiled:
+            cd.script("filter_candidate_eligibility.py", "--request", REQUEST, "--candidates", LANES[name]["candidates"],
+                      "--output", LANES[name]["eligible"], "--platform", PLATFORM, show=True)
+        else:
+            Path(LANES[name]["eligible"]).unlink(missing_ok=True)
+    cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", lane_candidates("relevance"),
               "--output", lane["gate_input"], "--table", show=True)
     cd.say(json.dumps(gate_builder.stage_contract(cd.load(lane["gate_input"]), lane["scores"],
                                                  "gate" if "reach" in names else "rank", __file__), ensure_ascii=False))
@@ -666,8 +745,8 @@ def stage_gate(args: argparse.Namespace) -> None:
     build_gate("relevance")
     # One table per command: two full tables in one output overflow the tool output limit.
     reach = LANES["reach"]
-    need(REQUEST, reach["candidates"])
-    cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", reach["candidates"],
+    need(REQUEST, lane_candidates("reach"))
+    cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", lane_candidates("reach"),
               "--output", reach["gate_input"], "--table", show=True)
     cd.say(json.dumps(gate_builder.stage_contract(cd.load(reach["gate_input"]), reach["scores"],
                                                  "rank", __file__), ensure_ascii=False))
@@ -683,9 +762,9 @@ def build_ranking_input(lanes: list[str]) -> tuple[dict[str, Any], str]:
     keeps the first unless the Gate changed. The `--print` line is the compact ranking input the
     manual workflow printed for the enrichment call; it is shown only when the model makes that call.
     """
-    args = ["--request", REQUEST, "--candidates", LANES["relevance"]["candidates"], "--gate", LANES["relevance"]["gate"]]
+    args = ["--request", REQUEST, "--candidates", lane_candidates("relevance"), "--gate", LANES["relevance"]["gate"]]
     if "reach" in lanes:
-        args += ["--reach-candidates", LANES["reach"]["candidates"], "--reach-gate", LANES["reach"]["gate"]]
+        args += ["--reach-candidates", lane_candidates("reach"), "--reach-gate", LANES["reach"]["gate"]]
     if not Path(RANKING_INPUT).exists():
         status, printed = cd.script("build_instagram_ranking_input.py", *args, "--output", RANKING_INPUT,
                                     "--print").rstrip("\n").split("\n", 1)
@@ -735,7 +814,7 @@ USE_MULTISET_HANDLE = False
 def multiset_arguments(lean: dict[str, Any]) -> dict[str, Any] | None:
     from build_instagram_ranking_input import multiset_handle  # noqa: E402 (this package's own)
 
-    return multiset_handle(lean, cd.load(LANES["relevance"]["candidates"]), cd.load(LANES["reach"]["candidates"]))
+    return multiset_handle(lean, cd.load(lane_candidates("relevance")), cd.load(lane_candidates("reach")))
 
 
 def hand_over_lean(call: dict[str, Any]) -> None:
@@ -893,7 +972,7 @@ def lane_union() -> tuple[str, str]:
 
     The same rule the ranking builder applies: an item both lanes found counts as relevance.
     """
-    candidates, reach_candidates = cd.load(LANES["relevance"]["candidates"]), cd.load(LANES["reach"]["candidates"])
+    candidates, reach_candidates = cd.load(lane_candidates("relevance")), cd.load(lane_candidates("reach"))
     gate, reach_gate = cd.load(LANES["relevance"]["gate"]), cd.load(LANES["reach"]["gate"])
     keys = {str(item["content_key"]) for item in candidates.get("items") or []}
     union = {**candidates, "items": [*(candidates.get("items") or []),
@@ -912,7 +991,7 @@ def stage_rank(args: argparse.Namespace) -> None:
     if "reach" in lanes and not Path(LANES["reach"]["scores"]).is_file():
         raise cd.StageError(f"this run has two discovery lanes: score the reach table into {LANES['reach']['scores']} "
                             f"first (`drive.py gate` prints it after {GATE_SCORES})")
-    need(REQUEST, LANES["relevance"]["candidates"])
+    need(REQUEST, lane_candidates("relevance"))
     if not gate_preflight([(LANES[name]["gate_input"], LANES[name]["scores"], LANES[name]["gate"])
                            for name in lanes], "rank", gate_frozen()):
         return
@@ -920,7 +999,7 @@ def stage_rank(args: argparse.Namespace) -> None:
         build_gate(name)
     ranking, printed = build_ranking_input(lanes)
     selected = ranking.get("selected", ranking.get("items")) or []
-    pool, pool_gate = lane_union() if "reach" in lanes else (LANES["relevance"]["candidates"], LANES["relevance"]["gate"])
+    pool, pool_gate = lane_union() if "reach" in lanes else (lane_candidates("relevance"), LANES["relevance"]["gate"])
     base = ["--request", REQUEST, "--candidates", pool, "--gate", pool_gate]
     if not selected:
         # No item reached the floor: never call enrichment with an empty array.
@@ -945,8 +1024,16 @@ def stage_rank(args: argparse.Namespace) -> None:
         need(ENRICHMENT_RESPONSE)
         cd.script("build_trend_workflow_snapshot.py", *base, "--enrichment", ENRICHMENT_RESPONSE,
                   "--merged-enrichment-output", ENRICHMENT, "--output", SNAPSHOT)
+    # 带画像时在服务端 enrich 定下的条目上按主打内容分名额；双车道时分配的是两条车道的并集。
+    # 不带画像时命令与参数和原来一样。
+    profiled = intake.attached(cd.load(REQUEST))
+    if profiled:
+        cd.say(cd.script("allocate_signature_content.py", "--platform", PLATFORM, "--request", REQUEST,
+                         "--gate", pool_gate, "--candidates", pool, "--enrichment", ENRICHMENT,
+                         "--output", ALLOCATION).rstrip())
     cd.script("analyze_public_snapshot.py", SNAPSHOT, "--mode", "trend", "--request", REQUEST,
-              "--relevance-gate", pool_gate, "--trend-enrichment", ENRICHMENT, "--output", ANALYSIS)
+              "--relevance-gate", pool_gate, "--trend-enrichment", ENRICHMENT,
+              *(("--allocation", ALLOCATION) if profiled else ()), "--output", ANALYSIS)
     cd.say(Path(ANALYSIS).read_text(encoding="utf-8").rstrip())
     cd.script("prepare_hook_context.py", "--platform", "instagram", "--purpose", "trends",
               "--output", "hook-context.json", show=True)
@@ -1072,12 +1159,16 @@ def main() -> int:
     sub = parser.add_subparsers(dest="stage", required=True)
     start = sub.add_parser("start")
     start.add_argument("--post", help="the source Reel's URL, when the ask supplies one")
+    start.add_argument("--profile", help="the Creator's saved account profile file, when the host supplies one")
     discover = sub.add_parser("discover")
     discover.add_argument("--policy", choices=POLICIES, help="the window policy the ask was classified as")
     discover.add_argument("--since", help="user_named_span only: the span's start, kept exactly")
     discover.add_argument("--until", help="user_named_span only: the span's end, kept exactly")
     discover.add_argument("--question-file", help="- to read the user's original ask, verbatim, from standard input "
                                                   "(a heredoc on the same command); or a file holding it")
+    discover.add_argument("--without-include", action="store_true",
+                          help="Kabo refused handed-over calls only for their `include` parameter: hand them over "
+                               "once more without it")
     for name in ("gate", "rank", "report"):
         sub.add_parser(name)
     sub.choices["report"].add_argument("--language", help="the Creator's chat language (BCP 47, such as zh-CN)")

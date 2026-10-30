@@ -43,6 +43,87 @@ def matched_queries(item: dict[str, Any]) -> list[str]:
     return found
 
 
+# 表格里的一行就是 Gate 对一条候选能看到的全部内容。平台写的摘要只给一个有上限的短位置，
+# 放在作者原文之后，不跟作者原文抢分页预算。
+PLATFORM_SUMMARY_LIMIT = 160
+SIGNATURE_CONTENT_LIMIT = 4
+EXCLUDED_TOPICS_LIMIT = 10
+
+
+def platform_summary(item: dict[str, Any]) -> str | None:
+    """平台对这条内容的描述，和作者自己写的文字分开放。
+
+    只有拿到平台信号的候选构建器才会写 `platform_summary_source`（目前是带
+    `include: ["content_signals"]` 的 TikTok 搜索行）。这段文字是平台写的，表格里要标明：
+    如果当成作者原话来打分，平台生成的一句描述会被读成作者亲口点出了做法。这里不取任何数据，
+    没有来源的候选就没有摘要。YouTube 只有 search 结果自带的 description，那是作者写的，
+    已经在 visible_text 里，不另做摘要。
+    """
+    source = item.get("platform_summary_source")
+    if not isinstance(source, dict):
+        return None
+    parts: list[str] = []
+    desc = source.get("content_desc")
+    if isinstance(desc, str) and " ".join(desc.split()):
+        parts.append(" ".join(desc.split()))
+    words = [" ".join(word.split()) for word in source.get("suggest_words") or []
+             if isinstance(word, str) and word.strip()]
+    if words:
+        parts.append("related searches: " + ", ".join(dict.fromkeys(words)))
+    if not parts:
+        return None
+    text = "; ".join(parts)
+    if len(text) > PLATFORM_SUMMARY_LIMIT:
+        text = text[:PLATFORM_SUMMARY_LIMIT - 1].rstrip() + "\u2026"
+    return text
+
+
+def signature_subject(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    """按闸门编号列出创作者的主打内容：编号就是它在 Request 数组里的下标 + 1。
+
+    画像接收已经把 Request 数组排好序（weight 降序，同权按 id），编号在那里定一次，这里不再
+    重排。id 一并写进投影文件，是为了让打分脚本不读 Request 也能把模型填的编号换回 id。
+    """
+    items = profile.get("signature_content")
+    if items is None:
+        return []
+    if not isinstance(items, list) or len(items) > SIGNATURE_CONTENT_LIMIT:
+        raise ValueError(f"creator_profile.signature_content must be an array of at most {SIGNATURE_CONTENT_LIMIT}")
+    subject: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for number, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            raise ValueError("every signature_content entry must be an object")
+        fields = {key: item.get(key) for key in ("id", "name", "topic", "approach")}
+        if any(not isinstance(value, str) or not value.strip() for value in fields.values()):
+            raise ValueError(f"signature_content {number} needs a nonempty id, name, topic and approach")
+        if fields["id"] in seen:
+            raise ValueError(f"signature_content id {fields['id']} appears twice")
+        seen.add(fields["id"])
+        examples = [title.strip() for title in item.get("example_titles") or []
+                    if isinstance(title, str) and title.strip()]
+        subject.append({"number": number, "id": fields["id"], "name": fields["name"].strip(),
+                        "topic": fields["topic"].strip(), "approach": fields["approach"].strip(),
+                        "examples": examples})
+    return subject
+
+
+def excluded_subject(profile: dict[str, Any]) -> list[str]:
+    """创作者排除的话题，原样交给闸门。
+
+    资格过滤只剔除字面命中的候选；换了说法或换了语言的同一话题只有闸门看得出来，所以把话题印进表头，
+    让闸门把这类条目的 topic_relevance 打 0。没有排除话题时 subject 不加这个键，表头逐字节不变。
+    """
+    topics = profile.get("excluded_topics")
+    if topics is None:
+        return []
+    if not isinstance(topics, list) or len(topics) > EXCLUDED_TOPICS_LIMIT:
+        raise ValueError(f"creator_profile.excluded_topics must be an array of at most {EXCLUDED_TOPICS_LIMIT}")
+    if any(not isinstance(topic, str) or not topic.strip() for topic in topics):
+        raise ValueError("every creator_profile.excluded_topics entry must be a nonempty string")
+    return [topic.strip() for topic in topics]
+
+
 def creator_label(item: dict[str, Any]) -> str | None:
     author = item.get("author") if isinstance(item.get("author"), dict) else {}
     channel = item.get("channel") if isinstance(item.get("channel"), dict) else {}
@@ -73,6 +154,9 @@ def project(request: dict[str, Any], candidates: dict[str, Any]) -> dict[str, An
         label = creator_label(item)
         if label:
             row["creator_label"] = label
+        summary = platform_summary(item)
+        if summary:
+            row["platform_summary"] = summary
         queries = matched_queries(item)
         if queries:
             row["matched_queries"] = queries
@@ -115,6 +199,12 @@ def project(request: dict[str, Any], candidates: dict[str, Any]) -> dict[str, An
         subject["anchor_handle"] = handle.strip()
     if mechanisms:
         subject["anchor_mechanisms"] = mechanisms
+    signature = signature_subject(profile)
+    if signature:
+        subject["signature_content"] = signature
+    excluded = excluded_subject(profile)
+    if excluded:
+        subject["excluded_topics"] = excluded
     return {
         "schema_version": "trend-relevance-gate-input.v1",
         "request_id": str(request["request_id"]),
@@ -128,10 +218,30 @@ def project(request: dict[str, Any], candidates: dict[str, Any]) -> dict[str, An
 TABLE_BUDGET_BYTES = 32_000
 
 
+SIGNATURE_CONTENT_RULE = ("Score one more column after creator_transferability: the number of the "
+                          "subject.signature_content entry whose approach this item reproduces, or 0 when it "
+                          "reproduces none of them.")
+EXCLUDED_TOPICS_RULE = ("Score topic_relevance 0 for an item whose subject is one of subject.excluded_topics (topics "
+                        "the Creator excluded), however it is worded and in whatever language.")
+PLATFORM_SUMMARY_RULE = ("Text after \"platform summary, not by the author:\" was written by the platform, not by "
+                         "the item's author: use it to tell what the item shows, never as the author's wording.")
+
+
 def table_parts(output: dict[str, Any]):
     """Yield the original table records without shortening any evidence."""
     header = {key: output[key] for key in ("request_id", "platform", "subject")}
     subject = output["subject"]
+    if subject.get("signature_content"):
+        # 模型只按打印出的编号作答。id 只留在投影文件里给打分脚本用，表头不印 id，
+        # 免得模型在编号那一列写成 id。
+        header["subject"] = {**subject, "signature_content": [
+            {key: entry[key] for key in ("number", "name", "topic", "approach", "examples") if key in entry}
+            for entry in subject["signature_content"]]}
+        header["signature_content_rule"] = SIGNATURE_CONTENT_RULE
+    if subject.get("excluded_topics"):
+        header["excluded_topics_rule"] = EXCLUDED_TOPICS_RULE
+    if any(row.get("platform_summary") for row in output["items"]):
+        header["platform_summary_rule"] = PLATFORM_SUMMARY_RULE
     if subject.get("region") is None and subject.get("language") is None:
         # The rule sits in SKILL.md, but the Gate is scored from this table: plugins 2026-10-29 J1
         # (a Chinese ask, no market named) scored six of seven English home-workout videos 75 on
@@ -142,8 +252,10 @@ def table_parts(output: dict[str, Any]):
     for index, row in enumerate(output["items"], start=1):
         text = " / ".join(part.strip() for part in str(row.get("visible_text") or "").splitlines() if part.strip())
         queries = "; ".join(row.get("matched_queries") or [])
+        summary = row.get("platform_summary")
         yield index, (f"\n{index}. [{row.get('creator_label') or '?'}]" +
-                      (f" {{{queries}}}" if queries else "") + f" {text}")
+                      (f" {{{queries}}}" if queries else "") + f" {text}" +
+                      (f" (platform summary, not by the author: {summary})" if summary else ""))
 
 
 def table(output: dict[str, Any]) -> str:
@@ -254,7 +366,19 @@ def validate_projection(value: dict[str, Any]) -> None:
         if "matched_queries" in row and (not isinstance(row["matched_queries"], list) or
                                           any(not isinstance(query, str) for query in row["matched_queries"])):
             raise ValueError("matched_queries must be an array of strings")
+        if "platform_summary" in row and (not isinstance(row["platform_summary"], str) or
+                                           not row["platform_summary"].strip() or
+                                           len(row["platform_summary"]) > PLATFORM_SUMMARY_LIMIT):
+            raise ValueError(f"platform_summary must be a nonempty string of at most {PLATFORM_SUMMARY_LIMIT} characters")
         seen.add(row["content_key"])
+    signature = value["subject"].get("signature_content")
+    if signature is not None:
+        if (not isinstance(signature, list) or not 1 <= len(signature) <= SIGNATURE_CONTENT_LIMIT or
+                [entry.get("number") if isinstance(entry, dict) else None for entry in signature]
+                != list(range(1, len(signature) + 1)) or
+                any(not isinstance(entry.get("id"), str) or not entry["id"] for entry in signature) or
+                len({entry["id"] for entry in signature}) != len(signature)):
+            raise ValueError("subject.signature_content must number 1..k distinct ids in order")
 
 
 def main() -> int:
