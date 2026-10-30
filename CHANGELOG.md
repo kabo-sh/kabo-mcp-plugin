@@ -2,6 +2,16 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.6（2026-10-30；GitHub Release）
+
+- `remake-viral-video`：支持画中画（口播中切到录屏或截图）与实物（口播时展示产品、切产品特写）两类参考视频，
+  移植自网页端 creator-remake-web 0.1.32（creator-skills `f74df60a`）的 `talking-with-screens.md`、`talking-with-product.md`；
+  类型由 runner 自动判定。实物的口播镜头按设计空手，技能提前告诉用户、不承诺手持产品。
+  依赖 kabo#1896（`/mcp-pub` 放行这两类、三类口播都给口播模型报价），runner V2-r66。
+- 旁白参考仍未放进插件（preview 需要 runner r63 以上，单独发版）。
+- `contracts/directory-mcp/` 未重新固定：kabo main 上 YouTube / TikTok 等工具契约另有变化，需与相关 Skill 的绑定一起同步，单独处理。
+- 生产回归：待补。
+
 ## 1.0.5（2026-10-29；GitHub Release）
 
 - `remake-viral-video`：参考视频上限 60 秒 → 90 秒（kabo#1826，runner r62）。
