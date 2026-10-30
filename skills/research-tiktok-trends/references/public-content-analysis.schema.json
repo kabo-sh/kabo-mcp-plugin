@@ -19,7 +19,23 @@
     "relevance": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/relevance"}]},
     "claim_boundary": {"$ref": "#/$defs/claimBoundary"},
     "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
-    "reproducibility": {"$ref": "#/$defs/reproducibility"}
+    "reproducibility": {"$ref": "#/$defs/reproducibility"},
+    "signature_content": {
+      "type": "array",
+      "maxItems": 4,
+      "description": "Only with a signature-content allocation: each signature content item of the Request with its seats (quota) and the seats filled.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "quota", "filled"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "name": {"type": "string"},
+          "quota": {"type": "integer", "minimum": 0},
+          "filled": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
   },
   "$defs": {
     "metricValues": {
@@ -89,7 +105,12 @@
         "comments": {"type": ["number", "null"], "minimum": 0},
         "ranking_metric": {"type": "string", "minLength": 1},
         "ranking_value": {"type": "number", "minimum": 0},
-        "rank": {"type": "integer", "minimum": 1}
+        "rank": {"type": "integer", "minimum": 1},
+        "signature_content_id": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "Only with a signature-content allocation: the signature content item this seat represents; null when the item holds no seat or its seat matched no item."
+        }
       }
     },
     "accountOutlier": {
@@ -176,6 +197,7 @@
         "request_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
         "formula_set_version": {"const": "public-content-facts.v1.3"},
         "observed_at": {"type": "string", "format": "date-time"},
+        "allocation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "window": {
           "type": "object",
           "additionalProperties": false,

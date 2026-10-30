@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import importlib.util
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,21 @@ def load(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{path} must contain an object")
     return value
+
+
+def _profile_intake():
+    """This package's own attach_creator_profile.py: the seed matching every trend channel shares.
+
+    Loaded by path, never through sys.modules, so a process that loaded another package's validator
+    cannot hand this one a different copy; no bytecode is written into the signed package.
+    """
+    sys.dont_write_bytecode = True
+    path = Path(__file__).with_name("attach_creator_profile.py")
+    spec = importlib.util.spec_from_file_location(f"{path.parent.parent.name}:attach_creator_profile", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 def bounded_text(value: Any, field: str, minimum: int, maximum: int) -> str:
@@ -122,7 +139,20 @@ def validate_against_request(plan: dict[str, Any], request: dict[str, Any]) -> N
     `visual styles` surfaced three. Variants must therefore keep a caption phrase's head token
     and change the qualifier, which is what reaches the rest of the community without drifting
     onto a different subject.
+
+    With the Creator's saved account profile attached, its signature content replaces the caption
+    phrases as the plan's anchor: every intent carries a seed term or hashtag of one signature
+    content item verbatim, and together the intents reach min(count, 4) items. The caption-phrase
+    floors then do not apply, because the seeds already are the Creator's own words, grouped by
+    what the account is known for, and the two rules would compete for the same six slots.
     """
+    intake = _profile_intake()
+    # 排除话题不依赖主打内容：只有设定、没有主打内容时 caption phrase 那套规则照常，排除话题照样拒收。
+    intake.check_excluded([str(intent["search_query"]) for intent in plan["intents"]], request)
+    if intake.attached(request):
+        intake.check_plan([str(intent["search_query"]) for intent in plan["intents"]], request,
+                          per_intent="covering")
+        return
     phrases = caption_phrases(request)
     if not phrases:
         return
@@ -216,6 +246,10 @@ def collection_input(plan: dict[str, Any], request: dict[str, Any], window: str)
                    "challenger_pages_per_intent": 1, "max_provider_calls": 24,
                    "max_candidates": 160, "max_detail_calls": 0},
     }
+    if _profile_intake().profile_fields_attached(request):
+        # Audio and duration per Reel, for the eligibility filter and the Gate. Asked only with a
+        # profile attached, so a run without one sends the collector exactly what it always did.
+        result["include"] = ["media_signals"]
     locale = request.get("locale")
     if locale is not None and not isinstance(locale, dict):
         raise ValueError("locale must be an object or null")
@@ -258,12 +292,19 @@ def main() -> int:
             raise ValueError("--collector-output requires --request")
         validate(plan, request)
         anchored = None
+        signature = 0
         if request is not None:
             validate_against_request(plan, request)
             anchored = len(caption_phrases(request))
+            signature = len(_profile_intake().signature_content(request))
         result = {"valid": True, "intents": len(plan["intents"])}
-        if anchored is not None:
+        if anchored is not None and not signature:
             result["caption_phrases_checked"] = anchored
+        if signature:
+            result["signature_content_checked"] = signature
+        excluded = len(_profile_intake().excluded_topics(request)) if request is not None else 0
+        if excluded:
+            result["excluded_topics_checked"] = excluded
         if request is not None:
             # Recorded so a finished run says which regime it ran under. Three separate rules
             # switch on this one fact, and a run that silently took the short-window branch is
