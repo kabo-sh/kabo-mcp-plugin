@@ -226,6 +226,10 @@ def role_of(envelope: dict[str, Any]) -> str | None:
         return "public_post"
     if envelope.get("connector_id") != MEDIA_CONNECTOR:
         return None
+    # A YouTube measurement now runs through the same hosted fetch as its keyframes and comes back
+    # under that execution's name; it is still the measurement that was asked for.
+    if envelope.get("operation") == "measure_media_signals_hosted_stream":
+        return "measurements"
     return ROLE_OF_OPERATION.get(str(envelope.get("operation")))
 
 

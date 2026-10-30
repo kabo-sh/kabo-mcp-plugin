@@ -142,6 +142,14 @@ test("ACV 证据：关键帧结果带的 signals 进 media.probed，文件结尾
   assert.deepEqual(both.media.probed.unavailable, ["silence", "freeze"]);
 });
 
+test("ACV 证据：YouTube 测量以托管变体名 measure_media_signals_hosted_stream 回来时仍按测量读入", async (t) => {
+  const temp = await workspace(t);
+  const hosted = envelope("measure_media_signals_hosted_stream", { duration_s: 59.967, measured: ["shots"], unavailable: [],
+    shots: { count: 2, cuts_at_s: [4.0], shots: [] } }, 5);
+  const evidence = await build(temp, "hosted", REQUEST, { envelopes: [CAPTIONS, hosted] });
+  assert.deepEqual(evidence.media.probed.shots.cuts_at_s, [4.0]);
+});
+
 test("ACV 证据：本地抽帧时测的 signals 与连接器结果走同一个 probed 过滤", async (t) => {
   const temp = await workspace(t);
   const evidence = await build(temp, "local", localRequest(temp), { localMediaArtifact: localMedia({
