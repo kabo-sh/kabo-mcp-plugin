@@ -12,7 +12,9 @@
   此前多数小时级推荐会在校验步失败。
 - `verify-platform-rule` 依赖 `/mcp-pub` 恢复的 `official_page_render_page`（kabo#1817，未合入）；`contracts/directory-mcp/`
   暂时固定到该 PR 的 head `9ed1ec61a`（已合入 kabo main；64 个工具，相对 main 只增这一个），kabo 合入后须按合入 commit 重新固定。
-  四个新 Skill 只做了离线回放，未在真实宿主或生产环境实测。
+  四个新 Skill 在本机 Codex 连生产 /mcp-pub 实测：发布时间、变现已交付；平台规则核对待 kabo#1817 部署。
+- 用 `static_host.py fetch` 下载 Kabo 签名链接的 Skill：Python 默认信任库不存在时（macOS 上 python.org 装的 Python 没跑过 Install Certificates），`fetch` 改用 certifi 或系统自带的 CA 包，证书照常校验。以前这种机器上每次下载都报证书失败，模型只能自己用 curl 下载再 `stage`。
+
 ## 1.0.5（2026-10-30）
 
 - 账号画像的有效画像与按人修改（三个 trends Skill 与 `review-creator-account`）：
