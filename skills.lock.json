@@ -18,7 +18,8 @@
     },
     {
       "id": "review-creator-account",
-      "derivedFromVersion": "0.5.44",
+      "derivedFromVersion": "0.5.49",
+      "derivedFromCommit": "c414fac55381422eeb67f4ad6d01f26a4206ca77",
       "sourcePath": "creator-skills/runtime/review-creator-account"
     },
     {
