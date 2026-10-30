@@ -210,9 +210,13 @@ complete copy, never the rendering you were shown. Never write `envelope-NN.json
 ## Compute (`timing`)
 
 First write `analysis/intent.json` — request id, content, creator, candidate windows, peer snapshot
-ref — and never the `history` block, whose hash, window and counts come from the file. Write it
-**before** the engine runs; nothing in it depends on the projection. Then run these six non-final
-steps, in this order:
+ref — and never the `history` block, whose hash, window and counts come from the file. Its shape:
+`{"schema_version": "publish-request.v1", "request_id": "<id>", "content": {"platform": "<platform>",
+"format": "<content_format>"}, "creator": {"account_ref": "<account_ref>", "timezone": "<IANA zone>",
+"timezone_source": "creator_confirmed|profile_confirmed|assumed|not_supplied"}}`. Write it
+**before** the engine runs; nothing in it depends on the projection. If `build_publish_request.py`
+names missing intent fields, fix `analysis/intent.json` once and rerun that step: the one
+exception to the failure rule. Then run these six non-final steps, in this order:
 
 ```sh
 cd '<run directory>' && python3 '<skill directory>/scripts/build_history_snapshot.py' --snapshot-dir snapshot --output analysis/snapshot.json --platform <platform> --window <window>
