@@ -167,10 +167,11 @@ that never arrives.
   the platform refused the download, never that the video cannot be analysed. Place each visible
   change between the two frames that bracket it ("between 1:03 and 1:05"), read the on-screen text
   of every frame with its second, and mark the spans between frames unconfirmed.
-- **No words on a long video.** A quick transcript lookup (`instagram_get_transcript`,
-  `tiktok_search_get_transcript`) that returns none is not the final answer: call
-  `public_video_fetch_transcript`, which falls back to machine transcription inside the same call,
-  before saying the words were not read. When a whole-video reading is capped by length but accepts
+- **No words on a long video.** For a published video, a quick transcript lookup
+  (`instagram_get_transcript`, `tiktok_search_get_transcript`) that returns none is not the final
+  answer: call `public_video_fetch_transcript`, which falls back to machine transcription inside
+  the same call, before saying the words were not read. A local file never goes to that tool; its
+  words come from the tiers in `references/local-file.md`. When a whole-video reading is capped by length but accepts
   segments, read the opening window and the spans the question names, deliver, and only then ask
   for timestamps.
 - **Photo and carousel posts.** Metadata naming a photo or slideshow post, or a video reading that

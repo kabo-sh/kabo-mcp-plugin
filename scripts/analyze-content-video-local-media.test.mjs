@@ -236,7 +236,11 @@ test("ACV extract_local_frames：真实抽帧缩到 720 长边、文件名可回
     "--out-dir", path.join(temp, "analysis/budget"), "--artifact", budget, "--max-total-bytes", "1"]);
   const thinned = JSON.parse(await readFile(budget, "utf8"));
   assert.deepEqual(thinned.frames.items.map((item) => item.t_seconds), [0]);
-  assert.ok(thinned.limitations.some((text) => /byte budget/.test(text)));
+  const note = thinned.limitations.find((text) => /byte budget/.test(text));
+  assert.ok(note);
+  // 预算在开头就用完了：不能说开头和结尾都看过。
+  assert.match(note, /Not all of the opening and closing frames were written/);
+  assert.doesNotMatch(note, /are whole/);
 });
 
 test("ACV extract_local_frames --measure-signals：剪辑点与停顿按连接器形状落在 media.signals，并进入证据", { skip: !hasFfmpeg && "需要 ffmpeg/ffprobe" }, async (t) => {

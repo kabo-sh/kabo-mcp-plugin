@@ -706,11 +706,19 @@ def main() -> int:
         if over_budget and items:
             seen = [item["t_seconds"] for item in items]
             widest = max((later - earlier for earlier, later in zip(seen, seen[1:])), default=0.0)
+            # Only claim what was actually written: a budget used up inside the opening leaves
+            # part of the hook, and the closing frame, unseen.
+            missing = {entry["ordinal"] for entry in skipped}
+            whole = (not any(ordinal <= plan["hook_frames"] for ordinal in missing)
+                     and len(timestamps) not in missing)
+            coverage = ("The opening and the closing frame are whole; the body is thinner"
+                        if whole else
+                        "Not all of the opening and closing frames were written, so do not describe "
+                        "the whole hook or the ending as seen")
             limitations.append(f"{len(over_budget)} of {len(timestamps)} planned frames were not "
-                               "written because this step's frame byte budget was used up. The "
-                               "opening and the closing frame are whole; the body is thinner, with "
-                               f"up to {widest:.3g}s between frames, so a cut shorter than that may "
-                               "fall between them.")
+                               f"written because this step's frame byte budget was used up. {coverage}, "
+                               f"with up to {widest:.3g}s between written frames, so a cut shorter "
+                               "than that may fall between them.")
 
     if args.measure_loudness and facts["has_audio"] and not args.dry_run:
         loudness, step, notes = measure_loudness(media, duration)
