@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- 用 `static_host.py` 的 Skill：`stage` 拒收「状态是完成、却没有 `data`」的结果（宿主保存下载结果时丢了 `download`、只剩摘要），指回保存完整结果后 `fetch`。以前这种摘要会被当成证据放置，到后面的脚本才报错，补下载的完整结果也不再被读到。
 - 用 `static_host.py fetch` 下载 Kabo 签名链接的 Skill：Python 默认信任库不存在时（macOS 上 python.org 装的 Python 没跑过 Install Certificates），`fetch` 改用 certifi 或系统自带的 CA 包，证书照常校验。以前这种机器上每次下载都报证书失败，模型只能自己用 curl 下载再 `stage`。
 
 ## 1.0.5（2026-10-30）
