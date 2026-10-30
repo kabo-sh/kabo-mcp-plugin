@@ -2,8 +2,8 @@
 name: review-creator-account
 description: "Review an Instagram, TikTok or YouTube account: what works, what hurts, what to continue, stop or test, benchmarks, content patterns, follower loss and own-account wording audits. Also calculates engagement rate, conditional growth estimates and owner follower-contribution rankings from public data, an owner export or supplied numbers. Not for diagnosing a reach drop or shadowban, Insights UI help, trends, ideas, cadence plans, drafts, one-video edits or monetization."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permissions: data; optional workspace:read for saved account context and workspace:write only to connect a public account on request."
-allowed-tools: get_research_capabilities get_research_data_job get_research_data_download instagram_resolve_profile instagram_search_accounts instagram_list_posts instagram_list_reels youtube_get_channel youtube_list_channel_uploads tiktok_list_account_posts get_kabo_info list_connected_accounts get_creator_profile get_social_connection connect_public_account
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permissions: data; optional workspace:read for saved account context and workspace:write only to connect a public account or save the user's profile edits on request."
+allowed-tools: get_research_capabilities get_research_data_job get_research_data_download instagram_resolve_profile instagram_search_accounts instagram_list_posts instagram_list_reels youtube_get_channel youtube_list_channel_uploads tiktok_list_account_posts get_kabo_info list_connected_accounts get_creator_profile get_social_connection connect_public_account update_content_preferences
 ---
 
 # Review Creator Account
@@ -26,9 +26,12 @@ never read credentials or ask for tokens in chat.
 For "my account" without a handle, check whether `list_connected_accounts` is available and use
 the user's linked account; ask which one only when the request is ambiguous. `get_kabo_info`
 reads identity and granted permissions without credits. `get_creator_profile` provides stored
-context, not a fresh review. `get_social_connection` distinguishes official social authorization
-from a public-profile binding. Keep complete responses as context files, separate from the
-research evidence expected by the driver below; do not fabricate connector envelopes for them.
+context, not a fresh review; with `"effective": true` it adds the profile with the user's own edits
+(once more without `effective` if Kabo refuses only that). When the user asks to change that saved
+profile, follow `references/profile-edits.md`. `get_social_connection` distinguishes official
+social authorization from a public-profile binding. Keep complete responses as context files,
+separate from the research evidence expected by the driver below; do not fabricate connector
+envelopes for them.
 Only when the user asks to connect a public account, use `connect_public_account`. A replacement
 requires user confirmation plus the current id and bindingVersion. This can use data allowance;
 it neither starts an official social OAuth flow nor runs an account analysis. Write access is granted
@@ -163,8 +166,8 @@ Read `references/complete-review.md` whole before step 1: it holds the retrieval
 composition rules `drive.py` applies, the linked-post option and the recovery rules. `drive.py`
 runs every mechanical step; your one judgment is the synthesis. Make only the calls it prints; do
 not place or copy Envelopes, rerun scripts it ran, or open the files it wrote: its printed output
-is your synthesis input. Wait for each `drive.py` command to finish and never start it a second
-time while it runs. In a complete review every command before `verify-report` is non-final.
+is your synthesis input. Wait for each `drive.py` command to finish; never start it again while
+it runs.
 
 1. **Fetch.** Pass the platform, the handle the user named (`--channel-id UC…` instead for a
    YouTube channel URL that names no handle), the exact window only when the user asked for one,
@@ -194,7 +197,7 @@ time while it runs. In a complete review every command before `verify-report` is
    first fetch command there with that handle. Carry nothing over from the earlier run except what
    the creator said. If no candidate clearly is the account, tell the user it was not found and ask
    for the exact handle. **Never review a different account in the requested one's place.** When
-   `fetch` finishes, it prints the compact synthesis input and the synthesis schema.
+   `fetch` finishes, it prints the synthesis schema, then the compact synthesis input.
 
 2. **Growth (only when asked).** For a growth or future-number question, run
    `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' growth --language <synthesis language>`
@@ -213,19 +216,20 @@ time while it runs. In a complete review every command before `verify-report` is
    KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' report --allow-authoring-correction --output-dir report
    ```
 
-   Only an explicit `needs_revision` result permits correcting the named authored fields in this
-   same open run; it writes no report. Never replace a mistyped ID with a guessed near match.
+   Only `needs_revision` permits correcting the named authored fields in this same open run; it
+   writes no report. Never replace a mistyped ID with a guessed near match.
 
-4. **Verify and deliver.** After `report` returns the complete validated report, run the final
-   step, a read-only recomputation with both validators:
+4. **Verify and deliver.** When `report` prints that the report is final, it is the final step;
+   skip `verify-report`. Only a run that got `needs_revision` ends with this read-only
+   recomputation by both validators, once `report` returns a validated report:
 
    ```sh
    cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' verify-report --output-dir report
    ```
 
-   Its deliverable is `report/ACCOUNT_REVIEW.md`; it prints `creator_report: <path>` and the file.
-   A rendered file alone, or a `needs_revision` response, is not a completed delivery: do not
-   emit, return or claim success until this step succeeds. No source or approval error permits a
+   Deliverable: `report/ACCOUNT_REVIEW.md`; the final step prints `creator_report: <path>`
+   then the file. A rendered file or a `needs_revision` response is not delivery: emit, return or
+   claim success only after the final step succeeds. No source or approval error permits a
    fallback or a new run. Deliver as *Output boundary* says.
 
 ## What may not be claimed
@@ -256,7 +260,7 @@ time while it runs. In a complete review every command before `verify-report` is
 
 ## Output boundary
 
-Deliver `ACCOUNT_REVIEW.md` once, immediately after `verify-report` succeeds, and keep audit files
+Deliver `ACCOUNT_REVIEW.md` once, immediately after the final step succeeds, and keep audit files
 as files. The whole delivery is in the user's requested language (`output_language`), including
 headings, the identity introduction, fixed labels and metric descriptions. If the rendered file
 already matches that language, relay it unchanged or send its printed path where the host shows
