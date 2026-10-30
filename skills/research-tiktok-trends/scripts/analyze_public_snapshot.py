@@ -382,15 +382,19 @@ def analyze(
         row["rank"] = index
     signature_summary = None
     if allocation is not None:
-        # 排名本身不动（按公开指标，可复算）；只给进了名额的条目标上它代表的主打内容，
-        # 没进名额的标 null。synthesis 按这一列保证每个有名额的主打内容至少被引用一条。
+        # 排名保留完整证据池；入选集合单独记，不能拿主打分类的 null 推断是否入选。
         slots, signature_summary = signature_allocation_of(allocation, request)
+        selected_content_ids = []
         for row in ranked:
             content_id = str(row["content_id"])
             hits = [value for key, value in slots if key == content_id or key.endswith(f":{content_id}")]
             if len(hits) > 1:
                 raise ValueError(f"ambiguous allocation slots for content_id: {content_id}")
             row["signature_content_id"] = hits[0] if hits else None
+            if hits:
+                selected_content_ids.append(content_id)
+        if len(selected_content_ids) != len(slots):
+            raise ValueError("allocation contains content outside the analyzed snapshot")
     outliers.sort(key=lambda row: (row["account_median_multiple"] is None, -(row["account_median_multiple"] or -1), row["content_id"]))
 
     # The product path consumes the server-owned baseline directly. Legacy Snapshot
@@ -527,6 +531,7 @@ def analyze(
     }
     if allocation is not None:
         result["signature_content"] = signature_summary
+        result["selected_content_ids"] = selected_content_ids
         result["reproducibility"]["allocation_sha256"] = digest(allocation)
     return result
 

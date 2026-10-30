@@ -483,7 +483,8 @@ def attach_profile() -> bool:
     """Copy the saved account profile's fields into the Request; whether any profile field is attached.
 
     Signature content may be missing while the topics the Creator excluded are not; the plan check,
-    the `include` fields and the eligibility filter follow any field, the seats only signature content.
+    the `include` fields follow any profile field, the seats only signature content.
+    Known hard exclusions are checked even without a profile.
 
     Runs before the window is frozen, so the frozen Request already carries them and a rerun finds
     nothing to change. Without a profile file it only removes profile fields written by hand.
@@ -502,7 +503,7 @@ def attach_profile() -> bool:
 
 
 def candidates_file() -> str:
-    """The candidate set every step after discovery reads: the eligible subset when a profile made one."""
+    """The candidate set every step after discovery reads: the eligible subset when discover wrote one."""
     return ELIGIBLE if Path(ELIGIBLE).is_file() else CANDIDATES
 
 
@@ -739,11 +740,8 @@ def stage_discover(args: argparse.Namespace) -> None:
     write_provenance(order, params)
     cd.script("build_tiktok_candidate_set.py", "--request", REQUEST, "--envelopes", ENVELOPES,
               "--requests", PROVENANCE, "--output", CANDIDATES, show=True)
-    if profiled:
-        cd.script("filter_candidate_eligibility.py", "--request", REQUEST, "--candidates", CANDIDATES,
-                  "--output", ELIGIBLE, "--platform", PLATFORM, show=True)
-    else:
-        Path(ELIGIBLE).unlink(missing_ok=True)
+    cd.script("filter_candidate_eligibility.py", "--request", REQUEST, "--candidates", CANDIDATES,
+              "--output", ELIGIBLE, "--platform", PLATFORM, show=True)
     cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", candidates_file(),
               "--output", GATE_INPUT, "--table", show=True)
     cd.say(json.dumps(gate_builder.stage_contract(cd.load(GATE_INPUT), GATE_SCORES, "rank", __file__), ensure_ascii=False))

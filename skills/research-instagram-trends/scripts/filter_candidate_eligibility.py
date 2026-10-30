@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Keep the candidates a Creator with a saved account profile could learn from; write the rest down.
+"""Keep eligible video candidates and record exclusions, including when no profile is available.
 
-With the Creator's account profile attached to the Request (`creator_profile.signature_content`,
-`audience_count`, `formats`, `excluded_topics`, `own_content_ids`), a candidate set holds content no
-recommendation should lead with: the Creator's own posts, photo posts on a video scan, the other
-video format, paid ads, accounts far larger or smaller than the Creator's, and topics the Creator
-excluded. This script removes those and keeps everything it cannot judge.
+Known own posts, photo posts and marked ads are excluded even without a saved profile.
+When profile fields exist, also apply format, audience and excluded-topic preferences.
+Missing evidence stays unknown and is kept; no additional provider requests are made here.
 
   python3 scripts/filter_candidate_eligibility.py --request trend-research-request.json \\
     --candidates tiktok-trend-candidate-set.json --output tiktok-trend-candidate-set-eligible.json \\
@@ -71,8 +69,8 @@ def _sibling(name: str):
 
 intake = _sibling("attach_creator_profile")
 
-# v2 加了 excluded_topic 规则，本人作品也改认 own_content_ids。
-RULE_VERSION = "candidate-eligibility.v2"
+# v3 在无画像时仍执行能确定的排除规则；缺失字段仍不作判断。
+RULE_VERSION = "candidate-eligibility.v3"
 PLATFORMS = ("instagram", "tiktok", "youtube")
 AUDIENCE_RANGE = (0.3, 3.0)
 MINIMUM_KEPT = 20
@@ -218,11 +216,9 @@ def filter_set(request: dict[str, Any], candidates: dict[str, Any], platform: st
     if not isinstance(items, list):
         raise ValueError("candidate items must be an array")
     creator = creator_fields(request)
-    audit: dict[str, Any] = {"rule_version": RULE_VERSION, "applied": creator["attached"],
+    audit: dict[str, Any] = {"rule_version": RULE_VERSION, "applied": True,
+                             "profile_fields_attached": creator["attached"],
                              "input_items": len(items)}
-    if not creator["attached"]:
-        # No profile attached: nothing to judge against. The set passes through unchanged.
-        return {**candidates, "eligibility": {**audit, "kept_items": len(items), "excluded": [], "backfilled": []}}
     verdicts = []
     for position, item in enumerate(items):
         if not isinstance(item, dict):

@@ -196,7 +196,7 @@ def _window_preflight(args: argparse.Namespace, originals: dict[str, bytes]) -> 
 # the reach lane's carry `-reach`, and the two collector results are persisted under neutral names
 # first, because both return the same schema and only their echoed window says which lane is which.
 # `eligible` is the subset every step after collection reads when the Creator's account profile is
-# attached (scripts/filter_candidate_eligibility.py); without a profile it is never written.
+# available (scripts/filter_candidate_eligibility.py); known hard exclusions apply without a profile too.
 LANES = {
     "relevance": {"input": "trend-collection-input.json", "candidates": "trend-candidate-set.json",
                   "eligible": "trend-candidate-set-eligible.json",
@@ -423,7 +423,8 @@ def attach_profile() -> bool:
     """Copy the saved account profile's fields into the Request; whether any profile field is attached.
 
     Signature content may be missing while the topics the Creator excluded are not; the plan check,
-    the `include` fields and the eligibility filter follow any field, the seats only signature content.
+    the `include` fields follow any profile field, the seats only signature content.
+    Known hard exclusions are checked even without a profile.
 
     Runs before the window is frozen, so the frozen Request already carries them and a rerun finds
     nothing to change. Without a profile file it only removes profile fields written by hand.
@@ -611,11 +612,8 @@ def stage_discover(args: argparse.Namespace) -> None:
     lane = LANES["relevance"]
     need(lane["candidates"])
     for name in names:
-        if profiled:
-            cd.script("filter_candidate_eligibility.py", "--request", REQUEST, "--candidates", LANES[name]["candidates"],
-                      "--output", LANES[name]["eligible"], "--platform", PLATFORM, show=True)
-        else:
-            Path(LANES[name]["eligible"]).unlink(missing_ok=True)
+        cd.script("filter_candidate_eligibility.py", "--request", REQUEST, "--candidates", LANES[name]["candidates"],
+                  "--output", LANES[name]["eligible"], "--platform", PLATFORM, show=True)
     cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", lane_candidates("relevance"),
               "--output", lane["gate_input"], "--table", show=True)
     cd.say(json.dumps(gate_builder.stage_contract(cd.load(lane["gate_input"]), lane["scores"],

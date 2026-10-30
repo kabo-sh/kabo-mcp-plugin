@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -206,6 +207,15 @@ def compose(
     for item in (synthesis.get("patterns") or []) + (synthesis.get("emerging_creators") or []):
         for ref in item.get("content_refs") or []:
             append_once(refs, str(ref))
+    # Composer 和独立 Validator 共用入选校验，避免生成报告时绕过分配结果。
+    sys.dont_write_bytecode = True
+    path = Path(__file__).with_name("validate_output.py")
+    spec = importlib.util.spec_from_file_location(f"{path.parent.parent.name}:report_selection", path)
+    validator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(validator)
+    selection_problems = validator.selection_errors(analysis, set(refs))
+    if selection_problems:
+        raise ValueError("; ".join(selection_problems))
     for ref in refs:
         if ref not in candidate_ids or ref not in contents or ref not in ranked:
             raise ValueError(f"content ref is not resolved candidate evidence: {ref}")

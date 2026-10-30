@@ -34,6 +34,37 @@ def nonempty(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def selection_errors(analysis: dict[str, Any], refs: set[str]) -> list[str]:
+    """Validate allocation membership independently of signature-class membership."""
+    if "signature_content" not in analysis and "selected_content_ids" not in analysis:
+        return []
+    selected = analysis.get("selected_content_ids")
+    if (not isinstance(selected, list)
+            or any(not isinstance(value, str) or not value for value in selected)
+            or len(set(selected)) != len(selected)):
+        return ["analysis.selected_content_ids must list the allocated content ids; regenerate analysis "
+                "from the original allocation before composing this report"]
+    ranked = {str(row["content_id"]): row for row in analysis.get("ranked_content") or []
+              if isinstance(row, dict) and "content_id" in row}
+    errors = []
+    unknown = set(selected) - ranked.keys()
+    if unknown:
+        errors.append(f"analysis selection contains unranked content: {sorted(unknown)}")
+    unselected = refs - set(selected)
+    if unselected:
+        errors.append(f"report cites content outside the allocation: {sorted(unselected)}")
+    authors: dict[str, str] = {}
+    for ref in sorted(refs & ranked.keys()):
+        author = ranked[ref].get("creator_id")
+        if not isinstance(author, str) or not author.strip():
+            errors.append(f"allocated content {ref} has no resolved creator_id")
+        elif author in authors:
+            errors.append(f"report cites multiple allocated videos by creator {author}: {authors[author]}, {ref}")
+        else:
+            authors[author] = ref
+    return errors
+
+
 def signature_coverage_errors(
     report: dict[str, Any],
     analysis: dict[str, Any],
@@ -135,6 +166,7 @@ def validate(
     analysis_rank_by_id: dict[str, int] = {}
     ranked_population = 0
     if analysis is not None:
+        errors.extend(selection_errors(analysis, {str(ref) for ref in content_ids}))
         analysis_ranking = analysis.get("ranked_content") or []
         if isinstance(analysis_ranking, list):
             ranked_population = len(analysis_ranking)
