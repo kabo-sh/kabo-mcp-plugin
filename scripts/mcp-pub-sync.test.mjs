@@ -325,3 +325,97 @@ except SystemExit:
   for (const field of Object.keys(call)) assert.ok(pinned.get("enrich_instagram_shortlist").inputSchema.properties[field], field);
   assert.equal(JSON.parse(await readFile(path.join(run, "trend-enrichment-call.json"), "utf8")).delivery, "download");
 });
+
+// 账号画像接收（creator-skills #918 移植）：带画像时多出的 include 都是钉住的 inputSchema 声明过的取值；
+// 不带画像时三个 trends 驱动交出的调用与移植前逐字节相同（下面的期望值取自移植前 main 8e90d42 的实际输出）。
+const TRENDS = {
+  "research-tiktok-trends": {
+    plan: "tiktok-trend-query-plan.json",
+    request: { schema_version: "trend-research-request.v3", request_id: "tt-sync", mode: "current_popular", niche: "fuse bead crafts", platforms: ["tiktok"], locale: { region: "US", language: null }, formats: ["tiktok_video"] },
+    intents: { schema_version: "tiktok-trend-query-plan.v1", request_id: "tt-sync", intents: [{ intent_id: "tutorials", search_query: "fuse bead craft ideas" }, { intent_id: "fruit", search_query: "perler bead fruit" }] },
+    profile: "tiktok",
+  },
+  "research-instagram-trends": {
+    plan: "trend-query-plan.json",
+    request: { schema_version: "trend-research-request.v3", request_id: "ig-sync", mode: "current_popular", niche: "restaurant food reels", platforms: ["instagram"], locale: { region: null, language: null }, formats: ["instagram_reel"] },
+    intents: { schema_version: "trend-query-plan.v1", request_id: "ig-sync", intents: [{ intent_id: "bites", search_query: "restaurant reels first bite" }, { intent_id: "cook", search_query: "cooking reels kitchen" }, { intent_id: "dish", search_query: "food reels plating" }] },
+    profile: "instagram",
+  },
+  "research-youtube-trends": {
+    plan: "trend-query-plan.json",
+    request: { schema_version: "trend-research-request.v3", request_id: "yt-sync", mode: "current_popular", niche: "fuse bead tutorials", platforms: ["youtube"], locale: { region: null, language: null }, formats: ["youtube_short"] },
+    intents: { schema_version: "trend-query-plan.v1", request_id: "yt-sync", intents: [{ intent_id: "a", search_query: "fuse beads tutorial" }, { intent_id: "b", search_query: "拼豆教程 新手" }] },
+    profile: "youtube",
+  },
+};
+
+async function discoverOutput(t, skill, profiled) {
+  const run = await newRun(t, skill);
+  const drive = path.join(scripts(skill), "drive.py");
+  const start = [drive, "start"];
+  if (profiled) start.push("--profile", path.join(root, "scripts/fixtures/creator-profile", `${TRENDS[skill].profile}.json`));
+  python(start, { cwd: run, run });
+  await writeFile(path.join(run, "trend-research-request.json"), JSON.stringify(TRENDS[skill].request));
+  await writeFile(path.join(run, TRENDS[skill].plan), JSON.stringify(TRENDS[skill].intents));
+  const output = python([drive, "discover", "--policy", "default_1y"], { cwd: run, run });
+  return { run, output, lines: output.split("\n").filter((line) => line.startsWith("call: ")) };
+}
+
+test("trends 驱动带画像：交出的 include 都在钉住的 inputSchema 里；读画像的入参也是", async (t) => {
+  const tiktok = await discoverOutput(t, "research-tiktok-trends", true);
+  for (const line of tiktok.lines) {
+    const call = JSON.parse(line.slice(6));
+    const schema = pinned.get(call.tool).inputSchema;
+    for (const field of Object.keys(call.arguments)) assert.ok(schema.properties[field], `${call.tool}.${field}`);
+    const parameters = schema.properties.parameters.properties;
+    for (const field of Object.keys(call.arguments.parameters)) assert.ok(parameters[field], `${call.tool}.parameters.${field}`);
+    if (call.tool === "tiktok_discovery_search_videos") {
+      assert.deepEqual(call.arguments.parameters.include, ["content_signals"]);
+      for (const value of call.arguments.parameters.include) assert.ok(parameters.include.items.enum.includes(value));
+    } else assert.equal(call.arguments.parameters.include, undefined);
+  }
+  const instagram = await discoverOutput(t, "research-instagram-trends", true);
+  assert.equal(instagram.lines.length, 2);
+  for (const line of instagram.lines) {
+    const call = JSON.parse(line.slice(6));
+    const schema = pinned.get(call.tool).inputSchema;
+    for (const field of Object.keys(call.arguments)) assert.ok(schema.properties[field], `${call.tool}.${field}`);
+    assert.deepEqual(call.arguments.include, ["media_signals"]);
+    for (const value of call.arguments.include) assert.ok(schema.properties.include.items.enum.includes(value));
+  }
+  // 三份 SKILL.md 写给模型的读画像入参：键都在钉住的 inputSchema 里，include 取值在 enum 里。
+  const profileInput = pinned.get("get_creator_profile").inputSchema;
+  for (const skill of Object.keys(TRENDS)) {
+    const text = await readFile(path.join(root, "skills", skill, "SKILL.md"), "utf8");
+    assert.match(text, /`get_creator_profile` with `\{"account_id": …, "include":\s+\["content_profile"\]\}`/, skill);
+    assert.ok(profileInput.properties.account_id && profileInput.properties.include.items.enum.includes("content_profile"));
+    const allowed = text.match(/^allowed-tools: (.*)$/m)[1].split(" ");
+    for (const name of ["list_connected_accounts", "get_creator_profile"]) assert.ok(allowed.includes(name), `${skill}：${name}`);
+    for (const name of allowed) assert.ok(pinned.has(name), `${name} 不在钉住的 tools/list 里`);
+  }
+});
+
+test("trends 驱动不带画像：交出的调用与移植前逐字节相同", async (t) => {
+  const tiktok = await discoverOutput(t, "research-tiktok-trends", false);
+  // D-1 榜单的时间戳随运行日期变，取驱动打印的那一个。
+  const board = Number(tiktok.output.match(/ranked board D-1: \S+ \(period_end_timestamp (\d+)\)/)[1]);
+  assert.deepEqual(tiktok.lines, [
+    'call: {"tool": "tiktok_discovery_search_videos", "arguments": {"parameters": {"keyword": "fuse bead craft ideas", "sort_type": 0, "count": 30, "region": "US", "publish_time": 180}, "delivery": "download"}}',
+    'call: {"tool": "tiktok_discovery_search_videos", "arguments": {"parameters": {"keyword": "perler bead fruit", "sort_type": 0, "count": 30, "region": "US", "publish_time": 180}, "delivery": "download"}}',
+    `call: {"tool": "tiktok_discovery_list_top_contents", "arguments": {"parameters": {"period_end_timestamp": ${board}, "period_dimension": 3, "country_code": "US", "limit": 100}, "delivery": "download"}}`,
+  ]);
+  assert.doesNotMatch(tiktok.output, /--without-include/);
+
+  const instagram = await discoverOutput(t, "research-instagram-trends", false);
+  const intents = '[{"intent_id": "bites", "search_query": "restaurant reels first bite"}, {"intent_id": "cook", "search_query": "cooking reels kitchen"}, {"intent_id": "dish", "search_query": "food reels plating"}]';
+  const budget = '{"search_pages_per_intent": 2, "popular_pages_per_intent": 1, "challenger_pages_per_intent": 1, "max_provider_calls": 24, "max_candidates": 160, "max_detail_calls": 0}';
+  assert.deepEqual(instagram.lines, ["last-month", "last-year"].map((window) =>
+    `call: {"tool": "collect_instagram_trend_candidates", "arguments": {"platform": "instagram", "window": "${window}", "intents": ${intents}, "budget": ${budget}, "delivery": "download"}}`));
+  assert.doesNotMatch(instagram.output, /--without-include/);
+
+  const youtube = await discoverOutput(t, "research-youtube-trends", false);
+  const { window } = JSON.parse(await readFile(path.join(youtube.run, "trend-research-request.json"), "utf8"));
+  assert.deepEqual(youtube.lines, [
+    `call: {"tool": "collect_youtube_trend_candidates", "arguments": {"platform": "youtube", "intents": [{"intent_id": "a", "query": "fuse beads tutorial"}, {"intent_id": "b", "query": "拼豆教程 新手"}], "published_after": "${window.since}", "published_before": "${window.until}", "budget": {"results_per_route": 50, "max_provider_calls": 4, "max_candidates": 160}, "delivery": "download"}}`,
+  ]);
+});

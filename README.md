@@ -366,3 +366,13 @@ Connecting Kabo asks only for read access. The first time you save a script or c
 your host asks you to approve write access. Existing connections may need authorization for the
 new workspace permissions. If these tools are unavailable, the original public research and local
 drafting workflows remain usable.
+
+The three trends Skills can also start from your saved account profile. When you ask for trends for
+your own linked account, the agent reads the account's saved content profile (your signature
+content, content language and formats) with `get_creator_profile`, keeps the complete result as a
+local file and passes it to the trends driver. The searches then start from your own seed words,
+leave out your own posts and accounts far larger or smaller than yours, and share the
+recommendations across your signature content. The content language only steers the search words;
+it never filters results by language. The profile is read-only here: the Skills never write or edit
+it. If the profile is missing or empty, workspace access is not granted, or Kabo does not offer
+the profile yet, the Skills run the same public trend scan as before.

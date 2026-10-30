@@ -75,6 +75,11 @@ def classifications(gate: dict[str, Any], applied_policy: Any = None) -> dict[st
                     raise ValueError(f"invalid creator_transferability for {key}")
             if key in result:
                 raise ValueError(f"duplicate gate content_key: {key}")
+            # 主打内容列只在 Gate 输入带画像时出现；缺席与 null 是两回事（null 是判过、都不像），
+            # 所以这里只校验类型，不补键。它不进地板判断：像不像主打内容决定排到哪一类，不决定去留。
+            if "signature_content_id" in row and row["signature_content_id"] is not None and (
+                    not isinstance(row["signature_content_id"], str) or not row["signature_content_id"]):
+                raise ValueError(f"invalid signature_content_id for {key}")
             # 下游旧 Snapshot/Analyzer 只需要 eligible/reject 二值边界；direct 是内部
             # 兼容投影，不再是模型输入分类，也不参与配额或排序。
             if platform in {"tiktok", "youtube"}:
@@ -110,6 +115,25 @@ def semantic_scores(gate: dict[str, Any]) -> dict[str, dict[str, float]]:
             for name in ("topic_relevance", "creator_transferability", "locale_fit")
             if name in row["semantic_scores"]
         }
+    return output
+
+
+def signature_content_ids(gate: dict[str, Any]) -> dict[str, str | None]:
+    """每条 Gate 行判到的主打内容 id（Request 里的 id；null 表示判过、都不像）。
+
+    Gate 输入没带主打内容时，行里没有这一列，返回空字典：调用方据此区分「这轮没有画像」与
+    「有画像但这条哪个都不像」，后者才进未匹配的名额。
+    """
+    if gate.get("schema_version") != "trend-relevance-gate.v3":
+        raise ValueError("signature content requires trend-relevance-gate.v3")
+    output: dict[str, str | None] = {}
+    for row in gate.get("items") or []:
+        if not isinstance(row, dict) or "signature_content_id" not in row:
+            continue
+        value = row["signature_content_id"]
+        if value is not None and (not isinstance(value, str) or not value):
+            raise ValueError(f"invalid signature_content_id for {row.get('content_key')}")
+        output[str(row["content_key"])] = value
     return output
 
 
