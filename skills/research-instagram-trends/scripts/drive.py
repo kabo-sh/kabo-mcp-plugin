@@ -196,7 +196,7 @@ def _window_preflight(args: argparse.Namespace, originals: dict[str, bytes]) -> 
 # the reach lane's carry `-reach`, and the two collector results are persisted under neutral names
 # first, because both return the same schema and only their echoed window says which lane is which.
 # `eligible` is the subset every step after collection reads when the Creator's account profile is
-# available (scripts/filter_candidate_eligibility.py); known hard exclusions apply without a profile too.
+# attached (scripts/filter_candidate_eligibility.py); without a profile it is never written.
 LANES = {
     "relevance": {"input": "trend-collection-input.json", "candidates": "trend-candidate-set.json",
                   "eligible": "trend-candidate-set-eligible.json",
@@ -423,8 +423,7 @@ def attach_profile() -> bool:
     """Copy the saved account profile's fields into the Request; whether any profile field is attached.
 
     Signature content may be missing while the topics the Creator excluded are not; the plan check,
-    the `include` fields follow any profile field, the seats only signature content.
-    Known hard exclusions are checked even without a profile.
+    the `include` fields and the eligibility filter follow any field, the seats only signature content.
 
     Runs before the window is frozen, so the frozen Request already carries them and a rerun finds
     nothing to change. Without a profile file it only removes profile fields written by hand.
@@ -612,8 +611,11 @@ def stage_discover(args: argparse.Namespace) -> None:
     lane = LANES["relevance"]
     need(lane["candidates"])
     for name in names:
-        cd.script("filter_candidate_eligibility.py", "--request", REQUEST, "--candidates", LANES[name]["candidates"],
-                  "--output", LANES[name]["eligible"], "--platform", PLATFORM, show=True)
+        if profiled:
+            cd.script("filter_candidate_eligibility.py", "--request", REQUEST, "--candidates", LANES[name]["candidates"],
+                      "--output", LANES[name]["eligible"], "--platform", PLATFORM, show=True)
+        else:
+            Path(LANES[name]["eligible"]).unlink(missing_ok=True)
     cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", lane_candidates("relevance"),
               "--output", lane["gate_input"], "--table", show=True)
     cd.say(json.dumps(gate_builder.stage_contract(cd.load(lane["gate_input"]), lane["scores"],
@@ -949,8 +951,8 @@ def stage_rank(args: argparse.Namespace) -> None:
                          "--output", ALLOCATION).rstrip())
     cd.script("analyze_public_snapshot.py", SNAPSHOT, "--mode", "trend", "--request", REQUEST,
               "--relevance-gate", pool_gate, "--trend-enrichment", ENRICHMENT,
-              *(("--allocation", ALLOCATION) if profiled else ()), "--output", ANALYSIS)
-    cd.say(Path(ANALYSIS).read_text(encoding="utf-8").rstrip())
+              *(("--allocation", ALLOCATION) if profiled else ()), "--output", ANALYSIS,
+              "--print-synthesis", show=True)
     cd.script("prepare_hook_context.py", "--platform", "instagram", "--purpose", "trends",
               "--output", "hook-context.json", show=True)
     cd.show_schema("trend-research-synthesis.schema.json")

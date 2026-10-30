@@ -5,6 +5,8 @@ import copy
 import importlib.util
 import json
 import sys
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -109,7 +111,7 @@ class GoalAndColdStartTest(unittest.TestCase):
                 profile["contentProfile"] = None
                 self.assertFalse(intake.attach(req, profile, platform)[1]["attached"])
 
-    def test_cold_start_excludes_known_ads_and_self_but_keeps_unknowns(self):
+    def test_without_a_profile_candidate_policy_is_unchanged(self):
         for platform in ("instagram", "tiktok", "youtube"):
             with self.subTest(platform=platform):
                 req = {"creator_profile": {"handle": "owner"}}
@@ -117,13 +119,44 @@ class GoalAndColdStartTest(unittest.TestCase):
                 candidates = {"candidate_set_id": "set", "items": [own, {"content_key": "ad", "is_ad": True},
                                                                           {"content_key": "unknown"}]}
                 result = module(platform, "filter_candidate_eligibility").filter_set(req, candidates, platform)
-                self.assertEqual([{"content_key": "unknown"}], result["items"])
-                self.assertFalse(result["eligibility"]["profile_fields_attached"])
+                self.assertEqual(candidates["items"], result["items"])
+                self.assertFalse(result["eligibility"]["applied"])
                 self.assertEqual([], result["eligibility"]["backfilled"])
                 self.assertEqual("set", result["candidate_set_id"])
 
 
 class ReportSelectionTest(unittest.TestCase):
+    def test_synthesis_output_preserves_full_analysis_and_hides_unselected_evidence(self):
+        for platform in ("instagram", "tiktok", "youtube"):
+            req, snapshot, gate, allocation, _ = inputs(platform)
+            empty = {**allocation, "slots": [], "per_content": {"career": {"quota": 2, "filled": 0}}}
+            for seats in (None, allocation, empty):
+                with self.subTest(platform=platform, allocated=seats), tempfile.TemporaryDirectory() as tmp:
+                    run = Path(tmp)
+                    for name, value in (("snapshot", snapshot), ("request", req), ("gate", gate), ("allocation", seats)):
+                        (run / f"{name}.json").write_text(json.dumps(value))
+                    command = [sys.executable, "-B", str(RUNTIME / f"research-{platform}-trends/scripts/analyze_public_snapshot.py"),
+                               "snapshot.json", "--mode", "trend", "--request", "request.json",
+                               "--relevance-gate", "gate.json", "--output", "analysis.json", "--print-synthesis"]
+                    if seats is not None:
+                        command.extend(["--allocation", "allocation.json"])
+                    result = subprocess.run(command, cwd=run, text=True, capture_output=True)
+                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                    saved = json.loads((run / "analysis.json").read_text())
+                    shown = json.loads(result.stdout)
+                    self.assertEqual(3, len(saved["ranked_content"]))
+                    self.assertEqual(saved["data_quality"], shown["data_quality"])
+                    if seats is None:
+                        self.assertEqual(saved, shown, "runs without allocation keep their existing output")
+                        continue
+                    self.assertNotIn("unseated", json.dumps(shown), "unselected IDs and evidence aliases must not leak")
+                    expected = {"one", "two"} if seats["slots"] else set()
+                    self.assertEqual(expected, {row["content_id"] for row in shown["ranked_content"]})
+                    self.assertEqual(expected, {row["content_id"] for row in shown["evidence"]})
+                    self.assertTrue({row["content_id"] for row in shown["account_outliers"]} <= expected)
+                    self.assertEqual([row for row in saved["ranked_content"] if row["content_id"] in expected],
+                                     shown["ranked_content"], "selection must not change ranks or metrics")
+
     def test_null_class_is_selected_but_unseated_rows_cannot_escape_via_any_section(self):
         for platform in ("instagram", "tiktok", "youtube"):
             with self.subTest(platform=platform):
@@ -149,13 +182,6 @@ class ReportSelectionTest(unittest.TestCase):
                 injected = {**report["top_content"][-1], "rank": 3, "content_id": "unseated"}
                 bad_report["top_content"].append(injected)
                 self.assertTrue(any("outside the allocation" in e for e in validator.validate(bad_report, req, analysis)))
-                # 直接篡改入选清单也不能在报告里重复同一创作者。
-                duplicate_analysis = copy.deepcopy(analysis)
-                duplicate_analysis["selected_content_ids"].append("unseated")
-                self.assertTrue(any("multiple allocated videos" in e for e in validator.validate(bad_report, req, duplicate_analysis)))
-                with self.assertRaisesRegex(ValueError, "multiple allocated videos"):
-                    composer.compose(req, snapshot, duplicate_analysis,
-                                     {**synthesis, "featured_content_refs": ["one", "two", "unseated"]})
                 legacy = {k: v for k, v in analysis.items() if k != "selected_content_ids"}
                 with self.assertRaisesRegex(ValueError, "regenerate analysis"):
                     composer.compose(req, snapshot, legacy, synthesis)

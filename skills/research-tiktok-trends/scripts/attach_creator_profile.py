@@ -566,11 +566,6 @@ def mentions_topic(text: str, hashtags: list[str], topic: str) -> bool:
                               or any(contains_seed(tag, topic) or _unspaced(tag) == spelled for tag in hashtags))
 
 
-def hits(query: str, item: dict[str, Any]) -> bool:
-    return (any(contains_seed(query, term) for term in item.get("seed_terms") or [])
-            or any(contains_hashtag(query, tag) for tag in item.get("seed_hashtags") or []))
-
-
 def check_excluded(queries: list[str], request: dict[str, Any]) -> int:
     """Refuse an intent that carries a topic the Creator excluded; the number of topics checked.
 
@@ -584,15 +579,6 @@ def check_excluded(queries: list[str], request: dict[str, Any]) -> int:
                 raise ValueError(f"intents[{index}].search_query {query!r} carries {topic!r}, a topic the Creator "
                                  "excluded; write that intent without it")
     return len(topics)
-
-
-def check_plan(queries: list[str], request: dict[str, Any], *, per_intent: str) -> dict[str, Any]:
-    """Check explicit exclusions without forcing historical seeds into the current goal.
-
-    The host judges query meaning against Request.niche. Signature seeds are optional retrieval
-    vocabulary, not evidence that a query fits that goal. Keep per_intent for existing callers.
-    """
-    return {"excluded_topics_checked": check_excluded(queries, request)}
 
 
 # --------------------------------------------------------------------------- include, refused by Kabo

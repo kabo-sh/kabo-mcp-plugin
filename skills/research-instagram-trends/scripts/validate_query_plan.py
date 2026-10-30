@@ -145,11 +145,9 @@ def validate_against_request(plan: dict[str, Any], request: dict[str, Any]) -> N
     below apply only without a saved profile.
     """
     intake = _profile_intake()
-    # 排除话题不依赖主打内容：只有设定、没有主打内容时 caption phrase 那套规则照常，排除话题照样拒收。
+    # 排除话题只检查一次；画像存在时不再强制历史 seed 或 caption phrase。
     intake.check_excluded([str(intent["search_query"]) for intent in plan["intents"]], request)
     if intake.profile_fields_attached(request):
-        intake.check_plan([str(intent["search_query"]) for intent in plan["intents"]], request,
-                          per_intent="covering")
         return
     phrases = caption_phrases(request)
     if not phrases:

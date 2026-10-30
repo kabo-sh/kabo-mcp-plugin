@@ -53,15 +53,6 @@ def selection_errors(analysis: dict[str, Any], refs: set[str]) -> list[str]:
     unselected = refs - set(selected)
     if unselected:
         errors.append(f"report cites content outside the allocation: {sorted(unselected)}")
-    authors: dict[str, str] = {}
-    for ref in sorted(refs & ranked.keys()):
-        author = ranked[ref].get("creator_id")
-        if not isinstance(author, str) or not author.strip():
-            errors.append(f"allocated content {ref} has no resolved creator_id")
-        elif author in authors:
-            errors.append(f"report cites multiple allocated videos by creator {author}: {authors[author]}, {ref}")
-        else:
-            authors[author] = ref
     return errors
 
 

@@ -126,7 +126,7 @@ def validate(plan: dict[str, Any]) -> None:
 def validate_against_request(plan: dict[str, Any], request: dict[str, Any]) -> dict[str, Any] | None:
     """Enforce the Creator's exclusions; the host judges queries against Request.niche."""
     queries = [str(intent.get("search_query") or "") for intent in plan.get("intents") or []]
-    return _profile_intake().check_plan(queries, request, per_intent="top_two")
+    return {"excluded_topics_checked": _profile_intake().check_excluded(queries, request)}
 
 
 def main() -> int:

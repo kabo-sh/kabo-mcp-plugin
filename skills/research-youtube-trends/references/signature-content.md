@@ -115,8 +115,9 @@ call itself is unchanged.
 ## The synthesis
 
 When Analysis has `selected_content_ids`, every featured, pattern and emerging-creator reference
-must belong to that set, including selected items whose `signature_content_id` is null. Use at most
-one video per creator. Unselected ranked rows remain evidence, not report recommendations.
+must belong to that set, including selected items whose `signature_content_id` is null. `rank` prints
+only selected candidate evidence for synthesis; the saved Analysis retains the full population for
+calculation and validation. An empty selection stays empty.
 
 
 When the Analysis lists `signature_content` (each item with the seats it was given), cite at least

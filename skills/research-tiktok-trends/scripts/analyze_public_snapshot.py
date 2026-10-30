@@ -536,6 +536,19 @@ def analyze(
     return result
 
 
+def synthesis_view(analysis: dict[str, Any]) -> dict[str, Any]:
+    """Expose selected evidence for writing; keep population statistics in the saved Analysis."""
+    if "selected_content_ids" not in analysis:
+        return analysis
+    selected = set(analysis["selected_content_ids"])
+    # 展示只是投影：不重排、不重新算基线，也不把完整分析误当成报告可选池。
+    view = {key: analysis[key] for key in (
+        "analysis_id", "data_quality", "claim_boundary", "signature_content", "selected_content_ids")}
+    for key in ("ranked_content", "account_outliers", "evidence"):
+        view[key] = [row for row in analysis[key] if row["content_id"] in selected]
+    return view
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("input", type=Path)
@@ -550,6 +563,8 @@ def main() -> int:
     parser.add_argument("--allocation", type=Path,
                         help="signature-content-allocation.v1 seats, when the Creator's account profile is attached")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--print-synthesis", action="store_true",
+                        help="Print selected evidence for synthesis; --output still saves the full Analysis")
     args = parser.parse_args()
     try:
         snapshot = json.loads(args.input.read_text(encoding="utf-8"))
@@ -563,7 +578,9 @@ def main() -> int:
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(text, encoding="utf-8")
-        else:
+        if args.print_synthesis:
+            print(json.dumps(synthesis_view(result), ensure_ascii=False, indent=2, sort_keys=True))
+        elif not args.output:
             print(text, end="")
         return 0
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:

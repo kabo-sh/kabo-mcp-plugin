@@ -98,7 +98,7 @@ window_input_validator = _validator("freeze_request_window")
 intake = _validator("attach_creator_profile")
 PLATFORM = "youtube"
 PROFILE_SOURCE = intake.PROFILE_SOURCE
-# 覆盖检查之后各阶段都读过滤结果；只有画像相关规则依赖画像字段。
+# With the Creator's account profile attached, every step after coverage reads this subset instead.
 ELIGIBLE = "youtube-trend-candidate-set-eligible.json"
 
 
@@ -320,8 +320,7 @@ def attach_profile() -> bool:
     """Copy the saved account profile's fields into the Request; whether any profile field is attached.
 
     Signature content may be missing while the topics the Creator excluded are not; the plan check,
-    the `include` fields follow any profile field, the seats only signature content.
-    Known hard exclusions are checked even without a profile.
+    the `include` fields and the eligibility filter follow any field, the seats only signature content.
 
     Runs before the window is frozen, so the frozen Request already carries them and a rerun finds
     nothing to change. Without a profile file it only removes profile fields written by hand.
@@ -340,7 +339,7 @@ def attach_profile() -> bool:
 
 
 def candidates_file() -> str:
-    """The candidate set every step after coverage reads: the eligible subset when discover wrote one."""
+    """The candidate set every step after coverage reads: the eligible subset when a profile made one."""
     return ELIGIBLE if Path(ELIGIBLE).is_file() else CANDIDATES
 
 
@@ -555,8 +554,11 @@ def stage_discover(args: argparse.Namespace) -> None:
     cd.save_state(collections=collections)
     # Coverage judges the collection as the backend returned it; eligibility then narrows what the
     # Creator is shown, so a thin eligible set never reads as a failed route.
-    cd.script("filter_candidate_eligibility.py", "--request", REQUEST, "--candidates", CANDIDATES,
-              "--output", ELIGIBLE, "--platform", PLATFORM, show=True)
+    if profiled:
+        cd.script("filter_candidate_eligibility.py", "--request", REQUEST, "--candidates", CANDIDATES,
+                  "--output", ELIGIBLE, "--platform", PLATFORM, show=True)
+    else:
+        Path(ELIGIBLE).unlink(missing_ok=True)
     cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", candidates_file(),
               "--output", GATE_INPUT, "--table", show=True)
     cd.say(json.dumps(gate_builder.stage_contract(cd.load(GATE_INPUT), GATE_SCORES, "rank", __file__), ensure_ascii=False))
@@ -623,8 +625,8 @@ def stage_rank(args: argparse.Namespace) -> None:
                          "--output", ALLOCATION).rstrip())
     cd.script("analyze_public_snapshot.py", SNAPSHOT, "--mode", "trend", "--request", REQUEST,
               "--relevance-gate", GATE, "--trend-enrichment", ENRICHMENT,
-              *(("--allocation", ALLOCATION) if profiled else ()), "--output", ANALYSIS)
-    cd.say(Path(ANALYSIS).read_text(encoding="utf-8").rstrip())
+              *(("--allocation", ALLOCATION) if profiled else ()), "--output", ANALYSIS,
+              "--print-synthesis", show=True)
     cd.script("prepare_hook_context.py", "--platform", "youtube", "--purpose", "trends",
               "--output", "hook-context.json", show=True)
     cd.show_schema("trend-research-synthesis.schema.json")
