@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- TikTok 竞品（`analyze-tiktok-competitors`）同步 creator-skills 0.1.72：重复的竞品账号保留第一条、不再整份报告失败；展示译文按 id 匹配、只读 `text`，头字段可省略，单条译文不合规时退回原文并列在 `kept_source_text`（驱动会转出），不再整份失败；`search_query` 写明两到五个词。
 - 复刻（`remake-viral-video`）支持旁白类参考视频（没人出镜、配音配画面）：移植网页端 creator-remake-web 0.1.30
   （creator-skills PR #896，runner V2-r63）。带字的画面由 agent 写动效（composition，里面要的图片用
   `make.images` 生成），写稿后先 `render_remake_video` + `preview` 渲出画面分页、用 `fetch-preview` 存到本地看图，
