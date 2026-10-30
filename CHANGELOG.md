@@ -2,7 +2,7 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
-## 未发布
+## 1.0.5（2026-10-29；GitHub Release）
 
 - 复刻（`remake-viral-video`）支持旁白类参考视频（没人出镜、配音配画面）：移植网页端 creator-remake-web 0.1.30
   （creator-skills PR #896，runner V2-r63）。带字的画面由 agent 写动效（composition，里面要的图片用
@@ -11,9 +11,18 @@
   只重做不行的句子。旁白没有口播模型可选。
   依赖 kabo `mark/remake-preview-review`（`/mcp-pub` 放行 narration、`render_remake_video` 加 `preview` 与
   `beat_review`、preview 结果与逐句对照图放在 brief 信封里），`contracts/directory-mcp/` 已重新固定到其 commit
-  `cf290a6cf`（只有两个复刻工具的入参和说明变了，出参不变）；合入后需按 kabo main 的 commit 重新固定。
+  `cf290a6cf`（只有两个复刻工具的入参和说明变了，出参不变）；已随 kabo#1824 合入（见下条重新固定）。
 - 第 8 步「没跑完」的细则移到 `references/when-it-does-not-finish.md`（SKILL.md 正文回到 2 万字符以内）。
 - 新增 `scripts/remake-narration.test.mjs`：旁白画面检查、preview / review 参数、分页下载（不联网）。
+- `remake-viral-video`：参考视频上限 60 秒 → 90 秒（kabo#1826，runner r62）。
+- `remake-viral-video`：成片交付后用 `get_remake_video` 的 `include: ["review"]`（kabo#1825）取 Kabo 终审结论与交付说明：
+  `failed` 逐项用白话告诉用户，`incomplete` 说有些检查没量到，`measured` 或 null 不提审查结果；从不说视频「通过了终审」；
+  交付说明用一两行转述。
+- `remake-viral-video`：参考视频与创作者素材都接受 TikTok 链接（kabo#1836）：长链规范成 `https://www.tiktok.com/@用户/video/<id>`，
+  `vm.`/`vt.` 短链原样带尾斜杠，与服务端写法一致，幂等键对得上；图文、http 与其他平台在付费调用前就被拒。
+- `contracts/directory-mcp/` 重新固定到 kabo `bb391d1f6`（62 个工具；`start_remake_video` 说明改为 YouTube、Instagram 或 TikTok、90 秒以内，
+  `get_remake_video` 新增 `include` 入参与 `review` 出参）。
+- 生产回归：待补。
 
 ## 1.0.4（2026-10-28；GitHub Release）
 

@@ -10271,7 +10271,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Start a Kabo remake of a public talking-head video (YouTube or Instagram, 90 s max) with the creator's own footage. Propose it and call only after the user confirms. Top-level. Fetching the videos uses daily quota. Uses one daily remake (shared with Kabo web) even for a non-talking-head reference; one runs at a time. On fetching_inputs, call again after retry_after_s with the same idempotency_key and inputs. Next: poll get_remake_video.",
+      "description": "Start a Kabo remake of a public talking-head video (YouTube, Instagram or TikTok, 90 s max) with the creator's own footage. Propose it and call only after the user confirms. Top-level. Fetching the videos uses daily quota. Uses one daily remake (shared with Kabo web) even for a non-talking-head reference; one runs at a time. On fetching_inputs, call again after retry_after_s with the same idempotency_key and inputs. Next: poll get_remake_video.",
       "execution": {
         "taskSupport": "forbidden"
       },
