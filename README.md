@@ -373,6 +373,18 @@ content, content language and formats) with `get_creator_profile`, keeps the com
 local file and passes it to the trends driver. The searches then start from your own seed words,
 leave out your own posts and accounts far larger or smaller than yours, and share the
 recommendations across your signature content. The content language only steers the search words;
-it never filters results by language. The profile is read-only here: the Skills never write or edit
-it. If the profile is missing or empty, workspace access is not granted, or Kabo does not offer
-the profile yet, the Skills run the same public trend scan as before.
+it never filters results by language. The Skills never write or edit the profile file. If the
+profile is missing or empty, workspace access is not granted, or Kabo does not offer the profile
+yet, the Skills run the same public trend scan as before.
+
+You can also correct that saved profile in the conversation. Ask the trends Skills or the account
+review to rename, remove or merge a signature content item, make one your main item, exclude a
+topic, or set the language you make content in or your market, and the agent saves the edit to Kabo
+with `update_content_preferences`. Your edits are kept per account and come back on every later
+read, in this plugin and in Kabo's web app; the profile Kabo computed stays as it was, and you can
+reset your edits. A plain, unambiguous change is saved and repeated back to you in one sentence; a
+guess, a removal, a merge or a reset is restated for you to confirm first. Your market is only the
+default search region (Instagram search takes none), and like the language it never filters
+results. An edit applies from the next trend run. Saving needs write access, which your host asks
+you to approve the first time; without it, or when Kabo does not offer the tool yet, nothing is
+saved and the research runs as before.

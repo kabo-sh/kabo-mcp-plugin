@@ -383,14 +383,15 @@ test("trends 驱动带画像：交出的 include 都在钉住的 inputSchema 里
     assert.deepEqual(call.arguments.include, ["media_signals"]);
     for (const value of call.arguments.include) assert.ok(schema.properties.include.items.enum.includes(value));
   }
-  // 三份 SKILL.md 写给模型的读画像入参：键都在钉住的 inputSchema 里，include 取值在 enum 里。
+  // 三份 SKILL.md 写给模型的读画像入参：键都在钉住的 inputSchema 里，include 取值在 enum 里，effective 是布尔开关。
   const profileInput = pinned.get("get_creator_profile").inputSchema;
   for (const skill of Object.keys(TRENDS)) {
     const text = await readFile(path.join(root, "skills", skill, "SKILL.md"), "utf8");
-    assert.match(text, /`get_creator_profile` with `\{"account_id": …, "include":\s+\["content_profile"\]\}`/, skill);
+    assert.match(text, /`get_creator_profile` with `\{"account_id": …, "include":\s+\["content_profile"\], "effective": true\}`/, skill);
     assert.ok(profileInput.properties.account_id && profileInput.properties.include.items.enum.includes("content_profile"));
+    assert.equal(profileInput.properties.effective.type, "boolean");
     const allowed = text.match(/^allowed-tools: (.*)$/m)[1].split(" ");
-    for (const name of ["list_connected_accounts", "get_creator_profile"]) assert.ok(allowed.includes(name), `${skill}：${name}`);
+    for (const name of ["list_connected_accounts", "get_creator_profile", "update_content_preferences"]) assert.ok(allowed.includes(name), `${skill}：${name}`);
     for (const name of allowed) assert.ok(pinned.has(name), `${name} 不在钉住的 tools/list 里`);
   }
 });
@@ -418,4 +419,58 @@ test("trends 驱动不带画像：交出的调用与移植前逐字节相同", a
   assert.deepEqual(youtube.lines, [
     `call: {"tool": "collect_youtube_trend_candidates", "arguments": {"platform": "youtube", "intents": [{"intent_id": "a", "query": "fuse beads tutorial"}, {"intent_id": "b", "query": "拼豆教程 新手"}], "published_after": "${window.since}", "published_before": "${window.until}", "budget": {"results_per_route": 50, "max_provider_calls": 4, "max_candidates": 160}, "delivery": "download"}}`,
   ]);
+});
+
+// 画像修改（kabo-sh/kabo#1875 的 update_content_preferences）：写工具与读开关都在钉住的 tools/list 里；
+// 四份 Skill 都声明它、都指向同一份 references/profile-edits.md，那份说明里的 action 表与钉住的平铺入参逐项一致。
+const EDITING = ["research-tiktok-trends", "research-instagram-trends", "research-youtube-trends", "review-creator-account"];
+// 每个 action 用到的字段，照 kabo CONTRACT §16.5 的 MCP 入参表（kabo-sh/kabo#1869）。
+const ACTION_FIELDS = {
+  rename: ["basis", "ids", "name", "topic", "approach"],
+  remove: ["basis", "ids"],
+  restore: ["basis", "ids"],
+  merge: ["basis", "ids", "name", "topic", "approach"],
+  emphasis: ["basis", "ids", "primary", "share"],
+  exclude_topic: ["text"],
+  unexclude_topic: ["text"],
+  set_language: ["language", "accepted"],
+  set_market: ["region"],
+  discard_unresolved: ["ids"],
+  reset: [],
+};
+
+test("画像修改：读开关与写工具都在钉住的 tools/list 里，四份 Skill 声明写工具，profile-edits.md 的 action 表与入参一致", async () => {
+  const read = pinned.get("get_creator_profile");
+  assert.equal(read.inputSchema.properties.effective.type, "boolean");
+  assert.ok(read.outputSchema.properties.effectiveContentProfile, "effectiveContentProfile");
+  const write = pinned.get("update_content_preferences");
+  assert.ok(write, "update_content_preferences 不在钉住的 tools/list 里");
+  assert.deepEqual(write.securitySchemes.flatMap((scheme) => scheme.scopes), ["workspace:write"]);
+  assert.equal(write.annotations.readOnlyHint, false);
+  // 不带幂等键：靠 expected_version 与 basis 防重复（kabo ADR-0081 2026-10-29 节，待目录面负责人确认）。
+  assert.equal(write.inputSchema.properties.idempotency_key, undefined);
+  assert.deepEqual([...write.inputSchema.required].sort(), ["account_id", "action", "expected_version"]);
+  assert.equal(write.inputSchema.additionalProperties, false);
+  assert.deepEqual(write.inputSchema.properties.action.enum, Object.keys(ACTION_FIELDS));
+
+  const texts = await Promise.all(EDITING.map((skill) => readFile(path.join(root, "skills", skill, "references/profile-edits.md"), "utf8")));
+  for (const text of texts) assert.equal(text, texts[0]);
+  const rows = texts[0].split("\n").filter((line) => /^\| `[a-z_]+` \|/.test(line) && !line.startsWith("| `action` |"));
+  const properties = Object.keys(write.inputSchema.properties);
+  const table = Object.fromEntries(rows.map((line) => {
+    const [, action, , fields] = line.split("|").map((cell) => cell.trim());
+    const named = [...fields.matchAll(/`([a-z_]+)`/g)].map((match) => match[1]).filter((name) => properties.includes(name));
+    return [action.replace(/`/g, ""), [...new Set(named)]];
+  }));
+  assert.deepEqual(Object.keys(table), Object.keys(ACTION_FIELDS));
+  for (const [action, fields] of Object.entries(ACTION_FIELDS)) assert.deepEqual(table[action].sort(), [...fields].sort(), action);
+  for (const name of ["account_id", "expected_version", "action"]) assert.match(texts[0], new RegExp(`\`${name}\``));
+  for (const skill of EDITING) {
+    const text = await readFile(path.join(root, "skills", skill, "SKILL.md"), "utf8");
+    const front = text.match(/^---\n([\s\S]*?)\n---/)[1];
+    assert.ok(front.match(/^allowed-tools: (.*)$/m)[1].split(" ").includes("update_content_preferences"), skill);
+    assert.match(front.match(/^compatibility: (.*)$/m)[1], /workspace:write/, skill);
+    assert.match(text, /"effective": true/, skill);
+    assert.match(text, /`references\/profile-edits\.md`/, skill);
+  }
 });

@@ -364,7 +364,13 @@ def read_profile_argument(args: argparse.Namespace) -> bytes | None:
 def place_profile(raw: bytes | None) -> None:
     if raw is None:
         return
-    Path(PROFILE_SOURCE).write_bytes(raw)
+    placed = Path(PROFILE_SOURCE)
+    # 用户可能在本轮中途改了画像。冻结后的 Request 已经带着旧画像的字段，换文件会让同一轮前后两半口径
+    # 不一致，所以字节不同就停下，让模型开一个新 run；同一份文件重跑 start 照常。
+    if placed.is_file() and placed.read_bytes() != raw:
+        raise cd.StageError("the profile file differs from the one this run started with: the profile changed during "
+                            "the run. Start a new run with the new file")
+    placed.write_bytes(raw)
     for line in intake.describe(json.loads(raw.decode("utf-8")), PLATFORM):
         say(line)
 
@@ -474,7 +480,10 @@ def complete_request_and_plan(plan_schema: str) -> None:
 
 
 def attach_profile() -> bool:
-    """Copy the saved account profile's fields into the Request; whether a profile is attached.
+    """Copy the saved account profile's fields into the Request; whether any profile field is attached.
+
+    Signature content may be missing while the topics the Creator excluded are not; the plan check,
+    the `include` fields and the eligibility filter follow any field, the seats only signature content.
 
     Runs before the window is frozen, so the frozen Request already carries them and a rerun finds
     nothing to change. Without a profile file it only removes profile fields written by hand.
@@ -489,7 +498,7 @@ def attach_profile() -> bool:
             "supplied profile file")
     if source.is_file():
         say(f"[drive] creator profile: {json.dumps(report, ensure_ascii=False)}")
-    return intake.attached(cd.load(REQUEST))
+    return intake.profile_fields_attached(cd.load(REQUEST))
 
 
 def candidates_file() -> str:
@@ -498,9 +507,12 @@ def candidates_file() -> str:
 
 
 def search_region(request: dict[str, Any], given: str | None) -> str | None:
-    """The one region every call carries: the Request's, else the one the model named, else none.
+    """The one region every call carries: the Request's, else the one the model named, else the
+    market the Creator set in the saved profile, else none.
 
-    Copied as written, never inferred: the region decides what the searches return.
+    Copied as written, never inferred: the region decides what the searches return. The market is
+    the last default only: the ask's own region and `--region` come first, and it never enters
+    `locale.region`, which the Gate scores against.
     """
     locale = request.get("locale") if isinstance(request.get("locale"), dict) else {}
     frozen = locale.get("region")
@@ -509,7 +521,10 @@ def search_region(request: dict[str, Any], given: str | None) -> str | None:
     if frozen and named and named != frozen:
         raise cd.StageError(f"--region {named} conflicts with the Request's locale.region {frozen}; every call uses "
                             "the Request region, so drop --region or correct the Request")
-    return frozen or named
+    creator = request.get("creator_profile") if isinstance(request.get("creator_profile"), dict) else {}
+    market = creator.get("market_region")
+    market = market if isinstance(market, str) and intake.REGION.match(market) else None
+    return frozen or named or market
 
 
 def discovery_settings(request: dict[str, Any], plan: dict[str, Any], region: str | None) -> dict[str, Any]:

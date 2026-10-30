@@ -29,6 +29,7 @@ def visible_text(item: dict[str, Any]) -> str:
 # 放在作者原文之后，不跟作者原文抢分页预算。
 PLATFORM_SUMMARY_LIMIT = 160
 SIGNATURE_CONTENT_LIMIT = 4
+EXCLUDED_TOPICS_LIMIT = 10
 
 
 def platform_summary(item: dict[str, Any]) -> str | None:
@@ -87,6 +88,22 @@ def signature_subject(profile: dict[str, Any]) -> list[dict[str, Any]]:
                         "topic": fields["topic"].strip(), "approach": fields["approach"].strip(),
                         "examples": examples})
     return subject
+
+
+def excluded_subject(profile: dict[str, Any]) -> list[str]:
+    """创作者排除的话题，原样交给闸门。
+
+    资格过滤只剔除字面命中的候选；换了说法或换了语言的同一话题只有闸门看得出来，所以把话题印进表头，
+    让闸门把这类条目的 topic_relevance 打 0。没有排除话题时 subject 不加这个键，表头逐字节不变。
+    """
+    topics = profile.get("excluded_topics")
+    if topics is None:
+        return []
+    if not isinstance(topics, list) or len(topics) > EXCLUDED_TOPICS_LIMIT:
+        raise ValueError(f"creator_profile.excluded_topics must be an array of at most {EXCLUDED_TOPICS_LIMIT}")
+    if any(not isinstance(topic, str) or not topic.strip() for topic in topics):
+        raise ValueError("every creator_profile.excluded_topics entry must be a nonempty string")
+    return [topic.strip() for topic in topics]
 
 
 def creator_label(item: dict[str, Any]) -> str | None:
@@ -168,6 +185,9 @@ def project(request: dict[str, Any], candidates: dict[str, Any]) -> dict[str, An
     signature = signature_subject(profile)
     if signature:
         subject["signature_content"] = signature
+    excluded = excluded_subject(profile)
+    if excluded:
+        subject["excluded_topics"] = excluded
     return {
         "schema_version": "trend-relevance-gate-input.v1",
         "request_id": str(request["request_id"]),
@@ -184,6 +204,8 @@ TABLE_BUDGET_BYTES = 32_000
 SIGNATURE_CONTENT_RULE = ("Score one more column after creator_transferability: the number of the "
                           "subject.signature_content entry whose approach this item reproduces, or 0 when it "
                           "reproduces none of them.")
+EXCLUDED_TOPICS_RULE = ("Score topic_relevance 0 for an item whose subject is one of subject.excluded_topics (topics "
+                        "the Creator excluded), however it is worded and in whatever language.")
 PLATFORM_SUMMARY_RULE = ("Text after \"platform summary, not by the author:\" was written by the platform, not by "
                          "the item's author: use it to tell what the item shows, never as the author's wording.")
 
@@ -199,6 +221,8 @@ def table_parts(output: dict[str, Any]):
             {key: entry[key] for key in ("number", "name", "topic", "approach", "examples") if key in entry}
             for entry in subject["signature_content"]]}
         header["signature_content_rule"] = SIGNATURE_CONTENT_RULE
+    if subject.get("excluded_topics"):
+        header["excluded_topics_rule"] = EXCLUDED_TOPICS_RULE
     if any(row.get("platform_summary") for row in output["items"]):
         header["platform_summary_rule"] = PLATFORM_SUMMARY_RULE
     yield 0, json.dumps(header, ensure_ascii=False)

@@ -4,6 +4,23 @@
 
 ## 未发布
 
+- 账号画像的有效画像与按人修改（三个 trends Skill 与 `review-creator-account`）：
+  - `contracts/directory-mcp/` 重新固定到 kabo-sh/kabo#1875 的 main 合并提交 `927b75c47`，工具数 62 → 63：
+    `get_creator_profile` 加可选布尔入参 `effective` 与门控出参 `effectiveContentProfile`，新增写工具
+    `update_content_preferences`（`workspace:write`，不带 `idempotency_key`）；`runtime-contract.json`
+    的 `requiredTools` 加上写工具。tools/list 与该提交的 golden 逐字节一致。
+  - 提供方已用 `maxItems: 0` 修复 `effectiveContentProfile.formats` 的空数组 schema；撤掉元模式校验的临时绕行，
+    全部钉住的工具入参、出参均通过 draft-07 元模式校验。
+  - 手工移植 creator-skills `feat/reco2-trends-effective-profile`（kabo-sh/creator-skills#920，`12b91ffef`）：画像文件里有
+    `effectiveContentProfile` 且字面量认得时读它，否则退回 `contentProfile` v1；Request 新增 `excluded_topics`、
+    `market_region`、`own_content_ids`、`profile_basis`；计划校验、资格过滤与 Gate 都执行排除话题；主打项排第一；
+    市场只作缺省检索地区（TikTok 搜索、YouTube collect，Instagram 不用）；同一运行中途换画像文件报错。本仓的 MCP 外壳拆读、
+    不打印受众数与 `--without-include` 交接保持不变。
+  - 读画像带 `effective: true`，被拒时去掉重发一次。四个 Skill 的 `allowed-tools` 加 `update_content_preferences`、
+    `compatibility` 加 `workspace:write`；写入规则在新增的 `references/profile-edits.md`（四份同文），按 kabo CONTRACT §16.6
+    （kabo-sh/kabo#1869）的确认规则执行，409 先重读，`insufficient_scope` 请用户批准补权后重试一次。
+  - 新增有效画像夹具（TikTok 三份取自 kabo `effective-content-profile-v1` golden 的向量）与相应测试；README、
+    `docs/submission.md` 补说明。上线前要重新走目录审核并重新做插件验收。
 - 三个 trends Skill（`research-tiktok-trends`、`research-instagram-trends`、`research-youtube-trends`）接收后台账号画像：
   手工移植 creator-skills #918（`feat/reco-trends-allocation`，`e6fd8cfe7`）的 S1–S3。用户问自己已绑定账号的趋势时，
   先 `list_connected_accounts`、再 `get_creator_profile`（`include: ["content_profile"]`），完整结果原样存成文件交给

@@ -43,6 +43,7 @@
     "render_remake_video",
     "save_script",
     "start_remake_video",
+    "update_content_preferences",
     "update_script"
   ],
   "optionalTools": [
