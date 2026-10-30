@@ -132,6 +132,9 @@ def compose(
     analysis: dict[str, Any],
     synthesis: dict[str, Any],
     language: str | None = None,
+    *,
+    reference_candidates: list[dict[str, Any]] | None = None,
+    reference_gates: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """`language` is accepted from older callers and does not change the output."""
     text = TEXTS
@@ -183,6 +186,10 @@ def compose(
     for item in (synthesis.get("patterns") or []) + (synthesis.get("emerging_creators") or []):
         for ref in item.get("content_refs") or []:
             append_once(refs, resolve_ref(ref))
+    # 有可引用证据时，空 synthesis 也不能把已入选的视频全部丢掉。
+    if not refs:
+        allowed = set(analysis["selected_content_ids"]) if "selected_content_ids" in analysis else candidate_ids
+        refs = [ref for ref in ranked if ref in allowed and ref in candidate_ids]
     # Composer 和独立 Validator 共用入选校验，避免生成报告时绕过分配结果。
     sys.dont_write_bytecode = True
     path = Path(__file__).with_name("validate_output.py")
@@ -298,7 +305,7 @@ def compose(
         append_once(data_gaps, text["momentum_gap"])
 
     source = snapshot.get("source") or {}
-    return {
+    report = {
         "schema_version": "trend-research-report.v3",
         "report_id": synthesis["report_id"],
         "request_id": synthesis["request_id"],
@@ -323,6 +330,12 @@ def compose(
         "emerging_creators": emerging_creators,
         "data_gaps": data_gaps,
     }
+    if not refs and reference_candidates is not None:
+        videos = validator.reference_fallback().select(request, reference_candidates, reference_gates or [])
+        if videos:
+            report["reference_videos"] = videos
+            report["status"] = "partial"
+    return report
 
 
 def main() -> int:
@@ -333,9 +346,13 @@ def main() -> int:
     parser.add_argument("--synthesis", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--language", help="accepted from older callers; fixed wording is English")
+    parser.add_argument("--reference-candidates", type=Path, action="append")
+    parser.add_argument("--reference-gate", type=Path, action="append", default=[])
     args = parser.parse_args()
     try:
-        result = compose(load(args.request), load(args.snapshot), load(args.analysis), load(args.synthesis))
+        result = compose(load(args.request), load(args.snapshot), load(args.analysis), load(args.synthesis),
+                         reference_candidates=[load(path) for path in args.reference_candidates] if args.reference_candidates is not None else None,
+                         reference_gates=[load(path) for path in args.reference_gate])
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return 0

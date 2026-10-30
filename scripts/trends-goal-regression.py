@@ -200,5 +200,90 @@ class ReportSelectionTest(unittest.TestCase):
             self.assertEqual([], module(platform, "validate_output").validate(report, req, analysis))
 
 
+class VideoDeliveryFallbackTest(unittest.TestCase):
+    def candidates(self, platform):
+        urls = {"youtube": "https://www.youtube.com/watch?v=", "instagram": "https://www.instagram.com/reel/",
+                "tiktok": "https://www.tiktok.com/@creator/video/"}
+        return {"platform": platform, "items": [
+            {"content_key": f"{platform}:ref-{n}", "url": urls[platform] + str(10000000000 + n),
+             "caption": f"A game to explore {n}", "published_at": None} for n in range(4)]}
+
+    def empty_report_inputs(self, platform):
+        req, snapshot, gate, allocation, synthesis = inputs(platform)
+        for row in gate["items"]:
+            row["relevance"] = "reject"
+        allocation.update(slots=[], per_content={"career": {"quota": 2, "filled": 0}}, shortfall=2)
+        synthesis.update(featured_content_refs=[], patterns=[], emerging_creators=[])
+        analysis = module(platform, "analyze_public_snapshot").analyze(
+            snapshot, "trend", None, request=req, relevance_gate=gate, allocation=allocation)
+        return req, snapshot, analysis, synthesis
+
+    def test_every_score_below_floor_still_delivers_source_links_without_changing_the_scores(self):
+        for platform in ("instagram", "tiktok", "youtube"):
+            with self.subTest(platform=platform):
+                req, snapshot, analysis, synthesis = self.empty_report_inputs(platform)
+                candidates = self.candidates(platform)
+                gate = {"items": [{"content_key": row["content_key"],
+                                   "semantic_scores": {"topic_relevance": n, "locale_fit": 0}}
+                                  for n, row in enumerate(candidates["items"])]}
+                original_gate = copy.deepcopy(gate)
+                report = module(platform, "compose_report").compose(
+                    req, snapshot, analysis, synthesis, reference_candidates=[candidates], reference_gates=[gate])
+                self.assertEqual("partial", report["status"])
+                self.assertEqual([], report["top_content"])
+                self.assertEqual([row["url"] for row in reversed(candidates["items"][1:])],
+                                 [row["url"] for row in report["reference_videos"]])
+                self.assertEqual(original_gate, gate)
+                self.assertEqual([], module(platform, "validate_output").validate(report, req, analysis, [candidates], [gate]))
+                rendered = module(platform, "render_creator_report").render(report)
+                for row in report["reference_videos"]:
+                    self.assertIn(row["url"], rendered)
+                    self.assertIsNone(row["published_at"], "a missing date is never fabricated")
+                    self.assertNotIn("metrics", row, "retrieval references do not gain evidence-rank metrics")
+                self.assertIn("did not qualify for a strong recommendation", rendered)
+
+    def test_an_empty_synthesis_keeps_existing_selected_videos(self):
+        for platform in ("instagram", "tiktok", "youtube"):
+            with self.subTest(platform=platform):
+                req, snapshot, gate, allocation, synthesis = inputs(platform)
+                analysis = module(platform, "analyze_public_snapshot").analyze(
+                    snapshot, "trend", None, request=req, relevance_gate=gate, allocation=allocation)
+                synthesis["featured_content_refs"] = []
+                report = module(platform, "compose_report").compose(
+                    req, snapshot, analysis, synthesis, reference_candidates=[self.candidates(platform)])
+                self.assertEqual({"one", "two"}, {row["content_id"] for row in report["top_content"]})
+                self.assertNotIn("reference_videos", report)
+                self.assertEqual([], module(platform, "validate_output").validate(report, req, analysis, [self.candidates(platform)]))
+
+    def test_reference_links_are_bound_to_candidates_and_cannot_claim_complete(self):
+        for platform in ("instagram", "tiktok", "youtube"):
+            req, snapshot, analysis, synthesis = self.empty_report_inputs(platform)
+            candidates = self.candidates(platform)
+            report = module(platform, "compose_report").compose(
+                req, snapshot, analysis, synthesis, reference_candidates=[candidates])
+            validator = module(platform, "validate_output")
+            forged = copy.deepcopy(report)
+            forged["reference_videos"][0]["url"] += "-invented"
+            self.assertTrue(any("source-backed" in error for error in validator.validate(forged, req, analysis, [candidates])))
+            self.assertTrue(any("partial" in error for error in validator.validate({**report, "status": "complete"}, req, analysis, [candidates])))
+            self.assertTrue(any("original request" in error for error in validator.validate(report, req, analysis)))
+
+    def test_reference_fallback_does_not_invent_results_or_reinsert_explicit_exclusions(self):
+        for platform in ("instagram", "tiktok", "youtube"):
+            req, snapshot, analysis, synthesis = self.empty_report_inputs(platform)
+            candidates = self.candidates(platform)
+            req["creator_profile"]["excluded_topics"] = ["game to explore"]
+            fallback = module(platform, "reference_fallback")
+            self.assertEqual([], fallback.select(req, [candidates], []))
+            req["creator_profile"]["excluded_topics"] = []
+            self.assertEqual([], fallback.select(req, [{"items": []}], []))
+            candidates["items"] = [candidates["items"][0]] * 3
+            self.assertEqual(1, len(fallback.select(req, [candidates, candidates], [])))
+            report = module(platform, "compose_report").compose(
+                req, snapshot, analysis, synthesis, reference_candidates=[{"items": []}])
+            self.assertNotIn("reference_videos", report)
+            self.assertEqual([], module(platform, "validate_output").validate(report, req, analysis, [{"items": []}]))
+
+
 if __name__ == "__main__":
     unittest.main()

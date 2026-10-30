@@ -123,7 +123,7 @@ padded. The enrichment call itself is unchanged.
 When Analysis has `selected_content_ids`, every featured, pattern and emerging-creator reference
 must belong to that set, including selected items whose `signature_content_id` is null. `rank` prints
 only selected candidate evidence for synthesis; the saved Analysis retains the full population for
-calculation and validation. An empty selection stays empty.
+calculation and validation. An empty selection is not relabeled as passed evidence.
 
 
 When the Analysis lists `signature_content` (each item with the seats it was given), cite at least
@@ -133,3 +133,6 @@ the report validator rejects a report that leaves one out. The ranking stays as 
 only make sure each kind of content the Creator is known for is represented. When an item filled
 fewer seats than its `quota`, note it briefly in `data_gaps`, never in Creator-facing prose, and
 never make up the difference with posts that were not seated.
+
+
+When no recommendation survives, the report adds up to three `reference_videos` from this run's existing candidates, ordered by the existing topic/locale scores. These are visibly marked as uncertain references, without invented metrics, dates or strong-match claims. Empty authored selections reuse available selected evidence first. Do not stop before the report stage or claim that no videos were found solely because the selected list is empty. No extra search or model step is added; genuinely empty source data cannot supply a video, and explicit excluded topics remain excluded.

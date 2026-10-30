@@ -122,6 +122,18 @@ def render(report: dict[str, Any], language: str | None = None) -> str:
     lines += [f"## {LABELS['next_action']}", "", overview["next_action"]]
     markdown = "\n".join(lines).strip() + "\n"
     validate_rendered_markdown(markdown, report)
+    references = report.get("reference_videos") or []
+    if references:
+        lines = ["## Available video references", "",
+                 "These videos did not qualify for a strong recommendation. Topic fit, dates or supporting information may not meet the request.", ""]
+        for item in references:
+            title = re.sub(r"[\\\[\]()*_`<>]", "", " ".join(item["title"].split()))[:100] or "Video"
+            date = str(item.get("published_at") or "")[:10]
+            lines.append(f"- [{title}]({item['url']})" + (f" · {date}" if date else ""))
+        heading = f"## {LABELS['next_action']}"
+        markdown = markdown.replace(heading, "\n".join(lines) + "\n\n" + heading, 1)
+        # 参考链接未必在请求窗口内，不能套用正常报告的“发布于该窗口”结语。
+        return markdown
     basis = basis_sentence(report, shown_multiple_sample_sizes(report, cited_refs(report)), basis_template(language))
     return markdown + (f"\n*{basis}*\n" if basis else "")
 
