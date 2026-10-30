@@ -42,3 +42,21 @@ test("notes_for_user 只留改了什么，去掉自检与 qc 行", () => {
   assert.ok(notes_for_user.every(line => !/qc|likeness|failed \[/.test(line)));
   assert.deepEqual(relay(null, null).notes_for_user, []);
 });
+
+test("render-args 的可选档优先取 talking_model_choices（all_models），旧服务端退回 talking_models", () => {
+  const code = `import importlib.util,json,sys,tempfile,os
+sys.dont_write_bytecode=True
+spec=importlib.util.spec_from_file_location("c",sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+out=[]
+for doc in json.loads(sys.argv[2]):
+    f=tempfile.NamedTemporaryFile("w",suffix=".json",delete=False);json.dump(doc,f);f.close()
+    out.append(m.offered_models(f.name)[0]);os.unlink(f.name)
+print(json.dumps(out))`;
+  const wan = "alibaba/wan-3.0/reference-to-video";
+  const docs = [
+    { job_id: "j", status: "waiting_script", talking_models: [{ id: "vivix/vivix-a1" }], talking_model_choices: [{ id: wan }, { id: "vivix/vivix-a1" }] },
+    { job_id: "j", status: "waiting_script", talking_models: [{ id: "vivix/vivix-a1" }] },
+  ];
+  const out = JSON.parse(execFileSync("python3", ["-c", code, path.join(scripts, "check_documents.py"), JSON.stringify(docs)], { encoding: "utf8" }));
+  assert.deepEqual(out, [[wan, "vivix/vivix-a1"], ["vivix/vivix-a1"]]);
+});

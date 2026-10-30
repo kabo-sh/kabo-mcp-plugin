@@ -89,8 +89,7 @@ after it.
 A remake needs both of these. Check them before any paid call:
 
 1. **One reference video**: the viral video to remake, as a YouTube, Instagram or TikTok link,
-   90 seconds or less, one person talking to camera. TikTok short links (vm.tiktok.com,
-   vt.tiktok.com) work too.
+   90 seconds or less, one person talking to camera (TikTok short links work too).
 2. **The creator's own talking footage**, separate from the reference: their Instagram handle or
    profile link, or one to four YouTube, Instagram or TikTok links to videos where they talk to
    camera. It decides how much the result looks like the creator.
@@ -170,7 +169,7 @@ relay it and ask for a corrected input; nothing was started.
   - `service_unavailable` or another error with `retryable: true`: try once more after a minute; if
     it fails again, say remakes are unavailable right now.
 
-Once there is a `job_id`, call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30}` until the
+Once there is a `job_id`, call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30, "all_models": true}` until the
 status is no longer `preparing`. Analysis takes about ten minutes. Tell the user the current stage
 in one line when it changes; do not repeat yourself on every call.
 
@@ -178,8 +177,7 @@ in one line when it changes; do not repeat yourself on every call.
 to step 3. Stop as soon as a result shows `failure: "unsupported_type"` (the status stays
 `waiting_script`, and `brief`, `talking_models` and `gate_message` are null), or a
 `reference_type` that is set and is none of those three (for example `narration`, a voice-over).
-Give `failure_reason` in plain words: it names the kind Kabo detected and says Kabo web supports
-it, so tell the user both. Say that no video was generated, and give the spend the result reports,
+Give `failure_reason` in plain words. Say that no video was generated, and give the spend the result reports,
 if any. Do not say whether it counts toward the daily limit. Do not call `render_remake_video`;
 this job is finished.
 
@@ -192,7 +190,8 @@ it comes from `start_remake_video`, its reason is in `message`.
 
 ## 3. Save the brief
 
-At `waiting_script` the result carries `brief.download`, `gate_message` and `talking_models`.
+At `waiting_script` the result carries `brief.download`, `gate_message` and the model options
+(step 6).
 Save the result as above, then fetch the brief at once (the link is short-lived):
 
 ```sh
@@ -238,9 +237,9 @@ it again; read each warning and change the document when it applies. Advance onl
 
 ## 6. Choose the talking model and render
 
-Nothing is generated or charged before this step. Show the user the `talking_models` from the
-waiting_script result, in their order, each with its label and its estimated cost (`est_usd`), and
-say that the first one is the default. Do not add a recommendation of your own, drop options or
+Nothing is generated or charged before this step. Show the user the model options from the
+waiting_script result (`talking_model_choices`, else `talking_models`) in their order, each with its label and its estimated cost (`est_usd`),
+and say that the first one is the default. Do not add a recommendation of your own, drop options or
 change the order. Unless the user already named a listed model (below), end your reply there and wait for the
 answer; the job waits at the script gate.
 When the conversation resumes, continue here in the same run directory.
@@ -283,8 +282,9 @@ example `cr check-script: ...`) and a fresh brief; nothing paid has been spent. 
 
 ## 7. Production and delivery
 
-Production takes about twenty minutes with the default model and longer with the others. Call
-`get_remake_video` with `wait_s` 30 and `include` `["review"]` until the status is `delivered`, final, or `waiting_script`
+Production takes about twenty to thirty minutes, depending on the model and the video's length
+(Seedance 2.0 queues longer). Call `get_remake_video` with `wait_s` 30,
+`include` `["review"]` and `all_models` `true` until the status is `delivered`, final, or `waiting_script`
 again (the documents were rejected: step 6). While it is
 `running`, report the stage in one line when it changes. Do not promise a finish time.
 
