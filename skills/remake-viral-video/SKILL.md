@@ -312,8 +312,8 @@ unavailable download is handled as in step 3. Then tell the user:
 - the spend the result reports (`spend_usd`), when present;
 - what Kabo's final review found, from `review`.
 
-Read `references/final-review.md` and relay `review` exactly as it says: name every flagged item,
-never say the video passed a review, and never relay the notes' own self-check figures.
+Read `references/final-review.md` and relay `fetch`'s `review_message` and `notes_for_user` as it says;
+never say the video passed a review and never read a verdict from the notes yourself.
 
 Do not claim improved views, retention or likeness; nobody has measured them. Suggest the user
 watch it in full before publishing.
