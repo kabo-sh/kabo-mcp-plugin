@@ -1,0 +1,515 @@
+{
+  "account": {
+    "id": "acct-tiktok-0001",
+    "platform": "tiktok",
+    "handle": "@Bead.Studio",
+    "displayName": "Synthetic Creator",
+    "avatarUrl": null,
+    "audienceLabel": "followers",
+    "dataState": "available",
+    "postCount": 120,
+    "audienceCount": 2000,
+    "engagementRate": 0.05,
+    "grantState": "observed"
+  },
+  "review": null,
+  "diagnosis": null,
+  "contentProfile": {
+    "formats": [
+      {
+        "baseline": {
+          "k": 5,
+          "maturityDays": 7,
+          "n": 30,
+          "priorMedianViews": 11000,
+          "priorSource": "account_all_formats",
+          "rawMedianViews": 12000,
+          "shrunkMedianViews": 11800
+        },
+        "count": 36,
+        "format": "short_video",
+        "share": 0.75
+      },
+      {
+        "baseline": {
+          "k": 5,
+          "maturityDays": 14,
+          "n": 10,
+          "priorMedianViews": 11000,
+          "priorSource": "account_all_formats",
+          "rawMedianViews": 30000,
+          "shrunkMedianViews": 24000
+        },
+        "count": 12,
+        "format": "long_video",
+        "share": 0.25
+      }
+    ],
+    "generatedAt": "2026-10-01T00:00:00.000Z",
+    "language": {
+      "accepted": [
+        "en"
+      ],
+      "confidence": "high",
+      "distribution": [
+        {
+          "items": 43,
+          "share": 0.9,
+          "sources": [
+            "platform_detected"
+          ],
+          "tag": "en"
+        },
+        {
+          "items": 5,
+          "share": 0.1,
+          "sources": [
+            "declared"
+          ],
+          "tag": "es"
+        }
+      ],
+      "effectiveSamples": 40,
+      "primary": "en",
+      "totalSamples": 48
+    },
+    "observedHashtags": [
+      "legday",
+      "mealprep",
+      "gymlife"
+    ],
+    "platform": "tiktok",
+    "region": "US",
+    "ruleVersion": "content-profile.v1",
+    "sample": {
+      "comparable": 40,
+      "fetched": 48,
+      "transcriptsObtained": 12,
+      "transcriptsRequested": 14
+    },
+    "signatureContent": [
+      {
+        "approach": "Talking-head demo with form cues",
+        "contentCount": 12,
+        "format": "short_video",
+        "id": "sc1",
+        "medianMultiplier": 2.1,
+        "name": "Leg day tutorials",
+        "representativeContent": [
+          {
+            "contentId": "v1",
+            "multiplier": 4.2,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v1",
+            "title": "Video v1",
+            "views": 90000
+          },
+          {
+            "contentId": "v2",
+            "multiplier": 2.6,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v2",
+            "title": "Video v2",
+            "views": 40000
+          },
+          {
+            "contentId": "v3",
+            "multiplier": 1.9,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v3",
+            "title": "Video v3",
+            "views": 30000
+          }
+        ],
+        "seedHashtags": [
+          "legday",
+          "squats"
+        ],
+        "seedSounds": [
+          {
+            "id": "s1",
+            "title": "Gym beat"
+          }
+        ],
+        "seedTerms": [
+          "leg day",
+          "squat"
+        ],
+        "share": 0.25,
+        "topic": "Lower-body strength training",
+        "weight": 0.4
+      },
+      {
+        "approach": "Overhead cooking timelapse",
+        "contentCount": 9,
+        "format": "short_video",
+        "id": "sc2",
+        "medianMultiplier": 1.6,
+        "name": "Meal prep",
+        "representativeContent": [
+          {
+            "contentId": "v4",
+            "multiplier": 2.4,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v4",
+            "title": "Video v4",
+            "views": 35000
+          },
+          {
+            "contentId": "v5",
+            "multiplier": 1.4,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v5",
+            "title": "Video v5",
+            "views": 20000
+          }
+        ],
+        "seedHashtags": [
+          "mealprep"
+        ],
+        "seedSounds": [
+          {
+            "id": "s2",
+            "title": null
+          }
+        ],
+        "seedTerms": [
+          "meal prep",
+          "protein"
+        ],
+        "share": 0.19,
+        "topic": "Budget high-protein meal prep",
+        "weight": 0.3
+      },
+      {
+        "approach": "Handheld vlog with voiceover",
+        "contentCount": 8,
+        "format": "long_video",
+        "id": "sc3",
+        "medianMultiplier": null,
+        "name": "Gym vlogs",
+        "representativeContent": [
+          {
+            "contentId": "v6",
+            "multiplier": null,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v6",
+            "title": "Video v6",
+            "views": 60000
+          }
+        ],
+        "seedHashtags": [
+          "gymlife"
+        ],
+        "seedSounds": [],
+        "seedTerms": [
+          "gym vlog"
+        ],
+        "share": 0.17,
+        "topic": "A day at the gym",
+        "weight": 0.2
+      },
+      {
+        "approach": "Split-screen side-by-side review",
+        "contentCount": 5,
+        "format": "mixed",
+        "id": "sc4",
+        "medianMultiplier": 1.2,
+        "name": "Form checks",
+        "representativeContent": [
+          {
+            "contentId": "v7",
+            "multiplier": 1.3,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v7",
+            "title": "Video v7",
+            "views": 15000
+          },
+          {
+            "contentId": "v8",
+            "multiplier": null,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v8",
+            "title": "Video v8",
+            "views": 9000
+          }
+        ],
+        "seedHashtags": [
+          "formcheck"
+        ],
+        "seedSounds": [
+          {
+            "id": "s1",
+            "title": "Gym beat"
+          }
+        ],
+        "seedTerms": [
+          "form check"
+        ],
+        "share": 0.1,
+        "topic": "Fixing common lifting mistakes",
+        "weight": 0.1
+      }
+    ],
+    "signatureContentStatus": "ok",
+    "version": 1
+  },
+  "effectiveContentProfile": {
+    "base": {
+      "generatedAt": "2026-10-01T00:00:00.000Z",
+      "ruleVersion": "content-profile.v1"
+    },
+    "edited": true,
+    "excludedTopics": [],
+    "formats": [
+      {
+        "baseline": {
+          "k": 5,
+          "maturityDays": 7,
+          "n": 30,
+          "priorMedianViews": 11000,
+          "priorSource": "account_all_formats",
+          "rawMedianViews": 12000,
+          "shrunkMedianViews": 11800
+        },
+        "count": 36,
+        "format": "short_video",
+        "share": 0.75
+      },
+      {
+        "baseline": {
+          "k": 5,
+          "maturityDays": 14,
+          "n": 10,
+          "priorMedianViews": 11000,
+          "priorSource": "account_all_formats",
+          "rawMedianViews": 30000,
+          "shrunkMedianViews": 24000
+        },
+        "count": 12,
+        "format": "long_video",
+        "share": 0.25
+      }
+    ],
+    "hiddenSignatureContent": [],
+    "language": {
+      "accepted": [
+        "en"
+      ],
+      "confidence": "high",
+      "primary": "en",
+      "source": "profile"
+    },
+    "observedHashtags": [
+      "legday",
+      "mealprep",
+      "gymlife"
+    ],
+    "ownContentIds": [
+      "v1",
+      "v2",
+      "v3",
+      "v4",
+      "v5",
+      "v6",
+      "v7",
+      "v8"
+    ],
+    "platform": "tiktok",
+    "preferences": {
+      "status": "ok",
+      "updatedAt": "2026-10-25T08:30:00.000Z",
+      "version": 1
+    },
+    "region": "US",
+    "regionSource": "profile",
+    "ruleVersion": "effective-content-profile.v1",
+    "signatureContent": [
+      {
+        "approach": "Split-screen side-by-side review",
+        "contentCount": 5,
+        "format": "mixed",
+        "id": "sc4",
+        "medianMultiplier": 1.2,
+        "name": "Form checks",
+        "origin": {
+          "baseIds": [
+            "sc4"
+          ],
+          "baseName": "Form checks",
+          "renamed": false,
+          "weightSource": "profile"
+        },
+        "primary": true,
+        "representativeContent": [
+          {
+            "contentId": "v7",
+            "multiplier": 1.3,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v7",
+            "title": "Video v7",
+            "views": 15000
+          },
+          {
+            "contentId": "v8",
+            "multiplier": null,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v8",
+            "title": "Video v8",
+            "views": 9000
+          }
+        ],
+        "seedHashtags": [
+          "formcheck"
+        ],
+        "seedSounds": [
+          {
+            "id": "s1",
+            "title": "Gym beat"
+          }
+        ],
+        "seedTerms": [
+          "form check"
+        ],
+        "share": 0.1,
+        "topic": "Fixing common lifting mistakes",
+        "weight": 0.30769230769230776
+      },
+      {
+        "approach": "Talking-head demo with form cues",
+        "contentCount": 12,
+        "format": "short_video",
+        "id": "sc1",
+        "medianMultiplier": 2.1,
+        "name": "Leg day tutorials",
+        "origin": {
+          "baseIds": [
+            "sc1"
+          ],
+          "baseName": "Leg day tutorials",
+          "renamed": false,
+          "weightSource": "profile"
+        },
+        "primary": false,
+        "representativeContent": [
+          {
+            "contentId": "v1",
+            "multiplier": 4.2,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v1",
+            "title": "Video v1",
+            "views": 90000
+          },
+          {
+            "contentId": "v2",
+            "multiplier": 2.6,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v2",
+            "title": "Video v2",
+            "views": 40000
+          },
+          {
+            "contentId": "v3",
+            "multiplier": 1.9,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v3",
+            "title": "Video v3",
+            "views": 30000
+          }
+        ],
+        "seedHashtags": [
+          "legday",
+          "squats"
+        ],
+        "seedSounds": [
+          {
+            "id": "s1",
+            "title": "Gym beat"
+          }
+        ],
+        "seedTerms": [
+          "leg day",
+          "squat"
+        ],
+        "share": 0.25,
+        "topic": "Lower-body strength training",
+        "weight": 0.30769230769230776
+      },
+      {
+        "approach": "Overhead cooking timelapse",
+        "contentCount": 9,
+        "format": "short_video",
+        "id": "sc2",
+        "medianMultiplier": 1.6,
+        "name": "Meal prep",
+        "origin": {
+          "baseIds": [
+            "sc2"
+          ],
+          "baseName": "Meal prep",
+          "renamed": false,
+          "weightSource": "profile"
+        },
+        "primary": false,
+        "representativeContent": [
+          {
+            "contentId": "v4",
+            "multiplier": 2.4,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v4",
+            "title": "Video v4",
+            "views": 35000
+          },
+          {
+            "contentId": "v5",
+            "multiplier": 1.4,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v5",
+            "title": "Video v5",
+            "views": 20000
+          }
+        ],
+        "seedHashtags": [
+          "mealprep"
+        ],
+        "seedSounds": [
+          {
+            "id": "s2",
+            "title": null
+          }
+        ],
+        "seedTerms": [
+          "meal prep",
+          "protein"
+        ],
+        "share": 0.19,
+        "topic": "Budget high-protein meal prep",
+        "weight": 0.23076923076923078
+      },
+      {
+        "approach": "Handheld vlog with voiceover",
+        "contentCount": 8,
+        "format": "long_video",
+        "id": "sc3",
+        "medianMultiplier": null,
+        "name": "Gym vlogs",
+        "origin": {
+          "baseIds": [
+            "sc3"
+          ],
+          "baseName": "Gym vlogs",
+          "renamed": false,
+          "weightSource": "profile"
+        },
+        "primary": false,
+        "representativeContent": [
+          {
+            "contentId": "v6",
+            "multiplier": null,
+            "sourceUrl": "https://www.tiktok.com/@kabo.fixture/video/v6",
+            "title": "Video v6",
+            "views": 60000
+          }
+        ],
+        "seedHashtags": [
+          "gymlife"
+        ],
+        "seedSounds": [],
+        "seedTerms": [
+          "gym vlog"
+        ],
+        "share": 0.17,
+        "topic": "A day at the gym",
+        "weight": 0.15384615384615388
+      }
+    ],
+    "signatureContentStatus": "ok",
+    "unresolvedEdits": [],
+    "version": 1
+  }
+}
