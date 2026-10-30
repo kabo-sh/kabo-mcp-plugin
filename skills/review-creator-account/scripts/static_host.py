@@ -339,6 +339,9 @@ def tls_context():
     # macOS 上 python.org 装的 Python 没跑过 Install Certificates 时默认信任库是空的，每个 HTTPS 下载都报证书失败
     # （插件实测 T-20261028-04）。只在默认信任库确实不存在时换用 certifi 或系统 CA 包，证书照常校验；
     # 某个候选读不了或格式不对就试下一个。
+    # Windows 的默认上下文读系统证书库，文件路径为空不代表没有信任库，保持默认。
+    if sys.platform == "win32":
+        return None
     paths = ssl.get_default_verify_paths()
     if (paths.cafile and os.path.isfile(paths.cafile)) or hashed_capath(paths.capath):
         return None
