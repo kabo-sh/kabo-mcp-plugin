@@ -51,6 +51,10 @@
   `cf290a6cf`（只有两个复刻工具的入参和说明变了，出参不变）；合入后需按 kabo main 的 commit 重新固定。
 - 第 8 步「没跑完」的细则移到 `references/when-it-does-not-finish.md`（SKILL.md 正文回到 2 万字符以内）。
 - 新增 `scripts/remake-narration.test.mjs`：旁白画面检查、preview / review 参数、分页下载（不联网）。
+- `review-creator-account` 同步上游 0.5.49：首次 `report` 就通过（从未返回 needs_revision）即为最终步，不再跑
+  `verify-report`；`verify-report` 在 `report` 之前运行会直接提示先跑 `report`；YouTube 频道简介与订阅数进入身份；
+  被拒的 YouTube handle 改提示用 `--channel-id`；`fetch` 先打印紧凑 schema 再打印输入。`review-creator-account-deep`
+  第 1 步同步认 `report` 为最终步时打印的 `creator_report:`。
 
 ## 1.0.4（2026-10-28；GitHub Release）
 
