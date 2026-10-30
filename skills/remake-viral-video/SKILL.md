@@ -1,6 +1,6 @@
 ---
 name: remake-viral-video
-description: "Have Kabo's remake service make a finished MP4 of a viral talking-head reference (90 seconds or less) with the creator in it, usually the user, built from footage of them that the user gives (Instagram or video links). Kabo generates it on its servers; it is not your own video generation. Use when someone asks to remake, recreate or copy a viral video onto themselves or a named creator. For only a script, use script writing; for only a teardown, use video analysis."
+description: "Have Kabo's remake service make a finished MP4 of a viral talking-head reference (90 seconds or less, including ones that cut to screen recordings or show a product) with the creator in it, usually the user, built from footage of them that the user gives. Kabo generates it on its servers; it is not your own video generation. Use when someone asks to remake, recreate or copy a viral video onto themselves or a named creator. For only a script use script writing; for a teardown, video analysis."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return."
 allowed-tools: start_remake_video get_remake_video render_remake_video
@@ -24,8 +24,10 @@ follow the same steps in the main thread.
 
 - A reference of **90 seconds or less** where **one person talks to the camera** for most of the
   video, at any distance, seated or standing, anywhere, with a fixed or slightly handheld camera.
-  This version remakes only this talking-head kind. References that cut to screen recordings or to
-  a product the speaker shows, and voice-over references, are not remade yet.
+  Three kinds, which the runner tells apart by itself from the video (nothing to ask or choose):
+  pure talking head; talking with screens (the video cuts to screen recordings or screenshots, or
+  shows them floating over the speaker's room); talking with a product (the speaker shows a
+  physical thing and the video cuts to close-ups of it). Voice-over references are not remade yet.
 - Refused by the runner before any video is generated (`out_of_scope`): references over 90
   seconds, walking, vehicle or first-person vlogs where the camera keeps moving, dialogues between
   several people, references with nobody speaking on camera, references where the speaker is on
@@ -73,10 +75,11 @@ rebuild a file from what was displayed.
 The first time the user asks for a remake in a conversation, say in two or three sentences, before
 asking for anything or starting, all three of these:
 
-- what this remakes: a reference of 90 seconds or less where one person talks to the camera;
+- what this remakes: a reference of 90 seconds or less where one person talks to the camera,
+  including ones that cut to screen recordings or show a product;
 - that references outside this (dialogues between several people, walking or travel vlogs, nobody
-  speaking on camera, over 90 seconds; for now also screen-recording, product-showing and
-  voice-over videos) are refused before anything is generated, and a refusal is not charged;
+  speaking on camera, over 90 seconds; for now also voice-over videos) are refused before
+  anything is generated, and a refusal is not charged;
 - that borderline references may not come out well.
 
 Say it once per conversation, also
@@ -171,16 +174,18 @@ Once there is a `job_id`, call `get_remake_video` with `{"job_id": "<id>", "wait
 status is no longer `preparing`. Analysis takes about ten minutes. Tell the user the current stage
 in one line when it changes; do not repeat yourself on every call.
 
-**Talking head only.** Stop as soon as a result shows `failure: "unsupported_type"` (the status
-stays `waiting_script`, and `brief`, `talking_models` and `gate_message` are null), or a
-`reference_type` that is set and is not `talking`. Say that this version of the plugin only remakes
-pure talking-head videos (one person talking to the camera, without cutting to screen recordings,
-without showing or handling an object or product for much of the video, and not voice-over); a
-speaker who faces the camera throughout can still be one of these kinds. Give `failure_reason` in
-plain words. It names the kind Kabo detected and says Kabo web supports it: tell the user both, so
-they know they can remake this video on Kabo web. Say that no video was generated, and give the
-spend the result reports, if any. Do not say whether it counts toward the daily limit. Do
-not call `render_remake_video`; this job is finished.
+**Supported kinds only.** `reference_type` `talking`, `talking_screen` and `talking_product` go on
+to step 3. Stop as soon as a result shows `failure: "unsupported_type"` (the status stays
+`waiting_script`, and `brief`, `talking_models` and `gate_message` are null), or a
+`reference_type` that is set and is none of those three (for example `narration`, a voice-over).
+Give `failure_reason` in plain words: it names the kind Kabo detected and says Kabo web supports
+it, so tell the user both. Say that no video was generated, and give the spend the result reports,
+if any. Do not say whether it counts toward the daily limit. Do not call `render_remake_video`;
+this job is finished.
+
+For `talking_product`, tell the user once, before the script gate, that the creator talks
+empty-handed while the product stays in the scene and in the reference's own close-ups; never
+promise a shot of them holding it.
 
 A final status at this point (`out_of_scope`, `failed`, `timed_out`) is handled as in step 8; when
 it comes from `start_remake_video`, its reason is in `message`.

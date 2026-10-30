@@ -291,13 +291,12 @@ CHANGELOG.md                    # Version history (Chinese)
 
 The eleven Skills cover video analysis, standard and deep account reviews, scripts and packaging,
 content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor research, and
-`remake-viral-video`, which remakes a viral talking-head video of 90 seconds or less with the creator
-in it. See [skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
+`remake-viral-video`, which remakes a viral talking-head video of 90 seconds or less (including ones
+that cut to screen recordings or show a product) with the creator in it. See [skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
 same Skills.
 
-`remake-viral-video` is not released yet. It needs the `start_remake_video`, `get_remake_video` and
-`render_remake_video` tools on `/mcp-pub`, which are not yet in the pinned tool contract, and it has
-not been run in a real host. Its scripts download the brief and the finished MP4 from the same signed
+`remake-viral-video` uses the `start_remake_video`, `get_remake_video` and `render_remake_video`
+tools on `/mcp-pub`; voice-over references are not remade yet. Its scripts download the brief and the finished MP4 from the same signed
 `storage.googleapis.com` links as evidence downloads; there is no `stage` fallback for them.
 
 - The Kabo service, which is not part of this repository, owns MCP, OAuth, data tools, asynchronous

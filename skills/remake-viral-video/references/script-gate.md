@@ -26,7 +26,9 @@ Read the matching sections of the bundled references for the judgement in front 
 - `references/opening-review.md` for the opening record.
 - `references/rewrite-and-sources.md` for sourcing: every fact and number traces back to the
   creator's own line or is marked as an inference.
-- `references/formats/talking-head.md` for the talking-head format.
+- `references/formats/talking-head.md` for the talking-head format, and, when
+  `brief_input.json` says `reference.type` is `talking_screen` or `talking_product`, also
+  `references/formats/talking-with-screens.md` or `references/formats/talking-with-product.md`.
 
 These references were written for a local command-line kit. Every command they name is run by the
 hosted runner here; take only the writing rules from them. Do not ask the user to run anything.
