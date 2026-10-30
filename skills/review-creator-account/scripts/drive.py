@@ -74,6 +74,8 @@ OUTPUT_DIR = Path("output")
 # 本 run 的 report 返回过 needs_revision 的标记（run 根目录的点文件）。只有留下这个标记的 run
 # 还需要 verify-report 做最终复核；从未返回过的 run 由 report 直接作为最终步。
 AUTHORING_CORRECTION_MARKER = Path(".authoring-correction-used")
+# report 作为最终步时记下报告路径与 sha256；verify-report 见到同一份字节就不再重跑。
+REPORT_FINAL_MARKER = Path(".report-final.json")
 
 # The Instagram public sample: at most 100 persisted Feed + Reels rows combined.
 COMBINED_CAP = 100
@@ -1007,6 +1009,9 @@ def stage_report(args: argparse.Namespace) -> None:
     # verify-report 再跑一遍只会重复 compose 和两次校验。
     final = (getattr(args, "allow_authoring_correction", False) is True
              and not AUTHORING_CORRECTION_MARKER.exists())
+    if final:
+        REPORT_FINAL_MARKER.write_text(json.dumps({"report": str(report), "sha256": hashlib.sha256(
+            report.read_bytes()).hexdigest()}) + "\n", encoding="utf-8")
     say(f"creator_report: {report}")
     if final:
         say("[drive] this report is final: both validators passed. "
@@ -1077,6 +1082,20 @@ def stage_verify_report(args: argparse.Namespace) -> None:
             f"verify-report found no composed report in {output_dir}/; nothing was read or written. "
             "Run the non-final `drive.py report --allow-authoring-correction` stage in this same run "
             "first, and verify only after it prints the validated report")
+    # 幂等：report 已作为最终步（从未返回 needs_revision），且报告字节未变时不重跑 compose 和校验器。
+    # 标记缺失、不是普通文件或哈希不符时走下面的严格路径。
+    report = (output_dir / "ACCOUNT_REVIEW.md").resolve()
+    try:
+        record = (json.loads(REPORT_FINAL_MARKER.read_text(encoding="utf-8"))
+                  if REPORT_FINAL_MARKER.is_file() and not REPORT_FINAL_MARKER.is_symlink() else None)
+    except (OSError, UnicodeError, ValueError):
+        record = None
+    if (isinstance(record, dict) and record.get("report") == str(report) and not report.is_symlink()
+            and record.get("sha256") == hashlib.sha256(report.read_bytes()).hexdigest()):
+        say(f"creator_report: {report}")
+        say("[drive] report already finalized this run; nothing was re-run. "
+            "Deliver ACCOUNT_REVIEW.md as printed by report.")
+        return
     stage_report(args)
     close_unwrapped_reservation()
 
