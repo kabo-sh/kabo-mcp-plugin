@@ -126,10 +126,35 @@ def bind_selected_idea(intent: dict[str, Any], history: dict[str, Any], selected
     return request
 
 
+SCHEMA = Path(__file__).resolve().parent.parent / "references" / "publish-request.schema.json"
+
+
+def check_shape(intent: dict[str, Any]) -> None:
+    """按 publish-request 的必填结构先查一遍，缺块时指明缺什么，而不是让 compute_timing.py 读到 KeyError。
+
+    插件实测（T-20261029-12 R2）：模型把 platform / format / timezone 平铺写在顶层、没有 content 块，
+    这里照常通过，到 compute_timing.py 才以 KeyError: 'content' 失败，整轮没有交付。
+    """
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    missing = [key for key in schema["required"] if key != "history" and key not in intent]
+    for block in ("content", "creator"):
+        value = intent.get(block)
+        if block in intent and not isinstance(value, dict):
+            missing.append(f"{block} (must be an object)")
+        elif isinstance(value, dict):
+            missing += [f"{block}.{key}" for key in schema["properties"][block].get("required", []) if key not in value]
+    if missing:
+        raise ValueError(f"the intent is missing {', '.join(missing)}; write it in the shape of "
+                         "references/publish-request.schema.json (platform and format go under content, "
+                         "account_ref and timezone under creator), then run this command again")
+
+
 def build(intent: dict[str, Any], history_path: Path, output: Path,
           *, selected_idea_path: Path | None = None) -> dict[str, Any]:
     if "history" in intent:
         raise ValueError("the intent carries history: it is built from the PublishHistory, leave it out")
+    if selected_idea_path is None:
+        check_shape(intent)
     history = load(history_path)
     if selected_idea_path is not None:
         intent = bind_selected_idea(intent, history, selected_idea_path, output)

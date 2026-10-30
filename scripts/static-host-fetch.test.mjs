@@ -426,7 +426,7 @@ print(json.dumps(sorted(path.name for path in (run / "analysis").iterdir() if pa
   // 脚本不能联网：产物只能内联重读；不能指回 stage（stage 对下载模式的结果会指回 fetch）。
   const offline = report.offline;
   assert.equal(offline.exit, 1);
-  assert.match(offline.stderr, /Download failed \(\w+\); if this host blocks network access for scripts, call read_research_data_artifacts again for those object_refs without delivery/);
+  assert.match(offline.stderr, /Download failed \(\w+(?:: [^)]*)?\); if this host blocks network access for scripts, call read_research_data_artifacts again for those object_refs without delivery/);
   assert.deepEqual(offline.files, {});
   noSecrets(offline);
 });
