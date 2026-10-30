@@ -4,6 +4,8 @@
 
 ## 未发布
 
+## 1.0.5（2026-10-30）
+
 - 账号画像的有效画像与按人修改（三个 trends Skill 与 `review-creator-account`）：
   - `contracts/directory-mcp/` 重新固定到 kabo-sh/kabo#1875 的 main 合并提交 `927b75c47`，工具数 62 → 63：
     `get_creator_profile` 加可选布尔入参 `effective` 与门控出参 `effectiveContentProfile`，新增写工具
