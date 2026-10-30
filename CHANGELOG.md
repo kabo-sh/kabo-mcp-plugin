@@ -4,6 +4,15 @@
 
 ## 未发布
 
+- 新增四个 Skill，均从 creator-skills `8fc3371e6` 按 KS1–KS8 改造搬运（固定这一版搬运，与上游后续版本的差异上线前再对齐）：
+  `diagnose-reach-drop` 0.4.10、`recommend-publish-timing` 0.5.15（`2947e5ea`，含证据侧量级词数字修复）、`plan-platform-monetization` 0.7.13、
+  `verify-platform-rule` 0.18.23。去掉 `manifest.json`、`agents/` 与读宿主会话记录的脚本，取数改为 `/mcp-pub`
+  工具名 + `delivery:"download"` + `static_host.py`；超过 KS3.2 上限的数据文件拆分或删去脚本与正文都不读的字段。
+  `recommend-publish-timing` 修正上游校验器与引擎对小时级推荐置信度判定不一致（校验器按指标一致率重算，引擎按同行佐证），
+  此前多数小时级推荐会在校验步失败。
+- `verify-platform-rule` 依赖 `/mcp-pub` 恢复的 `official_page_render_page`（kabo#1817，未合入）；`contracts/directory-mcp/`
+  暂时固定到该 PR 的 head `9ed1ec61a`（已合入 kabo main；64 个工具，相对 main 只增这一个），kabo 合入后须按合入 commit 重新固定。
+  四个新 Skill 在本机 Codex 连生产 /mcp-pub 实测：发布时间、变现已交付；平台规则核对待 kabo#1817 部署。
 - 用 `static_host.py fetch` 下载 Kabo 签名链接的 Skill：Python 默认信任库不存在时（macOS 上 python.org 装的 Python 没跑过 Install Certificates），`fetch` 改用 certifi 或系统自带的 CA 包，证书照常校验。以前这种机器上每次下载都报证书失败，模型只能自己用 curl 下载再 `stage`。
 
 ## 1.0.5（2026-10-30）
