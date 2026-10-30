@@ -13,13 +13,15 @@ workflow placed it, writes the same request provenance the manual `--record-requ
 wrote, runs the same deterministic scripts with the same arguments, and prints exactly what the
 next judgment reads.
 
-    start    [--video URL]               run directory; Request + plan schemas; source video
-                                         (get_video_by_share_url) -> its caption and author
-    discover [--policy P [--since --until]] [--region R]
-                                         freeze + validate -> round 1: the relevance searches and the
-                                         D-1 board -> round 2: the most-liked searches, and the D-2
-                                         board when D-1 came back empty -> provenance -> candidate
-                                         set -> Gate table
+    start    [--video URL | --profile F] run directory; Request + plan schemas; source video
+                                         (get_video_by_share_url) -> its caption and author; or the
+                                         Creator's saved account profile -> its signature content
+    discover [--policy P [--since --until]] [--region R] [--without-include]
+                                         attach the profile -> freeze + validate -> round 1: the
+                                         relevance searches and the D-1 board -> round 2: the
+                                         most-liked searches, and the D-2 board when D-1 came back
+                                         empty -> provenance -> candidate set (-> eligible candidates,
+                                         with a profile) -> Gate table
     rank                                 Gate -> ranking input -> account histories -> enrichment ->
                                          Snapshot -> Analyze -> Analysis + synthesis schema
     report                               Compose -> Validate -> Render -> creator-report.md
@@ -32,13 +34,16 @@ D-2 is asked only after D-1 came back empty.
 
 The stages never make connector calls themselves (connector_driver.py): a stage prints the calls
 for the model to make as named public MCP tools and stops, and the same stage run again with
-`--placed` places those responses from this run's staged copies.
+`--placed` places those responses from this run's staged copies. With a profile attached the
+searches carry `include`; when Kabo refuses a call only for it, the same stage run with
+`--without-include` hands those calls over once more without it (attach_creator_profile.py).
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import re
 import sys
@@ -64,6 +69,20 @@ from persist_envelope import (  # noqa: E402
     write_json_atomic,
 )
 
+
+def _own(name: str):
+    # The profile intake is the same bytes in every trend package; still load this package's own copy
+    # by path, never another package's sys.modules entry.
+    path = Path(__file__).with_name(name + ".py")
+    spec = importlib.util.spec_from_file_location(f"{path.parent.parent.name}:{name}", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+intake = _own("attach_creator_profile")
+
+PLATFORM = "tiktok"
 DISCOVERY = "tiktok-discovery"
 PUBLIC = "tiktok-public"
 REQUEST = "trend-research-request.json"
@@ -74,6 +93,12 @@ VIDEO_PROJECTION = "kabo.tiktok_video.v1"
 ENVELOPES = "discovery-envelopes.json"
 PROVENANCE = "discovery-requests.json"
 CANDIDATES = "tiktok-trend-candidate-set.json"
+# With the Creator's account profile attached, every step after discovery reads this subset instead.
+ELIGIBLE = "tiktok-trend-candidate-set-eligible.json"
+PROFILE_SOURCE = intake.PROFILE_SOURCE
+# What a search asks for on top of its rows when a profile is attached: language, hashtags,
+# duration, ad flag, sound and the platform's own description, for eligibility and the Gate.
+SEARCH_INCLUDE = ["content_signals"]
 GATE_INPUT = "trend-relevance-gate-input.json"
 GATE_SCORES = "trend-relevance-gate.tsv"
 GATE = "trend-relevance-gate.json"
@@ -81,6 +106,8 @@ RANKING = "tiktok-trend-ranking-input.json"
 HISTORIES = "account-history-envelopes.json"
 ENRICHMENT_RESPONSE = "tiktok-trend-enrichment-01.json"
 ENRICHMENT = "tiktok-trend-enrichment.json"
+# With the Creator's account profile attached: the seats each signature content item holds.
+ALLOCATION = "signature-content-allocation.json"
 SNAPSHOT = "public-content-snapshot.json"
 ANALYSIS = "public-content-analysis.json"
 SYNTHESIS = "trend-research-synthesis.json"
@@ -317,9 +344,42 @@ def place_source() -> None:
     cd.place_record("get_video_by_share_url", SOURCE_VIDEO, by_content)
 
 
+def read_profile_argument(args: argparse.Namespace) -> bytes | None:
+    """The profile file's bytes, checked before a run directory is reserved for it."""
+    given = getattr(args, "profile", None)
+    if not isinstance(given, str) or not given.strip():
+        return None
+    if isinstance(getattr(args, "video", None), str) and args.video.strip():
+        raise cd.StageError("--profile and --video are two different starts: a supplied video names its own author as "
+                            "the Creator, the profile names the account it was read for. Pass one of them")
+    path = Path(given).expanduser().resolve()
+    try:
+        raw = path.read_bytes()
+        intake.read_profile(json.loads(raw.decode("utf-8")))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, intake.ProfileError) as error:
+        raise cd.StageError(f"the profile file {given} cannot be used: {error}") from error
+    return raw
+
+
+def place_profile(raw: bytes | None) -> None:
+    if raw is None:
+        return
+    placed = Path(PROFILE_SOURCE)
+    # 用户可能在本轮中途改了画像。冻结后的 Request 已经带着旧画像的字段，换文件会让同一轮前后两半口径
+    # 不一致，所以字节不同就停下，让模型开一个新 run；同一份文件重跑 start 照常。
+    if placed.is_file() and placed.read_bytes() != raw:
+        raise cd.StageError("the profile file differs from the one this run started with: the profile changed during "
+                            "the run. Start a new run with the new file")
+    placed.write_bytes(raw)
+    for line in intake.describe(json.loads(raw.decode("utf-8")), PLATFORM):
+        say(line)
+
+
 def stage_start(args: argparse.Namespace) -> None:
+    profile = read_profile_argument(args)
     cd.reserve_run_directory(args.placed, args=args)
     cd.show_schema("trend-research-request.schema.json", "tiktok-trend-query-plan.schema.json")
+    place_profile(profile)
     video = share_url_of(str(args.video or ""))
     if not video:
         return
@@ -419,10 +479,40 @@ def complete_request_and_plan(plan_schema: str) -> None:
     cd.complete_artifact(PLAN, {"schema_version": plan_schema, "request_id": request.get("request_id")}, intent_ids=True)
 
 
-def search_region(request: dict[str, Any], given: str | None) -> str | None:
-    """The one region every call carries: the Request's, else the one the model named, else none.
+def attach_profile() -> bool:
+    """Copy the saved account profile's fields into the Request; whether any profile field is attached.
 
-    Copied as written, never inferred: the region decides what the searches return.
+    Signature content may be missing while the topics the Creator excluded are not; the plan check,
+    the `include` fields and the eligibility filter follow any field, the seats only signature content.
+
+    Runs before the window is frozen, so the frozen Request already carries them and a rerun finds
+    nothing to change. Without a profile file it only removes profile fields written by hand.
+    """
+    source = Path(PROFILE_SOURCE)
+    try:
+        report = intake.attach_file(Path(REQUEST), source if source.is_file() else None, PLATFORM)
+    except intake.ProfileError as error:
+        raise cd.StageError(str(error)) from error
+    if report.get("dropped"):
+        say(f"[drive] removed {', '.join(report['dropped'])} from creator_profile: those fields come only from a "
+            "supplied profile file")
+    if source.is_file():
+        say(f"[drive] creator profile: {json.dumps(report, ensure_ascii=False)}")
+    return intake.profile_fields_attached(cd.load(REQUEST))
+
+
+def candidates_file() -> str:
+    """The candidate set every step after discovery reads: the eligible subset when a profile made one."""
+    return ELIGIBLE if Path(ELIGIBLE).is_file() else CANDIDATES
+
+
+def search_region(request: dict[str, Any], given: str | None) -> str | None:
+    """The one region every call carries: the Request's, else the one the model named, else the
+    market the Creator set in the saved profile, else none.
+
+    Copied as written, never inferred: the region decides what the searches return. The market is
+    the last default only: the ask's own region and `--region` come first, and it never enters
+    `locale.region`, which the Gate scores against.
     """
     locale = request.get("locale") if isinstance(request.get("locale"), dict) else {}
     frozen = locale.get("region")
@@ -431,7 +521,10 @@ def search_region(request: dict[str, Any], given: str | None) -> str | None:
     if frozen and named and named != frozen:
         raise cd.StageError(f"--region {named} conflicts with the Request's locale.region {frozen}; every call uses "
                             "the Request region, so drop --region or correct the Request")
-    return frozen or named
+    creator = request.get("creator_profile") if isinstance(request.get("creator_profile"), dict) else {}
+    market = creator.get("market_region")
+    market = market if isinstance(market, str) and intake.REGION.match(market) else None
+    return frozen or named or market
 
 
 def discovery_settings(request: dict[str, Any], plan: dict[str, Any], region: str | None) -> dict[str, Any]:
@@ -454,11 +547,14 @@ def discovery_settings(request: dict[str, Any], plan: dict[str, Any], region: st
     return settings
 
 
-def search_params(keyword: str, sort_type: int, region: str | None, publish_time: int) -> dict[str, Any]:
+def search_params(keyword: str, sort_type: int, region: str | None, publish_time: int,
+                  profiled: bool = False) -> dict[str, Any]:
     params: dict[str, Any] = {"keyword": keyword, "sort_type": sort_type, "count": SEARCH_COUNT}
     if region is not None:
         params["region"] = region
     params["publish_time"] = publish_time
+    if profiled:
+        params["include"] = list(SEARCH_INCLUDE)
     return params
 
 
@@ -554,6 +650,8 @@ def write_provenance(order: list[str], params: dict[str, dict[str, Any]]) -> Non
     request that was sent — at the same run key, in the same order.
     """
     runs = (read_json_or_empty(Path(ENVELOPES)) or {}).get("runs") or {}
+    # A search the host refused for `include` went out again without it; record what was sent.
+    refused = set(cd.state().get("include_refused") or [])
     provenance: dict[str, Any] = {}
     for key in order:
         envelope = runs.get(key)
@@ -564,7 +662,8 @@ def write_provenance(order: list[str], params: dict[str, dict[str, Any]]) -> Non
             "connector_id": envelope.get("connector_id"),
             "operation": envelope.get("operation"),
             "request_id": envelope.get("request_id"),
-            "params": params[key],
+            "params": ({k: v for k, v in params[key].items() if k != "include"}
+                       if envelope.get("operation") in refused else params[key]),
         })
     if read_json_or_empty(Path(PROVENANCE)) != provenance:
         write_json_atomic(Path(PROVENANCE), provenance)
@@ -583,8 +682,9 @@ def stage_discover(args: argparse.Namespace) -> None:
         return
     complete_request_and_plan("tiktok-trend-query-plan.v1")
     place_pending_source()
+    profiled = attach_profile()
     freeze(args)
-    cd.script("validate_tiktok_query_plan.py", PLAN, show=True)
+    cd.script("validate_tiktok_query_plan.py", PLAN, *(("--request", REQUEST) if profiled else ()), show=True)
     request, plan = cd.load(REQUEST), cd.load(PLAN)
     region = search_region(request, args.region)
     settings = discovery_settings(request, plan, region)
@@ -606,7 +706,7 @@ def stage_discover(args: argparse.Namespace) -> None:
         for index, (sort_type, route) in enumerate(SORTS):
             key = search_key(number, route)
             order.append(key)
-            params[key] = search_params(keyword, sort_type, region, publish_time)
+            params[key] = search_params(keyword, sort_type, region, publish_time, profiled)
             rounds[index][0].append(cd.run_call(DISCOVERY, "search_videos", params[key]))
             rounds[index][1].append(key)
     order.append(BOARD_KEYS[0])
@@ -622,7 +722,8 @@ def stage_discover(args: argparse.Namespace) -> None:
 
     # Every route is its own data_connector_run, never a batch: a host-level batch failure would erase
     # each route's own terminal evidence.
-    cd.fetch_round(first_calls, args, place_first)
+    with intake.include_fallback(cd, args):
+        cd.fetch_round(first_calls, args, place_first)
 
     second_calls, second_keys = rounds[1]
     if board_needs_fallback():
@@ -631,13 +732,19 @@ def stage_discover(args: argparse.Namespace) -> None:
         second_calls = [*second_calls, cd.run_call(DISCOVERY, "list_top_contents", params[BOARD_KEYS[1]])]
         second_keys = [*second_keys, BOARD_KEYS[1]]
         say("[drive] the D-1 board came back empty; asking D-2 once")
-    cd.fetch_round(second_calls, args, lambda: place_round(second_calls, second_keys))
+    with intake.include_fallback(cd, args):
+        cd.fetch_round(second_calls, args, lambda: place_round(second_calls, second_keys))
 
     reorder_runs(ENVELOPES, order)
     write_provenance(order, params)
     cd.script("build_tiktok_candidate_set.py", "--request", REQUEST, "--envelopes", ENVELOPES,
               "--requests", PROVENANCE, "--output", CANDIDATES, show=True)
-    cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", CANDIDATES,
+    if profiled:
+        cd.script("filter_candidate_eligibility.py", "--request", REQUEST, "--candidates", CANDIDATES,
+                  "--output", ELIGIBLE, "--platform", PLATFORM, show=True)
+    else:
+        Path(ELIGIBLE).unlink(missing_ok=True)
+    cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", candidates_file(),
               "--output", GATE_INPUT, "--table", show=True)
     cd.say(json.dumps(gate_builder.stage_contract(cd.load(GATE_INPUT), GATE_SCORES, "rank", __file__), ensure_ascii=False))
 
@@ -649,13 +756,13 @@ def history_key(handle: str) -> str:
     return handle.strip().lstrip("@").lower()
 
 
-def build_ranking_input() -> dict[str, Any]:
+def build_ranking_input(profiled: bool = False) -> dict[str, Any]:
     """The shortlist for this Gate. Once account histories were fetched for it, the Gate is frozen."""
     fresh = Path(".tiktok-trend-ranking-input.next.json")
     fresh.unlink(missing_ok=True)
     try:
-        say(cd.script("build_tiktok_ranking_input.py", "--request", REQUEST, "--candidates", CANDIDATES,
-                      "--gate", GATE, "--output", str(fresh)).rstrip())
+        say(cd.script("build_tiktok_ranking_input.py", "--request", REQUEST, "--candidates", candidates_file(),
+                      "--gate", GATE, *(("--signature-content",) if profiled else ()), "--output", str(fresh)).rstrip())
         if Path(RANKING).exists() and fresh.read_bytes() == Path(RANKING).read_bytes():
             return cd.load(RANKING)
         # fresh_bundle records the history bundle once a history round has been placed.
@@ -670,7 +777,7 @@ def build_ranking_input() -> dict[str, Any]:
 
 
 def stage_rank(args: argparse.Namespace) -> None:
-    need(REQUEST, CANDIDATES, GATE_INPUT, GATE_SCORES)
+    need(REQUEST, candidates_file(), GATE_INPUT, GATE_SCORES)
     current = cd.state()
     history_round = current.get("history_round")
     history_handed = bool(history_round) and history_round in (current.get("handed") or {})
@@ -678,7 +785,10 @@ def stage_rank(args: argparse.Namespace) -> None:
                           Path(ENRICHMENT_RESPONSE).exists() or bool((current.get("bundles") or {}).get(HISTORIES)) or history_handed):
         return
     cd.script("build_relevance_gate.py", "--input", GATE_INPUT, "--scores", GATE_SCORES, "--output", GATE, show=True)
-    ranking = build_ranking_input()
+    # 带画像时 shortlist 按主打内容预分配名额，基线加收缩倍数，最后按同一个名额函数定稿；
+    # 不带画像时每条命令与参数都和原来一样。
+    profiled = intake.attached(cd.load(REQUEST))
+    ranking = build_ranking_input(profiled)
     rows = [row for row in ranking.get("history_requests") or [] if isinstance(row, dict) and row.get("handle")]
     handles = [str(row["handle"]) for row in rows]
     keys = [history_key(handle) for handle in handles]
@@ -723,11 +833,16 @@ def stage_rank(args: argparse.Namespace) -> None:
         cd.save_state(history_round=round_key(calls))
         cd.fetch_round(calls, args, place_histories, optional=True)
     cd.script("build_tiktok_enrichment.py", "--ranking", RANKING, "--histories", HISTORIES,
-              "--output", ENRICHMENT_RESPONSE)
-    cd.script("build_trend_workflow_snapshot.py", "--request", REQUEST, "--candidates", CANDIDATES, "--gate", GATE,
+              *(("--shrink",) if profiled else ()), "--output", ENRICHMENT_RESPONSE)
+    cd.script("build_trend_workflow_snapshot.py", "--request", REQUEST, "--candidates", candidates_file(), "--gate", GATE,
               "--enrichment", ENRICHMENT_RESPONSE, "--merged-enrichment-output", ENRICHMENT, "--output", SNAPSHOT)
+    if profiled:
+        say(cd.script("allocate_signature_content.py", "--platform", PLATFORM, "--request", REQUEST,
+                      "--gate", GATE, "--candidates", candidates_file(), "--enrichment", ENRICHMENT,
+                      "--output", ALLOCATION).rstrip())
     cd.script("analyze_public_snapshot.py", SNAPSHOT, "--mode", "trend", "--request", REQUEST,
-              "--relevance-gate", GATE, "--trend-enrichment", ENRICHMENT, "--output", ANALYSIS)
+              "--relevance-gate", GATE, "--trend-enrichment", ENRICHMENT,
+              *(("--allocation", ALLOCATION) if profiled else ()), "--output", ANALYSIS)
     cd.say(Path(ANALYSIS).read_text(encoding="utf-8").rstrip())
     cd.script("prepare_hook_context.py", "--platform", "tiktok", "--purpose", "trends",
               "--output", "hook-context.json", show=True)
@@ -803,10 +918,14 @@ def main() -> int:
     sub = parser.add_subparsers(dest="stage", required=True)
     start = sub.add_parser("start")
     start.add_argument("--video", help="the source video's URL as the user gave it, when the ask supplies one")
+    start.add_argument("--profile", help="the Creator's saved account profile file, when the host supplies one")
     discover = sub.add_parser("discover")
     discover.add_argument("--policy", choices=POLICIES, help="the window policy the ask was classified as")
     discover.add_argument("--since", help="user_named_span only: the span's start, kept exactly")
     discover.add_argument("--until", help="user_named_span only: the span's end, kept exactly")
+    discover.add_argument("--without-include", action="store_true",
+                          help="Kabo refused handed-over calls only for their `include` parameter: hand them over "
+                               "once more without it")
     discover.add_argument("--region", help="the one search region every call carries, when the Request region is "
                                            "unknown (null)")
     for name in ("rank", "report"):

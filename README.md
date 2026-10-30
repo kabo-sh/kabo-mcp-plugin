@@ -7,8 +7,8 @@ needed by each host. The AI host runs the workflows and writes
 reports; Kabo provides the data tools. The plugin does not hand work to Kabo's web agent, download
 Skills at runtime, or register lifecycle hooks.
 
-The current GitHub package release is [**1.0.4**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.4),
-packaged as `kabo-1.0.4.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
+The current GitHub package release is [**1.0.5**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.5),
+packaged as `kabo-1.0.5.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
 implementation. Earlier version history and source Skill versions remain separate. OpenAI marketplace
 review and production acceptance remain separate from this GitHub release.
 
@@ -102,7 +102,7 @@ for `-g`. The repository's `skills.lock.json` is a separate record of the origin
 
 - `#stable` follows published releases. It advances only after a release; installed files stay as
   they are until you run an installation or update command.
-- `#v1.0.4` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
+- `#v1.0.5` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
 - Without a ref, the CLI follows `main`, which includes unreleased changes.
 
 See [GitHub Releases](https://github.com/kabo-sh/kabo-mcp-plugin/releases) for new versions and release
@@ -372,3 +372,25 @@ Connecting Kabo asks only for read access. The first time you save a script or c
 your host asks you to approve write access. Existing connections may need authorization for the
 new workspace permissions. If these tools are unavailable, the original public research and local
 drafting workflows remain usable.
+
+The three trends Skills can also start from your saved account profile. When you ask for trends for
+your own linked account, the agent reads the account's saved content profile (your signature
+content, content language and formats) with `get_creator_profile`, keeps the complete result as a
+local file and passes it to the trends driver. The searches then start from your own seed words,
+leave out your own posts and accounts far larger or smaller than yours, and share the
+recommendations across your signature content. The content language only steers the search words;
+it never filters results by language. The Skills never write or edit the profile file. If the
+profile is missing or empty, workspace access is not granted, or Kabo does not offer the profile
+yet, the Skills run the same public trend scan as before.
+
+You can also correct that saved profile in the conversation. Ask the trends Skills or the account
+review to rename, remove or merge a signature content item, make one your main item, exclude a
+topic, or set the language you make content in or your market, and the agent saves the edit to Kabo
+with `update_content_preferences`. Your edits are kept per account and come back on every later
+read, in this plugin and in Kabo's web app; the profile Kabo computed stays as it was, and you can
+reset your edits. A plain, unambiguous change is saved and repeated back to you in one sentence; a
+guess, a removal, a merge or a reset is restated for you to confirm first. Your market is only the
+default search region (Instagram search takes none), and like the language it never filters
+results. An edit applies from the next trend run. Saving needs write access, which your host asks
+you to approve the first time; without it, or when Kabo does not offer the tool yet, nothing is
+saved and the research runs as before.

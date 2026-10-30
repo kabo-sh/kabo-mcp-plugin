@@ -140,6 +140,41 @@ def validate_scope(request: dict[str, Any], runs: list[tuple[str, dict[str, Any]
             raise ValueError("D-2 fallback requires a prior completed, empty D-1 board")
 
 
+def _string_or_none(value: Any) -> str | None:
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def signal_fields(signals: dict[str, Any]) -> dict[str, Any]:
+    """The item fields a search row's `content_signals` carries, for eligibility and the Gate summary.
+
+    The row has them only when the search asked with `include: ["content_signals"]`, which the
+    driver does only when the Creator's account profile is attached; a row without them gets none of
+    these keys, so the candidate set and its `candidate_set_id` are what they were before. Each field
+    the platform did not return is null, never a guess: a missing duration is not a photo post, a
+    missing ad flag is not "no ad".
+    """
+    hashtags = signals.get("hashtags")
+    duration_ms = signals.get("duration_ms")
+    is_ads = signals.get("is_ads")
+    suggest = signals.get("suggest_words")
+    return {
+        "language": _string_or_none(signals.get("desc_language")),
+        "hashtags": ([str(tag["name"]) for tag in hashtags if isinstance(tag, dict) and _string_or_none(tag.get("name"))]
+                     if isinstance(hashtags, list) else None),
+        # The platform counts milliseconds; the eligibility and format rules count seconds.
+        "duration_seconds": (duration_ms / 1000 if isinstance(duration_ms, (int, float)) and not isinstance(duration_ms, bool)
+                             and duration_ms >= 0 else None),
+        "is_ad": is_ads if isinstance(is_ads, bool) else None,
+        "sound_id": _string_or_none(signals.get("music_id")),
+        # The platform's own text about the video, kept as written. It is not the author's caption,
+        # so it never goes where the caption goes.
+        "platform_summary_source": {
+            "content_desc": _string_or_none(signals.get("content_desc")),
+            "suggest_words": ([word for word in suggest if _string_or_none(word)] if isinstance(suggest, list) else None),
+        },
+    }
+
+
 def build(request: dict[str, Any], source: dict[str, Any], requests: dict[str, Any]) -> dict[str, Any]:
     if request.get("schema_version") != "trend-research-request.v3":
         raise ValueError("request must be trend-research-request.v3")
@@ -214,6 +249,9 @@ def build(request: dict[str, Any], source: dict[str, Any], requests: dict[str, A
                 "thumbnail_url": row.get("thumbnail_url"),
                 "sources": [source_ref],
             }
+            signals = row.get("content_signals")
+            if isinstance(signals, dict):
+                merged[key].update(signal_fields(signals))
     items = sorted(merged.values(), key=lambda row: row["content_key"])
     digest = hashlib.sha256(
         json.dumps(items, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()

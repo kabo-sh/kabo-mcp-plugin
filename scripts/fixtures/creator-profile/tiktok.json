@@ -1,0 +1,174 @@
+{
+  "account": {
+    "id": "acct-tiktok-0001",
+    "platform": "tiktok",
+    "handle": "@Bead.Studio",
+    "displayName": "Synthetic Creator",
+    "avatarUrl": null,
+    "audienceLabel": "followers",
+    "dataState": "available",
+    "postCount": 120,
+    "audienceCount": 2000,
+    "engagementRate": 0.05,
+    "grantState": "observed"
+  },
+  "review": null,
+  "diagnosis": null,
+  "contentProfile": {
+    "version": 1,
+    "ruleVersion": "content-profile.v1",
+    "generatedAt": "2026-10-20T00:00:00.000Z",
+    "platform": "tiktok",
+    "sample": {
+      "fetched": 30,
+      "comparable": 24,
+      "transcriptsRequested": 8,
+      "transcriptsObtained": 6
+    },
+    "language": {
+      "primary": "en",
+      "confidence": "high",
+      "accepted": [
+        "en",
+        "es"
+      ],
+      "effectiveSamples": 18,
+      "totalSamples": 24,
+      "distribution": [
+        {
+          "tag": "en",
+          "share": 0.8,
+          "items": 19,
+          "sources": [
+            "caption_track",
+            "text_script"
+          ]
+        },
+        {
+          "tag": "es",
+          "share": 0.2,
+          "items": 5,
+          "sources": [
+            "text_script"
+          ]
+        }
+      ]
+    },
+    "region": "US",
+    "formats": [
+      {
+        "format": "short_video",
+        "count": 24,
+        "share": 1.0,
+        "baseline": {
+          "n": 20,
+          "rawMedianViews": 4000,
+          "shrunkMedianViews": 3800,
+          "priorMedianViews": 3500,
+          "priorSource": "account_all_formats",
+          "k": 5,
+          "maturityDays": 7
+        }
+      },
+      {
+        "format": "long_video",
+        "count": 0,
+        "share": 0.0,
+        "baseline": null
+      }
+    ],
+    "signatureContentStatus": "ok",
+    "signatureContent": [
+      {
+        "id": "sc2",
+        "name": "Fruit bead builds",
+        "topic": "Perler bead fruit pieces built start to finish",
+        "approach": "Overhead time-lapse of one piece, ending on the ironed result",
+        "format": "short_video",
+        "contentCount": 6,
+        "share": 0.35,
+        "weight": 0.35,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "7600000000000000011",
+            "sourceUrl": "https://www.tiktok.com/@creator/video/7600000000000000011",
+            "title": "Perler bead strawberry in 60 seconds",
+            "views": 12000,
+            "multiplier": 2.1
+          },
+          {
+            "contentId": "7600000000000000012",
+            "sourceUrl": "https://www.tiktok.com/@creator/video/7600000000000000012",
+            "title": null,
+            "views": 9000,
+            "multiplier": 1.4
+          }
+        ],
+        "seedTerms": [
+          "perler bead fruit"
+        ],
+        "seedHashtags": [
+          "#PerlerBeads"
+        ],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ]
+      },
+      {
+        "id": "sc1",
+        "name": "Fuse bead craft tutorials",
+        "topic": "Step-by-step fuse bead projects for beginners",
+        "approach": "Talking over the board while placing each colour, with a parts list first",
+        "format": "short_video",
+        "contentCount": 6,
+        "share": 0.65,
+        "weight": 0.65,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "7600000000000000021",
+            "sourceUrl": "https://www.tiktok.com/@creator/video/7600000000000000021",
+            "title": "Fuse bead keychain tutorial",
+            "views": 20000,
+            "multiplier": 2.6
+          },
+          {
+            "contentId": "7600000000000000022",
+            "sourceUrl": "https://www.tiktok.com/@creator/video/7600000000000000022",
+            "title": "Beginner fuse bead coaster",
+            "views": 15000,
+            "multiplier": 1.9
+          },
+          {
+            "contentId": "7600000000000000023",
+            "sourceUrl": "https://www.tiktok.com/@creator/video/7600000000000000023",
+            "title": "Fuse bead magnet set",
+            "views": 11000,
+            "multiplier": 1.3
+          }
+        ],
+        "seedTerms": [
+          "fuse bead craft",
+          "bead tutorial"
+        ],
+        "seedHashtags": [
+          "fusebeads"
+        ],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ]
+      }
+    ],
+    "observedHashtags": [
+      "#PerlerBeads",
+      "fusebeads"
+    ]
+  }
+}
