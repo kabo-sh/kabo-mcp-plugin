@@ -41,8 +41,10 @@ Instagram auto-discovery uses exactly four complementary intents with the canoni
 concrete product-category noun phrase, one local-language buyer workflow/problem phrase, one
 canonical English product-category phrase, and one canonical English workflow phrase.
 
-- Each is a compact two-to-five-term category or workflow phrase, and each `popular_topic` stays
-  at two to four terms. A Chinese, Japanese or Korean lane may instead be one 2–20-character
+- Each is a compact two-to-five-term category or workflow phrase. Only the two category lanes may
+  carry a `popular_topic`, of two to four terms (omit it to reuse a `search_query` of up to four
+  terms); workflow lanes carry none — a buyer workflow phrase is not an Instagram topic, and
+  Popular Search returns not found for it. A Chinese, Japanese or Korean lane may instead be one 2–20-character
   phrase without spaces; do not insert spaces just to pass the validator.
 - Do not reuse the same `search_query` on two lanes. Do not write sentence-like queries that stack
   audience, product and market into one clause.

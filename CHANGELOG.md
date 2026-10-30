@@ -4,6 +4,11 @@
 
 ## 未发布
 
+- `analyze-creator-competitors` 同步到 creator-skills 0.5.88（`c414fac55`）：重复竞品保留第一条、不再整份报告失败，主页 tab 链接按账号接受；
+  缺 `competitor-eligibility.json`（或写错文件名）、缺 intents 文件时返回 `needs_correction`、不关闭 run；长表 Gate 漏打不超过 1/20 行时补 0 分并注明；
+  `popular_topic` 只给类目 lane；YouTube `@handle` 用 `subject --platform youtube --handle` 先经 `youtube_get_channel` 解析成频道 id，裸 `@handle` 不再静默当 Instagram；
+  证据与回复逐账号给出发帖频率（下限写「至少 N 条」），YouTube 主体历史一次取 50 条，备用账号分类后 `content` 不沿用 `--placed`；
+  回复写明用户要的账号数与每次 6 个的自动发现上限，无 pattern 时仍列重点内容；`content --comments` 一次取评论，`comments` 保留为别名，schema 先于大段证据紧凑打印。
 - 复刻（`remake-viral-video`）支持旁白类参考视频（没人出镜、配音配画面）：移植网页端 creator-remake-web 0.1.30
   （creator-skills PR #896，runner V2-r63）。带字的画面由 agent 写动效（composition，里面要的图片用
   `make.images` 生成），写稿后先 `render_remake_video` + `preview` 渲出画面分页、用 `fetch-preview` 存到本地看图，
