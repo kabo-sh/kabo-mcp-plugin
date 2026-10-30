@@ -59,7 +59,8 @@
     },
     {
       "id": "analyze-tiktok-competitors",
-      "derivedFromVersion": "0.1.67",
+      "derivedFromVersion": "0.1.72",
+      "derivedFromCommit": "15212bbe628fd3121a07f3622bb41aeb9be2c33a",
       "sourcePath": "creator-skills/runtime/analyze-tiktok-competitors"
     },
     {
