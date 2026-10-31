@@ -8,9 +8,11 @@
   移植自网页端 creator-remake-web 0.1.32（creator-skills `f74df60a`）的 `talking-with-screens.md`、`talking-with-product.md`；
   类型由 runner 自动判定。实物的口播镜头按设计空手，技能提前告诉用户、不承诺手持产品。
   依赖 kabo#1896（`/mcp-pub` 放行这两类、三类口播都给口播模型报价），runner V2-r66。
-- `remake-viral-video`：口播模型默认改为 Wan 3.0（Vivix A1 等仍可选，同网页端 creator-remake-web 0.1.33）。
-  `get_remake_video` 带 `all_models: true` 取 `talking_model_choices`（全部档位，第一档是默认，kabo#1899）；
-  旧服务端只有 `talking_models` 时照旧用它。依赖 kabo#1897 / #1899 与 runner V2-r67。
+- `remake-viral-video`：模型选项改用 `get_remake_video` 带 `all_models: true` 返回的 `talking_model_choices`（kabo#1899，
+  全部档位，第一档是默认），旧服务端只有 `talking_models` 时照旧用它。Wan 3.0 作为第 2 档可选；默认仍是 Vivix A1
+  （10-31 用户裁定，kabo#1911，同网页端 kas#294）。
+- `remake-viral-video`：原作者的自述尽量用创作者口吻改写而不是整句删掉；删完仍不到参考一半时长时，在选模型前一句话告诉用户
+  成片会短到多少、为什么（生产回归里一条 73 秒的参考只剩 13 秒）。
 - 旁白参考仍未放进插件（preview 需要 runner r63 以上，单独发版）。
 - `contracts/directory-mcp/` 未重新固定：kabo main 上 YouTube / TikTok 等工具契约另有变化，需与相关 Skill 的绑定一起同步，单独处理。
 - 生产回归：待补。
