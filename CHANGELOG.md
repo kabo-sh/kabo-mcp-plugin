@@ -4,6 +4,12 @@
 
 ## 未发布
 
+- `review-creator-account` 同步上游 0.5.49：首次 `report` 就通过（从未返回 needs_revision）即为最终步，不再跑
+  `verify-report`；`verify-report` 在 `report` 之前运行会直接提示先跑 `report`；YouTube 频道简介与订阅数进入身份；
+  被拒的 YouTube handle 改提示用 `--channel-id`；`fetch` 先打印紧凑 schema 再打印输入。`review-creator-account-deep`
+  第 1 步同步认 `report` 为最终步时打印的 `creator_report:`。
+- TikTok 竞品（`analyze-tiktok-competitors`）同步 creator-skills 0.1.72：重复的竞品账号保留第一条、不再整份报告失败；展示译文按 id 匹配、只读 `text`，头字段可省略，单条译文不合规时退回原文并列在 `kept_source_text`（驱动会转出），不再整份失败；`search_query` 写明两到五个词。
+- 用 `static_host.py fetch` 下载 Kabo 签名链接的 Skill：Python 默认信任库不存在时（macOS 上 python.org 装的 Python 没跑过 Install Certificates），`fetch` 改用 certifi 或系统自带的 CA 包，证书照常校验。以前这种机器上每次下载都报证书失败，模型只能自己用 curl 下载再 `stage`。
 - 三个 trends Skill：`report` 阶段 Compose/Validate 拒收 synthesis 时，把 run 还原并返回 `needs_correction`（exit 0），在同一个 run 里修一次；第二次拒收才结束。同步自 creator-skills `4231cfa36`（#902，上游 IG 0.3.108 / TT 0.1.98 / YT 0.1.96）。只搬了这一处修复，`skills.lock.json` 的 `derivedFromVersion` 不变。
 - 三个 trends Skill：Gate 打分表头在没指定地区和语言时加 `locale_fit_rule`，写明问句语言只决定回复语言，不要因为内容语言压低 `locale_fit`。同步自 creator-skills `e4b807f4`（#906，上游 IG 0.3.109 / TT 0.1.99 / YT 0.1.97）。
 - 三个 trends Skill：`locale.region` / `locale.language` 只取用户明确点名的市场或内容语言，问句语言只决定回复语言，没点名时两项留空。同步自 creator-skills `77dd6179`（#909，上游 IG 0.3.110 / TT 0.1.100 / YT 0.1.98），写在各自的 references 里，SKILL.md 正文不增加。
