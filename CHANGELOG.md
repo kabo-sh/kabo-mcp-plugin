@@ -10,6 +10,11 @@
   第 1 步同步认 `report` 为最终步时打印的 `creator_report:`。
 - TikTok 竞品（`analyze-tiktok-competitors`）同步 creator-skills 0.1.72：重复的竞品账号保留第一条、不再整份报告失败；展示译文按 id 匹配、只读 `text`，头字段可省略，单条译文不合规时退回原文并列在 `kept_source_text`（驱动会转出），不再整份失败；`search_query` 写明两到五个词。
 - 用 `static_host.py fetch` 下载 Kabo 签名链接的 Skill：Python 默认信任库不存在时（macOS 上 python.org 装的 Python 没跑过 Install Certificates），`fetch` 改用 certifi 或系统自带的 CA 包，证书照常校验。以前这种机器上每次下载都报证书失败，模型只能自己用 curl 下载再 `stage`。
+- 三个 trends Skill：`report` 阶段 Compose/Validate 拒收 synthesis 时，把 run 还原并返回 `needs_correction`（exit 0），在同一个 run 里修一次；第二次拒收才结束。同步自 creator-skills `4231cfa36`（#902，上游 IG 0.3.108 / TT 0.1.98 / YT 0.1.96）。只搬了这一处修复，`skills.lock.json` 的 `derivedFromVersion` 不变。
+- 三个 trends Skill：Gate 打分表头在没指定地区和语言时加 `locale_fit_rule`，写明问句语言只决定回复语言，不要因为内容语言压低 `locale_fit`。同步自 creator-skills `e4b807f4`（#906，上游 IG 0.3.109 / TT 0.1.99 / YT 0.1.97）。
+- 三个 trends Skill：`locale.region` / `locale.language` 只取用户明确点名的市场或内容语言，问句语言只决定回复语言，没点名时两项留空。同步自 creator-skills `77dd6179`（#909，上游 IG 0.3.110 / TT 0.1.100 / YT 0.1.98），写在各自的 references 里，SKILL.md 正文不增加。
+- 三个 trends Skill：`discover` 新增 `--question-file`（`-` 从标准输入读用户原话）；`locale.region` / `locale.language` 不为空时必须在 `locale.named_in_ask` 里逐字引用原话中的片段，否则返回 `needs_correction`，只给一次修正机会。同步自 creator-skills `92824da5`（#919，上游 IG 0.3.111 / TT 0.1.101 / YT 0.1.99）。
+- 三个 trends Skill：补齐 creator-skills `d2de2e4e` 到 `92824da5`（#919，IG 0.3.111 / TT 0.1.101 / YT 0.1.99）之间其余适用的改动（#879、#889、#891、#892、#894、#898）。没有 pattern 时报告在「Test this first」前列出排名前五条（Featured posts，同账号样本 ≥5 条才显示倍数）；TikTok 搜索热度小幅上涨不再显示成 1.0×；七天内问「哪些跑赢自身常态」或其他同账号倍数时留在 Workflow（`--policy user_named_span`）；IG 音频榜要逐首创意时按榜单顺序每首去重给一条；要的行数超过榜单时一句话说明榜单行数、不重拉（IG、TT）；TikTok 单次快照下 `current_high_performance` 要引用 ≥1.5× 自身常态或公开指标前四分之一的内容，否则用 `recurring_pattern`；IG 补充取数的 `content_key` 带 `instagram:` 前缀，拒收时原样重发一次再 `rank --placed`；Gate 打分说明写明没点名市场或内容语言时不因语言压低 `locale_fit`；IG description 写明题材内跑赢自身常态归本 Skill。规则写在 references（TikTok 的开场规则拆到新增的 `references/synthesis-openings.md`），IG SKILL.md 正文不增加。上游之后的账号画像系列（#914、#915、#918、#920）已由 #32、#33 移植进 main，本条不重复；cwd 措辞、manifest 等宿主相关改动不移植。
 
 ## 1.0.5（2026-10-30）
 

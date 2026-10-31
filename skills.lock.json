@@ -39,17 +39,20 @@
     },
     {
       "id": "research-instagram-trends",
-      "derivedFromVersion": "0.3.101",
+      "derivedFromVersion": "0.3.111",
+      "derivedFromCommit": "92824da5b6b67e3fae1bb010f20fd0aaa28ee1e7",
       "sourcePath": "creator-skills/runtime/research-instagram-trends"
     },
     {
       "id": "research-tiktok-trends",
-      "derivedFromVersion": "0.1.92",
+      "derivedFromVersion": "0.1.101",
+      "derivedFromCommit": "92824da5b6b67e3fae1bb010f20fd0aaa28ee1e7",
       "sourcePath": "creator-skills/runtime/research-tiktok-trends"
     },
     {
       "id": "research-youtube-trends",
-      "derivedFromVersion": "0.1.92",
+      "derivedFromVersion": "0.1.99",
+      "derivedFromCommit": "92824da5b6b67e3fae1bb010f20fd0aaa28ee1e7",
       "sourcePath": "creator-skills/runtime/research-youtube-trends"
     },
     {
