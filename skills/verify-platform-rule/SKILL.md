@@ -12,7 +12,10 @@ metadata:
 
 Answer one question: **what does the platform actually say, today, and where.**
 An operational playbook - which tools to use, whom to pick, how to run an account end to
-end - is out of scope even when the user mentions authorization or revenue share.
+end - is out of scope even when the user mentions authorization or revenue share. When the host
+supports one, run this Skill in a foreground sub-agent, because a check reads several pages, and wait
+for its final result before replying; never run it in the background and tell the user the answer
+will come later. Without a foreground sub-agent, follow the same steps in the main thread.
 
 Opening patterns, creative checks and historical video examples are method references, never
 official policy evidence. For a mixed request to verify an opening rule and improve content,

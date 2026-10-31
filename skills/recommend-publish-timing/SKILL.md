@@ -1,6 +1,6 @@
 ---
 name: recommend-publish-timing
-description: "Answer when to publish from this creator's own history, at the finest resolution that history can carry. Use when a creator asks what time or day to post. Resolve a single hour when their own posts support one, fall back to a coarser block when they do not, and answer \"publish now\" when nothing prefers any window. Never fall back on generic best-time charts or platform-wide peaks."
+description: "Answer when to publish from this creator's own history, at the finest resolution that history can carry. Use when a creator asks what time or day to post. Not for generic best-time charts or platform-wide peaks."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permission: data."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download instagram_resolve_profile instagram_list_posts instagram_list_reels youtube_get_channel youtube_list_channel_uploads tiktok_list_account_posts
