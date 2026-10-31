@@ -1,0 +1,284 @@
+{
+  "account": {
+    "id": "acct-youtube-0001",
+    "platform": "youtube",
+    "handle": "@beadchannel",
+    "displayName": "Synthetic Creator",
+    "avatarUrl": null,
+    "audienceLabel": "followers",
+    "dataState": "available",
+    "postCount": 120,
+    "audienceCount": 50000,
+    "engagementRate": 0.05,
+    "grantState": "observed"
+  },
+  "review": null,
+  "diagnosis": null,
+  "contentProfile": {
+    "version": 1,
+    "ruleVersion": "content-profile.v1",
+    "generatedAt": "2026-10-20T00:00:00.000Z",
+    "platform": "youtube",
+    "sample": {
+      "fetched": 30,
+      "comparable": 24,
+      "transcriptsRequested": 8,
+      "transcriptsObtained": 6
+    },
+    "language": {
+      "primary": "en",
+      "confidence": "high",
+      "accepted": [
+        "en",
+        "es"
+      ],
+      "effectiveSamples": 18,
+      "totalSamples": 24,
+      "distribution": [
+        {
+          "tag": "en",
+          "share": 0.8,
+          "items": 19,
+          "sources": [
+            "caption_track",
+            "text_script"
+          ]
+        },
+        {
+          "tag": "es",
+          "share": 0.2,
+          "items": 5,
+          "sources": [
+            "text_script"
+          ]
+        }
+      ]
+    },
+    "region": "US",
+    "formats": [
+      {
+        "format": "short_video",
+        "count": 0,
+        "share": 0.0,
+        "baseline": null
+      },
+      {
+        "format": "long_video",
+        "count": 20,
+        "share": 1.0,
+        "baseline": {
+          "n": 18,
+          "rawMedianViews": 40000,
+          "shrunkMedianViews": 38000,
+          "priorMedianViews": 35000,
+          "priorSource": "account_all_formats",
+          "k": 5,
+          "maturityDays": 14
+        }
+      }
+    ],
+    "signatureContentStatus": "ok",
+    "signatureContent": [
+      {
+        "id": "sc1",
+        "name": "Beginner bead tutorials",
+        "topic": "Long beginner tutorials for fuse beads",
+        "approach": "Parts list, then each step on camera",
+        "format": "long_video",
+        "contentCount": 6,
+        "share": 0.6,
+        "weight": 0.6,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "AAAAAAAAAA1",
+            "sourceUrl": "https://www.youtube.com/watch?v=AAAAAAAAAA1",
+            "title": "拼豆教程：第一次做钥匙扣",
+            "views": 80000,
+            "multiplier": 2.0
+          }
+        ],
+        "seedTerms": [
+          "拼豆教程"
+        ],
+        "seedHashtags": [],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ]
+      },
+      {
+        "id": "sc2",
+        "name": "Fuse bead project reviews",
+        "topic": "Reviews of fuse bead kits and projects",
+        "approach": "Unbox, build, rate",
+        "format": "long_video",
+        "contentCount": 6,
+        "share": 0.4,
+        "weight": 0.4,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "AAAAAAAAAA2",
+            "sourceUrl": "https://www.youtube.com/watch?v=AAAAAAAAAA2",
+            "title": "Fuse beads kit review",
+            "views": 50000,
+            "multiplier": 1.4
+          }
+        ],
+        "seedTerms": [
+          "fuse beads"
+        ],
+        "seedHashtags": [],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ]
+      }
+    ],
+    "observedHashtags": []
+  },
+  "effectiveContentProfile": {
+    "version": 1,
+    "ruleVersion": "effective-content-profile.v1",
+    "platform": "youtube",
+    "base": {
+      "generatedAt": "2026-10-20T00:00:00.000Z",
+      "ruleVersion": "content-profile.v1"
+    },
+    "preferences": {
+      "version": 2,
+      "updatedAt": "2026-10-28T09:00:00.000Z",
+      "status": "ok"
+    },
+    "edited": true,
+    "language": {
+      "primary": "en",
+      "confidence": "high",
+      "accepted": [
+        "en",
+        "es"
+      ],
+      "source": "profile"
+    },
+    "region": "GB",
+    "regionSource": "user",
+    "formats": [
+      {
+        "format": "short_video",
+        "count": 0,
+        "share": 0.0,
+        "baseline": null
+      },
+      {
+        "format": "long_video",
+        "count": 20,
+        "share": 1.0,
+        "baseline": {
+          "n": 18,
+          "rawMedianViews": 40000,
+          "shrunkMedianViews": 38000,
+          "priorMedianViews": 35000,
+          "priorSource": "account_all_formats",
+          "k": 5,
+          "maturityDays": 14
+        }
+      }
+    ],
+    "signatureContentStatus": "ok",
+    "signatureContent": [
+      {
+        "id": "sc1",
+        "name": "Beginner bead tutorials",
+        "topic": "Long beginner tutorials for fuse beads",
+        "approach": "Parts list, then each step on camera",
+        "format": "long_video",
+        "contentCount": 6,
+        "share": 0.6,
+        "weight": 0.6,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "AAAAAAAAAA1",
+            "sourceUrl": "https://www.youtube.com/watch?v=AAAAAAAAAA1",
+            "title": "拼豆教程：第一次做钥匙扣",
+            "views": 80000,
+            "multiplier": 2.0
+          }
+        ],
+        "seedTerms": [
+          "拼豆教程"
+        ],
+        "seedHashtags": [],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ],
+        "primary": false,
+        "origin": {
+          "baseIds": [
+            "sc1"
+          ],
+          "baseName": "Beginner bead tutorials",
+          "renamed": false,
+          "weightSource": "profile"
+        }
+      },
+      {
+        "id": "sc2",
+        "name": "Fuse bead project reviews",
+        "topic": "Reviews of fuse bead kits and projects",
+        "approach": "Unbox, build, rate",
+        "format": "long_video",
+        "contentCount": 6,
+        "share": 0.4,
+        "weight": 0.4,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "AAAAAAAAAA2",
+            "sourceUrl": "https://www.youtube.com/watch?v=AAAAAAAAAA2",
+            "title": "Fuse beads kit review",
+            "views": 50000,
+            "multiplier": 1.4
+          }
+        ],
+        "seedTerms": [
+          "fuse beads"
+        ],
+        "seedHashtags": [],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ],
+        "primary": false,
+        "origin": {
+          "baseIds": [
+            "sc2"
+          ],
+          "baseName": "Fuse bead project reviews",
+          "renamed": false,
+          "weightSource": "profile"
+        }
+      }
+    ],
+    "hiddenSignatureContent": [],
+    "excludedTopics": [
+      "Bead shop hauls"
+    ],
+    "ownContentIds": [
+      "AAAAAAAAAA1",
+      "AAAAAAAAAA2"
+    ],
+    "unresolvedEdits": [],
+    "observedHashtags": []
+  }
+}

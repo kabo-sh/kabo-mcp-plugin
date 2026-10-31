@@ -1,0 +1,362 @@
+{
+  "account": {
+    "id": "acct-instagram-0001",
+    "platform": "instagram",
+    "handle": "bead.studio",
+    "displayName": "Synthetic Creator",
+    "avatarUrl": null,
+    "audienceLabel": "followers",
+    "dataState": "available",
+    "postCount": 120,
+    "audienceCount": 2000,
+    "engagementRate": 0.05,
+    "grantState": "observed"
+  },
+  "review": null,
+  "diagnosis": null,
+  "contentProfile": {
+    "version": 1,
+    "ruleVersion": "content-profile.v1",
+    "generatedAt": "2026-10-20T00:00:00.000Z",
+    "platform": "instagram",
+    "sample": {
+      "fetched": 30,
+      "comparable": 24,
+      "transcriptsRequested": 8,
+      "transcriptsObtained": 6
+    },
+    "language": {
+      "primary": "en",
+      "confidence": "high",
+      "accepted": [
+        "en",
+        "es"
+      ],
+      "effectiveSamples": 18,
+      "totalSamples": 24,
+      "distribution": [
+        {
+          "tag": "en",
+          "share": 0.8,
+          "items": 19,
+          "sources": [
+            "caption_track",
+            "text_script"
+          ]
+        },
+        {
+          "tag": "es",
+          "share": 0.2,
+          "items": 5,
+          "sources": [
+            "text_script"
+          ]
+        }
+      ]
+    },
+    "region": "US",
+    "formats": [
+      {
+        "format": "short_video",
+        "count": 24,
+        "share": 1.0,
+        "baseline": {
+          "n": 20,
+          "rawMedianViews": 4000,
+          "shrunkMedianViews": 3800,
+          "priorMedianViews": 3500,
+          "priorSource": "account_all_formats",
+          "k": 5,
+          "maturityDays": 7
+        }
+      },
+      {
+        "format": "long_video",
+        "count": 0,
+        "share": 0.0,
+        "baseline": null
+      }
+    ],
+    "signatureContentStatus": "ok",
+    "signatureContent": [
+      {
+        "id": "sc1",
+        "name": "Restaurant first bites",
+        "topic": "First-bite reactions at new restaurants",
+        "approach": "Entrance, order, close-up, first bite, verdict",
+        "format": "short_video",
+        "contentCount": 6,
+        "share": 0.5,
+        "weight": 0.5,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "DAAAAAAAAA1",
+            "sourceUrl": "https://www.instagram.com/reel/DAAAAAAAAA1/",
+            "title": "First bite at the new ramen bar",
+            "views": 30000,
+            "multiplier": 2.0
+          }
+        ],
+        "seedTerms": [
+          "restaurant reels"
+        ],
+        "seedHashtags": [
+          "foodreels"
+        ],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ]
+      },
+      {
+        "id": "sc2",
+        "name": "Cooking process cuts",
+        "topic": "Home cooking told in rhythmic preparation cuts",
+        "approach": "Short beat-synced cuts with tactile sound",
+        "format": "short_video",
+        "contentCount": 6,
+        "share": 0.3,
+        "weight": 0.3,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "DAAAAAAAAA2",
+            "sourceUrl": "https://www.instagram.com/reel/DAAAAAAAAA2/",
+            "title": "Ten cuts, one pasta",
+            "views": 21000,
+            "multiplier": 1.5
+          }
+        ],
+        "seedTerms": [
+          "cooking reels"
+        ],
+        "seedHashtags": [],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ]
+      },
+      {
+        "id": "sc3",
+        "name": "Finished dish reveals",
+        "topic": "Delayed reveals of the plated dish",
+        "approach": "Hold the payoff, then a beat-synced reveal",
+        "format": "short_video",
+        "contentCount": 6,
+        "share": 0.2,
+        "weight": 0.2,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "DAAAAAAAAA3",
+            "sourceUrl": "https://www.instagram.com/reel/DAAAAAAAAA3/",
+            "title": "Wait for the reveal",
+            "views": 18000,
+            "multiplier": 1.2
+          }
+        ],
+        "seedTerms": [
+          "food reels"
+        ],
+        "seedHashtags": [],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ]
+      }
+    ],
+    "observedHashtags": [
+      "foodreels"
+    ]
+  },
+  "effectiveContentProfile": {
+    "version": 1,
+    "ruleVersion": "effective-content-profile.v1",
+    "platform": "instagram",
+    "base": {
+      "generatedAt": "2026-10-20T00:00:00.000Z",
+      "ruleVersion": "content-profile.v1"
+    },
+    "preferences": {
+      "version": 2,
+      "updatedAt": "2026-10-28T09:00:00.000Z",
+      "status": "ok"
+    },
+    "edited": true,
+    "language": {
+      "primary": "en",
+      "confidence": "high",
+      "accepted": [
+        "en",
+        "es"
+      ],
+      "source": "profile"
+    },
+    "region": "BR",
+    "regionSource": "user",
+    "formats": [
+      {
+        "format": "short_video",
+        "count": 24,
+        "share": 1.0,
+        "baseline": {
+          "n": 20,
+          "rawMedianViews": 4000,
+          "shrunkMedianViews": 3800,
+          "priorMedianViews": 3500,
+          "priorSource": "account_all_formats",
+          "k": 5,
+          "maturityDays": 7
+        }
+      },
+      {
+        "format": "long_video",
+        "count": 0,
+        "share": 0.0,
+        "baseline": null
+      }
+    ],
+    "signatureContentStatus": "ok",
+    "signatureContent": [
+      {
+        "id": "sc1",
+        "name": "Restaurant first bites",
+        "topic": "First-bite reactions at new restaurants",
+        "approach": "Entrance, order, close-up, first bite, verdict",
+        "format": "short_video",
+        "contentCount": 6,
+        "share": 0.5,
+        "weight": 0.5,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "DAAAAAAAAA1",
+            "sourceUrl": "https://www.instagram.com/reel/DAAAAAAAAA1/",
+            "title": "First bite at the new ramen bar",
+            "views": 30000,
+            "multiplier": 2.0
+          }
+        ],
+        "seedTerms": [
+          "restaurant reels"
+        ],
+        "seedHashtags": [
+          "foodreels"
+        ],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ],
+        "primary": false,
+        "origin": {
+          "baseIds": [
+            "sc1"
+          ],
+          "baseName": "Restaurant first bites",
+          "renamed": false,
+          "weightSource": "profile"
+        }
+      },
+      {
+        "id": "sc2",
+        "name": "Cooking process cuts",
+        "topic": "Home cooking told in rhythmic preparation cuts",
+        "approach": "Short beat-synced cuts with tactile sound",
+        "format": "short_video",
+        "contentCount": 6,
+        "share": 0.3,
+        "weight": 0.3,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "DAAAAAAAAA2",
+            "sourceUrl": "https://www.instagram.com/reel/DAAAAAAAAA2/",
+            "title": "Ten cuts, one pasta",
+            "views": 21000,
+            "multiplier": 1.5
+          }
+        ],
+        "seedTerms": [
+          "cooking reels"
+        ],
+        "seedHashtags": [],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ],
+        "primary": false,
+        "origin": {
+          "baseIds": [
+            "sc2"
+          ],
+          "baseName": "Cooking process cuts",
+          "renamed": false,
+          "weightSource": "profile"
+        }
+      },
+      {
+        "id": "sc3",
+        "name": "Finished dish reveals",
+        "topic": "Delayed reveals of the plated dish",
+        "approach": "Hold the payoff, then a beat-synced reveal",
+        "format": "short_video",
+        "contentCount": 6,
+        "share": 0.2,
+        "weight": 0.2,
+        "medianMultiplier": 1.6,
+        "representativeContent": [
+          {
+            "contentId": "DAAAAAAAAA3",
+            "sourceUrl": "https://www.instagram.com/reel/DAAAAAAAAA3/",
+            "title": "Wait for the reveal",
+            "views": 18000,
+            "multiplier": 1.2
+          }
+        ],
+        "seedTerms": [
+          "food reels"
+        ],
+        "seedHashtags": [],
+        "seedSounds": [
+          {
+            "id": "sound-1",
+            "title": null
+          }
+        ],
+        "primary": false,
+        "origin": {
+          "baseIds": [
+            "sc3"
+          ],
+          "baseName": "Finished dish reveals",
+          "renamed": false,
+          "weightSource": "profile"
+        }
+      }
+    ],
+    "hiddenSignatureContent": [],
+    "excludedTopics": [
+      "Dessert reviews"
+    ],
+    "ownContentIds": [
+      "DAAAAAAAAA1",
+      "DAAAAAAAAA2",
+      "DAAAAAAAAA3"
+    ],
+    "unresolvedEdits": [],
+    "observedHashtags": [
+      "foodreels"
+    ]
+  }
+}

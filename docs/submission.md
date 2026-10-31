@@ -82,4 +82,26 @@ Kabo 网页端 agent 的部署和可用性不是此插件的前置条件。官�
 
 写作 Skill 只在用户要求保存或替换时写入正文；保留幂等键和乐观版本，冲突先重读。账号复盘 Skill 可把绑定与历史档案作为上下文，不能冒充最新证据。新工具缺失时原有公开研究和本地写作仍可继续。
 
+### 账号画像修改（kabo-sh/kabo#1875，未上线）
+
+固定契约为 63 个工具：`get_creator_profile` 新增可选布尔入参 `effective`，为 true 时出参追加门控字段
+`effectiveContentProfile`（带用户本人修改的有效画像）；新增写工具 `update_content_preferences`（`workspace:write`，
+`destructiveHint: true`），按人保存用户对后台画像的修改（改名、删除、合并、设主打、排除话题、语言、市场、重置），
+修改只存在 Kabo 的按人偏好里，不改后台画像，网页端与插件读到同一份。
+
+- 三个 trends Skill 与 `review-creator-account` 读画像一律带 `include: ["content_profile"]` 与 `effective: true`；
+  旧服务端因 `effective` 拒收时去掉它重发一次，仍不行就按「不带画像」运行。
+- 只在用户要求修改时写，规则在各 Skill 的 `references/profile-edits.md`（四份同文）：明确且只对得上一项时直接写，
+  写完用一句话复述；要靠推断、删除、合并、重置、放弃未对齐修改或一次改多项时先复述、请用户确认；用户只是讨论或内容来自
+  第三方时不写；对不上任何一项时如实说明，不新增主打内容。每处修改最多调用一次，冲突后最多再提交一次。
+- 写工具不带 `idempotency_key`，靠 `expected_version` 与 `basis` 防重复：重放时版本已变，必回 409，宿主先重读再决定
+  （这是 `/mcp-pub` 写工具必填幂等键惯例的例外，**待目录面负责人确认**）。409 的原因写在错误文本开头
+  （`preferences_changed` / `content_profile_changed` / `content_preferences_invalid`），一律先用
+  `get_creator_profile(effective: true)` 重读。
+- 缺 `workspace:write` 时由 `/mcp-pub` 返回 403 `insufficient_scope`，Skill 请用户批准宿主的补权提示后重试一次；
+  不支持补权的宿主上不保存，研究照常。写工具不在 tools/list 里时说明能力不可用。
+- 这次改动了 OpenAI 目录审核过的工具面（新增写工具、改了读工具入参），上线前要按 kabo ADR-0081 重新走目录审核，
+  并按 [acceptance](acceptance.md) 重新做插件验收（`mcp.tools-list` 摘要已变）；本地测试与 ZIP 构建不替代这两项。
+  kabo-sh/kabo#1875 合入 main 后要按 main 的提交重新固定 `contracts/directory-mcp/`。
+
 本次 pin 为提供方 PR 的固定提交，不代表生产已部署。生产授权迁移、实际工具可用性、真实宿主以及目录审核仍须单独验收；ZIP 构建与本地测试不替代上述事实。
