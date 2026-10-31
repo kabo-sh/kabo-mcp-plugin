@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- 用 `static_host.py` 的 Skill：`stage` 拒收「状态是完成、却没有 `data`」的结果（宿主保存下载结果时丢了 `download`、只剩摘要），指回保存完整结果后 `fetch`。以前这种摘要会被当成证据放置，到后面的脚本才报错，补下载的完整结果也不再被读到。
 - `review-creator-account` 同步上游 0.5.49：首次 `report` 就通过（从未返回 needs_revision）即为最终步，不再跑
   `verify-report`；`verify-report` 在 `report` 之前运行会直接提示先跑 `report`；YouTube 频道简介与订阅数进入身份；
   被拒的 YouTube handle 改提示用 `--channel-id`；`fetch` 先打印紧凑 schema 再打印输入。`review-creator-account-deep`
