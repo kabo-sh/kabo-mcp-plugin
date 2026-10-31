@@ -19,7 +19,7 @@ a call whose result could not be staged at all stops `start --placed`, and the r
 
 ## The Request
 
-Build one `TrendResearchRequest`. Freeze niche, locale, Reel format and exact UTC window. Resolve
+Build one `TrendResearchRequest`. Freeze niche, locale, Reel format and exact UTC window. Leave `locale.region` and `locale.language` null unless the user names a market or content language ("Spanish videos", "in Brazil"); then quote those words verbatim in `locale.named_in_ask`; `discover` checks it against the ask from `--question-file -`. The ask's own language sets only the reply language. Resolve
 relative durations from the current UTC clock, not from a run-directory name. Leave
 `schema_version` and `request_id` out (`discover` fills them, and keeps any value you do write).
 
@@ -38,12 +38,14 @@ the script own the dates:
   can).
 
 The same three policies run on every trend channel; a short-window copy ask (seven days or less)
-keeps its own path. A month of a niche rarely contains its own biggest posts, so a recency window
-answers a reach question with the wrong content rather than with less content. `discover` prints
-the script's result, including `instagram_lanes`: the discovery lanes this window calls for and each
-lane's collector bucket. When it prints `reaches_since: false`, the span starts before Instagram
-discovery can reach; keep the coverage incomplete rather than widening anything. A named span that
-ended more than a year ago fails there, before any collection.
+keeps its own path. A seven-day-or-shorter ask for which Reels beat their creator's own usual, or
+for any other account-relative multiple, is not a copy ask: it stays in the Workflow with
+`--policy user_named_span` and that span. A month of a niche rarely contains its own biggest posts,
+so a recency window answers a reach question with the wrong content rather than with less content.
+`discover` prints the script's result, including `instagram_lanes`: the discovery lanes this window
+calls for and each lane's collector bucket. When it prints `reaches_since: false`, the span starts
+before Instagram discovery can reach; keep the coverage incomplete rather than widening anything. A
+named span that ended more than a year ago fails there, before any collection.
 
 The window is the most consequential field in the Request: **three separate rules downstream switch
 on whether it spans more than one month** — how many intents may carry a `popular_topic`, whether
@@ -162,7 +164,9 @@ JSON
 cat > trend-query-plan.json <<'JSON'
 …
 JSON
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>]
+cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>] --question-file - <<'ASK'
+<the ask, verbatim>
+ASK
 ```
 
 `discover` freezes the window (once per run: running it again keeps the window it froze), then
