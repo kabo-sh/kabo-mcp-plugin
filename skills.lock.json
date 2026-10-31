@@ -57,7 +57,8 @@
     },
     {
       "id": "analyze-creator-competitors",
-      "derivedFromVersion": "0.5.72",
+      "derivedFromVersion": "0.5.88",
+      "derivedFromCommit": "c414fac55381422eeb67f4ad6d01f26a4206ca77",
       "sourcePath": "creator-skills/runtime/analyze-creator-competitors"
     },
     {

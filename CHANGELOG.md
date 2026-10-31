@@ -4,6 +4,11 @@
 
 ## 未发布
 
+- `analyze-creator-competitors` 同步到 creator-skills 0.5.88（`c414fac55`）：重复竞品保留第一条、不再整份报告失败，主页 tab 链接按账号接受；
+  缺 `competitor-eligibility.json`（或写错文件名）、缺 intents 文件时返回 `needs_correction`、不关闭 run；长表 Gate 漏打不超过 1/20 行时补 0 分并注明；
+  `popular_topic` 只给类目 lane；YouTube `@handle` 用 `subject --platform youtube --handle` 先经 `youtube_get_channel` 解析成频道 id，裸 `@handle` 不再静默当 Instagram；
+  证据与回复逐账号给出发帖频率（下限写「至少 N 条」），YouTube 主体历史一次取 50 条，备用账号分类后 `content` 不沿用 `--placed`；
+  回复写明用户要的账号数与每次 6 个的自动发现上限，无 pattern 时仍列重点内容；`content --comments` 一次取评论，`comments` 保留为别名，schema 先于大段证据紧凑打印。
 - 用 `static_host.py` 的 Skill：`stage` 拒收「状态是完成、却没有 `data`」的结果（宿主保存下载结果时丢了 `download`、只剩摘要），指回保存完整结果后 `fetch`。以前这种摘要会被当成证据放置，到后面的脚本才报错，补下载的完整结果也不再被读到。
 - `review-creator-account` 同步上游 0.5.49：首次 `report` 就通过（从未返回 needs_revision）即为最终步，不再跑
   `verify-report`；`verify-report` 在 `report` 之前运行会直接提示先跑 `report`；YouTube 频道简介与订阅数进入身份；
