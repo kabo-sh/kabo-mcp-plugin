@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- 规范清理（不改行为）：`create-script-and-packaging`、`develop-content-ideas` 的标题去掉 V3/V4 版本来历；`analyze-content-video` 版式说明与 `review-creator-account-deep` 等待说明去掉来历与日期，只留结论。
 - `analyze-creator-competitors` 同步到 creator-skills 0.5.88（`c414fac55`）：重复竞品保留第一条、不再整份报告失败，主页 tab 链接按账号接受；
   缺 `competitor-eligibility.json`（或写错文件名）、缺 intents 文件时返回 `needs_correction`、不关闭 run；长表 Gate 漏打不超过 1/20 行时补 0 分并注明；
   `popular_topic` 只给类目 lane；YouTube `@handle` 用 `subject --platform youtube --handle` 先经 `youtube_get_channel` 解析成频道 id，裸 `@handle` 不再静默当 Instagram；
