@@ -11,7 +11,7 @@
 ## 起点
 
 - `main` 已对齐 creator-skills 冻结基线 `a9514ba301cf52b02d700976e6e94cc11237542d`，每个 Skill 的来源版本记在 `skills.lock.json`。
-- 冻结之后的上游改动：账号复盘 0.5.53（TikTok 图文 / 视频分开建基线）在 #51；trends 的请求目标修复已由 #39 合入；复刻 #938/#944 归视频线。
+- 冻结之后的上游改动：账号复盘 0.5.53（TikTok 图文 / 视频分开建基线）已由 #51 合入；trends 的请求目标修复已由 #39 合入；复刻 #938/#944 归视频线。
 - 冻结之后的修复一律由作者直接在本仓提 PR，不再从 creator-skills 搬。
 - 4 个新 Skill（`diagnose-reach-drop`、`recommend-publish-timing`、`plan-platform-monetization`、`verify-platform-rule`）在 #13，等 kabo#1817（`official_page_render_page`）上生产后实测 `verify-platform-rule` 再合；在此之前瘦身先做其余 11 个。
 
@@ -54,7 +54,6 @@
 ## 待办（不属于瘦身本身）
 
 - kabo#1817 合入上生产（kabo main 目前因他人改动的 i18n 检查失败而无法部署）→ 实测 `verify-platform-rule` → 合 #13。
-- #51（账号复盘 0.5.53）实测通过后合入。
 - Web Agent / Desktop 改用本仓 Skill 的方案 creator-skills#886：不等评审，直接推进；第一个开放问题是 Desktop 如何拿到 `/mcp-pub` 的 OAuth token。迁移时要补：账号复盘的「下载报告」导出（上游 #936，插件未搬，因为插件交付的就是本地 Markdown）、深度复盘上游 #923/#924 中 Web 运行器专用的落盘与回执机制（插件未搬）。
 - #27（新增 3 个 Skill）暂不处理。
 - 插件上架（目录审核、市场上传）暂缓；正式发版是 version bump + GitHub Release + `stable` fast-forward，瘦身与回归完成后再做。
