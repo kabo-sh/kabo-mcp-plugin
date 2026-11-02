@@ -13,7 +13,7 @@
 - `main` 已对齐 creator-skills 冻结基线 `a9514ba301cf52b02d700976e6e94cc11237542d`，每个 Skill 的来源版本记在 `skills.lock.json`。
 - 冻结之后的上游改动：账号复盘 0.5.53（TikTok 图文 / 视频分开建基线）已由 #51 合入；trends 的请求目标修复已由 #39 合入；复刻 #938/#944 归视频线。
 - 冻结之后的修复一律由作者直接在本仓提 PR，不再从 creator-skills 搬。
-- 4 个新 Skill（`diagnose-reach-drop`、`recommend-publish-timing`、`plan-platform-monetization`、`verify-platform-rule`）在 #13，等 kabo#1817（`official_page_render_page`）上生产后实测 `verify-platform-rule` 再合；在此之前瘦身先做其余 11 个。
+- 4 个新 Skill（`diagnose-reach-drop`、`recommend-publish-timing`、`plan-platform-monetization`、`verify-platform-rule`）已由 #13 合入；kabo#1817（`official_page_render_page`）已上生产。最后一轮实测四个都产出了正式报告，但三个有执行偏离（见下文「取数管线交给脚本」的证据），瘦身时一并处理。
 
 ## 瘦身怎么做
 
@@ -26,6 +26,7 @@
    - VID：`persist_envelope.py` 的输入从哪来正文没写清，模型猜了不存在的 `--source`，最后用 `cp` 绕过；另一轮写错 run 目录后改用 curl，整条流程被跳过。
    - ACC / VID：模型手抄签名下载链接抄错字符，下载 400/403。
    - DEEP：为了把结果存成文件，重复调用同一个取数工具。
+   - #13 最后一轮：`verify-platform-rule` 用 `urllib` 直接下载签名链接、`plan-platform-monetization` 用 `curl` 下载，都绕过了 `static_host.py fetch`；`recommend-publish-timing` 给最后的 `validate_creator_report.py` 多传了一个参数，报错后直接结束（正文写的命令是对的）。
    共用脚本有多份副本，`scripts/static-host-fetch.test.mjs` 要求共用段逐字一致：改一份就同步改所有副本。
 3. **否定式规则审一遍。** 每个 Skill 有 18–51 条 never / do not，多是历次事故累积。validator 已经能拦的从正文删掉；拦不住的合并成正面描述；新例外优先加进校验脚本，正文一行指向。
 4. **schema 不整份读。** 一律由驱动打印紧凑 schema（账号复盘已这样做）。
@@ -53,9 +54,9 @@
 
 ## 待办（不属于瘦身本身）
 
-- kabo#1817 合入上生产（kabo main 目前因他人改动的 i18n 检查失败而无法部署）→ 实测 `verify-platform-rule` → 合 #13。
 - Web Agent / Desktop 改用本仓 Skill 的方案 creator-skills#886：不等评审，直接推进；第一个开放问题是 Desktop 如何拿到 `/mcp-pub` 的 OAuth token。迁移时要补：账号复盘的「下载报告」导出（上游 #936，插件未搬，因为插件交付的就是本地 Markdown）、深度复盘上游 #923/#924 中 Web 运行器专用的落盘与回执机制（插件未搬）。
 - 深度复盘在 Web 上的剩余问题，迁移后在本仓修：Pre 测试（deep 0.3.52 + kas #297 单包媒体白名单）提交了 30 个媒体任务、服务端完成 34 个，但模型只取回 3 个 artifact，`scripts/record_watch_outcomes.py` 两次以「N of M planned videos are still waiting on a job」退出，模型没有继续轮询、落盘就以 partial 收尾。待查：终态任务为何没落盘、模型为何不等。deep 的读调用约 67 次，回归规则需单独定。kas #297 已合 kas main 未部署生产；生产 deep 仍是 0.3.46。
 - 竞品分析（analyze-creator-competitors）已知问题，迁移后在本仓修：生产回归里用户要 5 个账号，报告只纳入 3 个（"Only 3 of the requested 5 accounts had sufficient verifiable evidence"）。根因：`drive.py` 只在剩余账号少于 3 个时才回补候选，没有补到 `requested_competitor_count`。业务读调用 21 次，略超测试规定的 20。修法：回补到用户要的数量，并让读调用规划在 20 次内完成 5 个账号。
+- 11-02 06:20 的 kabo 生产部署让所有已有的 `/mcp-pub` OAuth 会话失效（`invalid_grant: session not found`），重新登录即可；根因待部署方确认。测试时遇到同样报错就重新 `codex mcp login kabo`。
 - #27（新增 3 个 Skill）暂不处理。
 - 插件上架（目录审核、市场上传）暂缓；正式发版是 version bump + GitHub Release + `stable` fast-forward，瘦身与回归完成后再做。
