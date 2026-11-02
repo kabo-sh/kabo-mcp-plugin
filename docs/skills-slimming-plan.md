@@ -13,6 +13,7 @@
 - `main` 已对齐 creator-skills 冻结基线 `a9514ba301cf52b02d700976e6e94cc11237542d`，每个 Skill 的来源版本记在 `skills.lock.json`。
 - 冻结之后的上游改动：账号复盘 0.5.53（TikTok 图文 / 视频分开建基线）已由 #51 合入；trends 的请求目标修复已由 #39 合入；复刻 #938/#944 归视频线。
 - 冻结之后的修复一律由作者直接在本仓提 PR，不再从 creator-skills 搬。
+- 已发布版本：v1.0.7（`stable` 指向 c5b9937），含 11 个 Skill 与冻结基线同步，不含 #13 的 4 个新 Skill；main 领先 `stable`，4 个新 Skill 瘦身并回归后随下一版发布。发版说明已提示用户重新连接 Kabo。
 - 4 个新 Skill（`diagnose-reach-drop`、`recommend-publish-timing`、`plan-platform-monetization`、`verify-platform-rule`）已由 #13 合入；kabo#1817（`official_page_render_page`）已上生产。最后一轮实测四个都产出了正式报告，但三个有执行偏离（见下文「取数管线交给脚本」的证据），瘦身时一并处理。
 
 ## 瘦身怎么做
