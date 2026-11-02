@@ -56,5 +56,6 @@
 - kabo#1817 合入上生产（kabo main 目前因他人改动的 i18n 检查失败而无法部署）→ 实测 `verify-platform-rule` → 合 #13。
 - Web Agent / Desktop 改用本仓 Skill 的方案 creator-skills#886：不等评审，直接推进；第一个开放问题是 Desktop 如何拿到 `/mcp-pub` 的 OAuth token。迁移时要补：账号复盘的「下载报告」导出（上游 #936，插件未搬，因为插件交付的就是本地 Markdown）、深度复盘上游 #923/#924 中 Web 运行器专用的落盘与回执机制（插件未搬）。
 - 深度复盘在 Web 上的剩余问题，迁移后在本仓修：Pre 测试（deep 0.3.52 + kas #297 单包媒体白名单）提交了 30 个媒体任务、服务端完成 34 个，但模型只取回 3 个 artifact，`scripts/record_watch_outcomes.py` 两次以「N of M planned videos are still waiting on a job」退出，模型没有继续轮询、落盘就以 partial 收尾。待查：终态任务为何没落盘、模型为何不等。deep 的读调用约 67 次，回归规则需单独定。kas #297 已合 kas main 未部署生产；生产 deep 仍是 0.3.46。
+- 竞品分析（analyze-creator-competitors）已知问题，迁移后在本仓修：生产回归里用户要 5 个账号，报告只纳入 3 个（"Only 3 of the requested 5 accounts had sufficient verifiable evidence"）。根因：`drive.py` 只在剩余账号少于 3 个时才回补候选，没有补到 `requested_competitor_count`。业务读调用 21 次，略超测试规定的 20。修法：回补到用户要的数量，并让读调用规划在 20 次内完成 5 个账号。
 - #27（新增 3 个 Skill）暂不处理。
 - 插件上架（目录审核、市场上传）暂缓；正式发版是 version bump + GitHub Release + `stable` fast-forward，瘦身与回归完成后再做。
