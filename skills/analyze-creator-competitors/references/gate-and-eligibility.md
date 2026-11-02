@@ -137,10 +137,11 @@ account, so eligibility is not decided from a generic bio alone.
   post alone never proves competitor status.
 - The subject account, regional accounts of the same brand, employees, customers, affiliates and
   UGC collaborators are excluded.
-- If fewer than three direct/adjacent accounts remain and a frozen reserve is still unused,
-  `content` resolves that one reserve, prints its projection and stops: classify only that newly
-  added handle, leave every other entry as it is, and run `content` again without `--placed`: the
-  reserve's calls were already placed. There is no second reserve round.
+- If fewer direct/adjacent accounts remain than the run aims for (`requested_competitor_count`,
+  at most six, else three) and frozen reserves are still unused, `content` resolves as many of them
+  as are missing (at most two), prints their projection and stops: classify only those newly added
+  handles, leave every other entry as it is, and run `content` again without `--placed`: the
+  reserves' calls were already placed. There is no second reserve round.
 
 ## What `content` does with eligibility
 

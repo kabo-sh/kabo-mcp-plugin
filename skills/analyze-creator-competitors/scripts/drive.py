@@ -999,20 +999,28 @@ def stage_content(args: argparse.Namespace) -> None:
     included = [str(h) for h in summary.get("included_handles") or []]
     relationships = summary.get("relationships") or {}
     say(f"included: {', '.join(f'{h} ({relationships.get(h)})' for h in included) or '(none)'}")
-    # Step 3's second chance: fewer than three direct/adjacent accounts and a frozen reserve still
-    # unused -> resolve that one reserve and let the model classify only it.
+    # Step 3's second chance: fewer direct/adjacent accounts than the run aims for (the count the Creator
+    # asked for, else three, never more than six) and frozen reserves still unused -> resolve as many
+    # reserves as are missing, at most the two discovery froze, and let the model classify only those.
+    # Backfilling only below three left a five-account ask at three (plugin regression, 2026-11).
     comparable = [h for h in included if relationships.get(h) in ("direct", "adjacent")]
     discovery = load(DISCOVERY)
     used = {h.lower() for h in state().get("used_reserves") or []}
     unused = [str(h) for h in discovery.get("reserve_handles") or [] if str(h).lower() not in used]
-    if len(comparable) < 3 and unused and not state().get("second_reserve_round"):
-        extra = unused[:1]
-        say(f"fewer than three direct/adjacent accounts; resolving reserve {extra[0]}")
+    requested = request.get("requested_competitor_count")
+    aim = min(requested, 6) if isinstance(requested, int) and requested > 0 else 3
+    if len(comparable) < aim and unused and not state().get("second_reserve_round"):
+        extra = unused[:aim - len(comparable)]
+        say(f"{len(comparable)} direct/adjacent account(s) for {aim} wanted; resolving reserve(s) {', '.join(extra)}")
         profile_round(platform, extra, args)
         profiles = usable_profiles()
         save_state(used_reserves=[*used, *[h.lower() for h in extra]], second_reserve_round=True)
-        if extra[0].lower() not in profiles:
-            say(f"reserve {extra[0]} returned no usable profile; continuing with the accounts already classified")
+        usable = [h for h in extra if h.lower() in profiles]
+        for handle in extra:
+            if handle.lower() not in profiles:
+                say(f"reserve {handle} returned no usable profile")
+        if not usable:
+            say("continuing with the accounts already classified")
             return stage_content(args)
         roster = [str(h) for h in [*(discovery.get("selected_handles") or []),
                                    *(discovery.get("reserve_handles") or [])]]
@@ -1020,8 +1028,8 @@ def stage_content(args: argparse.Namespace) -> None:
                          for arg in ("--profile-envelope", profiles[h.lower()])]
         project_eligibility(platform, envelope_args)
         save_state(reserve_to_classify=True)
-        say(f"Classify only {extra[0]}: add it to one list in {ELIGIBILITY}, leave every other entry as it is, "
-            "then run drive.py content again, without --placed.")
+        say(f"Classify only {', '.join(usable)}: add each to one list in {ELIGIBILITY}, leave every other entry "
+            "as it is, then run drive.py content again, without --placed.")
         return
     since_text, until_text = window_of(request)
     since, until = epoch(since_text), epoch(until_text)
