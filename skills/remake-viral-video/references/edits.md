@@ -14,7 +14,7 @@ lines and revisions), and `make_video_step` when an edit needs a new picture or 
 | The user asks | Edit (`kind`) |
 |---|---|
 | Different words in one or more lines (a remake or an approved-script video; a project has no script) | `lines`: `[{"row": <n>, "text": "<new words>"}]`. `row` is the line's index (from 0) in `project.lines` (the same as the run's `script/script.json` `lines`). Kabo re-voices those lines in the creator's voice, re-syncs only the takes whose words changed, and re-times the captions. |
-| Caption colour or size | `captions`: `color` (a name such as `white`, `yellow`, `red`, or `#RRGGBB`) and/or `size` (a multiple of the current size, 0.5-2) |
+| Caption colour or size | `captions`: `color` (`#RRGGBB`, or a plain name such as `white`, `yellow` or `red`, which `edit-call` turns into a fixed colour) and/or `size` (a multiple of the current size, 0.5-2) |
 | Another background for a time range | first a `still` step for the plate (a place, no person), then `background`: `t0`, `t1`, `plate` |
 | A picture, screen or product shot over a time range | `overlay`: `t0`, `t1`, `media`, optional `box` `[x, y, width]` as fractions of the frame |
 | A new shot in place of a time range (B-roll, a reaction) | make it first (`still` + `animate`, or `refvideo`), then `clip`: `t0`, `t1`, `clip`; the original sound under that range is kept |

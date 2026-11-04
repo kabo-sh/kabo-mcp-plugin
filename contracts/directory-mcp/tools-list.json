@@ -13441,6 +13441,430 @@
         "securitySchemes": [
           {
             "scopes": [
+              "data"
+            ],
+            "type": "oauth2"
+          }
+        ]
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Video media jobs, queued and awaited; same args again = keep waiting. Top-level. Uses daily quota.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "delivery": {
+            "enum": [
+              "inline",
+              "download"
+            ],
+            "type": "string"
+          },
+          "requests": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "content_id": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "operation": {
+                  "enum": [
+                    "collect_public_metadata",
+                    "fetch_transcript",
+                    "extract_keyframes"
+                  ],
+                  "type": "string"
+                },
+                "parameters": {
+                  "additionalProperties": {},
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "content_id",
+                "operation",
+                "parameters"
+              ],
+              "type": "object"
+            },
+            "maxItems": 150,
+            "minItems": 1,
+            "type": "array"
+          },
+          "run_key": {
+            "description": "8-64: A-Za-z0-9._:-",
+            "pattern": "^[A-Za-z0-9._:-]{8,64}$",
+            "type": "string"
+          },
+          "wait_s": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requests",
+          "run_key"
+        ],
+        "type": "object"
+      },
+      "name": "collect_video_media",
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "calls": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "attempts": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "group": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "parameters": {
+                  "additionalProperties": {},
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "result": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "connector_id": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "credential_values_recorded": {
+                      "const": false,
+                      "type": "boolean"
+                    },
+                    "data": {},
+                    "error_code": {
+                      "enum": [
+                        "authentication_required",
+                        "invalid_session",
+                        "forbidden",
+                        "subscription_required",
+                        "not_found",
+                        "diagnosis_not_found",
+                        "topic_required",
+                        "validation_error",
+                        "conflict",
+                        "quota_exceeded",
+                        "rate_limited",
+                        "service_unavailable",
+                        "not_implemented",
+                        "internal_error"
+                      ],
+                      "type": "string"
+                    },
+                    "evidence_ref": {
+                      "type": "string"
+                    },
+                    "job_id": {
+                      "type": "string"
+                    },
+                    "limitations": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "observation_refs": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "operation": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "provider": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "quota": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "consumed": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "remaining": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "source": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "unit": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "remaining",
+                        "unit"
+                      ],
+                      "type": "object"
+                    },
+                    "raw_sha256": {
+                      "pattern": "^[a-f0-9]{64}$",
+                      "type": "string"
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "retrieved_at": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    },
+                    "retry_after_seconds": {
+                      "anyOf": [
+                        {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "retryable": {
+                      "type": "boolean"
+                    },
+                    "run_id": {
+                      "type": "string"
+                    },
+                    "schema_version": {
+                      "const": "1.0",
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "completed",
+                        "completed_partial",
+                        "blocked_setup",
+                        "unsupported",
+                        "failed"
+                      ],
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "connector_id",
+                    "operation",
+                    "provider",
+                    "status",
+                    "summary",
+                    "limitations",
+                    "credential_values_recorded"
+                  ],
+                  "type": "object"
+                },
+                "tool": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "parameters",
+                "group",
+                "attempts",
+                "result"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "coverage": {
+            "additionalProperties": {},
+            "properties": {
+              "deadline_reached": {
+                "type": "boolean"
+              },
+              "provider_calls": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "unfinished": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "deadline_reached",
+              "unfinished",
+              "provider_calls"
+            ],
+            "type": "object"
+          },
+          "download": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "bytes": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "content_type": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "expires_at": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "envelope",
+                      "artifact"
+                    ],
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "status": {
+                    "const": "ready",
+                    "type": "string"
+                  },
+                  "url": {
+                    "format": "uri",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "kind",
+                  "url",
+                  "expires_at",
+                  "sha256",
+                  "bytes",
+                  "content_type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "reason": {
+                    "enum": [
+                      "too_large",
+                      "not_found",
+                      "service_unavailable"
+                    ],
+                    "type": "string"
+                  },
+                  "status": {
+                    "const": "unavailable",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "reason"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schema_version": {
+            "const": "kabo-composite-fetch.v1",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "completed",
+              "partial",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "additionalProperties": {},
+            "properties": {},
+            "type": "object"
+          },
+          "tool": {
+            "const": "collect_video_media",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "status",
+          "calls",
+          "summary",
+          "coverage",
+          "limitations",
+          "tool"
+        ],
+        "type": "object"
+      },
+      "securitySchemes": [
+        {
+          "scopes": [
+            "data"
+          ],
+          "type": "oauth2"
+        }
+      ],
+      "title": "Collect video media"
+    },
+    {
+      "_meta": {
+        "securitySchemes": [
+          {
+            "scopes": [
               "video"
             ],
             "type": "oauth2"
@@ -14103,7 +14527,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Start a Kabo remake of a public talking-head video (YouTube, Instagram or TikTok, 90 s max) with the creator's own footage. Call only after the user confirms. Top-level. Fetching the videos uses daily quota. Uses one daily remake (shared with Kabo web) whatever the outcome; one runs at a time. On fetching_inputs, repeat the same call after retry_after_s. Next: poll get_remake_video.",
+      "description": "Remake a public talking-head video (YouTube, Instagram or TikTok, 90 s max) with the creator's videos or photos. Only after the user confirms. Top-level. Fetching uses daily quota. Uses one daily remake (shared with web) either way; one at a time. On fetching_inputs, repeat after retry_after_s. Next: poll get_remake_video.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -14113,16 +14537,26 @@
         "properties": {
           "creator": {
             "additionalProperties": false,
-            "description": "Exactly one of instagram_handle or video_urls.",
+            "description": "instagram_handle, or video_urls and/or photo_urls (face JPEG/PNG); max 4.",
             "properties": {
               "instagram_handle": {
-                "description": "Handle or profile link; Kabo picks their reels.",
+                "description": "Handle or profile link; Kabo picks reels.",
                 "maxLength": 256,
                 "minLength": 1,
                 "type": "string"
               },
+              "photo_urls": {
+                "items": {
+                  "maxLength": 2048,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "minItems": 1,
+                "type": "array"
+              },
               "video_urls": {
-                "description": "1-4 links of the creator talking.",
+                "description": "Links of them talking.",
                 "items": {
                   "maxLength": 2048,
                   "minLength": 1,
@@ -14136,7 +14570,7 @@
             "type": "object"
           },
           "creator_name": {
-            "description": "Short ASCII name; defaults to the handle, required with video_urls.",
+            "description": "ASCII; defaults to handle, else required.",
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
             "type": "string"
           },
@@ -14159,8 +14593,13 @@
             "type": "string"
           },
           "script": {
-            "description": "Instead of reference_url: approved words, said verbatim.",
+            "description": "Or approved words, verbatim.",
             "maxLength": 12000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "voice_preset": {
+            "maxLength": 64,
             "minLength": 1,
             "type": "string"
           }
@@ -14258,9 +14697,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false,
-        "readOnlyHint": true
+        "readOnlyHint": false
       },
-      "description": "Read a remake job. Top-level. Send job_id and wait_s. At waiting_script: brief.download is a JSON bundle {schema, job_id, files} to write the four files from, and talking_models lists the model choices with estimated cost (all_models: every model). At delivered: video.download is the final MP4; with include [\"review\"], review has Kabo's final-review verdict (qc, null when unknown) and the runner's notes on what it changed. Links are short-lived; call again to re-sign. out_of_scope, failed, timed_out and failure unsupported_type are final and come back as a normal result. No quota. project true adds the project state (handles, revisions, last step, lines); cancel true stops a stuck job.",
+      "description": "Read a remake job. Top-level. Send job_id and wait_s. At waiting_script: brief.download is a JSON bundle {schema, job_id, files} to write the four files from, and talking_models lists the model choices with estimated cost (all_models: every model). At delivered: video.download is the final MP4; with include [\"review\"], review has Kabo's final-review verdict (qc, null when unknown) and the runner's notes on what it changed. Links are short-lived; call again to re-sign. out_of_scope, failed, timed_out and failure unsupported_type are final and come back as a normal result. No quota.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -14275,7 +14714,7 @@
           },
           "cancel": {
             "const": true,
-            "description": "true stops the running step or preparation and frees the slot; spend so far stays charged.",
+            "description": "Stops the running step",
             "type": "boolean"
           },
           "include": {
@@ -14297,7 +14736,6 @@
           },
           "project": {
             "const": true,
-            "description": "true adds project: handles, revisions and the last step.",
             "type": "boolean"
           },
           "wait_s": {
@@ -14526,7 +14964,7 @@
                       ]
                     },
                     "name": {
-                      "maxLength": 64,
+                      "maxLength": 80,
                       "type": "string"
                     },
                     "seconds": {
@@ -14701,97 +15139,88 @@
                           {
                             "additionalProperties": false,
                             "properties": {
-                              "file": {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "download": {
-                                    "anyOf": [
-                                      {
-                                        "additionalProperties": false,
-                                        "properties": {
-                                          "bytes": {
-                                            "maximum": 9007199254740991,
-                                            "minimum": 0,
-                                            "type": "integer"
-                                          },
-                                          "content_type": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          },
-                                          "expires_at": {
-                                            "format": "date-time",
-                                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                                            "type": "string"
-                                          },
-                                          "kind": {
-                                            "enum": [
-                                              "envelope",
-                                              "artifact"
-                                            ],
-                                            "type": "string"
-                                          },
-                                          "sha256": {
-                                            "pattern": "^[a-f0-9]{64}$",
-                                            "type": "string"
-                                          },
-                                          "status": {
-                                            "const": "ready",
-                                            "type": "string"
-                                          },
-                                          "url": {
-                                            "format": "uri",
-                                            "type": "string"
-                                          }
-                                        },
-                                        "required": [
-                                          "status",
-                                          "kind",
-                                          "url",
-                                          "expires_at",
-                                          "sha256",
-                                          "bytes",
-                                          "content_type"
-                                        ],
-                                        "type": "object"
+                              "download": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "bytes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
                                       },
-                                      {
-                                        "additionalProperties": false,
-                                        "properties": {
-                                          "reason": {
-                                            "enum": [
-                                              "too_large",
-                                              "not_found",
-                                              "service_unavailable"
-                                            ],
-                                            "type": "string"
-                                          },
-                                          "status": {
-                                            "const": "unavailable",
-                                            "type": "string"
-                                          }
-                                        },
-                                        "required": [
-                                          "status",
-                                          "reason"
+                                      "content_type": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "expires_at": {
+                                        "format": "date-time",
+                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "envelope",
+                                          "artifact"
                                         ],
-                                        "type": "object"
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "pattern": "^[a-f0-9]{64}$",
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "ready",
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "format": "uri",
+                                        "type": "string"
                                       }
-                                    ]
+                                    },
+                                    "required": [
+                                      "status",
+                                      "kind",
+                                      "url",
+                                      "expires_at",
+                                      "sha256",
+                                      "bytes",
+                                      "content_type"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "too_large",
+                                          "not_found",
+                                          "service_unavailable"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "unavailable",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "reason"
+                                    ],
+                                    "type": "object"
                                   }
-                                },
-                                "required": [
-                                  "download"
-                                ],
-                                "type": "object"
+                                ]
                               },
                               "handle": {
-                                "maxLength": 64,
+                                "maxLength": 80,
                                 "type": "string"
                               }
                             },
                             "required": [
                               "handle",
-                              "file"
+                              "download"
                             ],
                             "type": "object"
                           },
@@ -14842,29 +15271,38 @@
               "lines": {
                 "anyOf": [
                   {
-                    "type": "null"
-                  },
-                  {
                     "items": {
                       "additionalProperties": false,
                       "properties": {
                         "row": {
-                          "maximum": 199,
+                          "maximum": 9007199254740991,
                           "minimum": 0,
                           "type": "integer"
                         },
                         "t0": {
-                          "maximum": 600,
-                          "minimum": 0,
-                          "type": "number"
+                          "anyOf": [
+                            {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "t1": {
-                          "maximum": 600,
-                          "minimum": 0,
-                          "type": "number"
+                          "anyOf": [
+                            {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "text": {
-                          "maxLength": 600,
+                          "maxLength": 2000,
                           "type": "string"
                         }
                       },
@@ -14878,6 +15316,9 @@
                     },
                     "maxItems": 200,
                     "type": "array"
+                  },
+                  {
+                    "type": "null"
                   }
                 ]
               },
@@ -14891,6 +15332,9 @@
                     "type": "null"
                   }
                 ]
+              },
+              "persona": {
+                "type": "boolean"
               },
               "retry_after_s": {
                 "anyOf": [
@@ -14914,12 +15358,12 @@
                       "type": "string"
                     },
                     "handle": {
-                      "maxLength": 64,
+                      "maxLength": 80,
                       "type": "string"
                     },
                     "n": {
-                      "exclusiveMinimum": 0,
                       "maximum": 9007199254740991,
+                      "minimum": 0,
                       "type": "integer"
                     },
                     "notes": {
@@ -15044,7 +15488,8 @@
                   "failed",
                   "timed_out",
                   "ready",
-                  "working"
+                  "working",
+                  "cancelled"
                 ],
                 "type": "string"
               }
@@ -15058,6 +15503,8 @@
               "handles",
               "revisions",
               "last_step",
+              "lines",
+              "persona",
               "spend_usd",
               "failure_reason"
             ],
@@ -15834,7 +16281,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Start an empty video project from the creator's own footage, for videos a full remake does not cover. Call only after the user confirms. Top-level. Fetching the videos uses daily quota. Free to set up; on fetching_inputs repeat the same call after retry_after_s. Next: make_video_step once status is ready. With job_id, adds photos, reference videos or images to a ready project.",
+      "description": "Start a video project (with job_id: add inputs to one) for videos a full remake does not cover. Call only after the user confirms. Top-level. Fetching videos uses daily quota. On fetching_inputs repeat the call after retry_after_s. Next: make_video_step at ready.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -15844,27 +16291,26 @@
         "properties": {
           "creator": {
             "additionalProperties": false,
-            "description": "Optional. instagram_handle, or video_urls and/or photo_urls.",
+            "description": "instagram_handle, or video_urls and/or photo_urls (face JPEG/PNG); max 4.",
             "properties": {
               "instagram_handle": {
-                "description": "Handle or profile link; Kabo picks their reels.",
+                "description": "Handle or profile link; Kabo picks reels.",
                 "maxLength": 256,
                 "minLength": 1,
                 "type": "string"
               },
               "photo_urls": {
-                "description": "1-8 public JPEG/PNG links of the creator.",
                 "items": {
                   "maxLength": 2048,
                   "minLength": 1,
                   "type": "string"
                 },
-                "maxItems": 8,
+                "maxItems": 4,
                 "minItems": 1,
                 "type": "array"
               },
               "video_urls": {
-                "description": "1-4 links of the creator talking.",
+                "description": "Links of them talking.",
                 "items": {
                   "maxLength": 2048,
                   "minLength": 1,
@@ -15878,7 +16324,7 @@
             "type": "object"
           },
           "creator_name": {
-            "description": "Short ASCII name; defaults to the handle, required with video_urls.",
+            "description": "ASCII; defaults to handle, else required.",
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
             "type": "string"
           },
@@ -15890,13 +16336,13 @@
             "type": "string"
           },
           "job_id": {
-            "description": "A ready project: add photo_urls, reference_video_urls or reference_image_urls to it.",
+            "description": "Add to this project",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
           },
           "reference_image_urls": {
-            "description": "0-8 public JPEG/PNG links (a product, a place); never the creator.",
+            "description": "Product or scene images",
             "items": {
               "maxLength": 2048,
               "minLength": 1,
@@ -15906,7 +16352,7 @@
             "type": "array"
           },
           "reference_video_urls": {
-            "description": "0-4 links of other videos to use (a movement to copy, a shot to recast, a reference to reuse).",
+            "description": "Videos by others",
             "items": {
               "maxLength": 2048,
               "minLength": 1,
@@ -15998,7 +16444,7 @@
                   ]
                 },
                 "name": {
-                  "maxLength": 64,
+                  "maxLength": 80,
                   "type": "string"
                 },
                 "seconds": {
@@ -16173,97 +16619,88 @@
                       {
                         "additionalProperties": false,
                         "properties": {
-                          "file": {
-                            "additionalProperties": false,
-                            "properties": {
-                              "download": {
-                                "anyOf": [
-                                  {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "bytes": {
-                                        "maximum": 9007199254740991,
-                                        "minimum": 0,
-                                        "type": "integer"
-                                      },
-                                      "content_type": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      "expires_at": {
-                                        "format": "date-time",
-                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                                        "type": "string"
-                                      },
-                                      "kind": {
-                                        "enum": [
-                                          "envelope",
-                                          "artifact"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "sha256": {
-                                        "pattern": "^[a-f0-9]{64}$",
-                                        "type": "string"
-                                      },
-                                      "status": {
-                                        "const": "ready",
-                                        "type": "string"
-                                      },
-                                      "url": {
-                                        "format": "uri",
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "status",
-                                      "kind",
-                                      "url",
-                                      "expires_at",
-                                      "sha256",
-                                      "bytes",
-                                      "content_type"
-                                    ],
-                                    "type": "object"
+                          "download": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "bytes": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
                                   },
-                                  {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "reason": {
-                                        "enum": [
-                                          "too_large",
-                                          "not_found",
-                                          "service_unavailable"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "status": {
-                                        "const": "unavailable",
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "status",
-                                      "reason"
+                                  "content_type": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "expires_at": {
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "envelope",
+                                      "artifact"
                                     ],
-                                    "type": "object"
+                                    "type": "string"
+                                  },
+                                  "sha256": {
+                                    "pattern": "^[a-f0-9]{64}$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "ready",
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "format": "uri",
+                                    "type": "string"
                                   }
-                                ]
+                                },
+                                "required": [
+                                  "status",
+                                  "kind",
+                                  "url",
+                                  "expires_at",
+                                  "sha256",
+                                  "bytes",
+                                  "content_type"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "reason": {
+                                    "enum": [
+                                      "too_large",
+                                      "not_found",
+                                      "service_unavailable"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "status",
+                                  "reason"
+                                ],
+                                "type": "object"
                               }
-                            },
-                            "required": [
-                              "download"
-                            ],
-                            "type": "object"
+                            ]
                           },
                           "handle": {
-                            "maxLength": 64,
+                            "maxLength": 80,
                             "type": "string"
                           }
                         },
                         "required": [
                           "handle",
-                          "file"
+                          "download"
                         ],
                         "type": "object"
                       },
@@ -16311,6 +16748,60 @@
               }
             ]
           },
+          "lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "row": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "t0": {
+                      "anyOf": [
+                        {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "t1": {
+                      "anyOf": [
+                        {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "maxLength": 2000,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "row",
+                    "text",
+                    "t0",
+                    "t1"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "message": {
             "anyOf": [
               {
@@ -16321,6 +16812,9 @@
                 "type": "null"
               }
             ]
+          },
+          "persona": {
+            "type": "boolean"
           },
           "retry_after_s": {
             "anyOf": [
@@ -16344,12 +16838,12 @@
                   "type": "string"
                 },
                 "handle": {
-                  "maxLength": 64,
+                  "maxLength": 80,
                   "type": "string"
                 },
                 "n": {
-                  "exclusiveMinimum": 0,
                   "maximum": 9007199254740991,
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "notes": {
@@ -16474,7 +16968,8 @@
               "failed",
               "timed_out",
               "ready",
-              "working"
+              "working",
+              "cancelled"
             ],
             "type": "string"
           }
@@ -16488,6 +16983,8 @@
           "handles",
           "revisions",
           "last_step",
+          "lines",
+          "persona",
           "spend_usd",
           "failure_reason"
         ],
@@ -16520,7 +17017,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Run one paid step on a ready project or delivered remake; inputs are file handles from the job, the result is a new handle. Top-level. One step at a time per account; tell the user the plan and cost first. Poll get_remake_video with project true. With no creator footage, persona makes an invented AI presenter (never a real person).",
+      "description": "Run one paid step on a ready project or delivered remake; inputs are job file handles, the result is a new handle. Top-level. One step at a time; tell the user the plan and cost first. Poll get_remake_video with project true.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -16536,85 +17033,27 @@
             "type": "string"
           },
           "inputs": {
-            "additionalProperties": false,
-            "properties": {
-              "audio": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
-              },
-              "base": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
-              },
-              "clip": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
-              },
-              "clips": {
-                "items": {
-                  "maxLength": 64,
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
                   "minLength": 1,
                   "type": "string"
                 },
-                "maxItems": 20,
-                "type": "array"
-              },
-              "first_frame": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
-              },
-              "image": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
-              },
-              "images": {
-                "items": {
-                  "maxLength": 64,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "maxItems": 20,
-                "type": "array"
-              },
-              "last_frame": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
-              },
-              "media": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
-              },
-              "plate": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
-              },
-              "ref_video": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
-              },
-              "refs": {
-                "items": {
-                  "maxLength": 64,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "maxItems": 20,
-                "type": "array"
-              },
-              "video": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
-              }
+                {
+                  "items": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 20,
+                  "type": "array"
+                }
+              ]
+            },
+            "propertyNames": {
+              "maxLength": 32,
+              "type": "string"
             },
             "type": "object"
           },
@@ -16645,8 +17084,8 @@
               "trim",
               "mux",
               "extract_audio",
-              "voice_change",
-              "persona"
+              "persona",
+              "voice_change"
             ],
             "type": "string"
           },
@@ -16745,7 +17184,7 @@
                   ]
                 },
                 "name": {
-                  "maxLength": 64,
+                  "maxLength": 80,
                   "type": "string"
                 },
                 "seconds": {
@@ -16920,97 +17359,88 @@
                       {
                         "additionalProperties": false,
                         "properties": {
-                          "file": {
-                            "additionalProperties": false,
-                            "properties": {
-                              "download": {
-                                "anyOf": [
-                                  {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "bytes": {
-                                        "maximum": 9007199254740991,
-                                        "minimum": 0,
-                                        "type": "integer"
-                                      },
-                                      "content_type": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      "expires_at": {
-                                        "format": "date-time",
-                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                                        "type": "string"
-                                      },
-                                      "kind": {
-                                        "enum": [
-                                          "envelope",
-                                          "artifact"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "sha256": {
-                                        "pattern": "^[a-f0-9]{64}$",
-                                        "type": "string"
-                                      },
-                                      "status": {
-                                        "const": "ready",
-                                        "type": "string"
-                                      },
-                                      "url": {
-                                        "format": "uri",
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "status",
-                                      "kind",
-                                      "url",
-                                      "expires_at",
-                                      "sha256",
-                                      "bytes",
-                                      "content_type"
-                                    ],
-                                    "type": "object"
+                          "download": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "bytes": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
                                   },
-                                  {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "reason": {
-                                        "enum": [
-                                          "too_large",
-                                          "not_found",
-                                          "service_unavailable"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "status": {
-                                        "const": "unavailable",
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "status",
-                                      "reason"
+                                  "content_type": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "expires_at": {
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "envelope",
+                                      "artifact"
                                     ],
-                                    "type": "object"
+                                    "type": "string"
+                                  },
+                                  "sha256": {
+                                    "pattern": "^[a-f0-9]{64}$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "ready",
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "format": "uri",
+                                    "type": "string"
                                   }
-                                ]
+                                },
+                                "required": [
+                                  "status",
+                                  "kind",
+                                  "url",
+                                  "expires_at",
+                                  "sha256",
+                                  "bytes",
+                                  "content_type"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "reason": {
+                                    "enum": [
+                                      "too_large",
+                                      "not_found",
+                                      "service_unavailable"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "status",
+                                  "reason"
+                                ],
+                                "type": "object"
                               }
-                            },
-                            "required": [
-                              "download"
-                            ],
-                            "type": "object"
+                            ]
                           },
                           "handle": {
-                            "maxLength": 64,
+                            "maxLength": 80,
                             "type": "string"
                           }
                         },
                         "required": [
                           "handle",
-                          "file"
+                          "download"
                         ],
                         "type": "object"
                       },
@@ -17058,6 +17488,60 @@
               }
             ]
           },
+          "lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "row": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "t0": {
+                      "anyOf": [
+                        {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "t1": {
+                      "anyOf": [
+                        {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "maxLength": 2000,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "row",
+                    "text",
+                    "t0",
+                    "t1"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "message": {
             "anyOf": [
               {
@@ -17068,6 +17552,9 @@
                 "type": "null"
               }
             ]
+          },
+          "persona": {
+            "type": "boolean"
           },
           "retry_after_s": {
             "anyOf": [
@@ -17091,12 +17578,12 @@
                   "type": "string"
                 },
                 "handle": {
-                  "maxLength": 64,
+                  "maxLength": 80,
                   "type": "string"
                 },
                 "n": {
-                  "exclusiveMinimum": 0,
                   "maximum": 9007199254740991,
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "notes": {
@@ -17221,7 +17708,8 @@
               "failed",
               "timed_out",
               "ready",
-              "working"
+              "working",
+              "cancelled"
             ],
             "type": "string"
           }
@@ -17235,6 +17723,8 @@
           "handles",
           "revisions",
           "last_step",
+          "lines",
+          "persona",
           "spend_usd",
           "failure_reason"
         ],
@@ -17291,7 +17781,7 @@
                   "type": "array"
                 },
                 "clip": {
-                  "maxLength": 64,
+                  "maxLength": 80,
                   "minLength": 1,
                   "type": "string"
                 },
@@ -17333,12 +17823,12 @@
                   "type": "array"
                 },
                 "media": {
-                  "maxLength": 64,
+                  "maxLength": 80,
                   "minLength": 1,
                   "type": "string"
                 },
                 "plate": {
-                  "maxLength": 64,
+                  "maxLength": 80,
                   "minLength": 1,
                   "type": "string"
                 },
@@ -17464,7 +17954,7 @@
                   ]
                 },
                 "name": {
-                  "maxLength": 64,
+                  "maxLength": 80,
                   "type": "string"
                 },
                 "seconds": {
@@ -17639,97 +18129,88 @@
                       {
                         "additionalProperties": false,
                         "properties": {
-                          "file": {
-                            "additionalProperties": false,
-                            "properties": {
-                              "download": {
-                                "anyOf": [
-                                  {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "bytes": {
-                                        "maximum": 9007199254740991,
-                                        "minimum": 0,
-                                        "type": "integer"
-                                      },
-                                      "content_type": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      "expires_at": {
-                                        "format": "date-time",
-                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                                        "type": "string"
-                                      },
-                                      "kind": {
-                                        "enum": [
-                                          "envelope",
-                                          "artifact"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "sha256": {
-                                        "pattern": "^[a-f0-9]{64}$",
-                                        "type": "string"
-                                      },
-                                      "status": {
-                                        "const": "ready",
-                                        "type": "string"
-                                      },
-                                      "url": {
-                                        "format": "uri",
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "status",
-                                      "kind",
-                                      "url",
-                                      "expires_at",
-                                      "sha256",
-                                      "bytes",
-                                      "content_type"
-                                    ],
-                                    "type": "object"
+                          "download": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "bytes": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
                                   },
-                                  {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "reason": {
-                                        "enum": [
-                                          "too_large",
-                                          "not_found",
-                                          "service_unavailable"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "status": {
-                                        "const": "unavailable",
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "status",
-                                      "reason"
+                                  "content_type": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "expires_at": {
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "envelope",
+                                      "artifact"
                                     ],
-                                    "type": "object"
+                                    "type": "string"
+                                  },
+                                  "sha256": {
+                                    "pattern": "^[a-f0-9]{64}$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "ready",
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "format": "uri",
+                                    "type": "string"
                                   }
-                                ]
+                                },
+                                "required": [
+                                  "status",
+                                  "kind",
+                                  "url",
+                                  "expires_at",
+                                  "sha256",
+                                  "bytes",
+                                  "content_type"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "reason": {
+                                    "enum": [
+                                      "too_large",
+                                      "not_found",
+                                      "service_unavailable"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "status",
+                                  "reason"
+                                ],
+                                "type": "object"
                               }
-                            },
-                            "required": [
-                              "download"
-                            ],
-                            "type": "object"
+                            ]
                           },
                           "handle": {
-                            "maxLength": 64,
+                            "maxLength": 80,
                             "type": "string"
                           }
                         },
                         "required": [
                           "handle",
-                          "file"
+                          "download"
                         ],
                         "type": "object"
                       },
@@ -17777,6 +18258,60 @@
               }
             ]
           },
+          "lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "row": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "t0": {
+                      "anyOf": [
+                        {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "t1": {
+                      "anyOf": [
+                        {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "maxLength": 2000,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "row",
+                    "text",
+                    "t0",
+                    "t1"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "message": {
             "anyOf": [
               {
@@ -17787,6 +18322,9 @@
                 "type": "null"
               }
             ]
+          },
+          "persona": {
+            "type": "boolean"
           },
           "retry_after_s": {
             "anyOf": [
@@ -17810,12 +18348,12 @@
                   "type": "string"
                 },
                 "handle": {
-                  "maxLength": 64,
+                  "maxLength": 80,
                   "type": "string"
                 },
                 "n": {
-                  "exclusiveMinimum": 0,
                   "maximum": 9007199254740991,
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "notes": {
@@ -17940,7 +18478,8 @@
               "failed",
               "timed_out",
               "ready",
-              "working"
+              "working",
+              "cancelled"
             ],
             "type": "string"
           }
@@ -17954,6 +18493,8 @@
           "handles",
           "revisions",
           "last_step",
+          "lines",
+          "persona",
           "spend_usd",
           "failure_reason"
         ],
@@ -17996,7 +18537,7 @@
         "properties": {
           "handle": {
             "description": "The .mp4 to deliver",
-            "maxLength": 64,
+            "maxLength": 80,
             "minLength": 1,
             "type": "string"
           },
@@ -18097,7 +18638,7 @@
                   ]
                 },
                 "name": {
-                  "maxLength": 64,
+                  "maxLength": 80,
                   "type": "string"
                 },
                 "seconds": {
@@ -18272,97 +18813,88 @@
                       {
                         "additionalProperties": false,
                         "properties": {
-                          "file": {
-                            "additionalProperties": false,
-                            "properties": {
-                              "download": {
-                                "anyOf": [
-                                  {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "bytes": {
-                                        "maximum": 9007199254740991,
-                                        "minimum": 0,
-                                        "type": "integer"
-                                      },
-                                      "content_type": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      "expires_at": {
-                                        "format": "date-time",
-                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                                        "type": "string"
-                                      },
-                                      "kind": {
-                                        "enum": [
-                                          "envelope",
-                                          "artifact"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "sha256": {
-                                        "pattern": "^[a-f0-9]{64}$",
-                                        "type": "string"
-                                      },
-                                      "status": {
-                                        "const": "ready",
-                                        "type": "string"
-                                      },
-                                      "url": {
-                                        "format": "uri",
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "status",
-                                      "kind",
-                                      "url",
-                                      "expires_at",
-                                      "sha256",
-                                      "bytes",
-                                      "content_type"
-                                    ],
-                                    "type": "object"
+                          "download": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "bytes": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
                                   },
-                                  {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "reason": {
-                                        "enum": [
-                                          "too_large",
-                                          "not_found",
-                                          "service_unavailable"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "status": {
-                                        "const": "unavailable",
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "status",
-                                      "reason"
+                                  "content_type": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "expires_at": {
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "envelope",
+                                      "artifact"
                                     ],
-                                    "type": "object"
+                                    "type": "string"
+                                  },
+                                  "sha256": {
+                                    "pattern": "^[a-f0-9]{64}$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "ready",
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "format": "uri",
+                                    "type": "string"
                                   }
-                                ]
+                                },
+                                "required": [
+                                  "status",
+                                  "kind",
+                                  "url",
+                                  "expires_at",
+                                  "sha256",
+                                  "bytes",
+                                  "content_type"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "reason": {
+                                    "enum": [
+                                      "too_large",
+                                      "not_found",
+                                      "service_unavailable"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "status",
+                                  "reason"
+                                ],
+                                "type": "object"
                               }
-                            },
-                            "required": [
-                              "download"
-                            ],
-                            "type": "object"
+                            ]
                           },
                           "handle": {
-                            "maxLength": 64,
+                            "maxLength": 80,
                             "type": "string"
                           }
                         },
                         "required": [
                           "handle",
-                          "file"
+                          "download"
                         ],
                         "type": "object"
                       },
@@ -18410,6 +18942,60 @@
               }
             ]
           },
+          "lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "row": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "t0": {
+                      "anyOf": [
+                        {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "t1": {
+                      "anyOf": [
+                        {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "maxLength": 2000,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "row",
+                    "text",
+                    "t0",
+                    "t1"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "message": {
             "anyOf": [
               {
@@ -18420,6 +19006,9 @@
                 "type": "null"
               }
             ]
+          },
+          "persona": {
+            "type": "boolean"
           },
           "retry_after_s": {
             "anyOf": [
@@ -18443,12 +19032,12 @@
                   "type": "string"
                 },
                 "handle": {
-                  "maxLength": 64,
+                  "maxLength": 80,
                   "type": "string"
                 },
                 "n": {
-                  "exclusiveMinimum": 0,
                   "maximum": 9007199254740991,
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "notes": {
@@ -18573,7 +19162,8 @@
               "failed",
               "timed_out",
               "ready",
-              "working"
+              "working",
+              "cancelled"
             ],
             "type": "string"
           }
@@ -18587,6 +19177,8 @@
           "handles",
           "revisions",
           "last_step",
+          "lines",
+          "persona",
           "spend_usd",
           "failure_reason"
         ],

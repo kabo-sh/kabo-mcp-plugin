@@ -280,9 +280,23 @@ def start_call(reference, handle, video_urls, creator_name, language, attempt, s
 
 HANDLE_RE = re.compile(r"^(creator/[a-z0-9_.-]{1,60}|input/[a-z0-9_.-]{1,60}|a\d{2,3}|final(_r\d{1,2})?|take_s\d{2}"
                        r"|line_\d{2,3})\.(mp4|png|jpg|wav)$")
-COLOR_RE = re.compile(r"^([a-z]{3,16}|#[0-9A-Fa-f]{6})$")
+COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+# 服务端的字幕颜色只收 #RRGGBB；常见颜色名由脚本换成固定色值，不让模型自己换算。
+COLOR_NAMES = {"white": "#FFFFFF", "black": "#000000", "yellow": "#FFD400", "red": "#FF3B30", "orange": "#FF9500",
+               "green": "#34C759", "blue": "#0A84FF", "pink": "#FF2D92", "purple": "#AF52DE", "gray": "#8E8E93",
+               "grey": "#8E8E93"}
+
+
+def caption_color(value, where):
+    if isinstance(value, str) and value.strip().lower() in COLOR_NAMES:
+        return COLOR_NAMES[value.strip().lower()]
+    if not isinstance(value, str) or not COLOR_RE.match(value):
+        raise ValueError(f"{where} must be #RRGGBB or one of " + ", ".join(sorted(COLOR_NAMES)))
+    return value.upper()
 JOB_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
 MAX_SECONDS = 600
+# voice_change 的音色（服务端 AGENT_REMAKE_VOICE_CHANGE_VOICES，V2-r88 catalog）
+CHANGE_VOICES = ("warm_female",)
 # 碰脸 op 只收 catalog 里 tested 的模型（第一个是默认）；与工具清单的枚举一致。
 FACE_MODELS = {
     "refvideo": ("alibaba/wan-3.0/reference-to-video", "kling/v4/reference-to-video"),
@@ -321,7 +335,7 @@ STEP_OPS = {
     "extract_audio": ({"video": "h"}, {"video"}, {}, set()),
     "voice_change": ({"media": "h"}, {"media"}, {"voice": "change_voice"}, {"voice"}),
     # 契约 v1.5：没有任何本人素材时的虚构 AI 人物（定妆照）；seed_images 按契约在 params 里，是非真人的风格图句柄。
-    "persona": ({}, set(), {"description": "persona", "seed_images": "seed_images"}, {"description"}),
+    "persona": ({"seed_images": "h[0,4]"}, set(), {"description": "persona", "count": "count2_4"}, {"description"}),
 }
 EDIT_KINDS = {
     "lines": ({"lines"}, set()),
@@ -357,8 +371,9 @@ def _range(item, where):
 
 
 def _box(value, where):
-    if not isinstance(value, list) or len(value) != 3 or not all(_number(v) and 0 <= v <= 1 for v in value):
-        raise ValueError(f"{where} must be [x, y, width] as fractions of the frame (0-1)")
+    if (not isinstance(value, list) or len(value) != 3 or not all(_number(v) and 0 <= v <= 1 for v in value)
+            or value[2] <= 0):
+        raise ValueError(f"{where} must be [x, y, width] as fractions of the frame (0-1, width above 0)")
 
 
 def _param(kind, value, where, op):
@@ -366,7 +381,8 @@ def _param(kind, value, where, op):
         ok = isinstance(value, str) and value.strip() and len(value) <= 2000
         message = "a non-empty text of at most 2000 characters"
     elif kind == "duration3_15":
-        ok, message = _number(value) and 3 <= value <= 15, "3 to 15 seconds"
+        ok = isinstance(value, int) and not isinstance(value, bool) and 3 <= value <= 15
+        message = "a whole number of seconds from 3 to 15"
     elif kind == "duration5_10":
         ok, message = value in (5, 10) and not isinstance(value, bool), "5 or 10"
     elif kind == "bool":
@@ -390,13 +406,8 @@ def _param(kind, value, where, op):
         ok = isinstance(value, str) and bool(value.strip()) and len(value) <= 600 and not re.search(r"@\w|https?://", value)
         message = ("a description of an invented person, at most 600 characters, with no handle or link "
                    "(a persona never depicts a real, identifiable person)")
-    elif kind == "seed_images":
-        if not isinstance(value, list) or len(value) > 4:
-            raise ValueError(f"{where} must list 0 to 4 style picture handles")
-        for n, item in enumerate(value):
-            if not _handle(item, f"{where}[{n}]").endswith((".png", ".jpg")) or item.startswith("creator/"):
-                raise ValueError(f"{where}[{n}] must be a picture that is not of a real person (not a creator/ file)")
-        return
+    elif kind == "count2_4":
+        ok, message = isinstance(value, int) and not isinstance(value, bool) and 2 <= value <= 4, "2, 3 or 4"
     elif kind == "mux_mode":
         ok, message = value in ("replace", "mix"), "replace or mix"
     elif kind == "mux_gain":
@@ -406,8 +417,8 @@ def _param(kind, value, where, op):
         message = "\"creator\" (the creator's cloned voice) or one of the stock voices: " + ", ".join(
             f"{k} ({v})" for k, v in VOICE_PRESETS.items())
     elif kind == "change_voice":
-        ok = isinstance(value, str) and bool(re.fullmatch(r"creator|[a-z][a-z0-9_]{1,39}|[0-9a-f]{32}", value))
-        message = "\"creator\" (the creator's cloned voice) or the name of one of Kabo's stock voices"
+        ok = value in CHANGE_VOICES
+        message = "one of " + ", ".join(CHANGE_VOICES) + " (for the creator's own voice use tts, then lipsync or mux)"
     elif kind == "style":
         ok, message = value in ("creator", "plain"), "creator or plain"
     elif kind == "mood":
@@ -415,7 +426,8 @@ def _param(kind, value, where, op):
     elif kind == "gain":
         ok, message = _number(value) and -30 <= value <= 0, "a number from -30 to 0"
     elif kind == "color":
-        ok, message = isinstance(value, str) and bool(COLOR_RE.match(value)), "a colour name or #RRGGBB"
+        caption_color(value, where)
+        return
     elif kind == "size":
         ok, message = _number(value) and 0.5 <= value <= 2, "a multiple of the default size from 0.5 to 2"
     elif kind == "cards":
@@ -482,8 +494,8 @@ def project_call(handle, video_urls, creator_name, attempt, photo_urls=(), refer
     photos = [_photo_url(url) for url in photo_urls or []]
     refs = [_url(url, "Reference video") for url in reference_videos or []]
     images = [_image_url(url) for url in reference_images or []]
-    if len(photos) > 8 or len(images) > 8 or len(refs) > 4:
-        raise ValueError("At most 8 creator photos, 4 reference videos and 8 reference images")
+    if len(photos) + len(video_urls or []) > 4 or len(images) > 8 or len(refs) > 4:
+        raise ValueError("At most 4 creator videos and photos in total, 4 reference videos and 8 reference images")
     for label, items in (("creator photo", photos), ("reference image", images)):
         if len(set(items)) != len(items):
             raise ValueError(f"The same {label} is listed twice")
@@ -551,10 +563,17 @@ def step_call(job_id, step_file, attempt):
                 raise ValueError(f"inputs.{name} must list {low} to {high} handles")
             for n, item in enumerate(value):
                 _handle(item, f"inputs.{name}[{n}]")
+    if op == "persona":
+        for n, item in enumerate(inputs.get("seed_images", [])):
+            if not item.endswith((".png", ".jpg")) or item.startswith("creator/"):
+                raise ValueError(f"inputs.seed_images[{n}] must be a style picture that shows no real person "
+                                 "(not a creator/ file)")
     for name, value in params.items():
         _param(param_kinds[name], value, f"params.{name}", op)
     if {"t0", "t1"} <= set(params):
         _range(params, "params")
+    if op == "captions" and "color" in params:
+        params["color"] = caption_color(params["color"], "params.color")
     arguments = {"job_id": _job_id(job_id), "op": op, "inputs": inputs, "params": params}
     return _call("make_video_step", arguments, attempt)
 
@@ -609,7 +628,7 @@ def edit_call(job_id, edits_file, attempt):
             if not fields:
                 raise ValueError(f"{where} (captions) needs color or size")
             if "color" in edit:
-                _param("color", edit["color"], f"{where}.color", kind)
+                edit["color"] = caption_color(edit["color"], f"{where}.color")
             if "size" in edit:
                 _param("size", edit["size"], f"{where}.size", kind)
         else:
@@ -931,7 +950,7 @@ def fetch_video(run, structured):
 # ---------------------------------------------------------------- project state (get_remake_video project: true)
 # 修改与原子项目的状态在 get_remake_video（带 project: true）的 project 字段里；四个项目工具的出参就是
 # 同一个对象。成片的每个修订版（修改后的、项目交付的）在 revisions[i].video.download，一步的产物在
-# last_step.output.file.download。
+# last_step.output.download。
 
 def project_state(structured):
     project = structured.get("project")
@@ -1011,11 +1030,11 @@ def fetch_step(run, structured):
     if step.get("status") != "done":
         return {"saved": None, **summary}
     output = step.get("output")
-    if not isinstance(output, dict) or not isinstance((output.get("file") or {}).get("download"), dict):
+    descriptor = output.get("download") if isinstance(output, dict) else None
+    if not isinstance(descriptor, dict):
         return {"saved": None, "note": "this step has no file to download", **summary}
     handle = _handle(output.get("handle"), "last_step.output.handle")
     kind, types, limit, looks_right = STEP_OUTPUTS[handle.rsplit(".", 1)[1]]
-    descriptor = output["file"]["download"]
     content_type = str(descriptor.get("content_type", "")).lower()
     if content_type not in types:
         raise ValueError(f"{handle} cannot be {content_type!r}")
@@ -1028,7 +1047,7 @@ def fetch_revision(run, structured):
     """Save the newest revision of the finished video (an edit, or a delivered project) next to earlier ones."""
     project = project_state(structured)
     revisions = [r for r in project.get("revisions") or [] if isinstance(r, dict) and isinstance(r.get("n"), int)
-                 and not isinstance(r.get("n"), bool) and r["n"] > 0]
+                 and not isinstance(r.get("n"), bool) and r["n"] >= 0]
     if not revisions:
         raise ValueError("This job has no revision yet: wait until last_step is done (call get_remake_video with "
                          "project true again)")

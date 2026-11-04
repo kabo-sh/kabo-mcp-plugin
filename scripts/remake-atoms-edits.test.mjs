@@ -79,6 +79,7 @@ test("project-call / step-call / edit-call / finish-call 生成的入参通过�
     [["--creator-video", "https://www.youtube.com/shorts/abc123", "--creator-name", "amy", "--reference-video", "https://youtu.be/abc123"], /also a creator video/],
     [["--reference-image", "file:///etc/passwd"], /--reference-image must be a public http/],
     [["--creator-photo", "https://example.com/me.jpg"], /--creator-name is required/],
+    [["--creator-video", "https://www.youtube.com/shorts/abc123", "--creator-name", "amy", ...[1, 2, 3, 4].flatMap(n => ["--creator-photo", `https://example.com/${n}.jpg`])], /4 creator videos and photos in total/],
   ]) {
     const res = call(run, ["project-call", ...args]);
     assert.notEqual(res.status, 0, args.join(" "));
@@ -94,9 +95,10 @@ test("project-call / step-call / edit-call / finish-call 生成的入参通过�
     trim: { op: "trim", inputs: { media: "input/ref_01.mp4" }, params: { t0: 0, t1: 4.5 } },
     mux: { op: "mux", inputs: { video: "a05.mp4", audio: "a06.wav" }, params: { mode: "replace" } },
     extract: { op: "extract_audio", inputs: { video: "input/ref_01.mp4" }, params: {} },
-    voice: { op: "voice_change", inputs: { media: "a06.wav" }, params: { voice: "creator" } },
+    voice: { op: "voice_change", inputs: { media: "a06.wav" }, params: { voice: "warm_female" } },
+    yellow: { op: "captions", inputs: { video: "a05.mp4" }, params: { color: "yellow", size: 1.25 } },
     preset: { op: "tts", inputs: {}, params: { lines: ["Hi."], voice: "536d3a5e000945adb7038665781a4aca" } },
-    persona: { op: "persona", inputs: {}, params: { description: "an invented man in his twenties, curly hair, green hoodie", seed_images: ["input/img_01.png"] } },
+    persona: { op: "persona", inputs: { seed_images: ["input/img_01.png"] }, params: { description: "an invented man in his twenties, curly hair, green hoodie", count: 3 } },
   };
   for (const [name, step] of Object.entries(steps)) {
     const file = path.join(run, "project/steps", `${name}.json`);
@@ -114,7 +116,7 @@ test("project-call / step-call / edit-call / finish-call 生成的入参通过�
   const edits = path.join(run, "project/edits/01.json");
   await writeFile(edits, JSON.stringify([
     { kind: "lines", lines: [{ row: 1, text: "new words" }] },
-    { kind: "captions", color: "#FFD400", size: 1.25 },
+    { kind: "captions", color: "yellow", size: 1.25 },
     { kind: "overlay", t0: 3, t1: 6, media: "a05.png", box: [0.1, 0.1, 0.4] },
     { kind: "background", t0: 0, t1: 4, plate: "a06.png" },
     { kind: "clip", t0: 8, t1: 10, clip: "a07.mp4" },
@@ -122,6 +124,7 @@ test("project-call / step-call / edit-call / finish-call 生成的入参通过�
   const edit = call(run, ["edit-call", "--job-id", JOB, "--edits", edits]);
   assert.equal(edit.status, 0, edit.stderr);
   valid("edit_remake_video", edit.out.arguments);
+  assert.equal(edit.out.arguments.edits[1].color, "#FFD400");
 
   const finish = call(run, ["finish-call", "--job-id", JOB, "--handle", "a07.mp4"]);
   assert.equal(finish.status, 0, finish.stderr);
@@ -140,7 +143,11 @@ test("step-call / edit-call 在付费调用前拒收路径、链接、未列出�
     [{ op: "music", inputs: { base: "a01.mp4" }, params: { mood: "epic" } }, /calm, upbeat/],
     [{ op: "tts", inputs: {}, params: { lines: ["Hi."], voice: "someone-else" } }, /stock voices/],
     [{ op: "persona", inputs: {}, params: { description: "looks exactly like @somecelebrity" } }, /invented person/],
-    [{ op: "persona", inputs: {}, params: { description: "a presenter", seed_images: ["creator/creator-1.jpg"] } }, /not of a real person/],
+    [{ op: "persona", inputs: { seed_images: ["creator/creator-1.jpg"] }, params: { description: "a presenter" } }, /shows no real person/],
+    [{ op: "persona", inputs: {}, params: { description: "a presenter", seed_images: ["input/img_01.png"] } }, /does not take params seed_images/],
+    [{ op: "voice_change", inputs: { media: "a01.wav" }, params: { voice: "creator" } }, /warm_female/],
+    [{ op: "refvideo", inputs: { images: ["a01.png"] }, params: { prompt: "x", duration: 4.5 } }, /whole number/],
+    [{ op: "captions", inputs: { video: "a01.mp4" }, params: { color: "chartreuse-ish" } }, /#RRGGBB/],
     [{ op: "persona", inputs: {}, params: {} }, /needs params description/],
     [{ op: "mux", inputs: { video: "a01.mp4", audio: "a02.wav" }, params: { mode: "replace", gain_db: 9 } }, /-30 to 6/],
   ];
@@ -203,7 +210,7 @@ def step(op, handle=None, body=None, ctype=None, **extra):
     base = {"op": op, "status": "done", "spend_usd": 0, "model": None, "fallback_from": None, "face": None,
             "error": None, "message": None, "notes": None, "output": None}
     if handle:
-        base["output"] = {"handle": handle, "file": {"download": descriptor(handle.replace("/", "_"), body, ctype)}}
+        base["output"] = {"handle": handle, "download": descriptor(handle.replace("/", "_"), body, ctype)}
     base.update(extra)
     return base
 frame = step("frame", "a01.png", png, "image/png")

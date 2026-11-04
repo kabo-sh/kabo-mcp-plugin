@@ -22,10 +22,12 @@
     只收工作区句柄、幂等键 `<skill>:<运行目录>:<工具>:<入参摘要>:a<序号>`；`fetch-step` 与 `fetch-revision` 只下载工具结果
     给出的签名链接（大小、sha256、类型、文件头），最新修订版另存 `remake-<id>-r<N>.mp4`。
   - 为腾出正文长度，错误处理移到 `references/tool-errors.md`、稿件被退回的处理移到 `references/script-returned.md`，内容不变。
-- 契约：`tools-list.json` 以数据层导出的 `mcp-pub-new-tools.json`（kabo `yutian/remake-atoms-launch`，golden
-  `1e86839f…`）为底，再按契约 v1.2–v1.4 补：`start_video_project` 的 `creator` 可选、`creator.photo_urls`、
-  `reference_video_urls`、`reference_image_urls`、`job_id`；`make_video_step` 的 op 加 trim / mux / extract_audio / voice_change / persona；
-  `get_remake_video` 加 `cancel` 与 `project.lines`。**v1.2–v1.4 部分是插件侧按契约起草，待数据层正式导出后整份重新导入并钉住**；未发版本。
+- 契约：`tools-list.json` 整份换成数据层正式导出（kabo#2022 分支 `yutian/remake-atoms-launch` 提交 `31400fb6`，
+  golden `cc4ba10f…`，73 个工具，逐字节一致），`pin.json` 重新钉住。相对 main：新增 `start_video_project`、`make_video_step`、
+  `edit_remake_video`、`finish_video_project`；`get_remake_video` 加 `project: true`（项目状态）与 `cancel: true`，标注改为非只读；
+  `start_remake_video` 带上 kabo#2011 的 `creator.photo_urls` / `voice_preset`；另含 PR #79 用到的 `collect_video_media`
+  （本分支不用，按 #79 同样写法进必需工具与标注）。`make_video_step` 的 inputs / params 在公开 schema 里只是对象，
+  服务端按 op 逐键严格校验，插件 `step-call` 的本地严格校验保留为第一道。kabo#2022 合并前不发版本。
 
 ## 1.0.10（2026-11-03；GitHub Release）
 

@@ -51,13 +51,14 @@ or of the creator at all and wants someone on screen: offer an invented presente
 agree, make one `persona` step first:
 
 ```json
-{"op": "persona", "inputs": {}, "params": {"description": "an invented woman in her thirties, short dark hair, warm smile, casual denim shirt"}}
+{"op": "persona", "inputs": {}, "params": {"description": "an invented woman in her thirties, short dark hair, warm smile, casual denim shirt", "count": 3}}
 ```
 
 It makes two to four portrait pictures of the same invented person (`creator/persona_NN.png`);
 after that the face steps work as usual and are checked against those pictures, and the voice is a
-stock voice the user picks (`tts` `voice`, below). `params.seed_images` may add up to four style
-pictures (handles of pictures that show no real person).
+stock voice the user picks (`tts` `voice`, below). `count` is two to four portraits (optional);
+`inputs.seed_images` may add up to four style pictures (handles of pictures that show no real
+person, never `creator/...`). The project then reports `persona: true`.
 
 - The persona is always fictional. Never describe, name or imitate a real, identifiable person (a
   celebrity, a public figure, someone the user names, or the user); refuse such a request and offer
@@ -87,13 +88,14 @@ Pass the pick as `params.voice` of `tts`, and say at delivery that a stock voice
 | The creator doing the moves of a video | `motion` (a picture of the creator + the movement video) | the movement comes from the video, the person from the picture; likeness is modest. The default draws full-body motion; `fal-ai/kling-video/v3/pro/motion-control` keeps the face better but keeps the picture's framing, so it needs a standing full-body picture |
 | A new shot of the creator doing something without speaking | `refvideo` (1-10 pictures + what happens in words; optional `ref_video` to follow a motion) | the model draws the shot from the pictures; it is checked against the creator |
 | A still of the creator speaking a line | `tts`, then `talking` (picture + line audio) | a talking take from one picture |
-| A reference shot frame for frame with the creator in it | `replace` (shot + picture of the creator), then `lipsync` for the creator's words; `voice_change` with `voice: "creator"` when the original words stay but should sound like the creator | keeps the shot, props and gestures. Small moving text can garble |
+| A reference shot frame for frame with the creator in it | `replace` (shot + picture of the creator), then `lipsync` with the creator's words from `tts` | keeps the shot, props and gestures. Small moving text can garble |
 | B-roll, a scene, a product shot (no creator) | `still` (product pictures as `refs`), then `animate` to move it | no face is drawn |
 | Words that must be read on screen | `text_cards` on a base video | real text; never ask a generated picture to contain words |
 | Background music | `music` with a mood | royalty-free; if it says it is not available, leave music out and say so |
 | Captions in the creator's style | `captions` | |
 | Part of a video or audio | `trim` (`t0`, `t1`) | |
 | Another sound track on a video | `mux` (`mode` `replace` or `mix`), `extract_audio` to take a video's sound | |
+| The same words in a different, non-creator voice (for example a reference speaker's track that must not keep their voice) | `voice_change` with `voice: "warm_female"` (the only stock voice it has) | it cannot make the creator's voice: for that, `tts` with the creator's voice, then `lipsync` or `mux` |
 | A picture over a range, a clip spliced in, clips joined | `overlay`, `splice`, `concat` | |
 | A still from a video (to use as a picture, or to look at a moment) | `frame` | cheap; also how you see a video |
 | Someone on screen when the user has no footage or photos of anyone real | `persona` first (above), then the face steps | an invented presenter; never a real person |
@@ -162,6 +164,8 @@ written here as `static_host.py`.
    '<link>'`. Call `start_video_project` with exactly the printed arguments. `fetching_inputs` is
    handled as in `SKILL.md` step 2. Then call `get_remake_video` with `{"job_id": "<id>", "wait_s":
    30, "project": true}` until `project.status` is `ready`; `project.handles` lists the files.
+   Always read a project's state from `project` (`project.status` can also be `working`,
+   `delivered`, `failed` or `cancelled`); the top-level `status` keeps a remake's own values.
    To add files to a ready project later: `static_host.py project-call --job-id '<id>'` with
    `--creator-photo`, `--reference-video` or `--reference-image`, and call `start_video_project`.
    A delivered remake's `job_id` can be used as a project directly; its handles include
