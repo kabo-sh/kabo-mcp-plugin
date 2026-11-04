@@ -1,6 +1,6 @@
 ---
 name: remake-viral-video
-description: "Have Kabo make a finished MP4 with the creator in it, from footage the user gives: a remake of a viral talking-head or voice-over reference (90 s or less), the creator saying an approved script, a change to a delivered video, or a video outside those formats built step by step. Kabo generates it on its servers. Use when asked to remake a viral video onto themselves or a named creator, turn a script into a talking video, or change one already made. For only a script use script writing."
+description: "Have Kabo produce a finished MP4 with the creator in it: remake a viral talking-head or voice-over video (90 s or less), make a talking video from an approved script, build a short video outside those formats step by step, or change a video Kabo already delivered. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all seven tools: remakes, edits of delivered videos and step-by-step projects)."
 allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project
@@ -20,23 +20,28 @@ run this Skill in a foreground sub-agent, wait for its final result and relay al
 spend, review); never run it in the background and promise the video later. Without a foreground sub-agent,
 follow the same steps in the main thread.
 
-## Changes after delivery, and videos outside the formats
+## Which path
 
-- **A change to a delivered video** (other words in a line, caption colour or size, another
-  background for a time range, a picture or screen laid over a range, a new shot spliced in): call
-  `edit_remake_video` on that job and change only what the user named. Never remake the whole video
-  or start a new job for a local change. Read `references/edits.md` first.
+Use this Skill only to make or change the video itself. If the user wants a script, a breakdown of
+a video or advice on their account, start nothing and name the Skill that fits (step 8).
+
 - **A new video in one of the formats below**: remake it whole (steps 1-8), the tested path.
-- **A new video outside these formats** (for example the creator copying a video's moves, the
-  creator doing something without speaking under long text cards and music, a product ad from
-  stills): build a project with `start_video_project`, one `make_video_step` per step, then
-  `finish_video_project`. Read `references/atoms.md` first.
-- **Plan before spending.** Before the first paid step or edit, tell the user in two or three lines
-  what you will make and roughly what it costs; wait for a go-ahead unless they already gave one.
-- **Face.** Steps that redraw the creator's face come back `pass` or `degraded` against the
-  creator's footage. Redraw it as few times as possible, prefer the creator's real footage, and
-  never put anyone else on screen. `degraded` never blocks delivery: deliver and say which part
-  looks less like the creator.
+- **A change to a delivered video** (other words in a line, caption colour or size, another
+  background for a range, a picture laid over a range, a new shot spliced in): `edit_remake_video`
+  on that job, changing only what the user named; never a new job. Read `references/edits.md`.
+- **Anything else** -- the creator copying a video's moves, doing something without speaking
+  under text cards and music, a product ad from stills, a reference the remake refused because
+  nobody talks on camera in it, a generated clip without the creator, or creator footage with no
+  speech (a stock voice reads the lines): a project, `start_video_project` then one
+  `make_video_step` per step then `finish_video_project`. Read `references/atoms.md`.
+- **Plan before spending**: before the first paid step or edit, say in two or three lines what you
+  will make and roughly what it costs; wait for a go-ahead unless they already gave one.
+- **Face**: steps that redraw the creator's face come back `pass` or `degraded`. Redraw it as few
+  times as possible, prefer the creator's real footage, and never pass anyone off as the creator.
+  `degraded` never blocks delivery: deliver and say which part looks less like the creator.
+- **Stopping a job**: only when the user asks (for example a job whose stage has not moved for a
+  long time), call `get_remake_video` with `{"job_id": "<id>", "cancel": true}`. It stops the job
+  and frees the slot; spend so far stays charged, say so. Never cancel on your own.
 
 ## What this covers
 
@@ -279,15 +284,9 @@ render returns the current state and never launches twice, so on a timeout or lo
 it again with the same arguments. For a `conflict` or `quota_exceeded` error, read
 `references/tool-errors.md`. A result with `failure: "unsupported_type"` is handled as in step 2.
 
-**The runner checks the documents first, after render returns.** If they fail, a later
-`get_remake_video` shows `waiting_script` again, with `gate_message` (the runner's reason, for
-example `cr check-script: ...`) and a fresh brief; nothing paid has been spent. Then:
-
-1. Save that result and run `fetch` on it (step 3). It keeps the earlier brief as
-   `brief.previous-<N>/` and writes the fresh one to `brief/`; your documents in `script/` stay.
-2. Fix only what `gate_message` names, keep the rest of the documents as they were, and run step 5.
-3. Build the arguments again with `--models-from` pointing at this newest result and the same
-   talking model, and call `render_remake_video` again. Do not ask about the model again.
+**The runner checks the documents first, after render returns.** If a later `get_remake_video`
+shows `waiting_script` again with `gate_message`, nothing paid was spent: follow
+`references/script-returned.md`.
 
 ## 7. Production and delivery
 

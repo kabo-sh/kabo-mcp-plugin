@@ -4,20 +4,25 @@
 
 ## 未发布
 
-- `remake-viral-video`：出片后修改与原子项目（跨仓契约 v1，2026-11-04；内容改写自复刻包 V2-r87 的 `skill/references/atoms.md`，
+- `remake-viral-video`：出片后修改与原子项目（跨仓契约 v1–v1.4，2026-11-04；内容改写自复刻包 V2-r87 的 `skill/references/atoms.md`，
   从「跑 cr 命令」改成「调 /mcp-pub 工具」）。
   - 交付后的局部修改（换台词、字幕颜色/大小、某段换背景、叠图、插一段新镜头）走 `edit_remake_video`，只改用户点名的部分、
-    生成新修订版、旧版保留；细则在 `references/edits.md`。
-  - 五类之内的新视频仍默认整条复刻；五类以外（照视频动作、不说话 + 大段文字卡 + 配乐、产品广告等）用原子项目：
-    `start_video_project` → 多次 `make_video_step` → `finish_video_project`；先写计划、告诉用户做什么与大约花费再付费；
-    碰脸规则（少重绘、优先真实画面、degraded 不拦交付但要说明）；细则在 `references/atoms.md`。
-  - `scripts/static_host.py` 新增 `project-call` / `step-call` / `edit-call` / `finish-call`（入参按 op / kind 的严格形状
-    核对，只收工作区句柄，幂等键 `<skill>:<运行目录>:<工具>:<入参摘要>:a<序号>`）与 `fetch-step`（只下载工具结果给出的
-    签名链接，校验大小、sha256、类型与文件头）；修改后的成片按修订号另存 `remake-<id>-r<N>.mp4`。
-  - 为腾出正文长度，`start_remake_video` 与 `render_remake_video` 的错误处理移到 `references/tool-errors.md`，内容不变。
-- 契约：`tools-list.json` 新增 `start_video_project`、`make_video_step`、`edit_remake_video`、`finish_video_project`，
-  `get_remake_video` 出参加 `kind`、`handles`、`revisions`、`last_step` 与 `ready` / `working` 状态。**按跨仓契约手写的草案，
-  待与数据层 `mcp:audit` 导出的定稿同步后重新钉住**；未发版本。
+    生成新修订版、旧版保留；时间段从 `get_remake_video`（`project: true`）的 `lines` 取；细则在 `references/edits.md`。
+  - 五类之内的新视频仍默认整条复刻；五类以外用原子项目：`start_video_project` → 多次 `make_video_step` → `finish_video_project`；
+    先写计划、告诉用户做什么与大约花费再付费；碰脸规则（少重绘、优先真实画面、degraded 不拦交付但要说明）；细则在 `references/atoms.md`。
+  - 缺口清单对应：整条复刻拒收「无人出镜参考」后改走项目（参考进 `--reference-video`，复用参考画面 + 本人段拼回，G1）；
+    不含本人的生成视频只用无脸步骤（G5）；本人视频没人说话时先要录音、没有再让用户选预设音色（G3）；
+    用户要求时用 `get_remake_video` 的 `cancel: true` 取消卡住的任务（G6）；description 收窄为只在要成片 / 改成片时触发，
+    写稿、拆解、账号诊断不触发（G8）。
+  - `scripts/static_host.py`：`project-call`（创作者视频 0–4 段、照片、参考视频、参考图，或 `--job-id` 往已有项目追加）、
+    `step-call`（含 trim / mux / extract_audio / voice_change、tts 预设音色）、`edit-call`、`finish-call` 按严格形状核对、
+    只收工作区句柄、幂等键 `<skill>:<运行目录>:<工具>:<入参摘要>:a<序号>`；`fetch-step` 与 `fetch-revision` 只下载工具结果
+    给出的签名链接（大小、sha256、类型、文件头），最新修订版另存 `remake-<id>-r<N>.mp4`。
+  - 为腾出正文长度，错误处理移到 `references/tool-errors.md`、稿件被退回的处理移到 `references/script-returned.md`，内容不变。
+- 契约：`tools-list.json` 以数据层导出的 `mcp-pub-new-tools.json`（kabo `yutian/remake-atoms-launch`，golden
+  `1e86839f…`）为底，再按契约 v1.2–v1.4 补：`start_video_project` 的 `creator` 可选、`creator.photo_urls`、
+  `reference_video_urls`、`reference_image_urls`、`job_id`；`make_video_step` 的 op 加 trim / mux / extract_audio / voice_change；
+  `get_remake_video` 加 `cancel` 与 `project.lines`。**v1.2–v1.4 部分是插件侧按契约起草，待数据层正式导出后整份重新导入并钉住**；未发版本。
 
 ## 1.0.10（2026-11-03；GitHub Release）
 

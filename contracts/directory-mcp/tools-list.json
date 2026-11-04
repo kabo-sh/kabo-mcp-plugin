@@ -14260,7 +14260,7 @@
         "openWorldHint": false,
         "readOnlyHint": true
       },
-      "description": "Read a remake job. Top-level. Send job_id and wait_s. At waiting_script: brief.download is a JSON bundle {schema, job_id, files} to write the four files from, and talking_models lists the model choices with estimated cost (all_models: every model). At delivered: video.download is the final MP4; with include [\"review\"], review has Kabo's final-review verdict (qc, null when unknown) and the runner's notes on what it changed. Links are short-lived; call again to re-sign. out_of_scope, failed, timed_out and failure unsupported_type are final and come back as a normal result. No quota. Projects and edits: kind, handles (workspace files for make_video_step), revisions and last_step (with output.download for a step's preview); ready means the project takes its next step.",
+      "description": "Read a remake job. Top-level. Send job_id and wait_s. At waiting_script: brief.download is a JSON bundle {schema, job_id, files} to write the four files from, and talking_models lists the model choices with estimated cost (all_models: every model). At delivered: video.download is the final MP4; with include [\"review\"], review has Kabo's final-review verdict (qc, null when unknown) and the runner's notes on what it changed. Links are short-lived; call again to re-sign. out_of_scope, failed, timed_out and failure unsupported_type are final and come back as a normal result. No quota. project true adds the project state (handles, revisions, last step, lines); cancel true stops a stuck job.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -14271,6 +14271,11 @@
           "all_models": {
             "const": true,
             "description": "true adds talking_model_choices: every model, the first is the default.",
+            "type": "boolean"
+          },
+          "cancel": {
+            "const": true,
+            "description": "true stops the running step or preparation and frees the slot; spend so far stays charged.",
             "type": "boolean"
           },
           "include": {
@@ -14289,6 +14294,11 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
+          },
+          "project": {
+            "const": true,
+            "description": "true adds project: handles, revisions and the last step.",
+            "type": "boolean"
           },
           "wait_s": {
             "description": "Seconds to wait while preparing or running, up to 30.",
@@ -14436,9 +14446,26 @@
               }
             ]
           },
-          "handles": {
-            "anyOf": [
-              {
+          "job_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "project": {
+            "additionalProperties": false,
+            "properties": {
+              "failure_reason": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "handles": {
                 "items": {
                   "additionalProperties": false,
                   "properties": {
@@ -14476,7 +14503,9 @@
                             }
                           },
                           "required": [
-                            "verdict"
+                            "verdict",
+                            "median",
+                            "p10"
                           ],
                           "type": "object"
                         },
@@ -14497,9 +14526,7 @@
                       ]
                     },
                     "name": {
-                      "description": "A file in the job's workspace, as listed in get_remake_video handles.",
                       "maxLength": 64,
-                      "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
                       "type": "string"
                     },
                     "seconds": {
@@ -14524,279 +14551,517 @@
                   },
                   "required": [
                     "name",
-                    "type"
+                    "type",
+                    "seconds",
+                    "from_op",
+                    "face"
                   ],
                   "type": "object"
                 },
                 "maxItems": 200,
                 "type": "array"
               },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "job_id": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "kind": {
-            "anyOf": [
-              {
-                "enum": [
-                  "remake",
-                  "project"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "last_step": {
-            "anyOf": [
-              {
-                "additionalProperties": false,
-                "properties": {
-                  "error": {
-                    "anyOf": [
-                      {
-                        "maxLength": 500,
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "face": {
-                    "anyOf": [
-                      {
-                        "additionalProperties": false,
-                        "properties": {
-                          "median": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "p10": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "verdict": {
-                            "enum": [
-                              "pass",
-                              "degraded"
-                            ],
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "verdict"
-                        ],
-                        "type": "object"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "fallback_from": {
-                    "anyOf": [
-                      {
-                        "maxLength": 128,
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "model": {
-                    "anyOf": [
-                      {
-                        "maxLength": 128,
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "op": {
-                    "maxLength": 32,
+              "job_id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "type": "string"
                   },
-                  "output": {
-                    "anyOf": [
-                      {
-                        "additionalProperties": false,
-                        "properties": {
-                          "download": {
-                            "anyOf": [
-                              {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "bytes": {
-                                    "maximum": 9007199254740991,
-                                    "minimum": 0,
-                                    "type": "integer"
-                                  },
-                                  "content_type": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "expires_at": {
-                                    "format": "date-time",
-                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "enum": [
-                                      "envelope",
-                                      "artifact"
-                                    ],
-                                    "type": "string"
-                                  },
-                                  "sha256": {
-                                    "pattern": "^[a-f0-9]{64}$",
-                                    "type": "string"
-                                  },
-                                  "status": {
-                                    "const": "ready",
-                                    "type": "string"
-                                  },
-                                  "url": {
-                                    "format": "uri",
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "status",
-                                  "kind",
-                                  "url",
-                                  "expires_at",
-                                  "sha256",
-                                  "bytes",
-                                  "content_type"
-                                ],
-                                "type": "object"
-                              },
-                              {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "reason": {
-                                    "enum": [
-                                      "too_large",
-                                      "not_found",
-                                      "service_unavailable"
-                                    ],
-                                    "type": "string"
-                                  },
-                                  "status": {
-                                    "const": "unavailable",
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "status",
-                                  "reason"
-                                ],
-                                "type": "object"
-                              }
-                            ]
-                          },
-                          "handle": {
-                            "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                            "maxLength": 64,
-                            "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                            "type": "string"
-                          },
-                          "seconds": {
-                            "anyOf": [
-                              {
-                                "minimum": 0,
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "type": {
-                            "enum": [
-                              "video",
-                              "image",
-                              "audio"
-                            ],
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "handle",
-                          "type"
-                        ],
-                        "type": "object"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "seconds": {
-                    "anyOf": [
-                      {
-                        "minimum": 0,
-                        "type": "number"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "spend_usd": {
-                    "anyOf": [
-                      {
-                        "minimum": 0,
-                        "type": "number"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "status": {
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "kind": {
+                "anyOf": [
+                  {
                     "enum": [
-                      "running",
-                      "done",
-                      "failed"
+                      "remake",
+                      "project"
                     ],
                     "type": "string"
+                  },
+                  {
+                    "type": "null"
                   }
-                },
-                "required": [
-                  "op",
-                  "status"
-                ],
-                "type": "object"
+                ]
               },
-              {
-                "type": "null"
+              "last_step": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "error": {
+                        "anyOf": [
+                          {
+                            "maxLength": 64,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "face": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "median": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "p10": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "verdict": {
+                                "enum": [
+                                  "pass",
+                                  "degraded"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "verdict",
+                              "median",
+                              "p10"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "fallback_from": {
+                        "anyOf": [
+                          {
+                            "maxLength": 128,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "message": {
+                        "anyOf": [
+                          {
+                            "maxLength": 500,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "model": {
+                        "anyOf": [
+                          {
+                            "maxLength": 128,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "notes": {
+                        "anyOf": [
+                          {
+                            "maxLength": 4000,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "op": {
+                        "maxLength": 32,
+                        "type": "string"
+                      },
+                      "output": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "file": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "download": {
+                                    "anyOf": [
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "bytes": {
+                                            "maximum": 9007199254740991,
+                                            "minimum": 0,
+                                            "type": "integer"
+                                          },
+                                          "content_type": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "expires_at": {
+                                            "format": "date-time",
+                                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                            "type": "string"
+                                          },
+                                          "kind": {
+                                            "enum": [
+                                              "envelope",
+                                              "artifact"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "sha256": {
+                                            "pattern": "^[a-f0-9]{64}$",
+                                            "type": "string"
+                                          },
+                                          "status": {
+                                            "const": "ready",
+                                            "type": "string"
+                                          },
+                                          "url": {
+                                            "format": "uri",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "status",
+                                          "kind",
+                                          "url",
+                                          "expires_at",
+                                          "sha256",
+                                          "bytes",
+                                          "content_type"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "reason": {
+                                            "enum": [
+                                              "too_large",
+                                              "not_found",
+                                              "service_unavailable"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "status": {
+                                            "const": "unavailable",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "status",
+                                          "reason"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "download"
+                                ],
+                                "type": "object"
+                              },
+                              "handle": {
+                                "maxLength": 64,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "handle",
+                              "file"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "spend_usd": {
+                        "anyOf": [
+                          {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "enum": [
+                          "running",
+                          "done",
+                          "failed"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "status",
+                      "spend_usd",
+                      "model",
+                      "fallback_from",
+                      "face",
+                      "error",
+                      "message",
+                      "notes",
+                      "output"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lines": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "row": {
+                          "maximum": 199,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "t0": {
+                          "maximum": 600,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "t1": {
+                          "maximum": 600,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "text": {
+                          "maxLength": 600,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "row",
+                        "text",
+                        "t0",
+                        "t1"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 200,
+                    "type": "array"
+                  }
+                ]
+              },
+              "message": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "retry_after_s": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revisions": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "created_at": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    },
+                    "handle": {
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "n": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "notes": {
+                      "maxLength": 4000,
+                      "type": "string"
+                    },
+                    "video": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "download": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "bytes": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "content_type": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "expires_at": {
+                                  "format": "date-time",
+                                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "envelope",
+                                    "artifact"
+                                  ],
+                                  "type": "string"
+                                },
+                                "sha256": {
+                                  "pattern": "^[a-f0-9]{64}$",
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "const": "ready",
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "format": "uri",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status",
+                                "kind",
+                                "url",
+                                "expires_at",
+                                "sha256",
+                                "bytes",
+                                "content_type"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "reason": {
+                                  "enum": [
+                                    "too_large",
+                                    "not_found",
+                                    "service_unavailable"
+                                  ],
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "const": "unavailable",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status",
+                                "reason"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "download"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "n",
+                    "created_at",
+                    "notes",
+                    "handle",
+                    "video"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              "spend_usd": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "enum": [
+                  "fetching_inputs",
+                  "preparing",
+                  "waiting_script",
+                  "running",
+                  "delivered",
+                  "out_of_scope",
+                  "failed",
+                  "timed_out",
+                  "ready",
+                  "working"
+                ],
+                "type": "string"
               }
-            ]
+            },
+            "required": [
+              "job_id",
+              "status",
+              "kind",
+              "retry_after_s",
+              "message",
+              "handles",
+              "revisions",
+              "last_step",
+              "spend_usd",
+              "failure_reason"
+            ],
+            "type": "object"
           },
           "reference_type": {
             "anyOf": [
@@ -14864,48 +15129,6 @@
             ],
             "type": "object"
           },
-          "revisions": {
-            "anyOf": [
-              {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "created_at": {
-                      "format": "date-time",
-                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                      "type": "string"
-                    },
-                    "n": {
-                      "maximum": 99,
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "notes": {
-                      "anyOf": [
-                        {
-                          "maxLength": 4000,
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "n",
-                    "created_at"
-                  ],
-                  "type": "object"
-                },
-                "maxItems": 100,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "spend_usd": {
             "anyOf": [
               {
@@ -14939,8 +15162,6 @@
           "status": {
             "enum": [
               "preparing",
-              "ready",
-              "working",
               "waiting_script",
               "running",
               "delivered",
@@ -15613,7 +15834,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Start a project for a video the remake formats do not cover, built step by step with make_video_step. Takes the creator's own footage like start_remake_video (fetching uses daily quota); no generation and no charge. Top-level. On fetching_inputs, repeat the same call after retry_after_s. Next: get_remake_video until ready.",
+      "description": "Start an empty video project from the creator's own footage, for videos a full remake does not cover. Call only after the user confirms. Top-level. Fetching the videos uses daily quota. Free to set up; on fetching_inputs repeat the same call after retry_after_s. Next: make_video_step once status is ready. With job_id, adds photos, reference videos or images to a ready project.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -15623,13 +15844,24 @@
         "properties": {
           "creator": {
             "additionalProperties": false,
-            "description": "Exactly one of instagram_handle or video_urls.",
+            "description": "Optional. instagram_handle, or video_urls and/or photo_urls.",
             "properties": {
               "instagram_handle": {
                 "description": "Handle or profile link; Kabo picks their reels.",
                 "maxLength": 256,
                 "minLength": 1,
                 "type": "string"
+              },
+              "photo_urls": {
+                "description": "1-8 public JPEG/PNG links of the creator.",
+                "items": {
+                  "maxLength": 2048,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "minItems": 1,
+                "type": "array"
               },
               "video_urls": {
                 "description": "1-4 links of the creator talking.",
@@ -15651,15 +15883,40 @@
             "type": "string"
           },
           "idempotency_key": {
-            "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
+            "description": "8-128 of A-Za-z0-9._:- . New per remake; reuse only to retry or resume.",
             "maxLength": 128,
             "minLength": 8,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "type": "string"
+          },
+          "job_id": {
+            "description": "A ready project: add photo_urls, reference_video_urls or reference_image_urls to it.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "reference_image_urls": {
+            "description": "0-8 public JPEG/PNG links (a product, a place); never the creator.",
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "reference_video_urls": {
+            "description": "0-4 links of other videos to use (a movement to copy, a shot to recast, a reference to reuse).",
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 4,
+            "type": "array"
           }
         },
         "required": [
-          "creator",
           "idempotency_key"
         ],
         "type": "object"
@@ -15669,12 +15926,385 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
+          "failure_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handles": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "face": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "median": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "p10": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "verdict": {
+                          "enum": [
+                            "pass",
+                            "degraded"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "verdict",
+                        "median",
+                        "p10"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "from_op": {
+                  "anyOf": [
+                    {
+                      "maxLength": 32,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "name": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "seconds": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "enum": [
+                    "video",
+                    "image",
+                    "audio"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "type",
+                "seconds",
+                "from_op",
+                "face"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
           "job_id": {
             "anyOf": [
               {
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "remake",
+                  "project"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_step": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "error": {
+                    "anyOf": [
+                      {
+                        "maxLength": 64,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "face": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "median": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "p10": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "verdict": {
+                            "enum": [
+                              "pass",
+                              "degraded"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "verdict",
+                          "median",
+                          "p10"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "fallback_from": {
+                    "anyOf": [
+                      {
+                        "maxLength": 128,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "message": {
+                    "anyOf": [
+                      {
+                        "maxLength": 500,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "model": {
+                    "anyOf": [
+                      {
+                        "maxLength": 128,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4000,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "op": {
+                    "maxLength": 32,
+                    "type": "string"
+                  },
+                  "output": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "file": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "download": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "bytes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "content_type": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "expires_at": {
+                                        "format": "date-time",
+                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "envelope",
+                                          "artifact"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "pattern": "^[a-f0-9]{64}$",
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "ready",
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "format": "uri",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "kind",
+                                      "url",
+                                      "expires_at",
+                                      "sha256",
+                                      "bytes",
+                                      "content_type"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "too_large",
+                                          "not_found",
+                                          "service_unavailable"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "unavailable",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "reason"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "download"
+                            ],
+                            "type": "object"
+                          },
+                          "handle": {
+                            "maxLength": 64,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "handle",
+                          "file"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "spend_usd": {
+                    "anyOf": [
+                      {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "status": {
+                    "enum": [
+                      "running",
+                      "done",
+                      "failed"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "op",
+                  "status",
+                  "spend_usd",
+                  "model",
+                  "fallback_from",
+                  "face",
+                  "error",
+                  "message",
+                  "notes",
+                  "output"
+                ],
+                "type": "object"
               },
               {
                 "type": "null"
@@ -15704,21 +16334,162 @@
               }
             ]
           },
+          "revisions": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "created_at": {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "type": "string"
+                },
+                "handle": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "n": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer"
+                },
+                "notes": {
+                  "maxLength": 4000,
+                  "type": "string"
+                },
+                "video": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "download": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "bytes": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "content_type": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "expires_at": {
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "envelope",
+                                "artifact"
+                              ],
+                              "type": "string"
+                            },
+                            "sha256": {
+                              "pattern": "^[a-f0-9]{64}$",
+                              "type": "string"
+                            },
+                            "status": {
+                              "const": "ready",
+                              "type": "string"
+                            },
+                            "url": {
+                              "format": "uri",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "kind",
+                            "url",
+                            "expires_at",
+                            "sha256",
+                            "bytes",
+                            "content_type"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "too_large",
+                                "not_found",
+                                "service_unavailable"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "const": "unavailable",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "reason"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "download"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "n",
+                "created_at",
+                "notes",
+                "handle",
+                "video"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "spend_usd": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "enum": [
               "fetching_inputs",
               "preparing",
+              "waiting_script",
+              "running",
+              "delivered",
+              "out_of_scope",
+              "failed",
+              "timed_out",
               "ready",
-              "failed"
+              "working"
             ],
             "type": "string"
           }
         },
         "required": [
-          "status",
           "job_id",
+          "status",
+          "kind",
           "retry_after_s",
-          "message"
+          "message",
+          "handles",
+          "revisions",
+          "last_step",
+          "spend_usd",
+          "failure_reason"
         ],
         "type": "object"
       },
@@ -15749,1181 +16520,290 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Run one step (op) in a project or a delivered remake's workspace; inputs are workspace handles from get_remake_video. Paid by actual spend; refused with quota_exceeded over the job's budget. Face ops (refvideo, motion, replace, lipsync, talking) are checked against the creator's footage. Top-level. Next: poll get_remake_video.",
+      "description": "Run one paid step on a ready project or delivered remake; inputs are file handles from the job, the result is a new handle. Top-level. One step at a time per account; tell the user the plan and cost first. Poll get_remake_video with project true.",
       "execution": {
         "taskSupport": "forbidden"
       },
       "inputSchema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "oneOf": [
-          {
+        "additionalProperties": false,
+        "properties": {
+          "idempotency_key": {
+            "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry.",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "type": "string"
+          },
+          "inputs": {
             "additionalProperties": false,
             "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
+              "audio": {
+                "maxLength": 64,
+                "minLength": 1,
                 "type": "string"
               },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "first_frame": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  },
-                  "images": {
-                    "items": {
-                      "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                      "maxLength": 64,
-                      "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                      "type": "string"
-                    },
-                    "maxItems": 10,
-                    "minItems": 1,
-                    "type": "array"
-                  },
-                  "last_frame": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  },
-                  "ref_video": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
+              "base": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "clip": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "clips": {
+                "items": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
                 },
-                "required": [
-                  "images"
-                ],
-                "type": "object"
+                "maxItems": 20,
+                "type": "array"
               },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "first_frame": {
+                "maxLength": 64,
+                "minLength": 1,
                 "type": "string"
               },
-              "op": {
-                "const": "refvideo",
+              "image": {
+                "maxLength": 64,
+                "minLength": 1,
                 "type": "string"
               },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "duration": {
-                    "maximum": 15,
-                    "minimum": 3,
-                    "type": "number"
-                  },
-                  "model": {
-                    "description": "Optional; the first is the default.",
-                    "enum": [
-                      "alibaba/wan-3.0/reference-to-video",
-                      "kling/v4/reference-to-video"
-                    ],
-                    "type": "string"
-                  },
-                  "prompt": {
-                    "maxLength": 2000,
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "sound": {
-                    "type": "boolean"
-                  }
+              "images": {
+                "items": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
                 },
-                "required": [
-                  "prompt"
-                ],
-                "type": "object"
+                "maxItems": 20,
+                "type": "array"
+              },
+              "last_frame": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "media": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "plate": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "ref_video": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "refs": {
+                "items": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "video": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
               }
             },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
             "type": "object"
           },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "image": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  },
-                  "video": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "image",
-                  "video"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "motion",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "model": {
-                    "description": "Optional; the first is the default.",
-                    "enum": [
-                      "alibaba/wan-3.0/reference-to-video",
-                      "fal-ai/kling-video/v3/pro/motion-control",
-                      "fal-ai/wan/v2.2-14b/animate/move"
-                    ],
-                    "type": "string"
-                  },
-                  "prompt": {
-                    "maxLength": 2000,
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
+          "job_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
           },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "image": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  },
-                  "video": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "video",
-                  "image"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "replace",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "model": {
-                    "description": "Optional; the first is the default.",
-                    "enum": [
-                      "minimax/h3-max/recast",
-                      "fal-ai/wan/v2.2-14b/animate/replace"
-                    ],
-                    "type": "string"
-                  },
-                  "prompt": {
-                    "maxLength": 2000,
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
+          "op": {
+            "enum": [
+              "refvideo",
+              "motion",
+              "replace",
+              "lipsync",
+              "talking",
+              "tts",
+              "still",
+              "animate",
+              "bg",
+              "overlay",
+              "splice",
+              "concat",
+              "text_cards",
+              "music",
+              "captions",
+              "frame",
+              "face_check",
+              "trim",
+              "mux",
+              "extract_audio",
+              "voice_change"
             ],
-            "type": "object"
+            "type": "string"
           },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "audio": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  },
-                  "video": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "video",
-                  "audio"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "lipsync",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "model": {
-                    "description": "Optional; the first is the default.",
-                    "enum": [
-                      "fal-ai/sync-lipsync/v2/pro",
-                      "fal-ai/latentsync"
-                    ],
-                    "type": "string"
-                  }
-                },
-                "required": [],
-                "type": "object"
-              }
+          "params": {
+            "additionalProperties": {},
+            "description": "Per-op settings",
+            "propertyNames": {
+              "maxLength": 32,
+              "type": "string"
             },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "audio": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  },
-                  "image": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "image",
-                  "audio"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "talking",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "model": {
-                    "description": "Optional; the first is the default.",
-                    "enum": [
-                      "vivix/vivix-a1",
-                      "fal-ai/kling-video/ai-avatar/v2/pro",
-                      "fal-ai/kling-video/ai-avatar/v2/standard",
-                      "minimax/h3-max/lip-sync/image-to-video",
-                      "bytedance/seedance-2.0/reference-to-video",
-                      "alibaba/wan-3.0/reference-to-video"
-                    ],
-                    "type": "string"
-                  }
-                },
-                "required": [],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {},
-                "required": [],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "tts",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "lines": {
-                    "items": {
-                      "maxLength": 400,
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "maxItems": 40,
-                    "minItems": 1,
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "lines"
-                ],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "refs": {
-                    "items": {
-                      "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                      "maxLength": 64,
-                      "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                      "type": "string"
-                    },
-                    "maxItems": 4,
-                    "minItems": 0,
-                    "type": "array"
-                  }
-                },
-                "required": [],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "still",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "prompt": {
-                    "maxLength": 2000,
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "prompt"
-                ],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "image": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "image"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "animate",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "duration": {
-                    "enum": [
-                      5,
-                      10
-                    ],
-                    "type": "integer"
-                  },
-                  "prompt": {
-                    "maxLength": 2000,
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "prompt"
-                ],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "plate": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  },
-                  "video": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "video",
-                  "plate"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "bg",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {},
-                "required": [],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "base": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  },
-                  "media": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "base",
-                  "media"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "overlay",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "box": {
-                    "description": "[x, y, width] as fractions of the frame.",
-                    "items": {
-                      "maximum": 1,
-                      "minimum": 0,
-                      "type": "number"
-                    },
-                    "maxItems": 3,
-                    "minItems": 3,
-                    "type": "array"
-                  },
-                  "t0": {
-                    "maximum": 600,
-                    "minimum": 0,
-                    "type": "number"
-                  },
-                  "t1": {
-                    "maximum": 600,
-                    "minimum": 0,
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "t0",
-                  "t1"
-                ],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "base": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  },
-                  "clip": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "base",
-                  "clip"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "splice",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "audio": {
-                    "enum": [
-                      "base",
-                      "clip"
-                    ],
-                    "type": "string"
-                  },
-                  "t0": {
-                    "maximum": 600,
-                    "minimum": 0,
-                    "type": "number"
-                  },
-                  "t1": {
-                    "maximum": 600,
-                    "minimum": 0,
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "t0",
-                  "t1",
-                  "audio"
-                ],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "clips": {
-                    "items": {
-                      "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                      "maxLength": 64,
-                      "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                      "type": "string"
-                    },
-                    "maxItems": 20,
-                    "minItems": 2,
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "clips"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "concat",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {},
-                "required": [],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "base": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "base"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "text_cards",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "cards": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "t0": {
-                          "maximum": 600,
-                          "minimum": 0,
-                          "type": "number"
-                        },
-                        "t1": {
-                          "maximum": 600,
-                          "minimum": 0,
-                          "type": "number"
-                        },
-                        "text": {
-                          "maxLength": 600,
-                          "minLength": 1,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "text",
-                        "t0",
-                        "t1"
-                      ],
-                      "type": "object"
-                    },
-                    "maxItems": 10,
-                    "minItems": 1,
-                    "type": "array"
-                  },
-                  "style": {
-                    "enum": [
-                      "creator",
-                      "plain"
-                    ],
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "cards"
-                ],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "base": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "base"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "music",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "gain_db": {
-                    "maximum": 0,
-                    "minimum": -30,
-                    "type": "number"
-                  },
-                  "mood": {
-                    "enum": [
-                      "calm",
-                      "upbeat",
-                      "warm",
-                      "none"
-                    ],
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "mood"
-                ],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "video": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "video"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "captions",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "color": {
-                    "description": "A colour name or #RRGGBB.",
-                    "pattern": "^([a-z]{3,16}|#[0-9A-Fa-f]{6})$",
-                    "type": "string"
-                  },
-                  "size": {
-                    "description": "Multiple of the default caption size.",
-                    "maximum": 2,
-                    "minimum": 0.5,
-                    "type": "number"
-                  }
-                },
-                "required": [],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "video": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "video"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "frame",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "t": {
-                    "maximum": 600,
-                    "minimum": 0,
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "t"
-                ],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "idempotency_key": {
-                "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
-                "maxLength": 128,
-                "minLength": 8,
-                "pattern": "^[A-Za-z0-9._:-]+$",
-                "type": "string"
-              },
-              "inputs": {
-                "additionalProperties": false,
-                "properties": {
-                  "media": {
-                    "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                    "maxLength": 64,
-                    "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "media"
-                ],
-                "type": "object"
-              },
-              "job_id": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "op": {
-                "const": "face_check",
-                "type": "string"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {},
-                "required": [],
-                "type": "object"
-              }
-            },
-            "required": [
-              "job_id",
-              "idempotency_key",
-              "op",
-              "inputs",
-              "params"
-            ],
             "type": "object"
           }
-        ]
+        },
+        "required": [
+          "job_id",
+          "op",
+          "inputs",
+          "idempotency_key"
+        ],
+        "type": "object"
       },
       "name": "make_video_step",
       "outputSchema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
+          "failure_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handles": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "face": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "median": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "p10": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "verdict": {
+                          "enum": [
+                            "pass",
+                            "degraded"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "verdict",
+                        "median",
+                        "p10"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "from_op": {
+                  "anyOf": [
+                    {
+                      "maxLength": 32,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "name": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "seconds": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "enum": [
+                    "video",
+                    "image",
+                    "audio"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "type",
+                "seconds",
+                "from_op",
+                "face"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
           "job_id": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "remake",
+                  "project"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "last_step": {
             "anyOf": [
@@ -16933,7 +16813,7 @@
                   "error": {
                     "anyOf": [
                       {
-                        "maxLength": 500,
+                        "maxLength": 64,
                         "type": "string"
                       },
                       {
@@ -16975,7 +16855,9 @@
                           }
                         },
                         "required": [
-                          "verdict"
+                          "verdict",
+                          "median",
+                          "p10"
                         ],
                         "type": "object"
                       },
@@ -16995,10 +16877,32 @@
                       }
                     ]
                   },
+                  "message": {
+                    "anyOf": [
+                      {
+                        "maxLength": 500,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "model": {
                     "anyOf": [
                       {
                         "maxLength": 128,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4000,
                         "type": "string"
                       },
                       {
@@ -17015,122 +16919,99 @@
                       {
                         "additionalProperties": false,
                         "properties": {
-                          "download": {
-                            "anyOf": [
-                              {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "bytes": {
-                                    "maximum": 9007199254740991,
-                                    "minimum": 0,
-                                    "type": "integer"
-                                  },
-                                  "content_type": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "expires_at": {
-                                    "format": "date-time",
-                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "enum": [
-                                      "envelope",
-                                      "artifact"
+                          "file": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "download": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "bytes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "content_type": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "expires_at": {
+                                        "format": "date-time",
+                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "envelope",
+                                          "artifact"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "pattern": "^[a-f0-9]{64}$",
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "ready",
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "format": "uri",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "kind",
+                                      "url",
+                                      "expires_at",
+                                      "sha256",
+                                      "bytes",
+                                      "content_type"
                                     ],
-                                    "type": "string"
+                                    "type": "object"
                                   },
-                                  "sha256": {
-                                    "pattern": "^[a-f0-9]{64}$",
-                                    "type": "string"
-                                  },
-                                  "status": {
-                                    "const": "ready",
-                                    "type": "string"
-                                  },
-                                  "url": {
-                                    "format": "uri",
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "status",
-                                  "kind",
-                                  "url",
-                                  "expires_at",
-                                  "sha256",
-                                  "bytes",
-                                  "content_type"
-                                ],
-                                "type": "object"
-                              },
-                              {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "reason": {
-                                    "enum": [
-                                      "too_large",
-                                      "not_found",
-                                      "service_unavailable"
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "too_large",
+                                          "not_found",
+                                          "service_unavailable"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "unavailable",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "reason"
                                     ],
-                                    "type": "string"
-                                  },
-                                  "status": {
-                                    "const": "unavailable",
-                                    "type": "string"
+                                    "type": "object"
                                   }
-                                },
-                                "required": [
-                                  "status",
-                                  "reason"
-                                ],
-                                "type": "object"
+                                ]
                               }
-                            ]
+                            },
+                            "required": [
+                              "download"
+                            ],
+                            "type": "object"
                           },
                           "handle": {
-                            "description": "A file in the job's workspace, as listed in get_remake_video handles.",
                             "maxLength": 64,
-                            "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                            "type": "string"
-                          },
-                          "seconds": {
-                            "anyOf": [
-                              {
-                                "minimum": 0,
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "type": {
-                            "enum": [
-                              "video",
-                              "image",
-                              "audio"
-                            ],
                             "type": "string"
                           }
                         },
                         "required": [
                           "handle",
-                          "type"
+                          "file"
                         ],
                         "type": "object"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "seconds": {
-                    "anyOf": [
-                      {
-                        "minimum": 0,
-                        "type": "number"
                       },
                       {
                         "type": "null"
@@ -17159,7 +17040,15 @@
                 },
                 "required": [
                   "op",
-                  "status"
+                  "status",
+                  "spend_usd",
+                  "model",
+                  "fallback_from",
+                  "face",
+                  "error",
+                  "message",
+                  "notes",
+                  "output"
                 ],
                 "type": "object"
               },
@@ -17179,17 +17068,159 @@
               }
             ]
           },
+          "retry_after_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisions": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "created_at": {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "type": "string"
+                },
+                "handle": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "n": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer"
+                },
+                "notes": {
+                  "maxLength": 4000,
+                  "type": "string"
+                },
+                "video": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "download": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "bytes": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "content_type": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "expires_at": {
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "envelope",
+                                "artifact"
+                              ],
+                              "type": "string"
+                            },
+                            "sha256": {
+                              "pattern": "^[a-f0-9]{64}$",
+                              "type": "string"
+                            },
+                            "status": {
+                              "const": "ready",
+                              "type": "string"
+                            },
+                            "url": {
+                              "format": "uri",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "kind",
+                            "url",
+                            "expires_at",
+                            "sha256",
+                            "bytes",
+                            "content_type"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "too_large",
+                                "not_found",
+                                "service_unavailable"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "const": "unavailable",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "reason"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "download"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "n",
+                "created_at",
+                "notes",
+                "handle",
+                "video"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "spend_usd": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "enum": [
+              "fetching_inputs",
               "preparing",
-              "ready",
-              "working",
               "waiting_script",
               "running",
               "delivered",
               "out_of_scope",
               "failed",
-              "timed_out"
+              "timed_out",
+              "ready",
+              "working"
             ],
             "type": "string"
           }
@@ -17197,7 +17228,14 @@
         "required": [
           "job_id",
           "status",
-          "last_step"
+          "kind",
+          "retry_after_s",
+          "message",
+          "handles",
+          "revisions",
+          "last_step",
+          "spend_usd",
+          "failure_reason"
         ],
         "type": "object"
       },
@@ -17228,7 +17266,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Change a delivered video: lines (new words), captions (colour or size), overlay, background or clip over a time range. Only the named parts are redone; the result is a new revision and the old one stays. Paid by actual spend. Top-level. Next: poll get_remake_video.",
+      "description": "Change a delivered video: rewrite lines, restyle captions, or lay media, a background or a clip over a time range. Each call makes a new revision; earlier ones stay downloadable. Top-level. Paid; tell the user the plan first. Poll get_remake_video with project true.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -17238,185 +17276,98 @@
         "properties": {
           "edits": {
             "items": {
-              "oneOf": [
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "kind": {
-                      "const": "lines",
-                      "type": "string"
-                    },
-                    "lines": {
-                      "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "row": {
-                            "maximum": 199,
-                            "minimum": 0,
-                            "type": "integer"
-                          },
-                          "text": {
-                            "maxLength": 600,
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "row",
-                          "text"
-                        ],
-                        "type": "object"
-                      },
-                      "maxItems": 40,
-                      "minItems": 1,
-                      "type": "array"
-                    }
+              "additionalProperties": false,
+              "properties": {
+                "box": {
+                  "description": "[x,y,w], 0-1",
+                  "items": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number"
                   },
-                  "required": [
-                    "kind",
-                    "lines"
-                  ],
-                  "type": "object"
+                  "maxItems": 3,
+                  "minItems": 3,
+                  "type": "array"
                 },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "color": {
-                      "description": "A colour name or #RRGGBB.",
-                      "pattern": "^([a-z]{3,16}|#[0-9A-Fa-f]{6})$",
-                      "type": "string"
-                    },
-                    "kind": {
-                      "const": "captions",
-                      "type": "string"
-                    },
-                    "size": {
-                      "description": "Multiple of the default caption size.",
-                      "maximum": 2,
-                      "minimum": 0.5,
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "type": "object"
+                "clip": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
                 },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "box": {
-                      "description": "[x, y, width] as fractions of the frame.",
-                      "items": {
-                        "maximum": 1,
-                        "minimum": 0,
-                        "type": "number"
-                      },
-                      "maxItems": 3,
-                      "minItems": 3,
-                      "type": "array"
-                    },
-                    "kind": {
-                      "const": "overlay",
-                      "type": "string"
-                    },
-                    "media": {
-                      "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                      "maxLength": 64,
-                      "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                      "type": "string"
-                    },
-                    "t0": {
-                      "maximum": 600,
-                      "minimum": 0,
-                      "type": "number"
-                    },
-                    "t1": {
-                      "maximum": 600,
-                      "minimum": 0,
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "t0",
-                    "t1",
-                    "media"
-                  ],
-                  "type": "object"
+                "color": {
+                  "maxLength": 7,
+                  "type": "string"
                 },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "kind": {
-                      "const": "background",
-                      "type": "string"
-                    },
-                    "plate": {
-                      "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                      "maxLength": 64,
-                      "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                      "type": "string"
-                    },
-                    "t0": {
-                      "maximum": 600,
-                      "minimum": 0,
-                      "type": "number"
-                    },
-                    "t1": {
-                      "maximum": 600,
-                      "minimum": 0,
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "t0",
-                    "t1",
-                    "plate"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "clip": {
-                      "description": "A file in the job's workspace, as listed in get_remake_video handles.",
-                      "maxLength": 64,
-                      "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                      "type": "string"
-                    },
-                    "kind": {
-                      "const": "clip",
-                      "type": "string"
-                    },
-                    "t0": {
-                      "maximum": 600,
-                      "minimum": 0,
-                      "type": "number"
-                    },
-                    "t1": {
-                      "maximum": 600,
-                      "minimum": 0,
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "t0",
-                    "t1",
+                "kind": {
+                  "enum": [
+                    "lines",
+                    "captions",
+                    "overlay",
+                    "background",
                     "clip"
                   ],
-                  "type": "object"
+                  "type": "string"
+                },
+                "lines": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "row": {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "text": {
+                        "maxLength": 600,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "row",
+                      "text"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 50,
+                  "type": "array"
+                },
+                "media": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "plate": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "size": {
+                  "maximum": 2,
+                  "minimum": 0.5,
+                  "type": "number"
+                },
+                "t0": {
+                  "maximum": 600,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "t1": {
+                  "maximum": 600,
+                  "minimum": 0,
+                  "type": "number"
                 }
-              ]
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
             },
             "maxItems": 10,
             "minItems": 1,
             "type": "array"
           },
           "idempotency_key": {
-            "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
+            "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry.",
             "maxLength": 128,
             "minLength": 8,
             "pattern": "^[A-Za-z0-9._:-]+$",
@@ -17430,8 +17381,8 @@
         },
         "required": [
           "job_id",
-          "idempotency_key",
-          "edits"
+          "edits",
+          "idempotency_key"
         ],
         "type": "object"
       },
@@ -17440,10 +17391,138 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
+          "failure_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handles": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "face": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "median": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "p10": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "verdict": {
+                          "enum": [
+                            "pass",
+                            "degraded"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "verdict",
+                        "median",
+                        "p10"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "from_op": {
+                  "anyOf": [
+                    {
+                      "maxLength": 32,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "name": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "seconds": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "enum": [
+                    "video",
+                    "image",
+                    "audio"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "type",
+                "seconds",
+                "from_op",
+                "face"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
           "job_id": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "remake",
+                  "project"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "last_step": {
             "anyOf": [
@@ -17453,7 +17532,7 @@
                   "error": {
                     "anyOf": [
                       {
-                        "maxLength": 500,
+                        "maxLength": 64,
                         "type": "string"
                       },
                       {
@@ -17495,7 +17574,9 @@
                           }
                         },
                         "required": [
-                          "verdict"
+                          "verdict",
+                          "median",
+                          "p10"
                         ],
                         "type": "object"
                       },
@@ -17515,10 +17596,32 @@
                       }
                     ]
                   },
+                  "message": {
+                    "anyOf": [
+                      {
+                        "maxLength": 500,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "model": {
                     "anyOf": [
                       {
                         "maxLength": 128,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4000,
                         "type": "string"
                       },
                       {
@@ -17535,122 +17638,99 @@
                       {
                         "additionalProperties": false,
                         "properties": {
-                          "download": {
-                            "anyOf": [
-                              {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "bytes": {
-                                    "maximum": 9007199254740991,
-                                    "minimum": 0,
-                                    "type": "integer"
-                                  },
-                                  "content_type": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "expires_at": {
-                                    "format": "date-time",
-                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "enum": [
-                                      "envelope",
-                                      "artifact"
+                          "file": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "download": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "bytes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "content_type": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "expires_at": {
+                                        "format": "date-time",
+                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "envelope",
+                                          "artifact"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "pattern": "^[a-f0-9]{64}$",
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "ready",
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "format": "uri",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "kind",
+                                      "url",
+                                      "expires_at",
+                                      "sha256",
+                                      "bytes",
+                                      "content_type"
                                     ],
-                                    "type": "string"
+                                    "type": "object"
                                   },
-                                  "sha256": {
-                                    "pattern": "^[a-f0-9]{64}$",
-                                    "type": "string"
-                                  },
-                                  "status": {
-                                    "const": "ready",
-                                    "type": "string"
-                                  },
-                                  "url": {
-                                    "format": "uri",
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "status",
-                                  "kind",
-                                  "url",
-                                  "expires_at",
-                                  "sha256",
-                                  "bytes",
-                                  "content_type"
-                                ],
-                                "type": "object"
-                              },
-                              {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "reason": {
-                                    "enum": [
-                                      "too_large",
-                                      "not_found",
-                                      "service_unavailable"
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "too_large",
+                                          "not_found",
+                                          "service_unavailable"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "unavailable",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "reason"
                                     ],
-                                    "type": "string"
-                                  },
-                                  "status": {
-                                    "const": "unavailable",
-                                    "type": "string"
+                                    "type": "object"
                                   }
-                                },
-                                "required": [
-                                  "status",
-                                  "reason"
-                                ],
-                                "type": "object"
+                                ]
                               }
-                            ]
+                            },
+                            "required": [
+                              "download"
+                            ],
+                            "type": "object"
                           },
                           "handle": {
-                            "description": "A file in the job's workspace, as listed in get_remake_video handles.",
                             "maxLength": 64,
-                            "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                            "type": "string"
-                          },
-                          "seconds": {
-                            "anyOf": [
-                              {
-                                "minimum": 0,
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "type": {
-                            "enum": [
-                              "video",
-                              "image",
-                              "audio"
-                            ],
                             "type": "string"
                           }
                         },
                         "required": [
                           "handle",
-                          "type"
+                          "file"
                         ],
                         "type": "object"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "seconds": {
-                    "anyOf": [
-                      {
-                        "minimum": 0,
-                        "type": "number"
                       },
                       {
                         "type": "null"
@@ -17679,7 +17759,15 @@
                 },
                 "required": [
                   "op",
-                  "status"
+                  "status",
+                  "spend_usd",
+                  "model",
+                  "fallback_from",
+                  "face",
+                  "error",
+                  "message",
+                  "notes",
+                  "output"
                 ],
                 "type": "object"
               },
@@ -17699,17 +17787,159 @@
               }
             ]
           },
+          "retry_after_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisions": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "created_at": {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "type": "string"
+                },
+                "handle": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "n": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer"
+                },
+                "notes": {
+                  "maxLength": 4000,
+                  "type": "string"
+                },
+                "video": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "download": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "bytes": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "content_type": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "expires_at": {
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "envelope",
+                                "artifact"
+                              ],
+                              "type": "string"
+                            },
+                            "sha256": {
+                              "pattern": "^[a-f0-9]{64}$",
+                              "type": "string"
+                            },
+                            "status": {
+                              "const": "ready",
+                              "type": "string"
+                            },
+                            "url": {
+                              "format": "uri",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "kind",
+                            "url",
+                            "expires_at",
+                            "sha256",
+                            "bytes",
+                            "content_type"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "too_large",
+                                "not_found",
+                                "service_unavailable"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "const": "unavailable",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "reason"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "download"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "n",
+                "created_at",
+                "notes",
+                "handle",
+                "video"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "spend_usd": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "enum": [
+              "fetching_inputs",
               "preparing",
-              "ready",
-              "working",
               "waiting_script",
               "running",
               "delivered",
               "out_of_scope",
               "failed",
-              "timed_out"
+              "timed_out",
+              "ready",
+              "working"
             ],
             "type": "string"
           }
@@ -17717,7 +17947,14 @@
         "required": [
           "job_id",
           "status",
-          "last_step"
+          "kind",
+          "retry_after_s",
+          "message",
+          "handles",
+          "revisions",
+          "last_step",
+          "spend_usd",
+          "failure_reason"
         ],
         "type": "object"
       },
@@ -17729,7 +17966,7 @@
           "type": "oauth2"
         }
       ],
-      "title": "Edit a delivered remake"
+      "title": "Edit a delivered video"
     },
     {
       "_meta": {
@@ -17745,10 +17982,10 @@
       "annotations": {
         "destructiveHint": false,
         "idempotentHint": true,
-        "openWorldHint": true,
+        "openWorldHint": false,
         "readOnlyHint": false
       },
-      "description": "Deliver one handle of a project as its finished video, after a face check and a spend summary. A degraded face check does not block delivery. Top-level. Next: poll get_remake_video until delivered.",
+      "description": "Deliver one .mp4 handle of a project as the finished video after a likeness check; it becomes a new revision with a download. Top-level. Poll get_remake_video with project true.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -17757,13 +17994,13 @@
         "additionalProperties": false,
         "properties": {
           "handle": {
-            "description": "The finished video (.mp4).",
+            "description": "The .mp4 to deliver",
             "maxLength": 64,
-            "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
+            "minLength": 1,
             "type": "string"
           },
           "idempotency_key": {
-            "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry the same call.",
+            "description": "8-128 of A-Za-z0-9._:- . New per step; reuse only to retry.",
             "maxLength": 128,
             "minLength": 8,
             "pattern": "^[A-Za-z0-9._:-]+$",
@@ -17777,8 +18014,8 @@
         },
         "required": [
           "job_id",
-          "idempotency_key",
-          "handle"
+          "handle",
+          "idempotency_key"
         ],
         "type": "object"
       },
@@ -17787,10 +18024,138 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
+          "failure_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handles": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "face": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "median": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "p10": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "verdict": {
+                          "enum": [
+                            "pass",
+                            "degraded"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "verdict",
+                        "median",
+                        "p10"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "from_op": {
+                  "anyOf": [
+                    {
+                      "maxLength": 32,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "name": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "seconds": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "enum": [
+                    "video",
+                    "image",
+                    "audio"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "type",
+                "seconds",
+                "from_op",
+                "face"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
           "job_id": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "remake",
+                  "project"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "last_step": {
             "anyOf": [
@@ -17800,7 +18165,7 @@
                   "error": {
                     "anyOf": [
                       {
-                        "maxLength": 500,
+                        "maxLength": 64,
                         "type": "string"
                       },
                       {
@@ -17842,7 +18207,9 @@
                           }
                         },
                         "required": [
-                          "verdict"
+                          "verdict",
+                          "median",
+                          "p10"
                         ],
                         "type": "object"
                       },
@@ -17862,10 +18229,32 @@
                       }
                     ]
                   },
+                  "message": {
+                    "anyOf": [
+                      {
+                        "maxLength": 500,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "model": {
                     "anyOf": [
                       {
                         "maxLength": 128,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4000,
                         "type": "string"
                       },
                       {
@@ -17882,122 +18271,99 @@
                       {
                         "additionalProperties": false,
                         "properties": {
-                          "download": {
-                            "anyOf": [
-                              {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "bytes": {
-                                    "maximum": 9007199254740991,
-                                    "minimum": 0,
-                                    "type": "integer"
-                                  },
-                                  "content_type": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "expires_at": {
-                                    "format": "date-time",
-                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "enum": [
-                                      "envelope",
-                                      "artifact"
+                          "file": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "download": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "bytes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "content_type": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "expires_at": {
+                                        "format": "date-time",
+                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "envelope",
+                                          "artifact"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "pattern": "^[a-f0-9]{64}$",
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "ready",
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "format": "uri",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "kind",
+                                      "url",
+                                      "expires_at",
+                                      "sha256",
+                                      "bytes",
+                                      "content_type"
                                     ],
-                                    "type": "string"
+                                    "type": "object"
                                   },
-                                  "sha256": {
-                                    "pattern": "^[a-f0-9]{64}$",
-                                    "type": "string"
-                                  },
-                                  "status": {
-                                    "const": "ready",
-                                    "type": "string"
-                                  },
-                                  "url": {
-                                    "format": "uri",
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "status",
-                                  "kind",
-                                  "url",
-                                  "expires_at",
-                                  "sha256",
-                                  "bytes",
-                                  "content_type"
-                                ],
-                                "type": "object"
-                              },
-                              {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "reason": {
-                                    "enum": [
-                                      "too_large",
-                                      "not_found",
-                                      "service_unavailable"
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "too_large",
+                                          "not_found",
+                                          "service_unavailable"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "unavailable",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "reason"
                                     ],
-                                    "type": "string"
-                                  },
-                                  "status": {
-                                    "const": "unavailable",
-                                    "type": "string"
+                                    "type": "object"
                                   }
-                                },
-                                "required": [
-                                  "status",
-                                  "reason"
-                                ],
-                                "type": "object"
+                                ]
                               }
-                            ]
+                            },
+                            "required": [
+                              "download"
+                            ],
+                            "type": "object"
                           },
                           "handle": {
-                            "description": "A file in the job's workspace, as listed in get_remake_video handles.",
                             "maxLength": 64,
-                            "pattern": "^(creator/[a-z0-9_-]{1,40}|a\\d{2,3}|final(_r\\d{1,2})?|take_s\\d{2,3}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$",
-                            "type": "string"
-                          },
-                          "seconds": {
-                            "anyOf": [
-                              {
-                                "minimum": 0,
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "type": {
-                            "enum": [
-                              "video",
-                              "image",
-                              "audio"
-                            ],
                             "type": "string"
                           }
                         },
                         "required": [
                           "handle",
-                          "type"
+                          "file"
                         ],
                         "type": "object"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "seconds": {
-                    "anyOf": [
-                      {
-                        "minimum": 0,
-                        "type": "number"
                       },
                       {
                         "type": "null"
@@ -18026,7 +18392,15 @@
                 },
                 "required": [
                   "op",
-                  "status"
+                  "status",
+                  "spend_usd",
+                  "model",
+                  "fallback_from",
+                  "face",
+                  "error",
+                  "message",
+                  "notes",
+                  "output"
                 ],
                 "type": "object"
               },
@@ -18046,17 +18420,159 @@
               }
             ]
           },
+          "retry_after_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisions": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "created_at": {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "type": "string"
+                },
+                "handle": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "n": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer"
+                },
+                "notes": {
+                  "maxLength": 4000,
+                  "type": "string"
+                },
+                "video": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "download": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "bytes": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "content_type": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "expires_at": {
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "envelope",
+                                "artifact"
+                              ],
+                              "type": "string"
+                            },
+                            "sha256": {
+                              "pattern": "^[a-f0-9]{64}$",
+                              "type": "string"
+                            },
+                            "status": {
+                              "const": "ready",
+                              "type": "string"
+                            },
+                            "url": {
+                              "format": "uri",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "kind",
+                            "url",
+                            "expires_at",
+                            "sha256",
+                            "bytes",
+                            "content_type"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "too_large",
+                                "not_found",
+                                "service_unavailable"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "const": "unavailable",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "reason"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "download"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "n",
+                "created_at",
+                "notes",
+                "handle",
+                "video"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "spend_usd": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "enum": [
+              "fetching_inputs",
               "preparing",
-              "ready",
-              "working",
               "waiting_script",
               "running",
               "delivered",
               "out_of_scope",
               "failed",
-              "timed_out"
+              "timed_out",
+              "ready",
+              "working"
             ],
             "type": "string"
           }
@@ -18064,7 +18580,14 @@
         "required": [
           "job_id",
           "status",
-          "last_step"
+          "kind",
+          "retry_after_s",
+          "message",
+          "handles",
+          "revisions",
+          "last_step",
+          "spend_usd",
+          "failure_reason"
         ],
         "type": "object"
       },
@@ -18076,7 +18599,7 @@
           "type": "oauth2"
         }
       ],
-      "title": "Finish a video project"
+      "title": "Deliver a video project"
     },
     {
       "_meta": {

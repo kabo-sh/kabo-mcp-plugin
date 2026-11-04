@@ -6,14 +6,14 @@ result as a new revision of the same job; earlier revisions stay downloadable. C
 part that answers the request, never remake the whole video for a local change, and never start a
 new remake or project for it.
 
-Tools: `edit_remake_video`, `get_remake_video`, and `make_video_step` when an edit needs a new
-picture or clip first.
+Tools: `edit_remake_video`, `get_remake_video` (with `"project": true` for the job's handles,
+lines and revisions), and `make_video_step` when an edit needs a new picture or clip first.
 
 ## What maps to what
 
 | The user asks | Edit (`kind`) |
 |---|---|
-| Different words in one or more lines (a remake or an approved-script video; a project has no script) | `lines`: `[{"row": <n>, "text": "<new words>"}]`. `row` is the line's index (from 0) in the run's `script/script.json` `lines`. Kabo re-voices those lines in the creator's voice, re-syncs only the takes whose words changed, and re-times the captions. |
+| Different words in one or more lines (a remake or an approved-script video; a project has no script) | `lines`: `[{"row": <n>, "text": "<new words>"}]`. `row` is the line's index (from 0) in `project.lines` (the same as the run's `script/script.json` `lines`). Kabo re-voices those lines in the creator's voice, re-syncs only the takes whose words changed, and re-times the captions. |
 | Caption colour or size | `captions`: `color` (a name such as `white`, `yellow`, `red`, or `#RRGGBB`) and/or `size` (a multiple of the current size, 0.5-2) |
 | Another background for a time range | first a `still` step for the plate (a place, no person), then `background`: `t0`, `t1`, `plate` |
 | A picture, screen or product shot over a time range | `overlay`: `t0`, `t1`, `media`, optional `box` `[x, y, width]` as fractions of the frame |
@@ -26,13 +26,15 @@ made with `text_cards`, never into a generated picture.
 **Where new pictures and clips come from.** Call `make_video_step` on the delivered job's own
 `job_id` (see `references/atoms.md`, "Run it", steps 2-3) and use the handle it returns. The
 creator's videos are handles too (`creator/...`). This version cannot take photos, screen
-recordings or other files from the user's computer: say so, and offer a picture Kabo can make or a
-frame from the creator's footage instead.
+recordings or other files from the user's computer. A public picture link (a product, a place) can be
+added to the job first with `project-call --job-id` and `--reference-image` (`references/atoms.md`,
+"Run it"); otherwise offer a picture Kabo can make or a frame from the creator's footage.
 
-**Finding the time range.** `get_remake_video` lists the job's `handles` with their length in
-`seconds` (each talking take `take_sNN.mp4` and each voiced line `line_NN.wav`, in order). When the
-user names a moment by its words, add up the lines before it for an approximate start, then take a
-`frame` at that second and look at it before paying for the edit.
+**Finding the time range.** `get_remake_video` with `project` true lists the delivered video's
+`lines` with `row`, `text`, `t0` and `t1` (seconds). When the user names a moment by its words,
+take that line's `t0` and `t1`; for "the second half" and the like, use the length of
+`final.mp4` in `handles`. Take a `frame` at the second you chose and look at it before paying for
+an edit when the moment is not obvious.
 
 ## Plan before spending
 
@@ -64,14 +66,20 @@ edit after this one finished, write a new edits file; a `conflict` error means t
 with other arguments, so build again with `--attempt 2` (then 3, ...).
 
 The call returns `working`. Call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30,
-"include": ["review"]}` until the status is `delivered` again (or `last_step.status` is `failed`).
-Save the result and run `fetch` on it as in `SKILL.md` step 7. It saves the new revision as
-`output/remake-<id>-r<N>.mp4` next to the earlier one and prints `revision_notes` (which parts were
-redone, whether anything outside them changed, the spend) and `last_step` (spend, face verdict).
+"project": true, "include": ["review"]}` until `project.last_step.status` is `done` or `failed`.
+Save the result and run:
+
+```sh
+cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch-revision --input 'host-results/<NN>-get_remake_video.json'
+```
+
+It saves the newest revision as `output/remake-<id>-r<N>.mp4` next to the earlier one and prints
+`revision_notes` (which parts were redone, whether anything outside them changed, the spend) and
+`last_step` (spend, face verdict).
 
 ## Errors
 
-- `validation_error` with `details.reason` `workspace_expired`: the job's working files are kept 14
+- `validation_error` with reason `workspace_expired`: the job's working files are kept 14
   days and are gone; the video cannot be edited any more. Say so and offer a new remake.
 - Any other `validation_error`: read `message` (for example a time range past the end of the video
   or a handle that does not exist), fix the edits file and build again with the next `--attempt`.

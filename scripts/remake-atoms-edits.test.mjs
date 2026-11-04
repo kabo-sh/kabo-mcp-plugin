@@ -36,16 +36,20 @@ function valid(tool, args) {
   assert.ok(check(args), `${tool}: ${JSON.stringify(check.errors)}`);
 }
 
-test("工具清单含四个新工具（权限 video）且 get_remake_video 带 handles / revisions / last_step", () => {
+test("工具清单含四个新工具（权限 video）；get_remake_video 带 project（handles / revisions / last_step）与 cancel", () => {
   for (const name of ["start_video_project", "make_video_step", "edit_remake_video", "finish_video_project"]) {
     const tool = pinned.get(name);
     assert.ok(tool, name);
     assert.deepEqual(tool.securitySchemes, [{ scopes: ["video"], type: "oauth2" }]);
     assert.ok(JSON.stringify(tool.inputSchema).includes("idempotency_key"));
   }
-  const get = pinned.get("get_remake_video").outputSchema.properties;
-  for (const key of ["kind", "handles", "revisions", "last_step"]) assert.ok(get[key], key);
-  assert.ok(get.status.enum.includes("ready") && get.status.enum.includes("working"));
+  const get = pinned.get("get_remake_video");
+  const project = get.outputSchema.properties.project.properties;
+  for (const key of ["kind", "handles", "revisions", "last_step", "lines"]) assert.ok(project[key], key);
+  assert.ok(project.status.enum.includes("ready") && project.status.enum.includes("working"));
+  assert.ok(get.inputSchema.properties.project && get.inputSchema.properties.cancel);
+  for (const op of ["trim", "mux", "extract_audio", "voice_change", "text_cards", "music"])
+    assert.ok(pinned.get("make_video_step").inputSchema.properties.op.enum.includes(op), op);
 });
 
 test("project-call / step-call / edit-call / finish-call 生成的入参通过钉住的 schema，幂等键稳定", async (t) => {
@@ -55,13 +59,43 @@ test("project-call / step-call / edit-call / finish-call 生成的入参通过�
   assert.equal(project.out.tool, "start_video_project");
   valid("start_video_project", project.out.arguments);
   assert.match(project.out.arguments.idempotency_key, /^remake-viral-video:[^:]+:start_video_project:[0-9a-f]{16}:a1$/);
+  for (const args of [
+    // 无人出镜参考改走项目：参考进 reference_video_urls
+    ["--instagram-handle", "amy", "--reference-video", "https://www.tiktok.com/@brand/video/7412345678901234567"],
+    // 不含本人的生成视频：项目里没有创作者
+    [],
+    // 只有照片 + 产品图
+    ["--creator-photo", "https://example.com/me.jpg", "--creator-name", "me", "--reference-image", "https://example.com/p.png"],
+    // 往已有项目追加素材
+    ["--job-id", JOB, "--reference-image", "https://example.com/p2.png"],
+  ]) {
+    const res = call(run, ["project-call", ...args]);
+    assert.equal(res.status, 0, `${args.join(" ")}: ${res.stderr}`);
+    valid("start_video_project", res.out.arguments);
+  }
+  for (const [args, message] of [
+    [["--job-id", JOB], /at least one/],
+    [["--job-id", JOB, "--instagram-handle", "amy", "--reference-image", "https://example.com/p.png"], /only --creator-photo/],
+    [["--creator-video", "https://www.youtube.com/shorts/abc123", "--creator-name", "amy", "--reference-video", "https://youtu.be/abc123"], /also a creator video/],
+    [["--reference-image", "file:///etc/passwd"], /--reference-image must be a public http/],
+    [["--creator-photo", "https://example.com/me.jpg"], /--creator-name is required/],
+  ]) {
+    const res = call(run, ["project-call", ...args]);
+    assert.notEqual(res.status, 0, args.join(" "));
+    assert.match(res.stderr, message);
+  }
 
   const steps = {
     frame: { op: "frame", inputs: { video: "creator/clip1.mp4" }, params: { t: 2.5 } },
     motion: { op: "motion", inputs: { image: "a01.png", video: "a02.mp4" }, params: { model: "fal-ai/kling-video/v3/pro/motion-control" } },
     tts: { op: "tts", inputs: {}, params: { lines: ["Hello there."] } },
     cards: { op: "text_cards", inputs: { base: "a03.mp4" }, params: { cards: [{ text: "Step one", t0: 0, t1: 2 }], style: "plain" } },
-    refvideo: { op: "refvideo", inputs: { images: ["a01.png", "a04.png"] }, params: { prompt: "She waters the plants.", duration: 5 } },
+    refvideo: { op: "refvideo", inputs: { images: ["a01.png", "input/img_01.png"] }, params: { prompt: "She waters the plants.", duration: 5 } },
+    trim: { op: "trim", inputs: { media: "input/ref_01.mp4" }, params: { t0: 0, t1: 4.5 } },
+    mux: { op: "mux", inputs: { video: "a05.mp4", audio: "a06.wav" }, params: { mode: "replace" } },
+    extract: { op: "extract_audio", inputs: { video: "input/ref_01.mp4" }, params: {} },
+    voice: { op: "voice_change", inputs: { media: "a06.wav" }, params: { voice: "creator" } },
+    preset: { op: "tts", inputs: {}, params: { lines: ["Hi."], voice: "536d3a5e000945adb7038665781a4aca" } },
   };
   for (const [name, step] of Object.entries(steps)) {
     const file = path.join(run, "project/steps", `${name}.json`);
@@ -103,6 +137,8 @@ test("step-call / edit-call 在付费调用前拒收路径、链接、未列出�
     [{ op: "still", inputs: {}, params: { prompt: "x", seed: 3 } }, /does not take params seed/],
     [{ op: "overlay", inputs: { base: "a01.mp4", media: "a02.png" }, params: { t0: 5, t1: 2 } }, /t1 must be after t0/],
     [{ op: "music", inputs: { base: "a01.mp4" }, params: { mood: "epic" } }, /calm, upbeat/],
+    [{ op: "tts", inputs: {}, params: { lines: ["Hi."], voice: "someone-else" } }, /stock voices/],
+    [{ op: "mux", inputs: { video: "a01.mp4", audio: "a02.wav" }, params: { mode: "replace", gain_db: 9 } }, /-30 to 6/],
   ];
   for (const [step, message] of bad) {
     const file = path.join(run, "project/steps/bad.json");
@@ -155,55 +191,79 @@ JOB = "11111111-1111-4111-8111-111111111111"
 out = {}
 png = b"\x89PNG\r\n\x1a\n" + b"0" * 40
 mp4 = b"\x00\x00\x00\x18ftypmp42" + b"0" * 40
-step = {"op": "frame", "status": "done", "spend_usd": 0, "model": None,
-        "output": {"handle": "a01.png", "type": "image", "download": descriptor("a01.png", png, "image/png")}}
-saved = host.fetch_step(run, {"job_id": JOB, "status": "ready", "kind": "project", "last_step": step})
-out["step"] = [saved["saved"], os.path.relpath(saved["path"], run), saved["handle"]]
-out["step_again"] = host.fetch_step(run, {"job_id": JOB, "status": "ready", "last_step": step})["status"]
-face = {"op": "motion", "status": "done", "spend_usd": 4.1, "model": "fal-ai/kling-video/v3/pro/motion-control",
-        "fallback_from": "alibaba/wan-3.0/reference-to-video", "face": {"verdict": "degraded", "median": 0.5, "p10": 0.4},
-        "output": {"handle": "a02.mp4", "type": "video", "seconds": 5, "download": descriptor("a02.mp4", mp4, "video/mp4")}}
-saved = host.fetch_step(run, {"job_id": JOB, "status": "ready", "last_step": face})
+def project(status, step=None, revisions=(), spend=None):
+    return {"job_id": JOB, "status": "delivered", "project": {"job_id": JOB, "status": status, "kind": "project",
+            "retry_after_s": None, "message": None, "handles": [], "revisions": list(revisions), "last_step": step,
+            "spend_usd": spend, "failure_reason": None}}
+def step(op, handle=None, body=None, ctype=None, **extra):
+    base = {"op": op, "status": "done", "spend_usd": 0, "model": None, "fallback_from": None, "face": None,
+            "error": None, "message": None, "notes": None, "output": None}
+    if handle:
+        base["output"] = {"handle": handle, "file": {"download": descriptor(handle.replace("/", "_"), body, ctype)}}
+    base.update(extra)
+    return base
+frame = step("frame", "a01.png", png, "image/png")
+saved = host.fetch_step(run, project("ready", frame))
+out["step"] = [saved["saved"], os.path.relpath(saved["path"], run), saved["handle"], saved["type"]]
+out["step_again"] = host.fetch_step(run, project("ready", frame))["status"]
+motion = step("motion", "a02.mp4", mp4, "video/mp4", spend_usd=4.1, model="fal-ai/kling-video/v3/pro/motion-control",
+              fallback_from="alibaba/wan-3.0/reference-to-video", face={"verdict": "degraded", "median": 0.5, "p10": 0.4})
+# the step tools return the project object at the top level
+top = project("ready", motion)["project"]
+saved = host.fetch_step(run, top)
 out["face"] = [saved["face"], saved["fallback_from"], saved["spend_usd"]]
 try:
-    host.fetch_step(run, {"job_id": JOB, "status": "working", "last_step": {"op": "motion", "status": "running"}})
+    host.fetch_step(run, project("working", dict(motion, status="running", output=None)))
 except ValueError as error:
     out["running"] = str(error)[:30]
-out["failed"] = host.fetch_step(run, {"job_id": JOB, "status": "ready",
-                                      "last_step": {"op": "refvideo", "status": "failed", "error": "refused"}})
-# a declared image that is really something else is not kept
-wrong = dict(step); wrong["output"] = {"handle": "a03.png", "type": "image", "download": descriptor("a03.png", mp4, "image/png")}
+out["failed"] = host.fetch_step(run, project("ready", step("refvideo", status="failed", error="provider_refused",
+                                                           message="The provider refused the picture.")))
+wrong = step("frame", "a03.png", mp4, "image/png")
 try:
-    host.fetch_step(run, {"job_id": JOB, "status": "ready", "last_step": wrong})
+    host.fetch_step(run, project("ready", wrong))
 except ValueError as error:
     out["wrong_type"] = str(error)[:80]
 out["wrong_left_nothing"] = not (run / "project/outputs/a03.png").exists()
-# an edit: the new revision is saved next to the first delivery
+try:
+    host.fetch_step(run, {"job_id": JOB, "status": "delivered"})
+except ValueError as error:
+    out["no_project"] = str(error)[:160]
+# an edit: the newest revision is saved next to the first delivery
 first = host.fetch_video(run, {"job_id": JOB, "status": "delivered", "video": {"download": descriptor("final.mp4", mp4, "video/mp4")}})
 mp4b = mp4 + b"1"
-edited = host.fetch_video(run, {"job_id": JOB, "status": "delivered", "kind": "remake",
-    "video": {"download": descriptor("final_r1.mp4", mp4b, "video/mp4")},
-    "revisions": [{"n": 1, "created_at": "2026-11-04T00:00:00Z", "notes": "Line 2 re-voiced; nothing else changed."}],
-    "last_step": {"op": "edit", "status": "done", "spend_usd": 0.4, "face": {"verdict": "pass"}}})
+rev = lambda n, body: {"n": n, "created_at": "2026-11-04T00:00:00Z", "notes": f"Revision {n}: line 2 re-voiced; nothing else changed.",
+                       "handle": f"final_r{n}.mp4", "video": {"download": descriptor(f"final_r{n}.mp4", body, "video/mp4")}}
+edited = host.fetch_revision(run, project("delivered", step("edit", face={"verdict": "pass", "median": 0.8, "p10": 0.7}),
+                                          [rev(1, mp4b), rev(2, mp4b + b"2")], spend=0.4))
 out["video"] = [os.path.relpath(first["path"], run), os.path.relpath(edited["path"], run), edited["revision"],
                 edited["revision_notes"], edited["last_step"]["face"]]
 print(json.dumps(out))
 `;
 
-test("fetch-step 存下一步的产物并转述花费、回退模型与人脸结论；修改后的成片另存为新修订版", async (t) => {
+test("fetch-step 存下一步的产物并转述花费、回退模型与人脸结论；fetch-revision 把最新修订版另存", async (t) => {
   const temp = await mkdtemp(path.join(os.tmpdir(), "kabo-remake-atoms-fetch-"));
   t.after(() => rm(temp, { recursive: true, force: true }));
   const res = spawnSync("python3", ["-I", "-c", PY, scripts, temp], { encoding: "utf8" });
   assert.equal(res.status, 0, res.stderr);
   const out = JSON.parse(res.stdout);
-  assert.deepEqual(out.step, ["step", "project/outputs/a01.png", "a01.png"]);
+  assert.deepEqual(out.step, ["step", "project/outputs/a01.png", "a01.png", "image"]);
   assert.equal(out.step_again, "already_saved");
   assert.deepEqual(out.face, ["degraded", "alibaba/wan-3.0/reference-to-video", 4.1]);
   assert.match(out.running, /still running/);
   assert.equal(out.failed.saved, null);
-  assert.equal(out.failed.error, "refused");
+  assert.equal(out.failed.error, "provider_refused");
+  assert.equal(out.failed.step_status, "failed");
+  assert.match(out.no_project, /"project": true/);
   assert.match(out.wrong_type, /declared image type/);
   assert.equal(out.wrong_left_nothing, true);
-  assert.deepEqual(out.video, ["output/remake-11111111.mp4", "output/remake-11111111-r1.mp4", 1,
-    "Line 2 re-voiced; nothing else changed.", "pass"]);
+  assert.deepEqual(out.video, ["output/remake-11111111.mp4", "output/remake-11111111-r2.mp4", 2,
+    "Revision 2: line 2 re-voiced; nothing else changed.", "pass"]);
+});
+
+test("G8：description 只在要成片或改成片时触发，写稿、拆解、账号诊断不触发，且不超过 500 字符", async () => {
+  const text = await readFile(path.join(root, "skills/remake-viral-video/SKILL.md"), "utf8");
+  const description = /^description: "(.*)"$/m.exec(text)[1];
+  assert.ok(description.length <= 500, String(description.length));
+  assert.match(description, /only when the user wants the video itself made or changed/);
+  assert.match(description, /not for writing or adapting a script, breaking down a video, or reviewing an account/);
 });

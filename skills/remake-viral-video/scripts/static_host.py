@@ -9,13 +9,15 @@ Commands:
               get_remake_video / render_remake_video result links to, after checking host, size,
               sha256 and content type
   fetch-preview  save the pages of a voice-over preview (render_remake_video with preview)
-  project-call   print the start_video_project arguments (the creator's footage) with an idempotency_key
+  project-call   print the start_video_project arguments (creator footage, photos, reference videos and images,
+                 or additions to an existing project) with an idempotency_key
   step-call      check one step file ({op, inputs, params}) and print the make_video_step arguments
   edit-call      check an edits file (a list of edits) and print the edit_remake_video arguments
   finish-call    print the finish_video_project arguments for one finished handle
-  fetch-step     save the file the last step or edit produced (its preview), from a get_remake_video result
+  fetch-step     save the file the last step produced (its preview), from a get_remake_video result with project
+  fetch-revision save the newest revision of the finished video (after an edit or finish_video_project)
 
-The only network access is `fetch` / `fetch-preview` / `fetch-step`: one GET per signed storage.googleapis.com link that a Kabo tool
+The only network access is `fetch` / `fetch-preview` / `fetch-step` / `fetch-revision`: one GET per signed storage.googleapis.com link that a Kabo tool
 result returned, checked against the declared bytes and sha256 before anything is kept.
 """
 from __future__ import annotations
@@ -192,6 +194,25 @@ def approved_script(path):
     return text
 
 
+# 与服务端 start_remake_video 的 voice_preset 闭集一致（Fish 预设音色），服务端仍会再校验。
+VOICE_PRESETS = {
+    "933563129e564b19a115bedd57b7406a": "female, young, soft and conversational",
+    "b545c585f631496c914815291da4e893": "female, young, bright",
+    "536d3a5e000945adb7038665781a4aca": "male, calm and professional",
+    "802e3bc2b27e49c2995d23ef70e6ac89": "male, young and energetic",
+}
+
+
+def _photo_url(raw):
+    url = (raw or "").strip()
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname or parts.username or parts.password:
+        raise ValueError("Each --creator-photo must be a public http(s) link to a JPEG or PNG image")
+    if any(ord(char) <= 32 or ord(char) == 127 for char in url):
+        raise ValueError("A --creator-photo link contains spaces or control characters")
+    return url
+
+
 def creator_arguments(handle, video_urls, creator_name, reference=None):
     """{creator, creator_name?}: an Instagram handle or 1-4 creator video links, checked like the server does."""
     if bool(handle) == bool(video_urls):
@@ -257,8 +278,8 @@ def start_call(reference, handle, video_urls, creator_name, language, attempt, s
 # 原子项目与出片后修改（跨仓契约 v1，2026-11-04）。入参由脚本生成并带幂等键，形状与服务端
 # 的严格 schema 一致；服务端仍会再校验一次。op 是封闭枚举，文件只能是工作区句柄。
 
-HANDLE_RE = re.compile(r"^(creator/[a-z0-9_-]{1,40}|a\d{2,3}|final(_r\d{1,2})?|take_s\d{2,3}|line_\d{2,3})"
-                       r"\.(mp4|png|jpg|wav)$")
+HANDLE_RE = re.compile(r"^(creator/[a-z0-9_.-]{1,60}|input/[a-z0-9_.-]{1,60}|a\d{2,3}|final(_r\d{1,2})?|take_s\d{2}"
+                       r"|line_\d{2,3})\.(mp4|png|jpg|wav)$")
 COLOR_RE = re.compile(r"^([a-z]{3,16}|#[0-9A-Fa-f]{6})$")
 JOB_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
 MAX_SECONDS = 600
@@ -282,7 +303,7 @@ STEP_OPS = {
     "replace": ({"video": "h", "image": "h"}, {"video", "image"}, {"prompt": "prompt", "model": "model"}, set()),
     "lipsync": ({"video": "h", "audio": "h"}, {"video", "audio"}, {"model": "model"}, set()),
     "talking": ({"image": "h", "audio": "h"}, {"image", "audio"}, {"model": "model"}, set()),
-    "tts": ({}, set(), {"lines": "lines"}, {"lines"}),
+    "tts": ({}, set(), {"lines": "lines", "voice": "tts_voice"}, {"lines"}),
     "still": ({"refs": "h[0,4]"}, set(), {"prompt": "prompt"}, {"prompt"}),
     "animate": ({"image": "h"}, {"image"}, {"prompt": "prompt", "duration": "duration5_10"}, {"prompt"}),
     "bg": ({"video": "h", "plate": "h"}, {"video", "plate"}, {}, set()),
@@ -295,6 +316,10 @@ STEP_OPS = {
     "captions": ({"video": "h"}, {"video"}, {"color": "color", "size": "size"}, set()),
     "frame": ({"video": "h"}, {"video"}, {"t": "t"}, {"t"}),
     "face_check": ({"media": "h"}, {"media"}, {}, set()),
+    "trim": ({"media": "h"}, {"media"}, {"t0": "t", "t1": "t"}, {"t0", "t1"}),
+    "mux": ({"video": "h", "audio": "h"}, {"video", "audio"}, {"mode": "mux_mode", "gain_db": "mux_gain"}, {"mode"}),
+    "extract_audio": ({"video": "h"}, {"video"}, {}, set()),
+    "voice_change": ({"media": "h"}, {"media"}, {"voice": "change_voice"}, {"voice"}),
 }
 EDIT_KINDS = {
     "lines": ({"lines"}, set()),
@@ -359,6 +384,17 @@ def _param(kind, value, where, op):
         return
     elif kind == "audio":
         ok, message = value in ("base", "clip"), "base or clip"
+    elif kind == "mux_mode":
+        ok, message = value in ("replace", "mix"), "replace or mix"
+    elif kind == "mux_gain":
+        ok, message = _number(value) and -30 <= value <= 6, "a number from -30 to 6"
+    elif kind == "tts_voice":
+        ok = value == "creator" or value in VOICE_PRESETS
+        message = "\"creator\" (the creator's cloned voice) or one of the stock voices: " + ", ".join(
+            f"{k} ({v})" for k, v in VOICE_PRESETS.items())
+    elif kind == "change_voice":
+        ok = isinstance(value, str) and bool(re.fullmatch(r"creator|[a-z][a-z0-9_]{1,39}|[0-9a-f]{32}", value))
+        message = "\"creator\" (the creator's cloned voice) or the name of one of Kabo's stock voices"
     elif kind == "style":
         ok, message = value in ("creator", "plain"), "creator or plain"
     elif kind == "mood":
@@ -419,9 +455,57 @@ def read_json_file(path, what):
         raise ValueError(f"The {what} file is not valid JSON") from None
 
 
-def project_call(handle, video_urls, creator_name, attempt):
-    """start_video_project 的入参：创作者素材与 start_remake_video 同一套校验。"""
-    arguments = creator_arguments(handle, video_urls, creator_name)
+def _image_url(raw):
+    try:
+        return _photo_url(raw)
+    except ValueError as error:
+        raise ValueError(str(error).replace("--creator-photo", "--reference-image")) from None
+
+
+def project_call(handle, video_urls, creator_name, attempt, photo_urls=(), reference_videos=(),
+                 reference_images=(), job_id=None):
+    """start_video_project 的入参。创作者素材 0-4 段视频（或 Instagram 主页）加 0-8 张照片，别人的视频 0-4、
+    参考图 0-8（契约 v1.1/v1.3/v1.4）。带 --job-id 时是往已有项目追加照片、参考视频或参考图。"""
+    photos = [_photo_url(url) for url in photo_urls or []]
+    refs = [_url(url, "Reference video") for url in reference_videos or []]
+    images = [_image_url(url) for url in reference_images or []]
+    if len(photos) > 8 or len(images) > 8 or len(refs) > 4:
+        raise ValueError("At most 8 creator photos, 4 reference videos and 8 reference images")
+    for label, items in (("creator photo", photos), ("reference image", images)):
+        if len(set(items)) != len(items):
+            raise ValueError(f"The same {label} is listed twice")
+    if any(_same_video(a, b) for i, a in enumerate(refs) for b in refs[i + 1:]):
+        raise ValueError("The same reference video is listed twice")
+    if job_id is not None:
+        if handle or video_urls or creator_name:
+            raise ValueError("Adding to a project takes only --creator-photo, --reference-video and --reference-image")
+        if not (photos or refs or images):
+            raise ValueError("Give at least one --creator-photo, --reference-video or --reference-image to add")
+        arguments = {"job_id": _job_id(job_id)}
+    elif handle or video_urls:
+        if handle and photos:
+            raise ValueError("Give creator photos with --creator-video links, not with --instagram-handle")
+        arguments = creator_arguments(handle, video_urls, creator_name)
+        for ref in refs:
+            if any(_same_video(ref, url) for url in arguments["creator"].get("video_urls", [])):
+                raise ValueError("A reference video is also a creator video; each role needs its own video")
+    else:
+        # 没有创作者讲话视频：只能做无脸的步骤，或只靠照片做人像（声音用预设音色或另给录音）。
+        arguments = {}
+        if photos:
+            if not creator_name:
+                raise ValueError("--creator-name is required with --creator-photo (a short ASCII name for the creator)")
+            if not CREATOR_NAME.match(creator_name):
+                raise ValueError("--creator-name must be 1-64 ASCII letters, digits, '.', '_' or '-', starting with a letter or digit")
+            arguments["creator_name"] = creator_name
+        elif creator_name:
+            raise ValueError("--creator-name names the creator; give their videos, handle or photos with it")
+    if photos:
+        arguments.setdefault("creator", {})["photo_urls"] = photos
+    if refs:
+        arguments["reference_video_urls"] = refs
+    if images:
+        arguments["reference_image_urls"] = images
     return _call("start_video_project", arguments, attempt)
 
 
@@ -804,11 +888,7 @@ def fetch_video(run, structured):
     descriptor = video["download"]
     job_id = str(structured.get("job_id") or "job")
     stem = re.sub(r"[^A-Za-z0-9-]", "", job_id)[:8] or "job"
-    # 出片后修改：每次修改是该任务的一个新修订版，按最新修订号另存，旧版留在原处。
-    revision = latest_revision(structured)
-    final = run / "output" / (f"remake-{stem}-r{revision['n']}.mp4" if revision else f"remake-{stem}.mp4")
-    extra = edit_summary(structured, revision)
-    (run / "output").mkdir(mode=0o700, exist_ok=True)
+    final = run / "output" / f"remake-{stem}.mp4"
     if final.exists():
         existing = hashlib.sha256()
         with open(final, "rb") as stream:
@@ -816,7 +896,7 @@ def fetch_video(run, structured):
                 existing.update(chunk)
         if existing.hexdigest() == descriptor.get("sha256"):
             return {"saved": "video", "job_id": job_id, "status": "already_saved", "path": str(final),
-                    **review_relay(structured), **extra}
+                    **review_relay(structured)}
         raise ValueError("A different video is already saved at " + str(final))
     partial = run / "output" / f".partial-{secrets.token_hex(6)}"
     try:
@@ -832,95 +912,129 @@ def fetch_video(run, structured):
         if partial.exists():
             partial.unlink()
     return {"saved": "video", "job_id": job_id, "sha256": digest, "bytes": size, "path": str(final),
-            **review_relay(structured), **extra}
+            **review_relay(structured)}
 
 
-def latest_revision(structured):
-    """The newest revision after the first delivery ({n, notes}), or None for an unedited video."""
-    revisions = [r for r in structured.get("revisions") or [] if isinstance(r, dict)
-                 and isinstance(r.get("n"), int) and not isinstance(r.get("n"), bool) and 0 < r["n"] < 100]
-    return max(revisions, key=lambda r: r["n"]) if revisions else None
+# ---------------------------------------------------------------- project state (get_remake_video project: true)
+# 修改与原子项目的状态在 get_remake_video（带 project: true）的 project 字段里；四个项目工具的出参就是
+# 同一个对象。成片的每个修订版（修改后的、项目交付的）在 revisions[i].video.download，一步的产物在
+# last_step.output.file.download。
+
+def project_state(structured):
+    project = structured.get("project")
+    if isinstance(project, dict):
+        return project
+    if "last_step" in structured or "revisions" in structured:
+        return structured
+    raise ValueError("This result carries no project state: call get_remake_video with {\"job_id\": ..., "
+                     "\"project\": true}, save that result and run this on it")
 
 
 def step_summary(step):
     """What the user is told about one step or edit: spend, model, fallback, face verdict, error."""
     if not isinstance(step, dict):
-        return None
+        return {}
     face = step.get("face") if isinstance(step.get("face"), dict) else None
-    summary = {"op": step.get("op"), "status": step.get("status"), "spend_usd": step.get("spend_usd"),
+    summary = {"op": step.get("op"), "step_status": step.get("status"), "spend_usd": step.get("spend_usd"),
                "model": step.get("model"), "fallback_from": step.get("fallback_from"),
-               "face": face.get("verdict") if face else None}
-    if step.get("error"):
-        summary["error"] = str(step["error"])[:500]
-    return {key: value for key, value in summary.items() if value is not None}
+               "face": face.get("verdict") if face else None,
+               "error": step.get("error"), "message": step.get("message"), "notes": step.get("notes")}
+    return {key: (value[:2000] if isinstance(value, str) else value) for key, value in summary.items()
+            if value is not None}
 
 
-def edit_summary(structured, revision):
-    extra = {}
-    if revision is not None:
-        extra["revision"] = revision["n"]
-        if isinstance(revision.get("notes"), str) and revision["notes"].strip():
-            extra["revision_notes"] = revision["notes"].strip()[:2000]
-    step = step_summary(structured.get("last_step"))
-    if step and (revision is not None or structured.get("kind") == "project"):
-        extra["last_step"] = step
-    return extra
+def _same_file(path, digest):
+    hasher = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest() == digest
 
 
-# 一步的产物：类型 -> (允许的 content_type, 大小上限, 文件头检查)
+def save_download(descriptor, target, content_type, limit, looks_right, what):
+    """Download one signed link to target through a private partial file; same bytes again is already_saved."""
+    if target.exists():
+        if _same_file(target, descriptor.get("sha256")):
+            return {"status": "already_saved", "path": str(target)}
+        raise ValueError("A different file is already saved at " + str(target))
+    target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    partial = target.parent / f".partial-{secrets.token_hex(6)}"
+    try:
+        fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            digest, size = download(descriptor, "artifact", content_type, limit, stream)
+        with open(partial, "rb") as stream:
+            head = stream.read(12)
+        if not looks_right(head):
+            raise ValueError(f"Downloaded file does not match its declared {what} type; nothing was kept")
+        os.link(partial, target)
+    finally:
+        if partial.exists():
+            partial.unlink()
+    return {"sha256": digest, "bytes": size, "path": str(target)}
+
+
+IS_MP4 = lambda head: head[4:8] == b"ftyp"
+# 句柄扩展名 -> (类型, 允许的 content_type, 大小上限, 文件头检查)
 STEP_OUTPUTS = {
-    "video": ({"video/mp4"}, MAX_VIDEO_BYTES, lambda head: head[4:8] == b"ftyp"),
-    "image": ({"image/png", "image/jpeg"}, 32 * 1024 * 1024,
-              lambda head: head[:8] == b"\x89PNG\r\n\x1a\n" or head[:3] == b"\xff\xd8\xff"),
-    "audio": ({"audio/wav", "audio/x-wav", "audio/wave"}, 64 * 1024 * 1024,
-              lambda head: head[:4] == b"RIFF" and head[8:12] == b"WAVE"),
+    "mp4": ("video", {"video/mp4"}, MAX_VIDEO_BYTES, IS_MP4),
+    "png": ("image", {"image/png"}, 32 * 1024 * 1024, lambda head: head[:8] == b"\x89PNG\r\n\x1a\n"),
+    "jpg": ("image", {"image/jpeg"}, 32 * 1024 * 1024, lambda head: head[:3] == b"\xff\xd8\xff"),
+    "wav": ("audio", {"audio/wav", "audio/x-wav", "audio/wave"}, 64 * 1024 * 1024,
+            lambda head: head[:4] == b"RIFF" and head[8:12] == b"WAVE"),
 }
 
 
 def fetch_step(run, structured):
-    """Save the output of the last make_video_step / edit step (its preview) under project/outputs/."""
-    step = structured.get("last_step")
+    """Save the file the last make_video_step produced (its preview) under project/outputs/."""
+    project = project_state(structured)
+    step = project.get("last_step")
     if not isinstance(step, dict):
-        raise ValueError("This result carries no last_step; call get_remake_video with the job_id first")
-    if step.get("status") == "running" or structured.get("status") == "working":
-        raise ValueError("The step is still running: call get_remake_video with this job_id and wait_s 30, save the "
-                         "result and run fetch-step on it")
+        raise ValueError("This project has no step yet")
+    if step.get("status") == "running" or project.get("status") == "working":
+        raise ValueError("The step is still running: call get_remake_video with this job_id, wait_s 30 and project "
+                         "true, save the result and run fetch-step on it")
+    summary = step_summary(step)
     if step.get("status") != "done":
-        return {"saved": None, "status": step.get("status"), **(step_summary(step) or {})}
+        return {"saved": None, **summary}
     output = step.get("output")
-    if not isinstance(output, dict) or not isinstance(output.get("download"), dict):
-        return {"saved": None, "status": "done", "note": "this step has no file to download", **step_summary(step)}
+    if not isinstance(output, dict) or not isinstance((output.get("file") or {}).get("download"), dict):
+        return {"saved": None, "note": "this step has no file to download", **summary}
     handle = _handle(output.get("handle"), "last_step.output.handle")
-    kind = output.get("type")
-    if kind not in STEP_OUTPUTS:
-        raise ValueError("last_step.output.type must be video, image or audio")
-    types, limit, looks_right = STEP_OUTPUTS[kind]
-    content_type = str(output["download"].get("content_type", "")).lower()
+    kind, types, limit, looks_right = STEP_OUTPUTS[handle.rsplit(".", 1)[1]]
+    descriptor = output["file"]["download"]
+    content_type = str(descriptor.get("content_type", "")).lower()
     if content_type not in types:
-        raise ValueError(f"A {kind} output cannot be {content_type!r}")
-    target = run / "project" / "outputs"
-    target.mkdir(mode=0o700, parents=True, exist_ok=True)
-    path = target / handle.replace("/", "_")
-    summary = {"handle": handle, "type": kind, "seconds": output.get("seconds"), **step_summary(step)}
-    if path.exists():
-        existing = hashlib.sha256(path.read_bytes()).hexdigest()
-        if existing == output["download"].get("sha256"):
-            return {"saved": "step", "path": str(path), **summary, "status": "already_saved"}
-        raise ValueError("A different file is already saved at " + str(path))
-    partial = target / f".partial-{secrets.token_hex(6)}"
-    try:
-        fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "wb") as stream:
-            digest, size = download(output["download"], "artifact", content_type, limit, stream)
-        with open(partial, "rb") as stream:
-            head = stream.read(12)
-        if not looks_right(head):
-            raise ValueError(f"Downloaded file does not match its declared {kind} type; nothing was kept")
-        os.link(partial, path)
-    finally:
-        if partial.exists():
-            partial.unlink()
-    return {"saved": "step", "sha256": digest, "bytes": size, "path": str(path), **summary}
+        raise ValueError(f"{handle} cannot be {content_type!r}")
+    saved = save_download(descriptor, run / "project" / "outputs" / handle.replace("/", "_"), content_type, limit,
+                          looks_right, kind)
+    return {"saved": "step", "handle": handle, "type": kind, **summary, **saved}
+
+
+def fetch_revision(run, structured):
+    """Save the newest revision of the finished video (an edit, or a delivered project) next to earlier ones."""
+    project = project_state(structured)
+    revisions = [r for r in project.get("revisions") or [] if isinstance(r, dict) and isinstance(r.get("n"), int)
+                 and not isinstance(r.get("n"), bool) and r["n"] > 0]
+    if not revisions:
+        raise ValueError("This job has no revision yet: wait until last_step is done (call get_remake_video with "
+                         "project true again)")
+    revision = max(revisions, key=lambda r: r["n"])
+    descriptor = (revision.get("video") or {}).get("download")
+    if not isinstance(descriptor, dict):
+        raise ValueError("The newest revision carries no video download")
+    stem = re.sub(r"[^A-Za-z0-9-]", "", str(project.get("job_id") or structured.get("job_id") or "job"))[:8] or "job"
+    saved = save_download(descriptor, run / "output" / f"remake-{stem}-r{revision['n']}.mp4", "video/mp4",
+                          MAX_VIDEO_BYTES, IS_MP4, "video")
+    result = {"saved": "revision", "job_id": project.get("job_id"), "revision": revision["n"],
+              "handle": revision.get("handle"), **saved,
+              "revision_notes": str(revision.get("notes") or "")[:2000], "spend_usd": project.get("spend_usd")}
+    step = step_summary(project.get("last_step"))
+    if step:
+        result["last_step"] = step
+    if isinstance(structured.get("review"), dict):
+        result.update(review_relay(structured))
+    return result
 
 
 def fetch_pages(descriptors, target):
@@ -1028,10 +1142,16 @@ def main():
     command.add_argument("--input", default="-")
     command = commands.add_parser("fetch-step")
     command.add_argument("--input", default="-")
+    command = commands.add_parser("fetch-revision")
+    command.add_argument("--input", default="-")
     command = commands.add_parser("project-call")
     command.add_argument("--instagram-handle")
     command.add_argument("--creator-video", action="append", default=[])
     command.add_argument("--creator-name")
+    command.add_argument("--creator-photo", action="append", default=[])
+    command.add_argument("--reference-video", action="append", default=[])
+    command.add_argument("--reference-image", action="append", default=[])
+    command.add_argument("--job-id")
     command.add_argument("--attempt", type=int, default=1)
     command = commands.add_parser("step-call")
     command.add_argument("--job-id", required=True)
@@ -1053,7 +1173,8 @@ def main():
                                     args.creator_name, args.language, args.attempt, args.script_file),
                          ensure_ascii=False))
     elif args.command == "project-call":
-        print(json.dumps(project_call(args.instagram_handle, args.creator_video, args.creator_name, args.attempt),
+        print(json.dumps(project_call(args.instagram_handle, args.creator_video, args.creator_name, args.attempt,
+                                      args.creator_photo, args.reference_video, args.reference_image, args.job_id),
                          ensure_ascii=False))
     elif args.command == "step-call":
         print(json.dumps(step_call(args.job_id, args.step, args.attempt), ensure_ascii=False))
@@ -1071,6 +1192,8 @@ def main():
             print(json.dumps(fetch_preview(run_dir(), tool_result(raw)), ensure_ascii=False))
         elif args.command == "fetch-step":
             print(json.dumps(fetch_step(run_dir(), tool_result(raw)), ensure_ascii=False))
+        elif args.command == "fetch-revision":
+            print(json.dumps(fetch_revision(run_dir(), tool_result(raw)), ensure_ascii=False))
         else:
             print(json.dumps(fetch(raw), ensure_ascii=False))
 

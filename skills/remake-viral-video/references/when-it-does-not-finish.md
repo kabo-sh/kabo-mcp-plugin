@@ -11,6 +11,10 @@ stage names or internal terms. Always say whether it was charged:
   one of 90 seconds or less where one person speaks to the camera for most of it. When no clear
   frontal face of the creator was found, ask for links to videos where they talk facing the camera.
   Nothing was charged and the daily limit was not used; say so.
+  When the reason is that nobody talks to the camera in the reference (a product demo, scenes,
+  footage without a speaker), offer to build it as a project instead (`references/atoms.md`,
+  "A reference nobody talks in"): the reference's own footage is reused and the creator's segments
+  are made and cut in. Start it only after the user agrees to the plan and cost.
 - `failed` with a likeness reason: the generated person did not look like the creator, so the video
   was stopped or not delivered. Say so plainly and ask for clearer footage of the creator facing the
   camera; do not resubmit the same inputs.
