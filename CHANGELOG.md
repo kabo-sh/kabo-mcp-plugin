@@ -2,6 +2,23 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 未发布
+
+- `remake-viral-video`：出片后修改与原子项目（跨仓契约 v1，2026-11-04；内容改写自复刻包 V2-r87 的 `skill/references/atoms.md`，
+  从「跑 cr 命令」改成「调 /mcp-pub 工具」）。
+  - 交付后的局部修改（换台词、字幕颜色/大小、某段换背景、叠图、插一段新镜头）走 `edit_remake_video`，只改用户点名的部分、
+    生成新修订版、旧版保留；细则在 `references/edits.md`。
+  - 五类之内的新视频仍默认整条复刻；五类以外（照视频动作、不说话 + 大段文字卡 + 配乐、产品广告等）用原子项目：
+    `start_video_project` → 多次 `make_video_step` → `finish_video_project`；先写计划、告诉用户做什么与大约花费再付费；
+    碰脸规则（少重绘、优先真实画面、degraded 不拦交付但要说明）；细则在 `references/atoms.md`。
+  - `scripts/static_host.py` 新增 `project-call` / `step-call` / `edit-call` / `finish-call`（入参按 op / kind 的严格形状
+    核对，只收工作区句柄，幂等键 `<skill>:<运行目录>:<工具>:<入参摘要>:a<序号>`）与 `fetch-step`（只下载工具结果给出的
+    签名链接，校验大小、sha256、类型与文件头）；修改后的成片按修订号另存 `remake-<id>-r<N>.mp4`。
+  - 为腾出正文长度，`start_remake_video` 与 `render_remake_video` 的错误处理移到 `references/tool-errors.md`，内容不变。
+- 契约：`tools-list.json` 新增 `start_video_project`、`make_video_step`、`edit_remake_video`、`finish_video_project`，
+  `get_remake_video` 出参加 `kind`、`handles`、`revisions`、`last_step` 与 `ready` / `working` 状态。**按跨仓契约手写的草案，
+  待与数据层 `mcp:audit` 导出的定稿同步后重新钉住**；未发版本。
+
 ## 1.0.10（2026-11-03；GitHub Release）
 
 - 三平台最近七天推荐独立核对内容语言；只有领域与语言均合格的候选进入排序，语言不匹配或证据不足时如实留缺口。

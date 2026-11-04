@@ -9,8 +9,13 @@ Commands:
               get_remake_video / render_remake_video result links to, after checking host, size,
               sha256 and content type
   fetch-preview  save the pages of a voice-over preview (render_remake_video with preview)
+  project-call   print the start_video_project arguments (the creator's footage) with an idempotency_key
+  step-call      check one step file ({op, inputs, params}) and print the make_video_step arguments
+  edit-call      check an edits file (a list of edits) and print the edit_remake_video arguments
+  finish-call    print the finish_video_project arguments for one finished handle
+  fetch-step     save the file the last step or edit produced (its preview), from a get_remake_video result
 
-The only network access is `fetch` / `fetch-preview`: one GET per signed storage.googleapis.com link that a Kabo tool
+The only network access is `fetch` / `fetch-preview` / `fetch-step`: one GET per signed storage.googleapis.com link that a Kabo tool
 result returned, checked against the declared bytes and sha256 before anything is kept.
 """
 from __future__ import annotations
@@ -63,7 +68,7 @@ UNAVAILABLE_HINTS = {
                   "not_found, report that the file is missing and that the job is preserved"),
     "too_large": "The file is too large to be signed for download; report this, the job is preserved",
 }
-RUN_DIRS = ("host-results", "brief", "script", "render", "output")
+RUN_DIRS = ("host-results", "brief", "script", "render", "output", "project", "project/steps", "project/edits")
 
 # 与 start_remake_video 的入参约束一致；服务端仍会再校验一次。
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
@@ -94,7 +99,8 @@ def run_dir():
         raise ValueError("Not a reserved static Skill run")
     # 有的宿主只在两次执行之间保留文件、不保留空目录(Web Agent 的沙箱工作区):init 建的
     # 空子目录下一步就不在了。每次进入运行目录都补齐,已有的不动。
-    for name in ("snapshot", "snapshot/.host-evidence", "analysis", "report", "owner", "host-results"):
+    for name in ("snapshot", "snapshot/.host-evidence", "analysis", "report", "owner", "host-results",
+                 "project/steps", "project/edits"):
         (run / name).mkdir(mode=0o700, parents=True, exist_ok=True)
     return run
 
@@ -186,19 +192,8 @@ def approved_script(path):
     return text
 
 
-def start_call(reference, handle, video_urls, creator_name, language, attempt, script_file=None):
-    """The arguments of start_remake_video, with an idempotency_key that is stable for the same inputs.
-
-    Two starting points share this one call: a reference video (--reference-url) or the creator's
-    approved script (--script-file), never both."""
-    if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
-        raise ValueError("--attempt must be a positive integer")
-    if bool(reference) == bool(script_file):
-        raise ValueError("Give exactly one of --reference-url (a video to remake) or --script-file (the approved script)")
-    script = approved_script(script_file) if script_file else None
-    if script is not None and language:
-        raise ValueError("--language does not apply to a script: the script's own language is used")
-    reference = _url(reference, "Reference") if reference else None
+def creator_arguments(handle, video_urls, creator_name, reference=None):
+    """{creator, creator_name?}: an Instagram handle or 1-4 creator video links, checked like the server does."""
     if bool(handle) == bool(video_urls):
         raise ValueError("Give the creator as exactly one of --instagram-handle or --creator-video (1 to 4 links)")
     if handle:
@@ -222,12 +217,29 @@ def start_call(reference, handle, video_urls, creator_name, language, attempt, s
         if not creator_name:
             raise ValueError("--creator-name is required with --creator-video (a short ASCII name for the creator)")
         creator = {"video_urls": urls}
-    arguments = ({"reference_url": reference} if reference else {"script": script})
-    arguments["creator"] = creator
+    arguments = {"creator": creator}
     if creator_name:
         if not CREATOR_NAME.match(creator_name):
             raise ValueError("--creator-name must be 1-64 ASCII letters, digits, '.', '_' or '-', starting with a letter or digit")
         arguments["creator_name"] = creator_name
+    return arguments
+
+
+def start_call(reference, handle, video_urls, creator_name, language, attempt, script_file=None):
+    """The arguments of start_remake_video, with an idempotency_key that is stable for the same inputs.
+
+    Two starting points share this one call: a reference video (--reference-url) or the creator's
+    approved script (--script-file), never both."""
+    if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
+        raise ValueError("--attempt must be a positive integer")
+    if bool(reference) == bool(script_file):
+        raise ValueError("Give exactly one of --reference-url (a video to remake) or --script-file (the approved script)")
+    script = approved_script(script_file) if script_file else None
+    if script is not None and language:
+        raise ValueError("--language does not apply to a script: the script's own language is used")
+    reference = _url(reference, "Reference") if reference else None
+    arguments = ({"reference_url": reference} if reference else {"script": script})
+    arguments.update(creator_arguments(handle, video_urls, creator_name, reference))
     if language:
         if not LANGUAGE.match(language):
             raise ValueError("--language must look like 'en' or 'pt-BR'")
@@ -239,6 +251,283 @@ def start_call(reference, handle, video_urls, creator_name, language, attempt, s
         key = "kabo:" + hashlib.sha256(key.encode()).hexdigest()[:48] + f":a{attempt}"
     arguments["idempotency_key"] = key
     return {"tool": "start_remake_video", "arguments": arguments}
+
+
+# ---------------------------------------------------------------- projects and edits
+# 原子项目与出片后修改（跨仓契约 v1，2026-11-04）。入参由脚本生成并带幂等键，形状与服务端
+# 的严格 schema 一致；服务端仍会再校验一次。op 是封闭枚举，文件只能是工作区句柄。
+
+HANDLE_RE = re.compile(r"^(creator/[a-z0-9_-]{1,40}|a\d{2,3}|final(_r\d{1,2})?|take_s\d{2,3}|line_\d{2,3})"
+                       r"\.(mp4|png|jpg|wav)$")
+COLOR_RE = re.compile(r"^([a-z]{3,16}|#[0-9A-Fa-f]{6})$")
+JOB_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
+MAX_SECONDS = 600
+# 碰脸 op 只收 catalog 里 tested 的模型（第一个是默认）；与工具清单的枚举一致。
+FACE_MODELS = {
+    "refvideo": ("alibaba/wan-3.0/reference-to-video", "kling/v4/reference-to-video"),
+    "motion": ("alibaba/wan-3.0/reference-to-video", "fal-ai/kling-video/v3/pro/motion-control",
+               "fal-ai/wan/v2.2-14b/animate/move"),
+    "replace": ("minimax/h3-max/recast", "fal-ai/wan/v2.2-14b/animate/replace"),
+    "lipsync": ("fal-ai/sync-lipsync/v2/pro", "fal-ai/latentsync"),
+    "talking": ("vivix/vivix-a1", "fal-ai/kling-video/ai-avatar/v2/pro", "fal-ai/kling-video/ai-avatar/v2/standard",
+                "minimax/h3-max/lip-sync/image-to-video", "bytedance/seedance-2.0/reference-to-video",
+                "alibaba/wan-3.0/reference-to-video"),
+}
+# op -> (inputs: 名称 -> 种类, 必填 inputs, params: 名称 -> 种类, 必填 params)
+# 种类：h 句柄；h[lo,hi] 句柄数组；其余见 _param。
+STEP_OPS = {
+    "refvideo": ({"images": "h[1,10]", "ref_video": "h", "first_frame": "h", "last_frame": "h"}, {"images"},
+                 {"prompt": "prompt", "duration": "duration3_15", "sound": "bool", "model": "model"}, {"prompt"}),
+    "motion": ({"image": "h", "video": "h"}, {"image", "video"}, {"prompt": "prompt", "model": "model"}, set()),
+    "replace": ({"video": "h", "image": "h"}, {"video", "image"}, {"prompt": "prompt", "model": "model"}, set()),
+    "lipsync": ({"video": "h", "audio": "h"}, {"video", "audio"}, {"model": "model"}, set()),
+    "talking": ({"image": "h", "audio": "h"}, {"image", "audio"}, {"model": "model"}, set()),
+    "tts": ({}, set(), {"lines": "lines"}, {"lines"}),
+    "still": ({"refs": "h[0,4]"}, set(), {"prompt": "prompt"}, {"prompt"}),
+    "animate": ({"image": "h"}, {"image"}, {"prompt": "prompt", "duration": "duration5_10"}, {"prompt"}),
+    "bg": ({"video": "h", "plate": "h"}, {"video", "plate"}, {}, set()),
+    "overlay": ({"base": "h", "media": "h"}, {"base", "media"}, {"t0": "t", "t1": "t", "box": "box"}, {"t0", "t1"}),
+    "splice": ({"base": "h", "clip": "h"}, {"base", "clip"}, {"t0": "t", "t1": "t", "audio": "audio"},
+               {"t0", "t1", "audio"}),
+    "concat": ({"clips": "h[2,20]"}, {"clips"}, {}, set()),
+    "text_cards": ({"base": "h"}, {"base"}, {"cards": "cards", "style": "style"}, {"cards"}),
+    "music": ({"base": "h"}, {"base"}, {"mood": "mood", "gain_db": "gain"}, {"mood"}),
+    "captions": ({"video": "h"}, {"video"}, {"color": "color", "size": "size"}, set()),
+    "frame": ({"video": "h"}, {"video"}, {"t": "t"}, {"t"}),
+    "face_check": ({"media": "h"}, {"media"}, {}, set()),
+}
+EDIT_KINDS = {
+    "lines": ({"lines"}, set()),
+    "captions": (set(), {"color", "size"}),
+    "overlay": ({"t0", "t1", "media"}, {"box"}),
+    "background": ({"t0", "t1", "plate"}, set()),
+    "clip": ({"t0", "t1", "clip"}, set()),
+}
+
+
+def _number(value):
+    return not isinstance(value, bool) and isinstance(value, (int, float))
+
+
+def _handle(value, where):
+    if not isinstance(value, str) or not HANDLE_RE.match(value):
+        raise ValueError(f"{where} must be a workspace handle from get_remake_video handles (for example a03.mp4, "
+                         f"final.mp4 or creator/<name>.mp4), not a path or link")
+    return value
+
+
+def _seconds(value, where):
+    if not _number(value) or not 0 <= value <= MAX_SECONDS:
+        raise ValueError(f"{where} must be a time in seconds between 0 and {MAX_SECONDS}")
+    return value
+
+
+def _range(item, where):
+    _seconds(item.get("t0"), where + ".t0")
+    _seconds(item.get("t1"), where + ".t1")
+    if item["t1"] <= item["t0"]:
+        raise ValueError(f"{where}: t1 must be after t0")
+
+
+def _box(value, where):
+    if not isinstance(value, list) or len(value) != 3 or not all(_number(v) and 0 <= v <= 1 for v in value):
+        raise ValueError(f"{where} must be [x, y, width] as fractions of the frame (0-1)")
+
+
+def _param(kind, value, where, op):
+    if kind == "prompt":
+        ok = isinstance(value, str) and value.strip() and len(value) <= 2000
+        message = "a non-empty text of at most 2000 characters"
+    elif kind == "duration3_15":
+        ok, message = _number(value) and 3 <= value <= 15, "3 to 15 seconds"
+    elif kind == "duration5_10":
+        ok, message = value in (5, 10) and not isinstance(value, bool), "5 or 10"
+    elif kind == "bool":
+        ok, message = isinstance(value, bool), "true or false"
+    elif kind == "model":
+        ok = value in FACE_MODELS[op]
+        message = "one of " + ", ".join(FACE_MODELS[op]) + " (or left out for the default)"
+    elif kind == "lines":
+        ok = (isinstance(value, list) and 1 <= len(value) <= 40 and
+              all(isinstance(line, str) and line.strip() and len(line) <= 400 for line in value))
+        message = "1 to 40 lines of at most 400 characters each"
+    elif kind == "t":
+        _seconds(value, where)
+        return
+    elif kind == "box":
+        _box(value, where)
+        return
+    elif kind == "audio":
+        ok, message = value in ("base", "clip"), "base or clip"
+    elif kind == "style":
+        ok, message = value in ("creator", "plain"), "creator or plain"
+    elif kind == "mood":
+        ok, message = value in ("calm", "upbeat", "warm", "none"), "calm, upbeat, warm or none"
+    elif kind == "gain":
+        ok, message = _number(value) and -30 <= value <= 0, "a number from -30 to 0"
+    elif kind == "color":
+        ok, message = isinstance(value, str) and bool(COLOR_RE.match(value)), "a colour name or #RRGGBB"
+    elif kind == "size":
+        ok, message = _number(value) and 0.5 <= value <= 2, "a multiple of the default size from 0.5 to 2"
+    elif kind == "cards":
+        if not isinstance(value, list) or not 1 <= len(value) <= 10:
+            raise ValueError(f"{where} must hold 1 to 10 cards")
+        for n, card in enumerate(value):
+            if not isinstance(card, dict) or set(card) != {"text", "t0", "t1"}:
+                raise ValueError(f"{where}[{n}] must be {{text, t0, t1}}")
+            if not isinstance(card["text"], str) or not card["text"].strip() or len(card["text"]) > 600:
+                raise ValueError(f"{where}[{n}].text must be a non-empty text of at most 600 characters")
+            _range(card, f"{where}[{n}]")
+        return
+    else:
+        raise ValueError(f"unknown parameter kind {kind}")
+    if not ok:
+        raise ValueError(f"{where} must be {message}")
+
+
+def _job_id(job_id):
+    if not isinstance(job_id, str) or not JOB_ID_RE.match(job_id):
+        raise ValueError("--job-id must be the job_id (a UUID) from start_video_project or start_remake_video")
+    return job_id
+
+
+def _key(tool, arguments, attempt):
+    """KS8 job-call 的幂等键：<skill>:<运行目录名>:<工具名>:<入参摘要>:a<尝试序号>。"""
+    if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
+        raise ValueError("--attempt must be a positive integer")
+    digest = hashlib.sha256(json.dumps(arguments, sort_keys=True, ensure_ascii=False,
+                                       separators=(",", ":")).encode()).hexdigest()[:16]
+    key = "".join(char if char in KEY_CHARS else "-"
+                  for char in f"{SKILL.name}:{run_dir().name}:{tool}:{digest}:a{attempt}")
+    if len(key) > KEY_LIMIT:
+        key = "kabo:" + hashlib.sha256(key.encode()).hexdigest()[:48] + f":a{attempt}"
+    return key
+
+
+def _call(tool, arguments, attempt):
+    arguments["idempotency_key"] = _key(tool, arguments, attempt)
+    return {"tool": tool, "arguments": arguments}
+
+
+def read_json_file(path, what):
+    raw = Path(path).read_bytes()
+    if len(raw) > MAX_RESULT_BYTES:
+        raise ValueError(f"The {what} file is too large")
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except ValueError:
+        raise ValueError(f"The {what} file is not valid JSON") from None
+
+
+def project_call(handle, video_urls, creator_name, attempt):
+    """start_video_project 的入参：创作者素材与 start_remake_video 同一套校验。"""
+    arguments = creator_arguments(handle, video_urls, creator_name)
+    return _call("start_video_project", arguments, attempt)
+
+
+def step_call(job_id, step_file, attempt):
+    """make_video_step 的入参：{op, inputs, params} 按 op 的严格形状核对。"""
+    step = read_json_file(step_file, "step")
+    if not isinstance(step, dict) or set(step) - {"op", "inputs", "params"} or "op" not in step:
+        raise ValueError("The step file must be {\"op\": ..., \"inputs\": {...}, \"params\": {...}} and nothing else")
+    op = step["op"]
+    if op not in STEP_OPS:
+        raise ValueError("op must be one of " + ", ".join(STEP_OPS))
+    input_kinds, input_required, param_kinds, param_required = STEP_OPS[op]
+    inputs, params = step.get("inputs", {}), step.get("params", {})
+    if not isinstance(inputs, dict) or not isinstance(params, dict):
+        raise ValueError("inputs and params must be objects")
+    for label, given, kinds, required in (("inputs", inputs, input_kinds, input_required),
+                                          ("params", params, param_kinds, param_required)):
+        extra, missing = set(given) - set(kinds), required - set(given)
+        if extra:
+            raise ValueError(f"{op} does not take {label} " + ", ".join(sorted(extra)))
+        if missing:
+            raise ValueError(f"{op} needs {label} " + ", ".join(sorted(missing)))
+    for name, value in inputs.items():
+        kind = input_kinds[name]
+        if kind == "h":
+            _handle(value, f"inputs.{name}")
+        else:
+            low, high = (int(n) for n in kind[2:-1].split(","))
+            if not isinstance(value, list) or not low <= len(value) <= high:
+                raise ValueError(f"inputs.{name} must list {low} to {high} handles")
+            for n, item in enumerate(value):
+                _handle(item, f"inputs.{name}[{n}]")
+    for name, value in params.items():
+        _param(param_kinds[name], value, f"params.{name}", op)
+    if {"t0", "t1"} <= set(params):
+        _range(params, "params")
+    arguments = {"job_id": _job_id(job_id), "op": op, "inputs": inputs, "params": params}
+    return _call("make_video_step", arguments, attempt)
+
+
+def script_rows():
+    path = run_dir() / "script" / "script.json"
+    try:
+        lines = json.loads(path.read_text(encoding="utf-8")).get("lines")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return len(lines) if isinstance(lines, list) else None
+
+
+def edit_call(job_id, edits_file, attempt):
+    """edit_remake_video 的入参：1-10 项修改，每项按 kind 的严格形状核对。"""
+    edits = read_json_file(edits_file, "edits")
+    if isinstance(edits, dict) and set(edits) == {"edits"}:
+        edits = edits["edits"]
+    if not isinstance(edits, list) or not 1 <= len(edits) <= 10:
+        raise ValueError("The edits file must be a list of 1 to 10 edits")
+    rows = script_rows()
+    for n, edit in enumerate(edits):
+        where = f"edits[{n}]"
+        if not isinstance(edit, dict) or edit.get("kind") not in EDIT_KINDS:
+            raise ValueError(f"{where}.kind must be one of " + ", ".join(EDIT_KINDS))
+        required, optional = EDIT_KINDS[edit["kind"]]
+        fields = set(edit) - {"kind"}
+        if fields - required - optional:
+            raise ValueError(f"{where} ({edit['kind']}) does not take " + ", ".join(sorted(fields - required - optional)))
+        if required - fields:
+            raise ValueError(f"{where} ({edit['kind']}) needs " + ", ".join(sorted(required - fields)))
+        kind = edit["kind"]
+        if kind == "lines":
+            lines = edit["lines"]
+            if not isinstance(lines, list) or not 1 <= len(lines) <= 40:
+                raise ValueError(f"{where}.lines must list 1 to 40 changed lines")
+            seen = set()
+            for m, line in enumerate(lines):
+                if not isinstance(line, dict) or set(line) != {"row", "text"}:
+                    raise ValueError(f"{where}.lines[{m}] must be {{row, text}}")
+                row, text = line["row"], line["text"]
+                if isinstance(row, bool) or not isinstance(row, int) or not 0 <= row <= 199:
+                    raise ValueError(f"{where}.lines[{m}].row must be the line's index in script/script.json lines")
+                if rows is not None and row >= rows:
+                    raise ValueError(f"{where}.lines[{m}].row {row} is past the script's {rows} lines")
+                if row in seen:
+                    raise ValueError(f"{where}.lines repeats row {row}")
+                seen.add(row)
+                if not isinstance(text, str) or not text.strip() or len(text) > 600:
+                    raise ValueError(f"{where}.lines[{m}].text must be the new words, at most 600 characters")
+        elif kind == "captions":
+            if not fields:
+                raise ValueError(f"{where} (captions) needs color or size")
+            if "color" in edit:
+                _param("color", edit["color"], f"{where}.color", kind)
+            if "size" in edit:
+                _param("size", edit["size"], f"{where}.size", kind)
+        else:
+            _range(edit, where)
+            _handle(edit[{"overlay": "media", "background": "plate", "clip": "clip"}[kind]], f"{where} handle")
+            if "box" in edit:
+                _box(edit["box"], f"{where}.box")
+    arguments = {"job_id": _job_id(job_id), "edits": edits}
+    return _call("edit_remake_video", arguments, attempt)
+
+
+def finish_call(job_id, handle, attempt):
+    if not _handle(handle, "--handle").endswith(".mp4"):
+        raise ValueError("--handle must be the finished video (.mp4)")
+    return _call("finish_video_project", {"job_id": _job_id(job_id), "handle": handle}, attempt)
 
 
 # ---------------------------------------------------------------- fetch
@@ -515,7 +804,11 @@ def fetch_video(run, structured):
     descriptor = video["download"]
     job_id = str(structured.get("job_id") or "job")
     stem = re.sub(r"[^A-Za-z0-9-]", "", job_id)[:8] or "job"
-    final = run / "output" / f"remake-{stem}.mp4"
+    # 出片后修改：每次修改是该任务的一个新修订版，按最新修订号另存，旧版留在原处。
+    revision = latest_revision(structured)
+    final = run / "output" / (f"remake-{stem}-r{revision['n']}.mp4" if revision else f"remake-{stem}.mp4")
+    extra = edit_summary(structured, revision)
+    (run / "output").mkdir(mode=0o700, exist_ok=True)
     if final.exists():
         existing = hashlib.sha256()
         with open(final, "rb") as stream:
@@ -523,7 +816,7 @@ def fetch_video(run, structured):
                 existing.update(chunk)
         if existing.hexdigest() == descriptor.get("sha256"):
             return {"saved": "video", "job_id": job_id, "status": "already_saved", "path": str(final),
-                    **review_relay(structured)}
+                    **review_relay(structured), **extra}
         raise ValueError("A different video is already saved at " + str(final))
     partial = run / "output" / f".partial-{secrets.token_hex(6)}"
     try:
@@ -539,7 +832,95 @@ def fetch_video(run, structured):
         if partial.exists():
             partial.unlink()
     return {"saved": "video", "job_id": job_id, "sha256": digest, "bytes": size, "path": str(final),
-            **review_relay(structured)}
+            **review_relay(structured), **extra}
+
+
+def latest_revision(structured):
+    """The newest revision after the first delivery ({n, notes}), or None for an unedited video."""
+    revisions = [r for r in structured.get("revisions") or [] if isinstance(r, dict)
+                 and isinstance(r.get("n"), int) and not isinstance(r.get("n"), bool) and 0 < r["n"] < 100]
+    return max(revisions, key=lambda r: r["n"]) if revisions else None
+
+
+def step_summary(step):
+    """What the user is told about one step or edit: spend, model, fallback, face verdict, error."""
+    if not isinstance(step, dict):
+        return None
+    face = step.get("face") if isinstance(step.get("face"), dict) else None
+    summary = {"op": step.get("op"), "status": step.get("status"), "spend_usd": step.get("spend_usd"),
+               "model": step.get("model"), "fallback_from": step.get("fallback_from"),
+               "face": face.get("verdict") if face else None}
+    if step.get("error"):
+        summary["error"] = str(step["error"])[:500]
+    return {key: value for key, value in summary.items() if value is not None}
+
+
+def edit_summary(structured, revision):
+    extra = {}
+    if revision is not None:
+        extra["revision"] = revision["n"]
+        if isinstance(revision.get("notes"), str) and revision["notes"].strip():
+            extra["revision_notes"] = revision["notes"].strip()[:2000]
+    step = step_summary(structured.get("last_step"))
+    if step and (revision is not None or structured.get("kind") == "project"):
+        extra["last_step"] = step
+    return extra
+
+
+# 一步的产物：类型 -> (允许的 content_type, 大小上限, 文件头检查)
+STEP_OUTPUTS = {
+    "video": ({"video/mp4"}, MAX_VIDEO_BYTES, lambda head: head[4:8] == b"ftyp"),
+    "image": ({"image/png", "image/jpeg"}, 32 * 1024 * 1024,
+              lambda head: head[:8] == b"\x89PNG\r\n\x1a\n" or head[:3] == b"\xff\xd8\xff"),
+    "audio": ({"audio/wav", "audio/x-wav", "audio/wave"}, 64 * 1024 * 1024,
+              lambda head: head[:4] == b"RIFF" and head[8:12] == b"WAVE"),
+}
+
+
+def fetch_step(run, structured):
+    """Save the output of the last make_video_step / edit step (its preview) under project/outputs/."""
+    step = structured.get("last_step")
+    if not isinstance(step, dict):
+        raise ValueError("This result carries no last_step; call get_remake_video with the job_id first")
+    if step.get("status") == "running" or structured.get("status") == "working":
+        raise ValueError("The step is still running: call get_remake_video with this job_id and wait_s 30, save the "
+                         "result and run fetch-step on it")
+    if step.get("status") != "done":
+        return {"saved": None, "status": step.get("status"), **(step_summary(step) or {})}
+    output = step.get("output")
+    if not isinstance(output, dict) or not isinstance(output.get("download"), dict):
+        return {"saved": None, "status": "done", "note": "this step has no file to download", **step_summary(step)}
+    handle = _handle(output.get("handle"), "last_step.output.handle")
+    kind = output.get("type")
+    if kind not in STEP_OUTPUTS:
+        raise ValueError("last_step.output.type must be video, image or audio")
+    types, limit, looks_right = STEP_OUTPUTS[kind]
+    content_type = str(output["download"].get("content_type", "")).lower()
+    if content_type not in types:
+        raise ValueError(f"A {kind} output cannot be {content_type!r}")
+    target = run / "project" / "outputs"
+    target.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = target / handle.replace("/", "_")
+    summary = {"handle": handle, "type": kind, "seconds": output.get("seconds"), **step_summary(step)}
+    if path.exists():
+        existing = hashlib.sha256(path.read_bytes()).hexdigest()
+        if existing == output["download"].get("sha256"):
+            return {"saved": "step", "path": str(path), **summary, "status": "already_saved"}
+        raise ValueError("A different file is already saved at " + str(path))
+    partial = target / f".partial-{secrets.token_hex(6)}"
+    try:
+        fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            digest, size = download(output["download"], "artifact", content_type, limit, stream)
+        with open(partial, "rb") as stream:
+            head = stream.read(12)
+        if not looks_right(head):
+            raise ValueError(f"Downloaded file does not match its declared {kind} type; nothing was kept")
+        os.link(partial, path)
+    finally:
+        if partial.exists():
+            partial.unlink()
+    return {"saved": "step", "sha256": digest, "bytes": size, "path": str(path), **summary}
 
 
 def fetch_pages(descriptors, target):
@@ -645,6 +1026,25 @@ def main():
     command.add_argument("--input", default="-")
     command = commands.add_parser("fetch-preview")
     command.add_argument("--input", default="-")
+    command = commands.add_parser("fetch-step")
+    command.add_argument("--input", default="-")
+    command = commands.add_parser("project-call")
+    command.add_argument("--instagram-handle")
+    command.add_argument("--creator-video", action="append", default=[])
+    command.add_argument("--creator-name")
+    command.add_argument("--attempt", type=int, default=1)
+    command = commands.add_parser("step-call")
+    command.add_argument("--job-id", required=True)
+    command.add_argument("--step", required=True)
+    command.add_argument("--attempt", type=int, default=1)
+    command = commands.add_parser("edit-call")
+    command.add_argument("--job-id", required=True)
+    command.add_argument("--edits", required=True)
+    command.add_argument("--attempt", type=int, default=1)
+    command = commands.add_parser("finish-call")
+    command.add_argument("--job-id", required=True)
+    command.add_argument("--handle", required=True)
+    command.add_argument("--attempt", type=int, default=1)
     args = parser.parse_args()
     if args.command == "init":
         print(init(args.workspace))
@@ -652,6 +1052,15 @@ def main():
         print(json.dumps(start_call(args.reference_url, args.instagram_handle, args.creator_video,
                                     args.creator_name, args.language, args.attempt, args.script_file),
                          ensure_ascii=False))
+    elif args.command == "project-call":
+        print(json.dumps(project_call(args.instagram_handle, args.creator_video, args.creator_name, args.attempt),
+                         ensure_ascii=False))
+    elif args.command == "step-call":
+        print(json.dumps(step_call(args.job_id, args.step, args.attempt), ensure_ascii=False))
+    elif args.command == "edit-call":
+        print(json.dumps(edit_call(args.job_id, args.edits, args.attempt), ensure_ascii=False))
+    elif args.command == "finish-call":
+        print(json.dumps(finish_call(args.job_id, args.handle, args.attempt), ensure_ascii=False))
     else:
         if args.input == "-":
             raw = sys.stdin.buffer.read(MAX_RESULT_BYTES + 1)
@@ -660,6 +1069,8 @@ def main():
                 raw = stream.read(MAX_RESULT_BYTES + 1)
         if args.command == "fetch-preview":
             print(json.dumps(fetch_preview(run_dir(), tool_result(raw)), ensure_ascii=False))
+        elif args.command == "fetch-step":
+            print(json.dumps(fetch_step(run_dir(), tool_result(raw)), ensure_ascii=False))
         else:
             print(json.dumps(fetch(raw), ensure_ascii=False))
 

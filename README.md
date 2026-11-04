@@ -303,7 +303,8 @@ Current release acceptance focuses on short-window content-language checks and u
 `verify-platform-rule` needs the `official_page_render_page` tool on `/mcp-pub` (restored by kabo#1817).
 
 `remake-viral-video` uses the `start_remake_video`, `get_remake_video` and `render_remake_video`
-tools on `/mcp-pub`. Its scripts download the brief and the finished MP4 from the same signed
+tools on `/mcp-pub`, plus `edit_remake_video` to change a delivered video and `start_video_project`,
+`make_video_step` and `finish_video_project` to build a video outside the remake formats step by step. Its scripts download the brief and the finished MP4 from the same signed
 `storage.googleapis.com` links as evidence downloads; there is no `stage` fallback for them.
 
 - The Kabo service, which is not part of this repository, owns MCP, OAuth, data tools, asynchronous

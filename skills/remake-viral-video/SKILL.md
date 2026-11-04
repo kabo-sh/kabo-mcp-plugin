@@ -1,9 +1,9 @@
 ---
 name: remake-viral-video
-description: "Have Kabo make a finished MP4 with the creator in it, from footage the user gives: a remake of a viral talking-head or voice-over reference (90 s or less; talking videos may cut to screens or show a product), or the creator saying a script they approved. Kabo generates it on its servers, not you. Use when asked to remake or copy a viral video onto themselves or a named creator, or to turn their script into a talking video. For only a script use script writing; for a teardown, video analysis."
+description: "Have Kabo make a finished MP4 with the creator in it, from footage the user gives: a remake of a viral talking-head or voice-over reference (90 s or less), the creator saying an approved script, a change to a delivered video, or a video outside those formats built step by step. Kabo generates it on its servers. Use when asked to remake a viral video onto themselves or a named creator, turn a script into a talking video, or change one already made. For only a script use script writing."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video."
-allowed-tools: start_remake_video get_remake_video render_remake_video
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all seven tools: remakes, edits of delivered videos and step-by-step projects)."
+allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project
 ---
 
 # Remake Viral Video
@@ -11,14 +11,32 @@ allowed-tools: start_remake_video get_remake_video render_remake_video
 Kabo's hosted runner does every deterministic step of a remake: analysis of the reference and the
 creator's footage, speech, first frames, talking video, grading, captions, review and delivery. You
 make the creative calls at one point only, the script, and keep the user informed. Everything runs
-through `start_remake_video`, `get_remake_video` and `render_remake_video`. If those tools are not
-available on this connection, say that video remakes are not available here and stop; never draw,
-record or assemble a video another way.
+through Kabo's tools: `start_remake_video`, `get_remake_video` and `render_remake_video` for a
+remake. If a tool a request needs is not available on this connection, say that this kind of video
+is not available here and stop; never draw, record or assemble a video another way.
 
 A remake takes about half an hour, mostly waiting on the runner. When the host supports one,
 run this Skill in a foreground sub-agent, wait for its final result and relay all of it (path,
 spend, review); never run it in the background and promise the video later. Without a foreground sub-agent,
 follow the same steps in the main thread.
+
+## Changes after delivery, and videos outside the formats
+
+- **A change to a delivered video** (other words in a line, caption colour or size, another
+  background for a time range, a picture or screen laid over a range, a new shot spliced in): call
+  `edit_remake_video` on that job and change only what the user named. Never remake the whole video
+  or start a new job for a local change. Read `references/edits.md` first.
+- **A new video in one of the formats below**: remake it whole (steps 1-8), the tested path.
+- **A new video outside these formats** (for example the creator copying a video's moves, the
+  creator doing something without speaking under long text cards and music, a product ad from
+  stills): build a project with `start_video_project`, one `make_video_step` per step, then
+  `finish_video_project`. Read `references/atoms.md` first.
+- **Plan before spending.** Before the first paid step or edit, tell the user in two or three lines
+  what you will make and roughly what it costs; wait for a go-ahead unless they already gave one.
+- **Face.** Steps that redraw the creator's face come back `pass` or `degraded` against the
+  creator's footage. Redraw it as few times as possible, prefer the creator's real footage, and
+  never put anyone else on screen. `degraded` never blocks delivery: deliver and say which part
+  looks less like the creator.
 
 ## What this covers
 
@@ -155,23 +173,8 @@ relay it and ask for a corrected input; nothing was started.
   `message` in one line, then call `start_remake_video` again with the same arguments after
   `retry_after_s` seconds (wait with the host's own sleep or wait facility); the same fetches are
   picked up.
-- A tool error carries `code`, `message` and `retryable`. No remake was started by any of them;
-  relay `message` in plain words:
-  - `validation_error` (a link or handle that cannot be used, a reference over 90 seconds, a video
-    that cannot be fetched, no usable reels, the same video in both roles): no remake fee was charged
-    and the daily remake limit was not used. Ask for a different input instead of resubmitting.
-  - `quota_exceeded` with `retryable: false`: the daily remake limit (or the daily data allowance)
-    is reached. Say no new remake was started and another can start tomorrow.
-  - `quota_exceeded` with `retryable: true`: another remake is still running. Say one remake runs
-    at a time and offer to start this one when it finishes.
-  - `conflict`: this key was already used with different inputs. Build the arguments again with
-    `--attempt 2` (then 3, ...) and call again.
-  - `subscription_required`: a remake needs a Kabo Pro subscription; say so.
-  - `service_unavailable` with `retryable: false`: Kabo could not fetch the videos on its side; no
-    remake was started. Do not retry with the same key. Say so; if the user wants to try again later,
-    build the arguments again with the next `--attempt` and call once.
-  - `service_unavailable` or another error with `retryable: true`: try once more after a minute; if
-    it fails again, say remakes are unavailable right now.
+- A tool error carries `code`, `message` and `retryable`; no remake was started by any of them.
+  Read `references/tool-errors.md` and follow it.
 
 Once there is a `job_id`, call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30, "all_models": true}` until the
 status is no longer `preparing`. Analysis takes about ten minutes. Tell the user the current stage
@@ -273,14 +276,8 @@ cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill di
 It writes `render/render_remake_video.json`. Call `render_remake_video` with that file's content as
 its arguments, unchanged. An accepted render returns `status: "running"`. A retry of an accepted
 render returns the current state and never launches twice, so on a timeout or lost response call
-it again with the same arguments. A `conflict` error with `retryable: true` means the job's brief
-could not be read: call once more after a minute, then report it.
-`quota_exceeded` with `retryable: true` from `render_remake_video` means another remake of this
-account is still being prepared or rendered; one runs at a time. Nothing was started and the job
-keeps waiting with its script: tell the user, wait for the other one (poll this job with
-`get_remake_video` every few minutes, or let the user ask later) and call `render_remake_video` again
-with the same arguments. A result with
-`failure: "unsupported_type"` is handled as in step 2.
+it again with the same arguments. For a `conflict` or `quota_exceeded` error, read
+`references/tool-errors.md`. A result with `failure: "unsupported_type"` is handled as in step 2.
 
 **The runner checks the documents first, after render returns.** If they fail, a later
 `get_remake_video` shows `waiting_script` again, with `gate_message` (the runner's reason, for
