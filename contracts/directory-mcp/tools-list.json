@@ -16520,7 +16520,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Run one paid step on a ready project or delivered remake; inputs are file handles from the job, the result is a new handle. Top-level. One step at a time per account; tell the user the plan and cost first. Poll get_remake_video with project true.",
+      "description": "Run one paid step on a ready project or delivered remake; inputs are file handles from the job, the result is a new handle. Top-level. One step at a time per account; tell the user the plan and cost first. Poll get_remake_video with project true. With no creator footage, persona makes an invented AI presenter (never a real person).",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -16645,7 +16645,8 @@
               "trim",
               "mux",
               "extract_audio",
-              "voice_change"
+              "voice_change",
+              "persona"
             ],
             "type": "string"
           },

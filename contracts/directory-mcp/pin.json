@@ -4,7 +4,7 @@
   "sourceCommand": "pnpm --filter @kabo/api mcp:audit --surface directory --output <directory>",
   "files": {
     "tools-list.json": {
-      "sha256": "b9c9308a2a5035790ed4d0fb9371489e8e029293328b90e33506a6f2f0f722c3"
+      "sha256": "b4fc6fba11122b2b8a2d94abedcbf5b556c5793a22f94ff2eb853d7eb74b1f05"
     },
     "annotations.md": {
       "sha256": "3df49fb1dd6ef94becec0d28043d4438198b914b17b7a35214d8f376bdd06941"

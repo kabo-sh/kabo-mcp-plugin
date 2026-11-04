@@ -31,8 +31,9 @@ a video or advice on their account, start nothing and name the Skill that fits (
   on that job, changing only what the user named; never a new job. Read `references/edits.md`.
 - **Anything else** -- the creator copying a video's moves, doing something without speaking
   under text cards and music, a product ad from stills, a reference the remake refused because
-  nobody talks on camera in it, a generated clip without the creator, or creator footage with no
-  speech (a stock voice reads the lines): a project, `start_video_project` then one
+  nobody talks on camera in it, a generated clip without the creator, creator footage with no
+  speech (a stock voice reads the lines), or no material of the user at all (an invented AI
+  presenter, never a real person): a project, `start_video_project` then one
   `make_video_step` per step then `finish_video_project`. Read `references/atoms.md`.
 - **Plan before spending**: before the first paid step or edit, say in two or three lines what you
   will make and roughly what it costs; wait for a go-ahead unless they already gave one.

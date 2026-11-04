@@ -320,6 +320,8 @@ STEP_OPS = {
     "mux": ({"video": "h", "audio": "h"}, {"video", "audio"}, {"mode": "mux_mode", "gain_db": "mux_gain"}, {"mode"}),
     "extract_audio": ({"video": "h"}, {"video"}, {}, set()),
     "voice_change": ({"media": "h"}, {"media"}, {"voice": "change_voice"}, {"voice"}),
+    # 契约 v1.5：没有任何本人素材时的虚构 AI 人物（定妆照）；seed_images 按契约在 params 里，是非真人的风格图句柄。
+    "persona": ({}, set(), {"description": "persona", "seed_images": "seed_images"}, {"description"}),
 }
 EDIT_KINDS = {
     "lines": ({"lines"}, set()),
@@ -384,6 +386,17 @@ def _param(kind, value, where, op):
         return
     elif kind == "audio":
         ok, message = value in ("base", "clip"), "base or clip"
+    elif kind == "persona":
+        ok = isinstance(value, str) and bool(value.strip()) and len(value) <= 600 and not re.search(r"@\w|https?://", value)
+        message = ("a description of an invented person, at most 600 characters, with no handle or link "
+                   "(a persona never depicts a real, identifiable person)")
+    elif kind == "seed_images":
+        if not isinstance(value, list) or len(value) > 4:
+            raise ValueError(f"{where} must list 0 to 4 style picture handles")
+        for n, item in enumerate(value):
+            if not _handle(item, f"{where}[{n}]").endswith((".png", ".jpg")) or item.startswith("creator/"):
+                raise ValueError(f"{where}[{n}] must be a picture that is not of a real person (not a creator/ file)")
+        return
     elif kind == "mux_mode":
         ok, message = value in ("replace", "mix"), "replace or mix"
     elif kind == "mux_gain":

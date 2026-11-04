@@ -19,6 +19,7 @@ Only for a new video outside the remake formats, for example:
 - the creator's own footage placed somewhere else, with new words, or in another language;
 - a reference the remake refused because nobody talks to the camera in it (below);
 - a short clip without the creator in it (a scene, an animal, an object), from no-face steps only;
+- no material of the user at all but someone should present: an invented AI presenter (`persona`);
 - the creator's footage has no speech: their lines are read by a stock voice (below).
 
 A request that fits a remake format is remade whole even when parts could be built step by step. A
@@ -44,6 +45,26 @@ added to a ready project later (`--job-id`, below).
 draw no face of the creator (`still`, `animate`, `text_cards`, `music`, `tts` with a stock voice,
 and the editing steps); a face step is refused with `no_creator`. Never present a generated person
 as the creator or as any real person.
+
+**An invented AI presenter (`persona`).** Only when the user has no footage or photos of themselves
+or of the creator at all and wants someone on screen: offer an invented presenter and, once they
+agree, make one `persona` step first:
+
+```json
+{"op": "persona", "inputs": {}, "params": {"description": "an invented woman in her thirties, short dark hair, warm smile, casual denim shirt"}}
+```
+
+It makes two to four portrait pictures of the same invented person (`creator/persona_NN.png`);
+after that the face steps work as usual and are checked against those pictures, and the voice is a
+stock voice the user picks (`tts` `voice`, below). `params.seed_images` may add up to four style
+pictures (handles of pictures that show no real person).
+
+- The persona is always fictional. Never describe, name or imitate a real, identifiable person (a
+  celebrity, a public figure, someone the user names, or the user); refuse such a request and offer
+  an invented person instead. No handles or links in the description.
+- Never mix: a project with the creator's real footage or photos cannot get a persona, and a
+  persona project cannot take creator footage later. When real footage exists, use it instead.
+- At delivery, say plainly that the person on screen is an AI-generated fictional presenter.
 
 **No speech in the creator's footage.** `tts` reads lines in the creator's cloned voice by default;
 with nothing to clone it is refused with `no_voice`. First ask for a link to a video of the
@@ -75,6 +96,7 @@ Pass the pick as `params.voice` of `tts`, and say at delivery that a stock voice
 | Another sound track on a video | `mux` (`mode` `replace` or `mix`), `extract_audio` to take a video's sound | |
 | A picture over a range, a clip spliced in, clips joined | `overlay`, `splice`, `concat` | |
 | A still from a video (to use as a picture, or to look at a moment) | `frame` | cheap; also how you see a video |
+| Someone on screen when the user has no footage or photos of anyone real | `persona` first (above), then the face steps | an invented presenter; never a real person |
 
 Pictures of the creator come from their photos or from their videos: take a `frame` where the face
 is clear and frontal (and, for `motion`, the whole body when there is such a moment). Never use the
@@ -122,7 +144,7 @@ unless the user already asked you to go ahead.
 Rough provider prices per second of output, for the estimate only (the result's `spend_usd` is
 what is charged): `motion` about $0.17-0.40, `refvideo` about $0.20-0.24, `replace` about $0.30,
 `lipsync` about $0.08 (or about $0.20 per call up to 40 s with `fal-ai/latentsync`), `talking` from
-under $0.01 to about $0.30 depending on the model. `still` is a few cents per picture; `animate`
+under $0.01 to about $0.30 depending on the model. `still` is a few cents per picture and `persona` about $0.15 per portrait; `animate`
 and `voice_change` are cents per second; `tts`, `frame`, `trim`, `mux`, `extract_audio`, `bg`,
 `overlay`, `splice`, `concat`, `text_cards`, `music`, `captions` and `face_check` cost little or
 nothing. A project has a budget (about $20); a step that would go over it is refused with
@@ -177,7 +199,8 @@ Errors from `start_video_project` are read as in `references/tool-errors.md`.
 
 - `validation_error`: read `message`. `workspace_expired`: the job's files are gone (kept 14 days);
   offer a new project. `no_creator`: a face step in a project without the creator. `no_voice`:
-  nothing to clone; ask for a recording, then offer a stock voice (above).
+  nothing to clone; ask for a recording, then offer a stock voice (above). A `persona` refused
+  because the project has creator material: use that material instead.
 - `quota_exceeded`: over the project's budget or a daily limit; nothing was generated. Tell the
   user; do not split the step to get around it.
 - A step that ends `failed`: relay `message` in plain words and the spend, if any; try another
@@ -188,6 +211,7 @@ Errors from `start_video_project` are read as in `references/tool-errors.md`.
 
 Tell the user: the local path; what was made, step by step, in two or three lines; the total spend
 (`project.spend_usd`); each face verdict, and in plain words which part looks less like the
-creator when a step was `degraded`; any fallback model or stock voice used. A degraded face check
+creator when a step was `degraded`; any fallback model or stock voice used; for a persona, that
+the presenter is an AI-generated fictional person. A degraded face check
 never blocks delivery. Do not claim views, retention or likeness that nobody measured, and suggest
 the user watch it in full before publishing.

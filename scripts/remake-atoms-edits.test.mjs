@@ -48,7 +48,7 @@ test("工具清单含四个新工具（权限 video）；get_remake_video 带 pr
   for (const key of ["kind", "handles", "revisions", "last_step", "lines"]) assert.ok(project[key], key);
   assert.ok(project.status.enum.includes("ready") && project.status.enum.includes("working"));
   assert.ok(get.inputSchema.properties.project && get.inputSchema.properties.cancel);
-  for (const op of ["trim", "mux", "extract_audio", "voice_change", "text_cards", "music"])
+  for (const op of ["trim", "mux", "extract_audio", "voice_change", "text_cards", "music", "persona"])
     assert.ok(pinned.get("make_video_step").inputSchema.properties.op.enum.includes(op), op);
 });
 
@@ -96,6 +96,7 @@ test("project-call / step-call / edit-call / finish-call 生成的入参通过�
     extract: { op: "extract_audio", inputs: { video: "input/ref_01.mp4" }, params: {} },
     voice: { op: "voice_change", inputs: { media: "a06.wav" }, params: { voice: "creator" } },
     preset: { op: "tts", inputs: {}, params: { lines: ["Hi."], voice: "536d3a5e000945adb7038665781a4aca" } },
+    persona: { op: "persona", inputs: {}, params: { description: "an invented man in his twenties, curly hair, green hoodie", seed_images: ["input/img_01.png"] } },
   };
   for (const [name, step] of Object.entries(steps)) {
     const file = path.join(run, "project/steps", `${name}.json`);
@@ -138,6 +139,9 @@ test("step-call / edit-call 在付费调用前拒收路径、链接、未列出�
     [{ op: "overlay", inputs: { base: "a01.mp4", media: "a02.png" }, params: { t0: 5, t1: 2 } }, /t1 must be after t0/],
     [{ op: "music", inputs: { base: "a01.mp4" }, params: { mood: "epic" } }, /calm, upbeat/],
     [{ op: "tts", inputs: {}, params: { lines: ["Hi."], voice: "someone-else" } }, /stock voices/],
+    [{ op: "persona", inputs: {}, params: { description: "looks exactly like @somecelebrity" } }, /invented person/],
+    [{ op: "persona", inputs: {}, params: { description: "a presenter", seed_images: ["creator/creator-1.jpg"] } }, /not of a real person/],
+    [{ op: "persona", inputs: {}, params: {} }, /needs params description/],
     [{ op: "mux", inputs: { video: "a01.mp4", audio: "a02.wav" }, params: { mode: "replace", gain_db: 9 } }, /-30 to 6/],
   ];
   for (const [step, message] of bad) {

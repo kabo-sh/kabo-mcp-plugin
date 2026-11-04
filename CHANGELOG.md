@@ -14,6 +14,9 @@
     不含本人的生成视频只用无脸步骤（G5）；本人视频没人说话时先要录音、没有再让用户选预设音色（G3）；
     用户要求时用 `get_remake_video` 的 `cancel: true` 取消卡住的任务（G6）；description 收窄为只在要成片 / 改成片时触发，
     写稿、拆解、账号诊断不触发（G8）。
+  - 契约 v1.5（G4）：用户完全没有本人素材时，可用 `persona` 做一个虚构 AI 出镜人（定妆照 + 预设音色），之后照常用原子；
+    只能是虚构人物、不指向真实可识别的人，有本人素材时不用、两者不混用，交付时说明是 AI 生成的虚构人物。
+    `step-call` 校验 description（≤600 字、不含 @账号或链接）与 seed_images（≤4 张、非 creator/ 句柄）。
   - `scripts/static_host.py`：`project-call`（创作者视频 0–4 段、照片、参考视频、参考图，或 `--job-id` 往已有项目追加）、
     `step-call`（含 trim / mux / extract_audio / voice_change、tts 预设音色）、`edit-call`、`finish-call` 按严格形状核对、
     只收工作区句柄、幂等键 `<skill>:<运行目录>:<工具>:<入参摘要>:a<序号>`；`fetch-step` 与 `fetch-revision` 只下载工具结果
@@ -21,7 +24,7 @@
   - 为腾出正文长度，错误处理移到 `references/tool-errors.md`、稿件被退回的处理移到 `references/script-returned.md`，内容不变。
 - 契约：`tools-list.json` 以数据层导出的 `mcp-pub-new-tools.json`（kabo `yutian/remake-atoms-launch`，golden
   `1e86839f…`）为底，再按契约 v1.2–v1.4 补：`start_video_project` 的 `creator` 可选、`creator.photo_urls`、
-  `reference_video_urls`、`reference_image_urls`、`job_id`；`make_video_step` 的 op 加 trim / mux / extract_audio / voice_change；
+  `reference_video_urls`、`reference_image_urls`、`job_id`；`make_video_step` 的 op 加 trim / mux / extract_audio / voice_change / persona；
   `get_remake_video` 加 `cancel` 与 `project.lines`。**v1.2–v1.4 部分是插件侧按契约起草，待数据层正式导出后整份重新导入并钉住**；未发版本。
 
 ## 1.0.10（2026-11-03；GitHub Release）
