@@ -1,8 +1,9 @@
 # Projects: building a video step by step
 
-A whole remake (steps 1-8 of `SKILL.md`) is the tested path for a talking, talking-with-screens,
-talking-with-product or voice-over reference, and it stays the default for those. A project is the
-same kinds of steps one at a time, for a new video those formats do not cover. Kabo runs every
+Which path and which steps follow "Choose what to make" in `SKILL.md`: keep what the user did
+not ask to change, keep real pixels, use the material already here, and keep the whole remake for
+"the same structure again". A project is the same kinds of steps one at a time, for whatever the
+whole remake does not make. Kabo runs every
 step on its servers; you decide what to make, in what order and with which words, and call the
 tools. Never draw, record or assemble a picture yourself.
 
@@ -11,19 +12,20 @@ with `"project": true` to read the project (its `handles`, `last_step`, `revisio
 
 ## When to build a project
 
-Only for a new video outside the remake formats, for example:
+For a new video the whole remake does not make, for example (examples, not a routing table):
 
 - the creator doing the moves of a video (a dance, a workout, a trend);
 - the creator doing something without speaking, under long text cards and music;
 - a short product ad from product pictures and the creator's footage;
 - the creator's own footage placed somewhere else, with new words, or in another language;
+- a reference's own shot and moves kept, with the creator in it;
 - a reference the remake refused because nobody talks to the camera in it (below);
 - a short clip without the creator in it (a scene, an animal, an object), from no-face steps only;
 - no material of the user at all but someone should present: an invented AI presenter (`persona`);
 - the creator's footage has no speech: their lines are read by a stock voice (below).
 
-A request that fits a remake format is remade whole even when parts could be built step by step. A
-change to a video that was already delivered is an edit (`references/edits.md`), not a project.
+A change to a video that was already delivered is an edit or steps on that job
+(`references/edits.md`), not a project.
 
 ## What goes into a project
 
@@ -79,16 +81,16 @@ offer the stock voices and let the user pick; never pick one for them:
 
 Pass the pick as `params.voice` of `tts`, and say at delivery that a stock voice was used.
 
-## Pick the step by what must stay and what must change
+## What each step takes
 
 | The request | Step (`op`) | Why |
 |---|---|---|
 | The creator's own footage saying other words | `tts` for the new line, then `lipsync` (video + that audio) | real pixels, new mouth |
 | The creator's own footage somewhere else | `still` for the plate (no person), then `bg` (video + plate) | real pixels, new background |
-| The creator doing the moves of a video | `motion` (a picture of the creator + the movement video) | the movement comes from the video, the person from the picture; likeness is modest. The default draws full-body motion; `fal-ai/kling-video/v3/pro/motion-control` keeps the face better but keeps the picture's framing, so it needs a standing full-body picture |
+| The creator doing the moves of a video | `motion` (a picture of the creator + the movement video) | the movement comes from the video, the person from the picture (a `frame` of their footage will do); likeness is modest. The default draws full-body motion; `fal-ai/kling-video/v3/pro/motion-control` keeps the face better but keeps the picture's framing, so use it only with a standing full-body picture |
 | A new shot of the creator doing something without speaking | `refvideo` (1-10 pictures + what happens in words; optional `ref_video` to follow a motion) | the model draws the shot from the pictures; it is checked against the creator |
 | A still of the creator speaking a line | `tts`, then `talking` (picture + line audio) | a talking take from one picture |
-| A reference shot frame for frame with the creator in it | `replace` (shot + picture of the creator), then `lipsync` with the creator's words from `tts` | keeps the shot, props and gestures. Small moving text can garble |
+| A reference's own shot and moves with the creator in it | `replace` (shot + picture of the creator), then `lipsync` with the creator's words from `tts` | keeps the camera, props and gestures; a whole remake instead recreates the scene. Small moving text can garble |
 | B-roll, a scene, a product shot (no creator) | `still` (product pictures as `refs`), then `animate` to move it | no face is drawn |
 | Words that must be read on screen | `text_cards` on a base video | real text; never ask a generated picture to contain words |
 | Background music | `music` with a mood | royalty-free; if it says it is not available, leave music out and say so |
@@ -134,8 +136,9 @@ Two settings on other steps: `lipsync` takes `sync_mode` (`cut_off` by default, 
 sync-lipsync model (`loop`, `bounce` and `silence` are charged on the longer of the two); `tts`
 takes `speed` 0.5-2 for the voice's own pace (1 is normal).
 
-Pictures of the creator come from their photos or from their videos: take a `frame` where the face
-is clear and frontal (and, for `motion`, the whole body when there is such a moment). Never use the
+Pictures of the creator come from their photos or from their videos: choose a `frame` yourself
+where the face is clear and frontal (for `motion`, the whole body when there is such a moment;
+otherwise use what there is and say so). Never use the
 creator's own footage as the movement source when the user asked for someone else's moves: add that
 video as a reference video.
 
@@ -167,8 +170,8 @@ creator.
 ## Plan before spending
 
 Before the first paid step, write `project/plan.json` in the run directory and tell the user in two
-or three lines what you will make, which steps, and roughly what it costs. Wait for a go-ahead
-unless the user already asked you to go ahead.
+or three lines what you will make, which steps, and roughly what it costs, then go ahead. Ask
+first only when it goes beyond what the user already agreed to.
 
 ```json
 {"goal": "one line: what the user asked for",

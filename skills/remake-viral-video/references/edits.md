@@ -28,7 +28,9 @@ made with `text_cards`, never into a generated picture.
 creator's videos are handles too (`creator/...`). This version cannot take photos, screen
 recordings or other files from the user's computer. A public picture link (a product, a place) can be
 added to the job first with `project-call --job-id` and `--reference-image` (`references/atoms.md`,
-"Run it"); otherwise offer a picture Kabo can make or a frame from the creator's footage.
+"Run it"). Look first at what the job already has: a `frame` or `crop` of `final.mp4`, its takes,
+the creator's footage or the reference (a product close-up is often already in it); ask for a
+picture only when none of it will do.
 
 **Finding the time range.** `get_remake_video` with `project` true lists the delivered video's
 `lines` with `row`, `text`, `t0` and `t1` (seconds). When the user names a moment by its words,
@@ -42,8 +44,8 @@ Tell the user in one or two lines exactly what will change and what stays the sa
 cost: a caption change costs next to nothing; a line change costs the new voice line plus
 re-syncing the changed take (usually well under a dollar per line); a new background, overlay or
 clip costs what its picture or clip costs (`references/atoms.md`, "Plan before spending"). An edit
-has a budget (about $10 per job); over it, nothing is done and `quota_exceeded` comes back. Wait for
-a go-ahead unless the user already asked you to go ahead.
+has a budget (about $10 per job); over it, nothing is done and `quota_exceeded` comes back. Then
+go ahead; ask first only when it goes beyond what the user already agreed to.
 
 ## Run it
 

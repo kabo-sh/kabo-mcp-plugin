@@ -26,6 +26,13 @@
     `tts` 加 `speed`（0.5–2）。只加工具，不加场景化步骤或配方，场景由宿主组合原子。`step-call` 按服务端同口径校验
     （比例框非空且在画面内、retime 的 mode 与 speed/duration 搭配、sync_mode 与模型搭配），并先核 `layout` 的 layers 与句柄一一对应。
   - 为腾出正文长度，错误处理移到 `references/tool-errors.md`、稿件被退回的处理移到 `references/script-returned.md`，内容不变。
+  - 路线判断与网页端 creator-remake-web 0.1.40、本地复刻包（AGENTS.md / atoms.md）对齐：正文「Which path」换成
+    「Choose what to make」——五条通用原则（没说改的都保留；能保留真实像素就不重画脸；先用已有素材再问；只问只有用户能决定
+    或知道的事；整条复刻是「照这种结构再拍一条」的快捷路径，不是兜底）+ 按「保留什么 / 改变什么」组织的能力目录（每项标会不会
+    重画脸）。原片同镜头同动作走 `replace` → `lipsync`，本人视频换词/换语言走 `tts` → `lipsync`，整条复刻没做的（B-roll、特写）
+    交付后用步骤或修改补。项目步骤与修改说完计划和大约花费即开做，超出用户已同意的才先问（原为等用户点头）。
+    `motion` 不把全身照当前置（本人画面抽帧即可）；修改要配图时先看成片、素材与参考片里有没有。为不超 21,000 字符压缩了第 1、2 步与
+    「What this covers」的几处措辞，规则不变。
 - 契约：`tools-list.json` 整份换成数据层正式导出（kabo 分支 `yutian/remake-r93-tool-atoms` 提交 `e6ecd21b`，
   即并入 kabo#2022 的契约 v1.6；golden `4f5399c6…`，73 个工具，逐字节一致），`pin.json` 重新钉住。相对 main：新增 `start_video_project`、`make_video_step`、
   `edit_remake_video`、`finish_video_project`（`make_video_step` 的 op 枚举含 v1.6 的四个工具级原子）；`get_remake_video` 加 `project: true`（项目状态）与 `cancel: true`，标注改为非只读；
