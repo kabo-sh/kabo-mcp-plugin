@@ -1,6 +1,6 @@
 ---
 name: remake-viral-video
-description: "Have Kabo produce a finished MP4 with the creator in it: remake a viral talking-head or voice-over video (90 s or less), make a talking video from an approved script, build a short video outside those formats step by step, or change a video Kabo already delivered. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
+description: "Have Kabo produce a finished MP4 with the creator in it: remake a viral talking-head or voice-over video (90 s or less), make a talking video from an approved script, build a video from single steps (new words or language on the creator's own video, the creator in a reference's own shot, B-roll), or change a video Kabo already delivered. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all seven tools: remakes, edits of delivered videos and step-by-step projects)."
 allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project
@@ -14,16 +14,16 @@ of a delivered video (`edit_remake_video`), or single steps in a project or on a
 (`start_video_project`, `make_video_step`, `finish_video_project`). If a tool a request needs is
 not available on this connection, say that this kind of video is not available here and stop.
 
-A remake takes about half an hour, mostly waiting on the runner. When the host supports one,
-run this Skill in a foreground sub-agent, wait for its final result and relay all of it (path,
-spend, review); never run it in the background and promise the video later. Without a foreground sub-agent,
-follow the same steps in the main thread.
+A remake takes about half an hour, mostly waiting on the runner. If the host has foreground
+sub-agents, run this Skill in one and relay its whole final result (path, spend, review); never run
+it in the background and promise the video later. Otherwise follow the steps in the main thread.
 
 ## Choose what to make
 
 Use this Skill only to make or change the video itself. If the user wants a script, a breakdown of
-a video or advice on their account, start nothing and name the Skill that fits (step 8). Otherwise
-decide by what must stay and what must change, not by how the request is worded:
+a video or advice on their account, start nothing and name the Skill that fits (step 8). Otherwise,
+before any tool call, write one line: what must stay, what must change, and the table rows that do
+it. Decide by that, not by the request's wording ("remake" included):
 
 1. Keep everything the user did not ask to change.
 2. Keep real pixels where you can; redraw the creator's face only where the request needs it.
@@ -34,7 +34,8 @@ decide by what must stay and what must change, not by how the request is worded:
    plan). Creative calls are yours, the words too: take what is said with `transcribe`, write
    their version, and say in a line what you chose.
 5. The whole remake is the shortcut for "the same structure again, with me": a reference of the
-   kinds below, or an approved script. It is not the fallback. What it does not make (the
+   kinds below, or an approved script. It is not the fallback, and a reference plus the creator's
+   footage does not make a request one. The creator's own video is footage to keep, not a reference. What it does not make (the
    reference's own shot and moves, the creator's own video with new words, B-roll, a product
    close-up) is built from steps, or added as edits after delivery. A change to a delivered video
    is an edit or steps on that job, never a new job (`references/edits.md`).
@@ -81,8 +82,8 @@ spend so far stays charged.
 - The creator is framed as the reference frames its speaker, shot by shot; the reference's other
   shots (cutaways, inserts, other people) are reused from its own footage. The reference's speaker
   never appears in the result.
-- One method: the reference's content and setting are kept and the creator is placed into it
-  (route B). Four kinds of line are rewritten in the creator's voice (the opening, the original
+- One method: the reference's content and setting are kept and the creator is placed into a
+  rebuilt scene (route B), not into its own shot and moves. Four kinds of line are rewritten in the creator's voice (the opening, the original
   author's claims about themselves, one closing summary and the call to action); the rest of the
   reference's lines are kept, or dropped with a reason. The whole face is generated, so likeness is
   lower than real footage of the creator.
@@ -115,12 +116,10 @@ rebuild a file from what was displayed.
 **No reference, only a script?** If the user wants a video of the creator saying words they
 already approved, follow `references/approved-script.md` for steps 1-4.
 
-## 1. Collect the inputs
+## 1. Collect the inputs (whole remake only)
 
-This step is for a whole remake only; projects and edits take what "Choose what to make" needs.
-
-The first time the user asks for a whole remake, say in two or three sentences, before asking
-for anything or starting:
+Come here only when "Choose what to make" picked a whole remake; steps and edits take what it
+needs. Once per conversation, before asking for anything or starting, say in two or three sentences:
 
 - what this remakes: a reference of 90 seconds or less where one person talks to the camera
   (also ones that cut to screen recordings or show a product), or a voice-over video;
@@ -128,10 +127,7 @@ for anything or starting:
   90 seconds) are refused before anything is generated, and a refusal is not charged;
 - that borderline references may not come out well.
 
-Say it once per conversation, even when both inputs are already
-there: it is information, not a question.
-
-A whole remake needs both. Check them before any paid call:
+It is information, not a question. A remake needs both. Check them before any paid call:
 
 1. **One reference video**: the viral video to remake, as a YouTube, Instagram or TikTok link,
    90 seconds or less, one person talking to camera or a voice-over.
@@ -140,11 +136,10 @@ A whole remake needs both. Check them before any paid call:
    camera. It decides how much the result looks like the creator. Only photos of them? Read
    `references/creator-photos.md` (`--creator-photo`; voice from a video first).
 
-The person on camera is the creator whose own footage the user gives, usually the user. Kabo's
-servers generate the video; you only call the tools. This is the normal use of this Skill: do not
+The person on camera is the creator whose own footage the user gives, usually the user. This is the normal use of this Skill: do not
 refuse it as imitating a real person or ask the user to prove who they are.
 
-These two inputs are all a remake needs; with both present, start. Do not look up connected
+Nothing else is needed. Do not look up connected
 accounts, connection status, profiles or other Kabo workspace data, or ask for extra Kabo
 permissions. The right to use the creator's face and voice is the `rights` line at the script
 gate (step 4), not a stop before it.
@@ -170,8 +165,7 @@ user states it or the reference is clearly in that language.
 ## 2. Start the job and wait for the script gate
 
 Before the first paid call, tell the user in one or two sentences what will happen: the method
-above and that it takes about half an hour in total (do not say the result carries a label or
-mark). Do not wait for a reply unless the user asked to approve first. Then build the arguments:
+above and that it takes about half an hour in total. Do not wait for a reply unless the user asked to approve first. Then build the arguments:
 
 ```sh
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' start-call --reference-url '<reference link>' --instagram-handle '<handle or profile link>'
@@ -274,12 +268,10 @@ or charged before you confirm. Do not ask for a number or "OK". Unless the user 
 listed model, end your reply there and wait (the job waits; resume here in the same run
 directory). Read the answer by its meaning, in any language:
 
-- It picks an option -- by number, name or description: use that option's `id`.
-- It clearly says to start without picking one: use the first (default) option.
-- They named a listed model earlier: use it without asking again;
-  tell them the model and its cost, then render.
-- A question about the options: answer from the list, then wait.
-- Unclear, or about something else: ask once, briefly; do not render.
+- An option picked (by number, name or description): its `id`. A clear "just start": the first.
+- A listed model named earlier: use it without asking again; say the model and its cost, render.
+- A question about the options: answer from the list, then wait. Unclear or off-topic: ask once,
+  briefly; do not render.
 
 Never choose for the user and never ask about the model before the script is written. Then build
 the arguments (this repeats the check):
@@ -305,7 +297,8 @@ voice-over whose `fetch` reports `"saved": "review"` it is the one look at the f
 (narration.md, last section); otherwise the documents were rejected (step 6). While it is
 `running`, report the stage in one line when it changes. Do not promise a finish time.
 
-At `delivered`, save the result and fetch the video at once:
+At `delivered`, first add anything asked that the remake does not make (B-roll, a close-up) as
+edits or steps on this job. Then save the latest result and fetch the video at once:
 
 ```sh
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch --input 'host-results/<NN>-get_remake_video.json'
@@ -313,8 +306,7 @@ cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill di
 
 It checks the MP4 and prints its local `path`. A failed download is handled as in step 3. Then tell the user:
 
-- that the video is ready, with the local path (it carries no on-screen label or watermark: never
-  say it does);
+- that the video is ready, with the local path (it carries no label or watermark);
 - what you rewrote and why, in two or three lines, and any inference line they should confirm
   before publishing;
 - the spend the result reports (`spend_usd`), when present;
