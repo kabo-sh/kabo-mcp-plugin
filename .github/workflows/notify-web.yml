@@ -23,10 +23,11 @@ jobs:
           # Fine-grained token or GitHub App token with actions/contents write on
           # kabo-sh/creator-skills only. Missing → skip; the release step or the cron covers it.
           GH_TOKEN: ${{ secrets.CREATOR_SKILLS_DISPATCH_TOKEN }}
-          TAG: ${{ github.event.release.tag_name || github.ref_name }}
+          # Informational only: the receiving job always resolves the latest release itself.
+          TAG: ${{ github.event.release.tag_name || 'latest' }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "::notice::CREATOR_SKILLS_DISPATCH_TOKEN is not set; Web picks up $TAG via the release step or creator-skills' cron."
+            echo "::notice::CREATOR_SKILLS_DISPATCH_TOKEN is not set; no dispatch sent for $TAG. To publish it to Web, run: gh workflow run publish-skill-registry.yml -R kabo-sh/creator-skills -f action=plugin-web-publish"
             exit 0
           fi
           jq -cn --arg tag "$TAG" '{event_type: "kabo-plugin-released", client_payload: {tag: $tag}}' \
