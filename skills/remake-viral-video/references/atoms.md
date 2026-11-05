@@ -88,18 +88,21 @@ Pass the pick as `params.voice` of `tts`, and say at delivery that a stock voice
 | The creator's own footage saying other words | `tts` for the new line, then `lipsync` (video + that audio) | real pixels, new mouth |
 | The creator's own footage somewhere else | `still` for the plate (no person), then `bg` (video + plate) | real pixels, new background |
 | The creator doing the moves of a video | `motion` (a picture of the creator + the movement video) | the movement comes from the video, the person from the picture (a `frame` of their footage will do); likeness is modest. The default draws full-body motion; `fal-ai/kling-video/v3/pro/motion-control` keeps the face better but keeps the picture's framing, so use it only with a standing full-body picture |
-| A new shot of the creator doing something without speaking | `refvideo` (1-10 pictures + what happens in words; optional `ref_video` to follow a motion) | the model draws the shot from the pictures; it is checked against the creator |
-| A still of the creator speaking a line | `tts`, then `talking` (picture + line audio) | a talking take from one picture |
+| A new shot of the creator doing something without speaking | `refvideo` (1-10 pictures + what happens in words; optional `ref_video` to follow a motion) | the model draws the shot from the pictures; it is checked against the creator. Up to 15 s; up to 30 s with `model` `kling/v4/reference-to-video` |
+| A new still of the creator: another pose, framing, outfit or setting | `first_frame` (`image`: a `frame`, a photo or `frame_sNN.png`; optional `refs` 0-3; `prompt`) | edits the picture; redraws the face and is checked against the creator |
+| A still of the creator speaking a line | `tts`, then `talking` (picture + line audio; optional `prompt` for the performance) | a talking take from one picture |
 | A reference's own shot and moves with the creator in it | `replace` (shot + picture of the creator), then `lipsync` with the creator's words from `tts` | keeps the camera, props and gestures; a whole remake instead recreates the scene. Small moving text can garble |
 | B-roll, a scene, a product shot (no creator) | `still` (product pictures as `refs`), then `animate` to move it | no face is drawn |
 | Words that must be read on screen | `text_cards` on a base video | real text; never ask a generated picture to contain words |
 | Background music | `music` with a mood | royalty-free; if it says it is not available, leave music out and say so |
-| Captions in the creator's style | `captions` | |
+| Captions in the creator's style | `captions` (optional `max_words` 1-8 per caption, `upper` for capitals) | |
 | Part of a video or audio | `trim` (`t0`, `t1`) | |
 | Another sound track on a video | `mux` (`mode` `replace` or `mix`), `extract_audio` to take a video's sound | |
 | The same words in a different, non-creator voice (for example a reference speaker's track that must not keep their voice) | `voice_change` with `voice: "warm_female"` (the only stock voice it has) | it cannot make the creator's voice: for that, `tts` with the creator's voice, then `lipsync` or `mux` |
 | A picture over a range, a clip spliced in, clips joined | `overlay`, `splice`, `concat` | |
-| A still from a video (to use as a picture, or to look at a moment) | `frame` | cheap; also how you see a video |
+| A still from a video (to use as a picture, or to look at a moment) | `frame` (`t` in seconds, or `at` `first` / `last`; any video handle) | cheap; also how you see a video |
+| Pictures held as a clip | `still_video` (`images` 1-8, `duration` in total, optional `zoom` 1-1.5 for a slow push-in, `fit` `cover` / `contain`) | tool step: silent 1080x1920 |
+| A sound's level, fades, tempo or length | `audio_edit` (`media`; `gain_db` or `normalize`, not both; `fade_in`, `fade_out`, `speed` 0.5-2 with pitch kept, `duration` to cut or pad) | tool step |
 | Someone on screen when the user has no footage or photos of anyone real | `persona` first (above), then the face steps | an invented presenter; never a real person |
 | A video or part of it faster, slower, looped, played back and forth, or held on its last frame | `retime` | tool step (below) |
 | One region of a video or picture, at a chosen output size | `crop` | tool step (below) |
@@ -154,7 +157,7 @@ creator.
 
 ## Rules for the face
 
-- `refvideo`, `motion`, `replace`, `lipsync` and `talking` redraw the creator's face. Kabo checks
+- `refvideo`, `motion`, `replace`, `lipsync`, `talking` and `first_frame` redraw the creator's face. Kabo checks
   each one against the creator's own footage and reports `face.verdict` `pass` or `degraded`.
 - Redraw the face as few times as possible: every pass moves it further from the creator. Prefer
   steps that keep real pixels (`lipsync` on real footage over `talking` from a still; `bg` over
@@ -164,6 +167,8 @@ creator.
   `fallback_from`. Mention it when you report the step.
 - A `degraded` result is kept, never a reason to stop. You may try the step once more with another
   listed model (a `model` param or `--attempt 2`); keep the better take and say what fell short.
+- When a step's notes say a box you gave covers on-screen text or a face, redo it without `box`
+  so it is placed automatically, or tell the user; never ignore it.
 - Never put anyone else in the creator's place, and never the speaker of a reference video.
   `still` and `animate` must not show the creator (that would be a face step without the check).
 
@@ -186,7 +191,7 @@ what is charged): `motion` about $0.17-0.40, `refvideo` about $0.20-0.24, `repla
 under $0.01 to about $0.30 depending on the model. `still` is a few cents per picture and `persona` about $0.15 per portrait; `animate`
 and `voice_change` are cents per second; `tts`, `frame`, `trim`, `mux`, `extract_audio`, `bg`,
 `overlay`, `splice`, `concat`, `text_cards`, `music`, `captions` and `face_check` cost little or
-nothing; `retime`, `crop`, `inpaint_text` and `layout` cost nothing. A project has a budget (about $20); a step that would go over it is refused with
+nothing; `first_frame` about $0.15 a picture; `retime`, `crop`, `inpaint_text`, `layout`, `still_video` and `audio_edit` cost nothing. A project has a budget (about $20); a step that would go over it is refused with
 `quota_exceeded` before anything is generated.
 
 ## Run it
@@ -206,7 +211,9 @@ written here as `static_host.py`.
    To add files to a ready project later: `static_host.py project-call --job-id '<id>'` with
    `--creator-photo`, `--reference-video` or `--reference-image`, and call `start_video_project`.
    A delivered remake's `job_id` can be used as a project directly; its handles include
-   `final.mp4`, `take_sNN.mp4`, `line_NN.wav` and `input/reference.mp4`.
+   `final.mp4`, `master.mp4` (the current cut without captions), `take_sNN.mp4`, `frame_sNN.png`
+   (each take's first frame), `broll_bNN.mp4` / `.png`, `line_NN.wav` and `input/reference.mp4` --
+   look at these before asking the user for material.
 2. **One step at a time.** Write the step as `project/steps/<NN>-<op>.json`:
 
    ```json

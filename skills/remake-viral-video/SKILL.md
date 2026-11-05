@@ -28,7 +28,8 @@ decide by what must stay and what must change, not by how the request is worded:
 1. Keep everything the user did not ask to change.
 2. Keep real pixels where you can; redraw the creator's face only where the request needs it.
 3. Use the material already here first -- the reference, the creator's footage and photos, a
-   delivered video, its takes and earlier results; ask for more only when none of it will do.
+   delivered video's `master.mp4`, takes, B-roll and first frames, earlier results; ask for more
+   only when none of it will do.
 4. Ask only what only the user can decide or knows (a fact, a real trade-off, money beyond the
    plan); make the creative calls yourself and say in a line what you chose.
 5. The whole remake is the shortcut for "the same structure again, with me": a reference of the
@@ -44,18 +45,21 @@ decide by what must stay and what must change, not by how the request is worded:
 | the creator and the words | the background | `bg` | no |
 | a reference shot: camera, moves, props | the person, then the words | `replace`, then `lipsync` | yes |
 | a movement in any video | who does it | `motion` (a picture of the creator: a `frame` of their footage will do) | yes |
-| the creator's look | a new still of them | `first_frame` (name as the step list gives it; else a `frame` of footage) | yes |
+| the creator's look | a new still of them (pose, framing, outfit, setting) | `first_frame` (edits a `frame` or photo) | yes |
 | the creator's look | a new shot of them, silent | `refvideo` | yes |
 | a picture of the creator | they speak a line | `talking` | yes |
 | any video or picture | what is laid over, cut in, joined, arranged or enlarged | `overlay`, `splice`, `concat`, `layout`, `crop`, `trim`, `frame` | no |
 | any video | its speed or length | `retime` | no |
+| a sound | its level, fades, tempo or length | `audio_edit` | no |
+| pictures | held as a clip, maybe a slow push-in | `still_video` | no |
 | any video or picture | burned-in text removed | `inpaint_text` | no |
 | -- | a picture without the creator; text to read; captions; music; sound | `still`, `animate`, `text_cards`, `captions`, `music`, `mux` | no |
 
 Before the first project step or edit, read `references/atoms.md` (what each step takes and
 costs) or `references/edits.md`, say in two or three lines what you will make and roughly what it
 costs, then go ahead. A `degraded` face check never blocks delivery: say which part looks less
-like the creator. Cancel a job (`get_remake_video` with `"cancel": true`) only when the user asks;
+like the creator. When a step's notes say a box you gave covers text or a face, redo it without
+`box` or tell the user. Cancel a job (`get_remake_video` with `"cancel": true`) only when the user asks;
 spend so far stays charged.
 
 ## What this covers
@@ -215,12 +219,11 @@ Save the result as above, then fetch the brief at once (the link is short-lived)
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch --input 'host-results/<NN>-get_remake_video.json'
 ```
 
-It downloads the bundle, checks its host, size and sha256, and writes the four brief files under
-`brief/work/`. When it says the link expired, the download was refused or the download is
+It downloads and checks the bundle and writes the four brief files under `brief/work/`. When it says the link expired, the download was refused or the download is
 unavailable, do what it prints: call `get_remake_video` again (that re-signs the link; nothing is
-re-run), save that result and fetch again. For an unavailable download, wait about a minute before
-calling again and stop after three tries; never call in a tight loop. If this host blocks scripts from the network, say that the remake cannot continue here; never
-rebuild the brief from what was displayed.
+re-run), save that result and fetch again; for an unavailable download wait about a minute
+between tries, at most three. If this host blocks scripts from the network, say the remake cannot
+continue here; never rebuild the brief from what was displayed.
 
 ## 4. Write the script (the only creative gate)
 
@@ -239,8 +242,7 @@ you. In short:
   and outfit exactly as in the identity references.
 
 Write the four documents as `script/script.json`, `script/opening_review.json`,
-`script/decisions.json` and `script/route_b_jobs.json` (a heredoc at the absolute path, or the
-host's file tool).
+`script/decisions.json` and `script/route_b_jobs.json`.
 
 **Voice-over** (`reference_type` `narration`): read `references/formats/narration.md` whole. The
 script rules are the same; `decisions` also carries the picture plan, `route_b_jobs` is
@@ -309,8 +311,7 @@ At `delivered`, save the result and fetch the video at once:
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch --input 'host-results/<NN>-get_remake_video.json'
 ```
 
-It checks the MP4's host, size and sha256 and prints its local `path`. An expired, refused or
-unavailable download is handled as in step 3. Then tell the user:
+It checks the MP4 and prints its local `path`. A failed download is handled as in step 3. Then tell the user:
 
 - that the video is ready, with the local path (it carries no on-screen label or watermark: never
   say it does);
