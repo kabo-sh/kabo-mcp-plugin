@@ -213,10 +213,16 @@ def _photo_url(raw):
     return url
 
 
-def creator_arguments(handle, video_urls, creator_name, reference=None):
-    """{creator, creator_name?}: an Instagram handle or 1-4 creator video links, checked like the server does."""
-    if bool(handle) == bool(video_urls):
-        raise ValueError("Give the creator as exactly one of --instagram-handle or --creator-video (1 to 4 links)")
+def creator_arguments(handle, video_urls, creator_name, reference=None, photo_urls=(), voice_preset=None):
+    """{creator, creator_name?}: an Instagram handle, or creator video and/or photo links, checked like the server does."""
+    photo_urls = list(photo_urls or [])
+    if bool(handle) == bool(video_urls or photo_urls):
+        raise ValueError("Give the creator as --instagram-handle, or as --creator-video and/or --creator-photo links")
+    if voice_preset is not None:
+        if voice_preset not in VOICE_PRESETS:
+            raise ValueError("--voice-preset must be one of: " + ", ".join(f"{k} ({v})" for k, v in VOICE_PRESETS.items()))
+        if handle or video_urls:
+            raise ValueError("--voice-preset is only for photos with no video of the creator speaking")
     if handle:
         handle = handle.strip()
         if handle.lower().startswith(("http://", "https://")):
@@ -228,25 +234,35 @@ def creator_arguments(handle, video_urls, creator_name, reference=None):
             raise ValueError("--instagram-handle must be an Instagram handle (letters, digits, '.', '_')")
         creator = {"instagram_handle": handle}
     else:
-        if not 1 <= len(video_urls) <= 4:
-            raise ValueError("Give 1 to 4 creator video links")
+        if not 1 <= len(video_urls) + len(photo_urls) <= 4:
+            raise ValueError("Give 1 to 4 creator video and photo links in total")
+        if photo_urls and not video_urls and voice_preset is None:
+            raise ValueError("Only photos were given, so there is no recording of the creator's voice: ask for a public "
+                             "video of them speaking first (--creator-video); only if they have none, let them pick a "
+                             "--voice-preset")
         urls = [_url(url, "Creator video") for url in video_urls]
+        photos = [_photo_url(url) for url in photo_urls]
+        if len(set(photos)) != len(photos):
+            raise ValueError("The same creator photo is listed twice")
         if any(_same_video(a, b) for i, a in enumerate(urls) for b in urls[i + 1:]):
             raise ValueError("The same creator video is listed twice")
         if reference and any(_same_video(reference, url) for url in urls):
             raise ValueError("The reference and a creator video are the same video; each role needs its own video")
         if not creator_name:
-            raise ValueError("--creator-name is required with --creator-video (a short ASCII name for the creator)")
-        creator = {"video_urls": urls}
+            raise ValueError("--creator-name is required with --creator-video or --creator-photo (a short ASCII name for the creator)")
+        creator = {**({"video_urls": urls} if urls else {}), **({"photo_urls": photos} if photos else {})}
     arguments = {"creator": creator}
     if creator_name:
         if not CREATOR_NAME.match(creator_name):
             raise ValueError("--creator-name must be 1-64 ASCII letters, digits, '.', '_' or '-', starting with a letter or digit")
         arguments["creator_name"] = creator_name
+    if voice_preset is not None:
+        arguments["voice_preset"] = voice_preset
     return arguments
 
 
-def start_call(reference, handle, video_urls, creator_name, language, attempt, script_file=None):
+def start_call(reference, handle, video_urls, creator_name, language, attempt, script_file=None,
+               photo_urls=(), voice_preset=None):
     """The arguments of start_remake_video, with an idempotency_key that is stable for the same inputs.
 
     Two starting points share this one call: a reference video (--reference-url) or the creator's
@@ -260,7 +276,7 @@ def start_call(reference, handle, video_urls, creator_name, language, attempt, s
         raise ValueError("--language does not apply to a script: the script's own language is used")
     reference = _url(reference, "Reference") if reference else None
     arguments = ({"reference_url": reference} if reference else {"script": script})
-    arguments.update(creator_arguments(handle, video_urls, creator_name, reference))
+    arguments.update(creator_arguments(handle, video_urls, creator_name, reference, photo_urls, voice_preset))
     if language:
         if not LANGUAGE.match(language):
             raise ValueError("--language must look like 'en' or 'pt-BR'")
@@ -1262,6 +1278,8 @@ def main():
     command.add_argument("--script-file")
     command.add_argument("--instagram-handle")
     command.add_argument("--creator-video", action="append", default=[])
+    command.add_argument("--creator-photo", action="append", default=[])
+    command.add_argument("--voice-preset")
     command.add_argument("--creator-name")
     command.add_argument("--language")
     command.add_argument("--attempt", type=int, default=1)
@@ -1300,7 +1318,8 @@ def main():
         print(init(args.workspace))
     elif args.command == "start-call":
         print(json.dumps(start_call(args.reference_url, args.instagram_handle, args.creator_video,
-                                    args.creator_name, args.language, args.attempt, args.script_file),
+                                    args.creator_name, args.language, args.attempt, args.script_file,
+                                    args.creator_photo, args.voice_preset),
                          ensure_ascii=False))
     elif args.command == "project-call":
         print(json.dumps(project_call(args.instagram_handle, args.creator_video, args.creator_name, args.attempt,
