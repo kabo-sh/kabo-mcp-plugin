@@ -99,6 +99,40 @@ Pass the pick as `params.voice` of `tts`, and say at delivery that a stock voice
 | A picture over a range, a clip spliced in, clips joined | `overlay`, `splice`, `concat` | |
 | A still from a video (to use as a picture, or to look at a moment) | `frame` | cheap; also how you see a video |
 | Someone on screen when the user has no footage or photos of anyone real | `persona` first (above), then the face steps | an invented presenter; never a real person |
+| A video or part of it faster, slower, looped, played back and forth, or held on its last frame | `retime` | tool step (below) |
+| One region of a video or picture, at a chosen output size | `crop` | tool step (below) |
+| Text burned into a video or picture taken out | `inpaint_text` | tool step (below) |
+| Several pictures or videos placed in boxes on one frame, each for its own time range | `layout` | tool step (below) |
+
+**Tool steps.** `retime`, `crop`, `inpaint_text` and `layout` are plain tools: they run on Kabo's
+servers without a model, cost nothing and draw no face. A request is met by combining steps; there
+is no step for a whole scene or ad format. Boxes are `[x, y, width, height]` as fractions of the
+frame (0-1, inside the frame).
+
+- `retime` (`inputs.video`): `mode` `speed` takes exactly one of `speed` (0.25-4) or `duration`
+  (the new length in seconds); `loop`, `bounce` (the part at most 10 s) and `hold` take `duration`
+  only. `t0`/`t1` change just that part and keep the rest; `audio` `keep` (pitch kept when sped up)
+  or `none`. Time added by `bounce` or `hold` is silent.
+- `crop` (`inputs.media`, a video or a picture): `box`, and `size` `[width, height]` in pixels
+  (16-4096; the source size when left out). The box is widened around its centre to the output's
+  shape, never stretched; the result notes the box actually used and warns when it enlarges more
+  than three times.
+- `inpaint_text` (`inputs.media`): `boxes` (1-8) around the text, or left out to find the text
+  automatically (refused as `unsupported` where that is not available: then give `boxes`);
+  `fill` `strokes` (the default: only the letters and their outline) or `box` (the whole box);
+  `t0`/`t1` to limit it in time.
+- `layout`: `inputs.layers` (1-8 handles, later ones on top) and optionally `inputs.base`;
+  `params.layers` has one entry per layer, in the same order: `box` (where it goes), and optionally
+  `src_box` (the part of the layer to use), `fit` `contain`/`cover`/`stretch`, `t0`/`t1`, `opacity`
+  0-1, `key` `light`/`dark` (keep only the layer's near-white or near-black pixels, for example
+  text strokes) with `grow` 0-0.05 to widen them. Without a base, `canvas` sets `width`, `height`,
+  `color` (#RRGGBB) and `duration` (default 1080x1920 black). The length is the base's, else
+  `canvas.duration`, else the latest layer end; `audio` `base` or `none`.
+
+Two settings on other steps: `lipsync` takes `sync_mode` (`cut_off` by default, `loop`, `bounce`,
+`silence` or `remap`) for when the audio and the video differ in length, only with the default
+sync-lipsync model (`loop`, `bounce` and `silence` are charged on the longer of the two); `tts`
+takes `speed` 0.5-2 for the voice's own pace (1 is normal).
 
 Pictures of the creator come from their photos or from their videos: take a `frame` where the face
 is clear and frontal (and, for `motion`, the whole body when there is such a moment). Never use the
@@ -149,7 +183,7 @@ what is charged): `motion` about $0.17-0.40, `refvideo` about $0.20-0.24, `repla
 under $0.01 to about $0.30 depending on the model. `still` is a few cents per picture and `persona` about $0.15 per portrait; `animate`
 and `voice_change` are cents per second; `tts`, `frame`, `trim`, `mux`, `extract_audio`, `bg`,
 `overlay`, `splice`, `concat`, `text_cards`, `music`, `captions` and `face_check` cost little or
-nothing. A project has a budget (about $20); a step that would go over it is refused with
+nothing; `retime`, `crop`, `inpaint_text` and `layout` cost nothing. A project has a budget (about $20); a step that would go over it is refused with
 `quota_exceeded` before anything is generated.
 
 ## Run it

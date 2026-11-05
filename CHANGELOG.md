@@ -21,10 +21,14 @@
     `step-call`（含 trim / mux / extract_audio / voice_change、tts 预设音色）、`edit-call`、`finish-call` 按严格形状核对、
     只收工作区句柄、幂等键 `<skill>:<运行目录>:<工具>:<入参摘要>:a<序号>`；`fetch-step` 与 `fetch-revision` 只下载工具结果
     给出的签名链接（大小、sha256、类型、文件头），最新修订版另存 `remake-<id>-r<N>.mp4`。
+  - 契约 v1.6（kabo `e6ecd21b`）：四个工具级原子 `retime`（speed / loop / bounce / hold）、`crop`、`inpaint_text`、`layout`
+    （多图层按框与时间合成，可只留近白/近黑笔画），本地执行、$0、不碰脸；`lipsync` 加 `sync_mode`（只给 sync-lipsync）、
+    `tts` 加 `speed`（0.5–2）。只加工具，不加场景化步骤或配方，场景由宿主组合原子。`step-call` 按服务端同口径校验
+    （比例框非空且在画面内、retime 的 mode 与 speed/duration 搭配、sync_mode 与模型搭配），并先核 `layout` 的 layers 与句柄一一对应。
   - 为腾出正文长度，错误处理移到 `references/tool-errors.md`、稿件被退回的处理移到 `references/script-returned.md`，内容不变。
-- 契约：`tools-list.json` 整份换成数据层正式导出（kabo#2022 分支 `yutian/remake-atoms-launch` 提交 `31400fb6`，
-  golden `cc4ba10f…`，73 个工具，逐字节一致），`pin.json` 重新钉住。相对 main：新增 `start_video_project`、`make_video_step`、
-  `edit_remake_video`、`finish_video_project`；`get_remake_video` 加 `project: true`（项目状态）与 `cancel: true`，标注改为非只读；
+- 契约：`tools-list.json` 整份换成数据层正式导出（kabo 分支 `yutian/remake-r93-tool-atoms` 提交 `e6ecd21b`，
+  即并入 kabo#2022 的契约 v1.6；golden `4f5399c6…`，73 个工具，逐字节一致），`pin.json` 重新钉住。相对 main：新增 `start_video_project`、`make_video_step`、
+  `edit_remake_video`、`finish_video_project`（`make_video_step` 的 op 枚举含 v1.6 的四个工具级原子）；`get_remake_video` 加 `project: true`（项目状态）与 `cancel: true`，标注改为非只读；
   `start_remake_video` 带上 kabo#2011 的 `creator.photo_urls` / `voice_preset`；另含 PR #79 用到的 `collect_video_media`
   （本分支不用，按 #79 同样写法进必需工具与标注）。`make_video_step` 的 inputs / params 在公开 schema 里只是对象，
   服务端按 op 逐键严格校验，插件 `step-call` 的本地严格校验保留为第一道。kabo#2022 合并前不发版本。

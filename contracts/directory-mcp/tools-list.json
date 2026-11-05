@@ -17085,7 +17085,11 @@
               "mux",
               "extract_audio",
               "persona",
-              "voice_change"
+              "voice_change",
+              "retime",
+              "crop",
+              "inpaint_text",
+              "layout"
             ],
             "type": "string"
           },

@@ -48,7 +48,7 @@ test("工具清单含四个新工具（权限 video）；get_remake_video 带 pr
   for (const key of ["kind", "handles", "revisions", "last_step", "lines"]) assert.ok(project[key], key);
   assert.ok(project.status.enum.includes("ready") && project.status.enum.includes("working"));
   assert.ok(get.inputSchema.properties.project && get.inputSchema.properties.cancel);
-  for (const op of ["trim", "mux", "extract_audio", "voice_change", "text_cards", "music", "persona"])
+  for (const op of ["trim", "mux", "extract_audio", "voice_change", "text_cards", "music", "persona", "retime", "crop", "inpaint_text", "layout"])
     assert.ok(pinned.get("make_video_step").inputSchema.properties.op.enum.includes(op), op);
 });
 
@@ -99,6 +99,19 @@ test("project-call / step-call / edit-call / finish-call 生成的入参通过�
     yellow: { op: "captions", inputs: { video: "a05.mp4" }, params: { color: "yellow", size: 1.25 } },
     preset: { op: "tts", inputs: {}, params: { lines: ["Hi."], voice: "536d3a5e000945adb7038665781a4aca" } },
     persona: { op: "persona", inputs: { seed_images: ["input/img_01.png"] }, params: { description: "an invented man in his twenties, curly hair, green hoodie", count: 3 } },
+    // 契约 v1.6：工具级原子与新参数
+    syncMode: { op: "lipsync", inputs: { video: "a01.mp4", audio: "a02.wav" }, params: { sync_mode: "loop" } },
+    ttsSpeed: { op: "tts", inputs: {}, params: { lines: ["Hi."], speed: 1.2 } },
+    slow: { op: "retime", inputs: { video: "a03.mp4" }, params: { mode: "speed", speed: 0.5, t0: 1, t1: 3, audio: "none" } },
+    hold: { op: "retime", inputs: { video: "a03.mp4" }, params: { mode: "hold", duration: 2.5 } },
+    crop: { op: "crop", inputs: { media: "creator/clip1.mp4" }, params: { box: [0.2, 0.1, 0.6, 0.5], size: [1080, 1920] } },
+    inpaint: { op: "inpaint_text", inputs: { media: "input/ref_01.mp4" }, params: { boxes: [[0.1, 0.7, 0.8, 0.1]], fill: "strokes", t0: 0, t1: 4 } },
+    inpaintAuto: { op: "inpaint_text", inputs: { media: "a04.png" }, params: {} },
+    layout: { op: "layout", inputs: { base: "a05.mp4", layers: ["input/img_01.png", "input/ref_01.mp4"] }, params: {
+      layers: [{ box: [0.05, 0.05, 0.4, 0.3], fit: "cover", t0: 0, t1: 3, opacity: 0.9 },
+               { box: [0, 0, 1, 1], src_box: [0, 0.6, 1, 0.3], key: "light", grow: 0.01 }],
+      audio: "base" } },
+    canvas: { op: "layout", inputs: { layers: ["a06.mp4"] }, params: { layers: [{ box: [0, 0.25, 1, 0.5] }], canvas: { width: 1080, height: 1920, color: "#101010", duration: 6 } } },
   };
   for (const [name, step] of Object.entries(steps)) {
     const file = path.join(run, "project/steps", `${name}.json`);
@@ -150,6 +163,23 @@ test("step-call / edit-call 在付费调用前拒收路径、链接、未列出�
     [{ op: "captions", inputs: { video: "a01.mp4" }, params: { color: "chartreuse-ish" } }, /#RRGGBB/],
     [{ op: "persona", inputs: {}, params: {} }, /needs params description/],
     [{ op: "mux", inputs: { video: "a01.mp4", audio: "a02.wav" }, params: { mode: "replace", gain_db: 9 } }, /-30 to 6/],
+    [{ op: "lipsync", inputs: { video: "a01.mp4", audio: "a02.wav" }, params: { model: "fal-ai/latentsync", sync_mode: "loop" } }, /sync-lipsync/],
+    [{ op: "lipsync", inputs: { video: "a01.mp4", audio: "a02.wav" }, params: { sync_mode: "stretch" } }, /cut_off/],
+    [{ op: "tts", inputs: {}, params: { lines: ["Hi."], speed: 3 } }, /0.5 to 2/],
+    [{ op: "retime", inputs: { video: "a01.mp4" }, params: { mode: "speed", speed: 2, duration: 3 } }, /exactly one/],
+    [{ op: "retime", inputs: { video: "a01.mp4" }, params: { mode: "loop" } }, /takes params.duration/],
+    [{ op: "retime", inputs: { video: "a01.mp4" }, params: { mode: "speed", speed: 8 } }, /0.25 to 4/],
+    [{ op: "retime", inputs: { video: "a01.mp4" }, params: { mode: "speed", speed: 2, t0: 3, t1: 1 } }, /t1 must be after t0/],
+    [{ op: "crop", inputs: { media: "a01.mp4" }, params: { box: [0.5, 0.5, 0.6, 0.2] } }, /inside the frame/],
+    [{ op: "crop", inputs: { media: "a01.mp4" }, params: { box: [0.1, 0.1, 0, 0.2] } }, /above 0/],
+    [{ op: "crop", inputs: { media: "a01.mp4" }, params: { box: [0, 0, 1, 1], size: [1080.5, 1920] } }, /whole pixels/],
+    [{ op: "inpaint_text", inputs: { media: "a01.mp4" }, params: { boxes: [] } }, /1 to 8 boxes/],
+    [{ op: "inpaint_text", inputs: { media: "a01.mp4" }, params: { fill: "blur" } }, /strokes or box/],
+    [{ op: "layout", inputs: { layers: ["a01.png", "a02.png"] }, params: { layers: [{ box: [0, 0, 1, 1] }] } }, /one entry per handle/],
+    [{ op: "layout", inputs: { layers: ["a01.png"] }, params: { layers: [{ box: [0, 0, 1, 1], key: "green" }] } }, /none, light or dark/],
+    [{ op: "layout", inputs: { layers: ["a01.png"] }, params: { layers: [{ box: [0, 0, 1, 1], template: "product" }] } }, /box, src_box/],
+    [{ op: "layout", inputs: { layers: ["a01.png"] }, params: { layers: [{ box: [0, 0, 1, 1] }], canvas: { color: "black" } } }, /#RRGGBB/],
+    [{ op: "layout", inputs: { layers: [] }, params: { layers: [{ box: [0, 0, 1, 1] }] } }, /1 to 8 handles/],
   ];
   for (const [step, message] of bad) {
     const file = path.join(run, "project/steps/bad.json");

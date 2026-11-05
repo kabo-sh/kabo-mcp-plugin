@@ -315,9 +315,9 @@ STEP_OPS = {
                  {"prompt": "prompt", "duration": "duration3_15", "sound": "bool", "model": "model"}, {"prompt"}),
     "motion": ({"image": "h", "video": "h"}, {"image", "video"}, {"prompt": "prompt", "model": "model"}, set()),
     "replace": ({"video": "h", "image": "h"}, {"video", "image"}, {"prompt": "prompt", "model": "model"}, set()),
-    "lipsync": ({"video": "h", "audio": "h"}, {"video", "audio"}, {"model": "model"}, set()),
+    "lipsync": ({"video": "h", "audio": "h"}, {"video", "audio"}, {"model": "model", "sync_mode": "sync_mode"}, set()),
     "talking": ({"image": "h", "audio": "h"}, {"image", "audio"}, {"model": "model"}, set()),
-    "tts": ({}, set(), {"lines": "lines", "voice": "tts_voice"}, {"lines"}),
+    "tts": ({}, set(), {"lines": "lines", "voice": "tts_voice", "speed": "tts_speed"}, {"lines"}),
     "still": ({"refs": "h[0,4]"}, set(), {"prompt": "prompt"}, {"prompt"}),
     "animate": ({"image": "h"}, {"image"}, {"prompt": "prompt", "duration": "duration5_10"}, {"prompt"}),
     "bg": ({"video": "h", "plate": "h"}, {"video", "plate"}, {}, set()),
@@ -336,7 +336,16 @@ STEP_OPS = {
     "voice_change": ({"media": "h"}, {"media"}, {"voice": "change_voice"}, {"voice"}),
     # 契约 v1.5：没有任何本人素材时的虚构 AI 人物（定妆照）；seed_images 按契约在 params 里，是非真人的风格图句柄。
     "persona": ({"seed_images": "h[0,4]"}, set(), {"description": "persona", "count": "count2_4"}, {"description"}),
+    # 契约 v1.6：工具级原子（本地、$0），只是工具，不带场景；场景由宿主组合原子完成。
+    "retime": ({"video": "h"}, {"video"}, {"mode": "retime_mode", "speed": "retime_speed", "duration": "length",
+                                           "t0": "t", "t1": "t", "audio": "keep_none"}, {"mode"}),
+    "crop": ({"media": "h"}, {"media"}, {"box": "rect", "size": "size_px"}, {"box"}),
+    "inpaint_text": ({"media": "h"}, {"media"}, {"boxes": "rects", "fill": "fill", "t0": "t", "t1": "t"}, set()),
+    "layout": ({"base": "h", "layers": "h[1,8]"}, {"layers"}, {"layers": "layers", "canvas": "canvas",
+                                                               "audio": "base_none"}, {"layers"}),
 }
+# sync_mode 只给 sync-lipsync 模型（缺省模型就是它）
+SYNC_MODES = ("cut_off", "loop", "bounce", "silence", "remap")
 EDIT_KINDS = {
     "lines": ({"lines"}, set()),
     "captions": (set(), {"color", "size"}),
@@ -376,6 +385,39 @@ def _box(value, where):
         raise ValueError(f"{where} must be [x, y, width] as fractions of the frame (0-1, width above 0)")
 
 
+def _rect(value, where):
+    """[x, y, w, h]：画面比例，非空且落在画面内（crop / inpaint_text / layout）。"""
+    if (not isinstance(value, list) or len(value) != 4 or not all(_number(v) and 0 <= v <= 1 for v in value)
+            or value[2] <= 0 or value[3] <= 0 or value[0] + value[2] > 1 + 1e-6 or value[1] + value[3] > 1 + 1e-6):
+        raise ValueError(f"{where} must be [x, y, width, height] as fractions of the frame (0-1, width and height "
+                         "above 0, inside the frame)")
+
+
+def _pixels(value):
+    return isinstance(value, int) and not isinstance(value, bool) and 16 <= value <= 4096
+
+
+def _layer(item, where):
+    keys = {"box", "src_box", "fit", "t0", "t1", "opacity", "key", "grow"}
+    if not isinstance(item, dict) or "box" not in item or set(item) - keys:
+        raise ValueError(f"{where} must be {{box, src_box?, fit?, t0?, t1?, opacity?, key?, grow?}}")
+    _rect(item["box"], where + ".box")
+    if "src_box" in item:
+        _rect(item["src_box"], where + ".src_box")
+    checks = {"fit": (lambda v: v in ("contain", "cover", "stretch"), "contain, cover or stretch"),
+              "opacity": (lambda v: _number(v) and 0 <= v <= 1, "a number from 0 to 1"),
+              "key": (lambda v: v in ("none", "light", "dark"), "none, light or dark"),
+              "grow": (lambda v: _number(v) and 0 <= v <= 0.05, "a number from 0 to 0.05")}
+    for name, (ok, message) in checks.items():
+        if name in item and not ok(item[name]):
+            raise ValueError(f"{where}.{name} must be {message}")
+    for name in ("t0", "t1"):
+        if name in item:
+            _seconds(item[name], f"{where}.{name}")
+    if {"t0", "t1"} <= set(item) and item["t1"] <= item["t0"]:
+        raise ValueError(f"{where}: t1 must be after t0")
+
+
 def _param(kind, value, where, op):
     if kind == "prompt":
         ok = isinstance(value, str) and value.strip() and len(value) <= 2000
@@ -402,6 +444,51 @@ def _param(kind, value, where, op):
         return
     elif kind == "audio":
         ok, message = value in ("base", "clip"), "base or clip"
+    elif kind == "sync_mode":
+        ok, message = value in SYNC_MODES, "one of " + ", ".join(SYNC_MODES)
+    elif kind == "tts_speed":
+        ok, message = _number(value) and 0.5 <= value <= 2, "a speaking rate from 0.5 to 2 (1 is normal)"
+    elif kind == "retime_mode":
+        ok, message = value in ("speed", "loop", "bounce", "hold"), "speed, loop, bounce or hold"
+    elif kind == "retime_speed":
+        ok, message = _number(value) and 0.25 <= value <= 4, "a speed factor from 0.25 to 4"
+    elif kind == "length":
+        ok, message = _number(value) and 0.04 <= value <= MAX_SECONDS, f"a length in seconds from 0.04 to {MAX_SECONDS}"
+    elif kind == "keep_none":
+        ok, message = value in ("keep", "none"), "keep or none"
+    elif kind == "base_none":
+        ok, message = value in ("base", "none"), "base or none"
+    elif kind == "fill":
+        ok, message = value in ("strokes", "box"), "strokes or box"
+    elif kind == "rect":
+        _rect(value, where)
+        return
+    elif kind == "rects":
+        if not isinstance(value, list) or not 1 <= len(value) <= 8:
+            raise ValueError(f"{where} must hold 1 to 8 boxes (or be left out to find the text automatically)")
+        for n, item in enumerate(value):
+            _rect(item, f"{where}[{n}]")
+        return
+    elif kind == "size_px":
+        ok = isinstance(value, list) and len(value) == 2 and all(_pixels(v) for v in value)
+        message = "[width, height] in whole pixels from 16 to 4096 (or left out for the source size)"
+    elif kind == "layers":
+        if not isinstance(value, list) or not 1 <= len(value) <= 8:
+            raise ValueError(f"{where} must hold 1 to 8 layers")
+        for n, item in enumerate(value):
+            _layer(item, f"{where}[{n}]")
+        return
+    elif kind == "canvas":
+        if not isinstance(value, dict) or set(value) - {"width", "height", "color", "duration"}:
+            raise ValueError(f"{where} must be {{width?, height?, color?, duration?}}")
+        for name in ("width", "height"):
+            if name in value and not _pixels(value[name]):
+                raise ValueError(f"{where}.{name} must be whole pixels from 16 to 4096")
+        if "color" in value and not (isinstance(value["color"], str) and COLOR_RE.match(value["color"])):
+            raise ValueError(f"{where}.color must be #RRGGBB")
+        if "duration" in value and not (_number(value["duration"]) and 0.04 <= value["duration"] <= MAX_SECONDS):
+            raise ValueError(f"{where}.duration must be a length in seconds from 0.04 to {MAX_SECONDS}")
+        return
     elif kind == "persona":
         ok = isinstance(value, str) and bool(value.strip()) and len(value) <= 600 and not re.search(r"@\w|https?://", value)
         message = ("a description of an invented person, at most 600 characters, with no handle or link "
@@ -572,6 +659,17 @@ def step_call(job_id, step_file, attempt):
         _param(param_kinds[name], value, f"params.{name}", op)
     if {"t0", "t1"} <= set(params):
         _range(params, "params")
+    if op == "lipsync" and "sync_mode" in params and "sync-lipsync" not in params.get("model", "sync-lipsync"):
+        raise ValueError("params.sync_mode is a setting of the sync-lipsync models; leave it out with "
+                         + params["model"])
+    if op == "retime":
+        has_speed, has_duration = "speed" in params, "duration" in params
+        if params["mode"] == "speed" and has_speed == has_duration:
+            raise ValueError("retime mode speed takes exactly one of params.speed or params.duration")
+        if params["mode"] != "speed" and (has_speed or not has_duration):
+            raise ValueError(f"retime mode {params['mode']} takes params.duration (the new length) and no speed")
+    if op == "layout" and len(params["layers"]) != len(inputs["layers"]):
+        raise ValueError("params.layers must have one entry per handle in inputs.layers, in the same order")
     if op == "captions" and "color" in params:
         params["color"] = caption_color(params["color"], "params.color")
     arguments = {"job_id": _job_id(job_id), "op": op, "inputs": inputs, "params": params}
