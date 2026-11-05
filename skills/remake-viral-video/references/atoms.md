@@ -98,6 +98,7 @@ Pass the pick as `params.voice` of `tts`, and say at delivery that a stock voice
 | Captions in the creator's style | `captions` (optional `max_words` 1-8 per caption, `upper` for capitals) | |
 | Part of a video or audio | `trim` (`t0`, `t1`) | |
 | Another sound track on a video | `mux` (`mode` `replace` or `mix`), `extract_audio` to take a video's sound | |
+| What a video or sound says | `transcribe` (`media`, optional `language`) | timed segments, no file; free |
 | The same words in a different, non-creator voice (for example a reference speaker's track that must not keep their voice) | `voice_change` with `voice: "warm_female"` (the only stock voice it has) | it cannot make the creator's voice: for that, `tts` with the creator's voice, then `lipsync` or `mux` |
 | A picture over a range, a clip spliced in, clips joined | `overlay`, `splice`, `concat` | |
 | A still from a video (to use as a picture, or to look at a moment) | `frame` (`t` in seconds, or `at` `first` / `last`; any video handle) | cheap; also how you see a video |
@@ -141,7 +142,7 @@ takes `speed` 0.5-2 for the voice's own pace (1 is normal).
 Pictures of the creator come from their photos or from their videos: choose a `frame` yourself
 where the face is clear and frontal (for `motion`, the whole body when there is such a moment;
 otherwise use what there is and say so); look at it before using it. Words are yours too: take
-what is said from the reference's or the creator's transcript and write their version. Never use the
+what is said with `transcribe` and write their version. Never use the
 creator's own footage as the movement source when the user asked for someone else's moves: add that
 video as a reference video.
 
@@ -229,8 +230,8 @@ written here as `static_host.py`.
    `host-results/<NN>-get_remake_video.json` and run
    `static_host.py fetch-step --input 'host-results/<NN>-get_remake_video.json'`. It saves the
    step's file under `project/outputs/` and prints its `path`, handle, spend, model, fallback and
-   face verdict. Open pictures with the host's own image viewer. You cannot watch a video: take a
-   `frame` or two at the moments that matter and look at those.
+   face verdict, plus `preview_path` (a picture, or four frames of a video) or, for `transcribe`,
+   the `transcript`. Open the preview with the host's image viewer before using the result.
 4. **Same step again.** The key is stable for the same step file: a retry after a timeout returns
    the same result and is not charged twice. For a new take of the same step on purpose, add
    `--attempt 2` (then 3, ...). A `conflict` error means the key was used with other arguments: use

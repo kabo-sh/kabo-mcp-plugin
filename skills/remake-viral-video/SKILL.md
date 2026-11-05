@@ -28,11 +28,11 @@ decide by what must stay and what must change, not by how the request is worded:
 1. Keep everything the user did not ask to change.
 2. Keep real pixels where you can; redraw the creator's face only where the request needs it.
 3. Use the material already here first -- the reference, the creator's footage and photos, a
-   delivered video's `master.mp4`, takes, B-roll and first frames, earlier results. Look at what a
-   `frame` or `crop` gives before using it and try other moments; ask for more only last.
+   delivered video's `master.mp4`, takes, B-roll and first frames, earlier results. Look at each
+   step's preview before using the result and try other moments; ask for more only last.
 4. Ask only what only the user can decide or knows (a fact, a real trade-off, money beyond the
-   plan). Creative calls are yours, the words too: take what is said from the reference's or the
-   creator's transcript, write their version, and say in a line what you chose.
+   plan). Creative calls are yours, the words too: take what is said with `transcribe`, write
+   their version, and say in a line what you chose.
 5. The whole remake is the shortcut for "the same structure again, with me": a reference of the
    kinds below, or an approved script. It is not the fallback. What it does not make (the
    reference's own shot and moves, the creator's own video with new words, B-roll, a product
@@ -54,6 +54,7 @@ decide by what must stay and what must change, not by how the request is worded:
 | a sound | its level, fades, tempo or length | `audio_edit` | no |
 | pictures | held as a clip, maybe a slow push-in | `still_video` | no |
 | any video or picture | burned-in text removed | `inpaint_text` | no |
+| a video or sound | -- (what is said, timed) | `transcribe` | no |
 | -- | a picture without the creator; text to read; captions; music; sound | `still`, `animate`, `text_cards`, `captions`, `music`, `mux` | no |
 
 Before the first project step or edit, read `references/atoms.md` (what each step takes and
@@ -275,7 +276,7 @@ directory). Read the answer by its meaning, in any language:
 
 - It picks an option -- by number, name or description: use that option's `id`.
 - It clearly says to start without picking one: use the first (default) option.
-- They named a listed model earlier (say, in the first request): use it without asking again;
+- They named a listed model earlier: use it without asking again;
   tell them the model and its cost, then render.
 - A question about the options: answer from the list, then wait.
 - Unclear, or about something else: ask once, briefly; do not render.

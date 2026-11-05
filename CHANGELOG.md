@@ -43,6 +43,9 @@
   先看结果再用、不清楚换时刻、最后才向用户要；「1. Collect the inputs」开头注明只适用于整条复刻（此前把「换原片镜头」「本人视频换语言」
   拉回整条复刻），「What this covers」改名「What a whole remake covers」，运行目录按「每条视频」预留。第 5、6 步与「What a whole remake
   covers」措辞等量压缩，规则不变（正文 20,995 字符）。与网页端 creator-remake-web 0.1.42 同文。
+- `remake-viral-video` 说明文字并入契约 v1.8（与网页端 creator-remake-web 0.1.43 同文）：原则 4「从转写拿原话」指向 `transcribe`，
+  能力表加一行；原则 3「先看再用」改为看每一步的预览（`fetch-step` 打印的 `preview_path`，视频四帧）；`atoms.md` 补 `transcribe` 一行与
+  `fetch-step` 输出的预览 / 转写。正文等量压缩（20,998 字符）。
 
 ## 1.0.14（2026-11-05；GitHub Release）
 
