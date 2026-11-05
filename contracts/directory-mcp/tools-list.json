@@ -15686,11 +15686,93 @@
                               "handle": {
                                 "maxLength": 80,
                                 "type": "string"
+                              },
+                              "preview": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "bytes": {
+                                            "maximum": 9007199254740991,
+                                            "minimum": 0,
+                                            "type": "integer"
+                                          },
+                                          "content_type": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "expires_at": {
+                                            "format": "date-time",
+                                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                            "type": "string"
+                                          },
+                                          "kind": {
+                                            "enum": [
+                                              "envelope",
+                                              "artifact"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "sha256": {
+                                            "pattern": "^[a-f0-9]{64}$",
+                                            "type": "string"
+                                          },
+                                          "status": {
+                                            "const": "ready",
+                                            "type": "string"
+                                          },
+                                          "url": {
+                                            "format": "uri",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "status",
+                                          "kind",
+                                          "url",
+                                          "expires_at",
+                                          "sha256",
+                                          "bytes",
+                                          "content_type"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "reason": {
+                                            "enum": [
+                                              "too_large",
+                                              "not_found",
+                                              "service_unavailable"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "status": {
+                                            "const": "unavailable",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "status",
+                                          "reason"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
                               "handle",
-                              "download"
+                              "download",
+                              "preview"
                             ],
                             "type": "object"
                           },
@@ -15717,6 +15799,69 @@
                           "failed"
                         ],
                         "type": "string"
+                      },
+                      "transcript": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "language": {
+                                "anyOf": [
+                                  {
+                                    "maxLength": 16,
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "segments": {
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "t0": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "t1": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "text": {
+                                      "maxLength": 600,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "t0",
+                                    "t1",
+                                    "text"
+                                  ],
+                                  "type": "object"
+                                },
+                                "maxItems": 200,
+                                "type": "array"
+                              },
+                              "text": {
+                                "maxLength": 12000,
+                                "type": "string"
+                              },
+                              "truncated": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "language",
+                              "text",
+                              "segments"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       }
                     },
                     "required": [
@@ -15729,7 +15874,8 @@
                       "error",
                       "message",
                       "notes",
-                      "output"
+                      "output",
+                      "transcript"
                     ],
                     "type": "object"
                   },
@@ -16751,7 +16897,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Start a video project (with job_id: add inputs to one) for videos a full remake does not cover. Call only after the user confirms. Top-level. Fetching videos uses daily quota. On fetching_inputs repeat the call after retry_after_s. Next: make_video_step at ready.",
+      "description": "Start a video project (with job_id: add inputs to one) for videos a full remake does not make. Tell the user the plan first. Top-level. Fetching videos uses daily quota. On fetching_inputs repeat the call after retry_after_s. Next: make_video_step at ready.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -17166,11 +17312,93 @@
                           "handle": {
                             "maxLength": 80,
                             "type": "string"
+                          },
+                          "preview": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "bytes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "content_type": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "expires_at": {
+                                        "format": "date-time",
+                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "envelope",
+                                          "artifact"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "pattern": "^[a-f0-9]{64}$",
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "ready",
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "format": "uri",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "kind",
+                                      "url",
+                                      "expires_at",
+                                      "sha256",
+                                      "bytes",
+                                      "content_type"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "too_large",
+                                          "not_found",
+                                          "service_unavailable"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "unavailable",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "reason"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
                           "handle",
-                          "download"
+                          "download",
+                          "preview"
                         ],
                         "type": "object"
                       },
@@ -17197,6 +17425,69 @@
                       "failed"
                     ],
                     "type": "string"
+                  },
+                  "transcript": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "language": {
+                            "anyOf": [
+                              {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "segments": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "t0": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "t1": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "maxLength": 600,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "t0",
+                                "t1",
+                                "text"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 200,
+                            "type": "array"
+                          },
+                          "text": {
+                            "maxLength": 12000,
+                            "type": "string"
+                          },
+                          "truncated": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "language",
+                          "text",
+                          "segments"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -17209,7 +17500,8 @@
                   "error",
                   "message",
                   "notes",
-                  "output"
+                  "output",
+                  "transcript"
                 ],
                 "type": "object"
               },
@@ -17562,6 +17854,7 @@
               "layout",
               "first_frame",
               "still_video",
+              "transcribe",
               "audio_edit"
             ],
             "type": "string"
@@ -17913,11 +18206,93 @@
                           "handle": {
                             "maxLength": 80,
                             "type": "string"
+                          },
+                          "preview": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "bytes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "content_type": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "expires_at": {
+                                        "format": "date-time",
+                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "envelope",
+                                          "artifact"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "pattern": "^[a-f0-9]{64}$",
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "ready",
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "format": "uri",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "kind",
+                                      "url",
+                                      "expires_at",
+                                      "sha256",
+                                      "bytes",
+                                      "content_type"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "too_large",
+                                          "not_found",
+                                          "service_unavailable"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "unavailable",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "reason"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
                           "handle",
-                          "download"
+                          "download",
+                          "preview"
                         ],
                         "type": "object"
                       },
@@ -17944,6 +18319,69 @@
                       "failed"
                     ],
                     "type": "string"
+                  },
+                  "transcript": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "language": {
+                            "anyOf": [
+                              {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "segments": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "t0": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "t1": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "maxLength": 600,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "t0",
+                                "t1",
+                                "text"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 200,
+                            "type": "array"
+                          },
+                          "text": {
+                            "maxLength": 12000,
+                            "type": "string"
+                          },
+                          "truncated": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "language",
+                          "text",
+                          "segments"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -17956,7 +18394,8 @@
                   "error",
                   "message",
                   "notes",
-                  "output"
+                  "output",
+                  "transcript"
                 ],
                 "type": "object"
               },
@@ -18683,11 +19122,93 @@
                           "handle": {
                             "maxLength": 80,
                             "type": "string"
+                          },
+                          "preview": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "bytes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "content_type": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "expires_at": {
+                                        "format": "date-time",
+                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "envelope",
+                                          "artifact"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "pattern": "^[a-f0-9]{64}$",
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "ready",
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "format": "uri",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "kind",
+                                      "url",
+                                      "expires_at",
+                                      "sha256",
+                                      "bytes",
+                                      "content_type"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "too_large",
+                                          "not_found",
+                                          "service_unavailable"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "unavailable",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "reason"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
                           "handle",
-                          "download"
+                          "download",
+                          "preview"
                         ],
                         "type": "object"
                       },
@@ -18714,6 +19235,69 @@
                       "failed"
                     ],
                     "type": "string"
+                  },
+                  "transcript": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "language": {
+                            "anyOf": [
+                              {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "segments": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "t0": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "t1": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "maxLength": 600,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "t0",
+                                "t1",
+                                "text"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 200,
+                            "type": "array"
+                          },
+                          "text": {
+                            "maxLength": 12000,
+                            "type": "string"
+                          },
+                          "truncated": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "language",
+                          "text",
+                          "segments"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -18726,7 +19310,8 @@
                   "error",
                   "message",
                   "notes",
-                  "output"
+                  "output",
+                  "transcript"
                 ],
                 "type": "object"
               },
@@ -19367,11 +19952,93 @@
                           "handle": {
                             "maxLength": 80,
                             "type": "string"
+                          },
+                          "preview": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "bytes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "content_type": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "expires_at": {
+                                        "format": "date-time",
+                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "envelope",
+                                          "artifact"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "pattern": "^[a-f0-9]{64}$",
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "ready",
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "format": "uri",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "kind",
+                                      "url",
+                                      "expires_at",
+                                      "sha256",
+                                      "bytes",
+                                      "content_type"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "too_large",
+                                          "not_found",
+                                          "service_unavailable"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "const": "unavailable",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "reason"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
                           "handle",
-                          "download"
+                          "download",
+                          "preview"
                         ],
                         "type": "object"
                       },
@@ -19398,6 +20065,69 @@
                       "failed"
                     ],
                     "type": "string"
+                  },
+                  "transcript": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "language": {
+                            "anyOf": [
+                              {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "segments": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "t0": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "t1": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "maxLength": 600,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "t0",
+                                "t1",
+                                "text"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 200,
+                            "type": "array"
+                          },
+                          "text": {
+                            "maxLength": 12000,
+                            "type": "string"
+                          },
+                          "truncated": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "language",
+                          "text",
+                          "segments"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -19410,7 +20140,8 @@
                   "error",
                   "message",
                   "notes",
-                  "output"
+                  "output",
+                  "transcript"
                 ],
                 "type": "object"
               },

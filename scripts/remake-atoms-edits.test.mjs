@@ -122,6 +122,9 @@ test("project-call / step-call / edit-call / finish-call 生成的入参通过�
     kling20: { op: "refvideo", inputs: { images: ["creator/photo-01.jpg"] }, params: { prompt: "x", duration: 20, model: "kling/v4/reference-to-video" } },
     talkPrompt: { op: "talking", inputs: { image: "frame_s00.png", audio: "line_01.wav" }, params: { prompt: "calm, small nods" } },
     capWords: { op: "captions", inputs: { video: "a02.mp4" }, params: { max_words: 2, upper: false } },
+    // 契约 v1.8
+    transcribe: { op: "transcribe", inputs: { media: "input/ref_01.mp4" }, params: { language: "es" } },
+    transcribeAuto: { op: "transcribe", inputs: { media: "take_s00.mp4" }, params: {} },
   };
   for (const [name, step] of Object.entries(steps)) {
     const file = path.join(run, "project/steps", `${name}.json`);
@@ -201,6 +204,8 @@ test("step-call / edit-call 在付费调用前拒收路径、链接、未列出�
     [{ op: "refvideo", inputs: { images: ["a01.png"] }, params: { prompt: "x", duration: 20 } }, /kling\/v4/],
     [{ op: "captions", inputs: { video: "a01.mp4" }, params: { max_words: 0 } }, /1 to 8/],
     [{ op: "frame", inputs: { video: "broll_b1.mp4" }, params: { t: 1 } }, /workspace handle/],
+    [{ op: "transcribe", inputs: { media: "a01.mp4" }, params: { language: "spanish" } }, /language code/],
+    [{ op: "transcribe", inputs: { media: "a01.mp4" }, params: { model: "large" } }, /does not take params model/],
   ];
   for (const [step, message] of bad) {
     const file = path.join(run, "project/steps/bad.json");
@@ -299,6 +304,19 @@ edited = host.fetch_revision(run, project("delivered", step("edit", face={"verdi
                                           [rev(1, mp4b), rev(2, mp4b + b"2")], spend=0.4))
 out["video"] = [os.path.relpath(first["path"], run), os.path.relpath(edited["path"], run), edited["revision"],
                 edited["revision_notes"], edited["last_step"]["face"]]
+# contract v1.8: a step's JPEG preview is saved next to its file; a transcribe step returns its words
+jpg = b"\xff\xd8\xff\xe0" + b"1" * 40
+pv = step("crop", "a04.png", png, "image/png")
+pv["output"]["preview"] = dict(descriptor("a04.preview.jpg", jpg, "image/jpeg"))
+saved = host.fetch_step(run, project("ready", pv))
+out["preview"] = [os.path.relpath(saved["preview_path"], run), saved["preview_note"][:40]]
+bad = step("crop", "a05.png", png, "image/png")
+bad["output"]["preview"] = dict(descriptor("a05.preview.jpg", png, "image/jpeg"))
+saved = host.fetch_step(run, project("ready", bad))
+out["preview_bad"] = ["preview_path" in saved, saved["saved"], saved["preview_note"][:30]]
+tr = {"language": "es", "text": "Hola a todos.", "segments": [{"t0": 0, "t1": 1.1, "text": "Hola a todos."}]}
+saved = host.fetch_step(run, project("ready", step("transcribe", transcript=tr)))
+out["transcript"] = [saved["saved"], saved["transcript"], json.loads(open(saved["path"]).read()) == tr]
 print(json.dumps(out))
 `;
 
@@ -320,6 +338,11 @@ test("fetch-step 存下一步的产物并转述花费、回退模型与人脸结
   assert.equal(out.wrong_left_nothing, true);
   assert.deepEqual(out.video, ["output/remake-11111111.mp4", "output/remake-11111111-r2.mp4", 2,
     "Revision 2: line 2 re-voiced; nothing else changed.", "pass"]);
+  assert.deepEqual(out.preview, ["project/outputs/a04.png.preview.jpg", "open preview_path to see what this step "]);
+  assert.deepEqual(out.preview_bad, [false, "step", "the preview could not be saved"]);
+  assert.equal(out.transcript[0], "transcript");
+  assert.equal(out.transcript[1].text, "Hola a todos.");
+  assert.equal(out.transcript[2], true);
 });
 
 test("G8：description 只在要成片或改成片时触发，写稿、拆解、账号诊断不触发，且不超过 500 字符", async () => {
