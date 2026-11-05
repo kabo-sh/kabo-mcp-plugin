@@ -1,6 +1,6 @@
 ---
 name: remake-viral-video
-description: "Have Kabo produce a finished MP4 with the creator in it: remake a viral talking-head or voice-over video (90 s or less), make a talking video from an approved script, build a video from single steps (new words or language on the creator's own video, the creator in a reference's own shot, B-roll), or change a video Kabo already delivered. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
+description: "Have Kabo produce a finished MP4 with the creator in it: remake a viral talking-head or voice-over video (10 min or less), make a talking video from an approved script, build a video from single steps (new words or language on the creator's own video, the creator in a reference's own shot, B-roll), or change a video Kabo already delivered. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all seven tools: remakes, edits of delivered videos and step-by-step projects)."
 allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project
@@ -14,7 +14,7 @@ of a delivered video (`edit_remake_video`), or single steps in a project or on a
 (`start_video_project`, `make_video_step`, `finish_video_project`). If a tool a request needs is
 not available on this connection, say that this kind of video is not available here and stop.
 
-A remake takes about half an hour, mostly waiting on the runner. If the host has foreground
+A remake takes 30 min to 3 hours, mostly waiting on the runner. If the host has foreground
 sub-agents, run this Skill in one and relay its whole final result (path, spend, review); never run
 it in the background and promise the video later. Otherwise follow the steps in the main thread.
 
@@ -67,7 +67,7 @@ spend so far stays charged.
 
 ## What a whole remake covers
 
-- A reference of **90 seconds or less** where **one person talks to the camera** for most of the
+- A reference of **10 minutes or less** where **one person talks to the camera** for most of the
   video, at any distance, with a fixed or slightly handheld camera. Three talking kinds, which
   the runner tells apart by itself (nothing to ask): pure talking head; talking with screens (the video cuts to screen recordings or
   screenshots, or shows them floating over the speaker's room); talking with a product (the
@@ -75,8 +75,8 @@ spend so far stays charged.
   references (nobody on camera; a voice over a screen recording, an animated explainer, scenes or
   kinetic type): the creator's cloned voice reads the script and every picture is made anew --
   see `references/formats/narration.md`.
-- Refused by the runner before any video is generated (`out_of_scope`): references over 90
-  seconds, walking, vehicle or first-person vlogs where the camera keeps moving, dialogues between
+- Refused by the runner before any video is generated (`out_of_scope`): references over 10
+  minutes, walking, vehicle or first-person vlogs where the camera keeps moving, dialogues between
   several people, and -- for a talking head -- a speaker on camera less than about half the time
   or mostly other footage. So are creator videos with no clear frontal view of the creator's face.
 - The creator is framed as the reference frames its speaker, shot by shot; the reference's other
@@ -121,16 +121,16 @@ already approved, follow `references/approved-script.md` for steps 1-4.
 Come here only when "Choose what to make" picked a whole remake; steps and edits take what it
 needs. Once per conversation, before asking for anything or starting, say in two or three sentences:
 
-- what this remakes: a reference of 90 seconds or less where one person talks to the camera
+- what this remakes: a reference of 10 minutes or less where one person talks to the camera
   (also ones that cut to screen recordings or show a product), or a voice-over video;
 - that references outside this (dialogues between several people, walking or travel vlogs, over
-  90 seconds) are refused before anything is generated, and a refusal is not charged;
+  10 minutes) are refused before anything is generated, and a refusal is not charged;
 - that borderline references may not come out well.
 
 It is information, not a question. A remake needs both. Check them before any paid call:
 
 1. **One reference video**: the viral video to remake, as a YouTube, Instagram or TikTok link,
-   90 seconds or less, one person talking to camera or a voice-over.
+   10 minutes or less, one person talking to camera or a voice-over.
 2. **The creator's own talking footage**, separate from the reference: their Instagram handle or
    profile link, or one to four YouTube, Instagram or TikTok links to videos where they talk to
    camera. It decides how much the result looks like the creator. Only photos of them? Read
@@ -148,8 +148,8 @@ Local files, TikTok photo posts and other sites are not supported: ask for a You
 or TikTok video link instead. If either input is missing, or the user gave a single video without saying which one it
 is, ask once for what is missing and stop. Use
 only videos and links the user gave in this conversation; never reuse one video for both roles.
-If a length you can see (the user states it) is over 90 seconds, say references are limited to 90
-seconds and ask for a shorter one.
+If a length you can see (the user states it) is over 10 minutes, say references are limited to 10
+minutes and ask for a shorter one.
 
 Whenever you stop before `start_remake_video` has accepted the job (something is missing, a video
 is refused, the inputs are refused), tell the user that no remake was started, no remake fee was
@@ -165,7 +165,7 @@ user states it or the reference is clearly in that language.
 ## 2. Start the job and wait for the script gate
 
 Before the first paid call, tell the user in one or two sentences what will happen: the method
-above and that it takes about half an hour in total. Do not wait for a reply unless the user asked to approve first. Then build the arguments:
+above and that it takes 30 min to 3 hours. Do not wait for a reply unless the user asked to approve first. Then build the arguments:
 
 ```sh
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' start-call --reference-url '<reference link>' --instagram-handle '<handle or profile link>'
@@ -189,7 +189,7 @@ relay it and ask for a corrected input; nothing was started.
   Read `references/tool-errors.md` and follow it.
 
 Once there is a `job_id`, call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30, "all_models": true}` until the
-status is no longer `preparing` (about ten minutes). Tell the user the stage in one line when it
+status is no longer `preparing` (10-45 min by length). Tell the user the stage in one line when it
 changes.
 
 **Supported kinds only.** `reference_type` `talking`, `talking_screen`, `talking_product` and
@@ -291,7 +291,7 @@ shows `waiting_script` again with `gate_message`, nothing paid was spent: follow
 
 ## 7. Production and delivery
 
-Production takes about twenty to thirty minutes, depending on the model and length. Call `get_remake_video` with `wait_s` 30, `include` `["review"]`
+Production takes 20-30 minutes, 1-2 hours for a 10-minute video. Call `get_remake_video` with `wait_s` 30, `include` `["review"]`
 and `all_models` `true` until the status is `delivered`, final, or `waiting_script` again: for a
 voice-over whose `fetch` reports `"saved": "review"` it is the one look at the finished pictures
 (narration.md, last section); otherwise the documents were rejected (step 6). While it is
