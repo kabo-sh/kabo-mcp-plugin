@@ -35,8 +35,9 @@ a video or advice on their account, start nothing and name the Skill that fits (
   speech (a stock voice reads the lines), or no material of the user at all (an invented AI
   presenter, never a real person): a project, `start_video_project` then one
   `make_video_step` per step then `finish_video_project`. Read `references/atoms.md`.
-- **Plan before spending**: before the first paid step or edit, say in two or three lines what you
-  will make and roughly what it costs; wait for a go-ahead unless they already gave one.
+- **Plan before spending (project or edit)**: before the first paid project step or edit, say in
+  two or three lines what you will make and roughly what it costs; wait for a go-ahead unless
+  they already gave one. A whole remake follows steps 2 and 6 instead.
 - **Face**: steps that redraw the creator's face come back `pass` or `degraded`. Redraw it as few
   times as possible, prefer the creator's real footage, and never pass anyone off as the creator.
   `degraded` never blocks delivery: deliver and say which part looks less like the creator.
