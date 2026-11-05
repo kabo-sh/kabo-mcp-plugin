@@ -47,6 +47,19 @@
   能力表加一行；原则 3「先看再用」改为看每一步的预览（`fetch-step` 打印的 `preview_path`，视频四帧）；`atoms.md` 补 `transcribe` 一行与
   `fetch-step` 输出的预览 / 转写。正文等量压缩（20,998 字符）。
 
+## 1.0.16（2026-11-06；GitHub Release）
+
+- `create-script-and-packaging`：用户自己给定方向时，记录方向的脚本会打印下一步，模型接着写脚本包、校验并渲染 `SCRIPT_PACKAGE.md`，不再在这一步直接回答（#107）。
+
+## 1.0.15（2026-11-05；GitHub Release）
+
+- `review-creator-account`：报告被校验器拒收后，删掉未过校验的报告，改完 synthesis 重跑同一条命令即可出报告；
+  失败信息不涉及作者字段（文件、权限等系统错误）时提示报告并停止（#104）。
+- `review-creator-account-deep`：`--workspace` 先认领本 workspace 里刚预留、还没开始的 run（独占认领，已开始的跳过），
+  一次请求只预留一个 run、只记一次用量（#104）。
+- 三个移植 Skill 去掉过时的 `metadata.version`，Web 端能收这几个包（#98）。
+- 生产回归：待补。
+
 ## 1.0.14（2026-11-05；GitHub Release）
 
 - 交接改为交结果编号（#83）：取数结果带一个短编号，模型只把编号填进续跑命令，脚本按编号下载、核对长度与 sha256 后落盘，
