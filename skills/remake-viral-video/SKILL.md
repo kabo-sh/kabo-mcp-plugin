@@ -28,10 +28,11 @@ decide by what must stay and what must change, not by how the request is worded:
 1. Keep everything the user did not ask to change.
 2. Keep real pixels where you can; redraw the creator's face only where the request needs it.
 3. Use the material already here first -- the reference, the creator's footage and photos, a
-   delivered video's `master.mp4`, takes, B-roll and first frames, earlier results; ask for more
-   only when none of it will do.
+   delivered video's `master.mp4`, takes, B-roll and first frames, earlier results. Look at what a
+   `frame` or `crop` gives before using it and try other moments; ask for more only last.
 4. Ask only what only the user can decide or knows (a fact, a real trade-off, money beyond the
-   plan); make the creative calls yourself and say in a line what you chose.
+   plan). Creative calls are yours, the words too: take what is said from the reference's or the
+   creator's transcript, write their version, and say in a line what you chose.
 5. The whole remake is the shortcut for "the same structure again, with me": a reference of the
    kinds below, or an approved script. It is not the fallback. What it does not make (the
    reference's own shot and moves, the creator's own video with new words, B-roll, a product
@@ -62,12 +63,11 @@ like the creator. When a step's notes say a box you gave covers text or a face, 
 `box` or tell the user. Cancel a job (`get_remake_video` with `"cancel": true`) only when the user asks;
 spend so far stays charged.
 
-## What this covers
+## What a whole remake covers
 
 - A reference of **90 seconds or less** where **one person talks to the camera** for most of the
-  video, at any distance, seated or standing, anywhere, with a fixed or slightly handheld camera.
-  Three talking kinds, which the runner tells apart by itself from the video (nothing to ask or
-  choose): pure talking head; talking with screens (the video cuts to screen recordings or
+  video, at any distance, with a fixed or slightly handheld camera. Three talking kinds, which
+  the runner tells apart by itself (nothing to ask): pure talking head; talking with screens (the video cuts to screen recordings or
   screenshots, or shows them floating over the speaker's room); talking with a product (the
   speaker shows a physical thing and the video cuts to close-ups of it). Also **voice-over**
   references (nobody on camera; a voice over a screen recording, an animated explainer, scenes or
@@ -92,7 +92,7 @@ spend so far stays charged.
 
 ## Set up one run
 
-`<skill directory>` is the folder holding this `SKILL.md`. Reserve exactly one run per remake:
+`<skill directory>` is the folder holding this `SKILL.md`. Reserve one run per video (a remake, a project or its edits):
 
 ```sh
 python3 '<skill directory>/scripts/static_host.py' init --workspace '<user-workspace>'
@@ -116,6 +116,8 @@ already approved, follow `references/approved-script.md` for steps 1-4.
 
 ## 1. Collect the inputs
 
+This step is for a whole remake only; projects and edits take what "Choose what to make" needs.
+
 The first time the user asks for a whole remake, say in two or three sentences, before asking
 for anything or starting:
 
@@ -128,7 +130,7 @@ for anything or starting:
 Say it once per conversation, even when both inputs are already
 there: it is information, not a question.
 
-A remake needs both of these. Check them before any paid call:
+A whole remake needs both. Check them before any paid call:
 
 1. **One reference video**: the viral video to remake, as a YouTube, Instagram or TikTok link,
    90 seconds or less, one person talking to camera or a voice-over.
@@ -187,8 +189,7 @@ relay it and ask for a corrected input; nothing was started.
   charging another. Never create a second job for the same request.
 - `fetching_inputs` means the videos are still being fetched (`job_id` is null). Tell the user
   `message` in one line, then call `start_remake_video` again with the same arguments after
-  `retry_after_s` seconds (wait with the host's own sleep or wait facility); the same fetches are
-  picked up.
+  `retry_after_s` seconds; the same fetches are picked up.
 - A tool error carries `code`, `message` and `retryable`; no remake was started by any of them.
   Read `references/tool-errors.md` and follow it.
 
@@ -254,9 +255,8 @@ script rules are the same; `decisions` also carries the picture plan, `route_b_j
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/check_documents.py' check
 ```
 
-It prints `status` with `errors` and `warnings`. Fix every error in the document it names and run
-it again; read each warning and change the document when it applies. Advance only on
-`status: ready`. It checks structure only; the runner checks again when you submit.
+It prints `status`, `errors` and `warnings`. Fix every error it names and run it again; apply each
+warning that fits. Advance only on `status: ready` (structure only; the runner checks again).
 
 ## 6. Choose the talking model and render
 
@@ -288,9 +288,8 @@ cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill di
 ```
 
 It writes `render/render_remake_video.json`. Call `render_remake_video` with that file's content as
-its arguments, unchanged. An accepted render returns `status: "running"`. A retry of an accepted
-render returns the current state and never launches twice, so on a timeout or lost response call
-it again with the same arguments. For a `conflict` or `quota_exceeded` error, read
+its arguments, unchanged; it returns `status: "running"`. On a timeout or lost response call it
+again with the same arguments: an accepted render never launches twice. For a `conflict` or `quota_exceeded` error, read
 `references/tool-errors.md`. A result with `failure: "unsupported_type"` is handled as in step 2.
 
 **The runner checks the documents first, after render returns.** If a later `get_remake_video`

@@ -38,6 +38,10 @@
 - `remake-viral-video` 说明文字并入契约 v1.7（与网页端 creator-remake-web 0.1.41 同文）：能力表加 `first_frame`（改本人的一帧/照片出新静帧，重画脸）、
   `audio_edit`、`still_video`；原则 3 点名已交付复刻的 `master.mp4`、takes、B-roll 与首帧；步骤 notes 说给的 box 压到画面文字或脸时
   去掉 box 重做或告知用户；`atoms.md` 补 `frame` 的 `at`、`refvideo` 到 30 s、`talking.prompt`、`captions.max_words` / `upper` 与价格。
+- `remake-viral-video` 路线模拟（本地 t19）后续：原则 4 写明台词也由 agent 从参考片或本人视频的转写里拿、自己写；原则 3 写明 `frame` / `crop`
+  先看结果再用、不清楚换时刻、最后才向用户要；「1. Collect the inputs」开头注明只适用于整条复刻（此前把「换原片镜头」「本人视频换语言」
+  拉回整条复刻），「What this covers」改名「What a whole remake covers」，运行目录按「每条视频」预留。第 5、6 步与「What a whole remake
+  covers」措辞等量压缩，规则不变（正文 20,995 字符）。与网页端 creator-remake-web 0.1.42 同文。
 
 ## 1.0.14（2026-11-05；GitHub Release）
 

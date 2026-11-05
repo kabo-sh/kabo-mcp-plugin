@@ -29,8 +29,8 @@ creator's videos are handles too (`creator/...`). This version cannot take photo
 recordings or other files from the user's computer. A public picture link (a product, a place) can be
 added to the job first with `project-call --job-id` and `--reference-image` (`references/atoms.md`,
 "Run it"). Look first at what the job already has: a `frame` or `crop` of `master.mp4`, its takes,
-B-roll and first frames, the creator's footage or the reference (a product close-up is often already in it); ask for a
-picture only when none of it will do.
+B-roll and first frames, the creator's footage or the reference (a product close-up is often already in it). Look at each
+`frame` or `crop` before using it and try other moments; ask for a picture only last.
 
 **Finding the time range.** `get_remake_video` with `project` true lists the delivered video's
 `lines` with `row`, `text`, `t0` and `t1` (seconds). When the user names a moment by its words,

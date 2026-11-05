@@ -109,9 +109,8 @@ Pass the pick as `params.voice` of `tts`, and say at delivery that a stock voice
 | Text burned into a video or picture taken out | `inpaint_text` | tool step (below) |
 | Several pictures or videos placed in boxes on one frame, each for its own time range | `layout` | tool step (below) |
 
-**Tool steps.** `retime`, `crop`, `inpaint_text` and `layout` are plain tools: they run on Kabo's
-servers without a model, cost nothing and draw no face. A request is met by combining steps; there
-is no step for a whole scene or ad format. Boxes are `[x, y, width, height]` as fractions of the
+**Tool steps** (`retime`, `crop`, `inpaint_text`, `layout`, `still_video`, `audio_edit`) run
+without a model, free, and draw no face; combine steps for a scene or ad. Boxes are `[x, y, width, height]` as fractions of the
 frame (0-1, inside the frame).
 
 - `retime` (`inputs.video`): `mode` `speed` takes exactly one of `speed` (0.25-4) or `duration`
@@ -141,7 +140,8 @@ takes `speed` 0.5-2 for the voice's own pace (1 is normal).
 
 Pictures of the creator come from their photos or from their videos: choose a `frame` yourself
 where the face is clear and frontal (for `motion`, the whole body when there is such a moment;
-otherwise use what there is and say so). Never use the
+otherwise use what there is and say so); look at it before using it. Words are yours too: take
+what is said from the reference's or the creator's transcript and write their version. Never use the
 creator's own footage as the movement source when the user asked for someone else's moves: add that
 video as a reference video.
 
