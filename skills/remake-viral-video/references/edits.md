@@ -43,9 +43,8 @@ an edit when the moment is not obvious.
 Tell the user in one or two lines exactly what will change and what stays the same, and the rough
 cost: a caption change costs next to nothing; a line change costs the new voice line plus
 re-syncing the changed take (usually well under a dollar per line); a new background, overlay or
-clip costs what its picture or clip costs (`references/atoms.md`, "Plan before spending"). An edit
-has a budget (about $10 per job); over it, nothing is done and `quota_exceeded` comes back. Then
-go ahead; ask first only when it goes beyond what the user already agreed to.
+clip costs what its picture or clip costs (`references/atoms.md`, "Plan before spending"). There is no
+spending cap: over $5, wait for their OK; otherwise go ahead.
 
 ## Run it
 
@@ -85,7 +84,7 @@ It saves the newest revision as `output/remake-<id>-r<N>.mp4` next to the earlie
   days and are gone; the video cannot be edited any more. Say so and offer a new remake.
 - Any other `validation_error`: read `message` (for example a time range past the end of the video
   or a handle that does not exist), fix the edits file and build again with the next `--attempt`.
-- `quota_exceeded`: over the edit budget or a daily limit; nothing was changed.
+- `quota_exceeded`: a daily limit or the spending safety stop; nothing was changed.
 - `last_step.status` `failed`: relay `error` in plain words; the delivered video is unchanged.
 
 ## Telling the user

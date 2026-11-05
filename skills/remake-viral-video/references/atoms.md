@@ -176,8 +176,8 @@ creator.
 ## Plan before spending
 
 Before the first paid step, write `project/plan.json` in the run directory and tell the user in two
-or three lines what you will make, which steps, and roughly what it costs, then go ahead. Ask
-first only when it goes beyond what the user already agreed to.
+or three lines what you will make, which steps, and roughly what it costs. There is no spending
+cap: over $5, wait for their OK; otherwise go ahead.
 
 ```json
 {"goal": "one line: what the user asked for",
@@ -192,8 +192,7 @@ what is charged): `motion` about $0.17-0.40, `refvideo` about $0.20-0.24, `repla
 under $0.01 to about $0.30 depending on the model. `still` is a few cents per picture and `persona` about $0.15 per portrait; `animate`
 and `voice_change` are cents per second; `tts`, `frame`, `trim`, `mux`, `extract_audio`, `bg`,
 `overlay`, `splice`, `concat`, `text_cards`, `music`, `captions` and `face_check` cost little or
-nothing; `first_frame` about $0.15 a picture; `retime`, `crop`, `inpaint_text`, `layout`, `still_video` and `audio_edit` cost nothing. A project has a budget (about $20); a step that would go over it is refused with
-`quota_exceeded` before anything is generated.
+nothing; `first_frame` about $0.15 a picture; `retime`, `crop`, `inpaint_text`, `layout`, `still_video` and `audio_edit` cost nothing.
 
 ## Run it
 
@@ -250,7 +249,7 @@ Errors from `start_video_project` are read as in `references/tool-errors.md`.
   offer a new project. `no_creator`: a face step in a project without the creator. `no_voice`:
   nothing to clone; ask for a recording, then offer a stock voice (above). A `persona` refused
   because the project has creator material: use that material instead.
-- `quota_exceeded`: over the project's budget or a daily limit; nothing was generated. Tell the
+- `quota_exceeded`: a daily limit or the spending safety stop; nothing was generated. Tell the
   user; do not split the step to get around it.
 - A step that ends `failed`: relay `message` in plain words and the spend, if any; try another
   listed model once if it was a refusal or a provider failure, otherwise stop and ask the user.

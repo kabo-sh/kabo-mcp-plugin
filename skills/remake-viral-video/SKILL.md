@@ -60,7 +60,7 @@ it. Decide by that, not by the request's wording ("remake" included):
 
 Before the first project step or edit, read `references/atoms.md` (what each step takes and
 costs) or `references/edits.md`, say in two or three lines what you will make and roughly what it
-costs, then go ahead. A `degraded` face check never blocks delivery: say which part looks less
+costs; over $5 wait for their OK, else go ahead. A `degraded` face check never blocks delivery: say which part looks less
 like the creator. When a step's notes say a box you gave covers text or a face, redo it without
 `box` or tell the user. Cancel a job (`get_remake_video` with `"cancel": true`) only when the user asks;
 spend so far stays charged.
