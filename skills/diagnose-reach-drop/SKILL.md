@@ -11,6 +11,14 @@ allowed-tools: get_research_data_job get_research_data_download collect_account_
 Deterministic scripts calculate the evidence, the conclusion and the data limits; you select the
 modules, write the plan and write the analysis around the computed facts.
 
+**Before attributing results**, including follow-ups reporting that earlier advice failed, read
+[post-publication review](references/post-publication-review.md). Reuse records and retrieve
+authorized account history for a known target before asking for missing public evidence. Align the platform, metric
+definition and comparison first: post age for post comparisons, matching populations/windows
+for account comparisons. If the relevant basis is missing, clarify before
+starting a numeric diagnosis; do not invent a cohort to make the workflow run. A missing-input
+reply is not a completed diagnosis and does not require the report pipeline below.
+
 **Delivery.** The final `drive.py report` writes `creator-reply.md` and prints it between
 `KABO_FINAL_REPLY_BEGIN` and `KABO_FINAL_REPLY_END`. Deliver that text once, in the creator's
 language: translate faithfully any part not in that language, labels and source notes included, and

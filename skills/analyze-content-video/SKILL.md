@@ -8,9 +8,22 @@ allowed-tools: get_research_capabilities get_research_data_job get_research_data
 
 # Analyze Content Video
 
+When the host supports one, run this Skill in a foreground sub-agent, because a full diagnosis takes
+many steps, and wait for its final result before replying; never run it in the background and tell
+the user the report will come later. Without a foreground sub-agent, follow the same steps in the
+main thread.
+
 One post, one editing decision. Videos use timestamps; still-image posts use their original slide
 positions. The schemas, deterministic computation, renderers and validators ship in this Skill's
 `references/` and `scripts/`.
+
+**Performance follow-up: clarify before diagnosing.** Read
+[post-publication review](references/post-publication-review.md) for reported analytics or results
+after earlier advice. Reuse records and retrieve available metadata/baselines for a known target.
+If platform, metric definition, post age or comparable baseline is still missing,
+**this turn only asks one bundled clarification and ends**. Do not add a leading or trailing
+interpretation, ratings, viewer-subgroup claims or editing advice. Once the creator supplies the
+missing context, proceed with evidence-based hypotheses and useful checks.
 
 **Delivery.** A diagnosis ends with `finish_diagnosis.py`, which prints the validated
 `report/VIDEO_DIAGNOSIS.md`. Relay it once, complete. A Chinese or English report already comes
@@ -23,11 +36,6 @@ second paraphrased report or narrate artifact writing, validation, file paths, c
 or providers. If the run fails, say the requested report could not be completed; never present
 unvalidated output as a report, and never answer from fetched data or your own knowledge instead of
 the report the final step prints.
-
-When the host supports one, run this Skill in a foreground sub-agent, because a full diagnosis takes
-many steps, and wait for its final result before replying; never run it in the background and tell
-the user the report will come later. Without a foreground sub-agent, follow the same steps in the
-main thread.
 
 Before acknowledging a correction, check the actual earlier reply or report; do not adopt quoted
 advice as something you said. Attribute a fact the creator revises to them once, instead of claiming
