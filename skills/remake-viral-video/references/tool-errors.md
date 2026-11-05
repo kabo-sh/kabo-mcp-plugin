@@ -5,7 +5,7 @@
 A tool error carries `code`, `message` and `retryable`. No remake was started by any of them;
 relay `message` in plain words:
 
-- `validation_error` (a link or handle that cannot be used, a reference over 90 seconds, a video
+- `validation_error` (a link or handle that cannot be used, a reference over 10 minutes, a video
   that cannot be fetched, no usable reels, the same video in both roles): no remake fee was charged
   and the daily remake limit was not used. Ask for a different input instead of resubmitting.
 - `quota_exceeded` with `retryable: false`: the daily remake limit (or the daily data allowance)

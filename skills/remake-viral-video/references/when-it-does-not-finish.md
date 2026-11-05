@@ -8,7 +8,7 @@ moving, like a walking or travel vlog, rather than one person talking to the cam
 stage names or internal terms. Always say whether it was charged:
 
 - `out_of_scope`: relay the reason. For a reference that is not a short talking-head video, suggest
-  one of 90 seconds or less where one person speaks to the camera for most of it. When no clear
+  one of 10 minutes or less where one person speaks to the camera for most of it. When no clear
   frontal face of the creator was found, ask for links to videos where they talk facing the camera.
   Nothing was charged and the daily limit was not used; say so.
   When the reason is that nobody talks to the camera in the reference (a product demo, scenes,
