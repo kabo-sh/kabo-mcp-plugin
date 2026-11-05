@@ -294,8 +294,9 @@ def start_call(reference, handle, video_urls, creator_name, language, attempt, s
 # 原子项目与出片后修改（跨仓契约 v1，2026-11-04）。入参由脚本生成并带幂等键，形状与服务端
 # 的严格 schema 一致；服务端仍会再校验一次。op 是封闭枚举，文件只能是工作区句柄。
 
-HANDLE_RE = re.compile(r"^(creator/[a-z0-9_.-]{1,60}|input/[a-z0-9_.-]{1,60}|a\d{2,3}|final(_r\d{1,2})?|take_s\d{2}"
-                       r"|line_\d{2,3})\.(mp4|png|jpg|wav)$")
+# 契约 v1.7：已交付复刻另有 master（当前无字幕画面）、broll_bNN（B-roll 段与其静帧）、frame_sNN（口播段首帧）
+HANDLE_RE = re.compile(r"^(creator/[a-z0-9_.-]{1,60}|input/[a-z0-9_.-]{1,60}|a\d{2,3}|final(_r\d{1,2})?|master|take_s\d{2}"
+                       r"|broll_b\d{2,3}|frame_s\d{2}|line_\d{2,3})\.(mp4|png|jpg|wav)$")
 COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 # 服务端的字幕颜色只收 #RRGGBB；常见颜色名由脚本换成固定色值，不让模型自己换算。
 COLOR_NAMES = {"white": "#FFFFFF", "black": "#000000", "yellow": "#FFD400", "red": "#FF3B30", "orange": "#FF9500",
@@ -323,16 +324,17 @@ FACE_MODELS = {
     "talking": ("vivix/vivix-a1", "fal-ai/kling-video/ai-avatar/v2/pro", "fal-ai/kling-video/ai-avatar/v2/standard",
                 "minimax/h3-max/lip-sync/image-to-video", "bytedance/seedance-2.0/reference-to-video",
                 "alibaba/wan-3.0/reference-to-video"),
+    "first_frame": ("fal-ai/nano-banana-pro/edit", "fal-ai/bytedance/seedream/v4.5/edit", "fal-ai/nano-banana/edit"),
 }
 # op -> (inputs: 名称 -> 种类, 必填 inputs, params: 名称 -> 种类, 必填 params)
 # 种类：h 句柄；h[lo,hi] 句柄数组；其余见 _param。
 STEP_OPS = {
     "refvideo": ({"images": "h[1,10]", "ref_video": "h", "first_frame": "h", "last_frame": "h"}, {"images"},
-                 {"prompt": "prompt", "duration": "duration3_15", "sound": "bool", "model": "model"}, {"prompt"}),
+                 {"prompt": "prompt", "duration": "duration3_30", "sound": "bool", "model": "model"}, {"prompt"}),
     "motion": ({"image": "h", "video": "h"}, {"image", "video"}, {"prompt": "prompt", "model": "model"}, set()),
     "replace": ({"video": "h", "image": "h"}, {"video", "image"}, {"prompt": "prompt", "model": "model"}, set()),
     "lipsync": ({"video": "h", "audio": "h"}, {"video", "audio"}, {"model": "model", "sync_mode": "sync_mode"}, set()),
-    "talking": ({"image": "h", "audio": "h"}, {"image", "audio"}, {"model": "model"}, set()),
+    "talking": ({"image": "h", "audio": "h"}, {"image", "audio"}, {"model": "model", "prompt": "prompt"}, set()),
     "tts": ({}, set(), {"lines": "lines", "voice": "tts_voice", "speed": "tts_speed"}, {"lines"}),
     "still": ({"refs": "h[0,4]"}, set(), {"prompt": "prompt"}, {"prompt"}),
     "animate": ({"image": "h"}, {"image"}, {"prompt": "prompt", "duration": "duration5_10"}, {"prompt"}),
@@ -343,8 +345,9 @@ STEP_OPS = {
     "concat": ({"clips": "h[2,20]"}, {"clips"}, {}, set()),
     "text_cards": ({"base": "h"}, {"base"}, {"cards": "cards", "style": "style"}, {"cards"}),
     "music": ({"base": "h"}, {"base"}, {"mood": "mood", "gain_db": "gain"}, {"mood"}),
-    "captions": ({"video": "h"}, {"video"}, {"color": "color", "size": "size"}, set()),
-    "frame": ({"video": "h"}, {"video"}, {"t": "t"}, {"t"}),
+    "captions": ({"video": "h"}, {"video"}, {"color": "color", "size": "size", "max_words": "max_words",
+                                             "upper": "bool"}, set()),
+    "frame": ({"video": "h"}, {"video"}, {"t": "t", "at": "first_last"}, set()),
     "face_check": ({"media": "h"}, {"media"}, {}, set()),
     "trim": ({"media": "h"}, {"media"}, {"t0": "t", "t1": "t"}, {"t0", "t1"}),
     "mux": ({"video": "h", "audio": "h"}, {"video", "audio"}, {"mode": "mux_mode", "gain_db": "mux_gain"}, {"mode"}),
@@ -359,6 +362,13 @@ STEP_OPS = {
     "inpaint_text": ({"media": "h"}, {"media"}, {"boxes": "rects", "fill": "fill", "t0": "t", "t1": "t"}, set()),
     "layout": ({"base": "h", "layers": "h[1,8]"}, {"layers"}, {"layers": "layers", "canvas": "canvas",
                                                                "audio": "base_none"}, {"layers"}),
+    # 契约 v1.7：first_frame 改一张图出新静帧（重画脸、付费）；still_video 图片成段；audio_edit 声音的
+    # 音量 / 响度 / 淡入淡出 / 速度 / 长度（本地、$0）
+    "first_frame": ({"image": "h", "refs": "h[0,3]"}, {"image"}, {"prompt": "prompt", "model": "model"}, {"prompt"}),
+    "still_video": ({"images": "h[1,8]"}, {"images"}, {"duration": "length", "zoom": "zoom", "fit": "still_fit"},
+                    {"duration"}),
+    "audio_edit": ({"media": "h"}, {"media"}, {"gain_db": "audio_gain", "normalize": "bool", "fade_in": "fade",
+                                               "fade_out": "fade", "speed": "tts_speed", "duration": "length"}, set()),
 }
 # sync_mode 只给 sync-lipsync 模型（缺省模型就是它）
 SYNC_MODES = ("cut_off", "loop", "bounce", "silence", "remap")
@@ -438,9 +448,21 @@ def _param(kind, value, where, op):
     if kind == "prompt":
         ok = isinstance(value, str) and value.strip() and len(value) <= 2000
         message = "a non-empty text of at most 2000 characters"
-    elif kind == "duration3_15":
-        ok = isinstance(value, int) and not isinstance(value, bool) and 3 <= value <= 15
-        message = "a whole number of seconds from 3 to 15"
+    elif kind == "duration3_30":
+        ok = isinstance(value, int) and not isinstance(value, bool) and 3 <= value <= 30
+        message = "a whole number of seconds from 3 to 30 (over 15 only with kling/v4/reference-to-video)"
+    elif kind == "first_last":
+        ok, message = value in ("first", "last"), "first or last"
+    elif kind == "max_words":
+        ok, message = isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 8, "a whole number from 1 to 8"
+    elif kind == "zoom":
+        ok, message = _number(value) and 1 <= value <= 1.5, "a zoom from 1 (held still) to 1.5"
+    elif kind == "still_fit":
+        ok, message = value in ("cover", "contain"), "cover or contain"
+    elif kind == "audio_gain":
+        ok, message = _number(value) and -30 <= value <= 12, "a number of dB from -30 to 12"
+    elif kind == "fade":
+        ok, message = _number(value) and 0 <= value <= 10, "a fade in seconds from 0 to 10"
     elif kind == "duration5_10":
         ok, message = value in (5, 10) and not isinstance(value, bool), "5 or 10"
     elif kind == "bool":
@@ -684,6 +706,15 @@ def step_call(job_id, step_file, attempt):
             raise ValueError("retime mode speed takes exactly one of params.speed or params.duration")
         if params["mode"] != "speed" and (has_speed or not has_duration):
             raise ValueError(f"retime mode {params['mode']} takes params.duration (the new length) and no speed")
+    if op == "frame" and ("t" in params) == ("at" in params):
+        raise ValueError("frame takes exactly one of params.t (seconds) or params.at (first or last)")
+    if op == "refvideo" and params.get("duration", 0) > 15 and params.get("model") != "kling/v4/reference-to-video":
+        raise ValueError("refvideo over 15 seconds needs params.model kling/v4/reference-to-video")
+    if op == "audio_edit":
+        if not params:
+            raise ValueError("audio_edit needs at least one change in params")
+        if params.get("normalize") and params.get("gain_db"):
+            raise ValueError("audio_edit: normalize sets the level itself; leave gain_db out")
     if op == "layout" and len(params["layers"]) != len(inputs["layers"]):
         raise ValueError("params.layers must have one entry per handle in inputs.layers, in the same order")
     if op == "captions" and "color" in params:

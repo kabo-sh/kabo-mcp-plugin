@@ -33,12 +33,24 @@
     交付后用步骤或修改补。项目步骤与修改说完计划和大约花费即开做，超出用户已同意的才先问（原为等用户点头）。
     `motion` 不把全身照当前置（本人画面抽帧即可）；修改要配图时先看成片、素材与参考片里有没有。为不超 21,000 字符压缩了第 1、2 步与
     「What this covers」的几处措辞，规则不变。
-- 契约：`tools-list.json` 整份换成数据层正式导出（kabo 分支 `yutian/remake-r93-tool-atoms` 提交 `e6ecd21b`，
-  即并入 kabo#2022 的契约 v1.6；golden `4f5399c6…`，73 个工具，逐字节一致），`pin.json` 重新钉住。相对 main：新增 `start_video_project`、`make_video_step`、
-  `edit_remake_video`、`finish_video_project`（`make_video_step` 的 op 枚举含 v1.6 的四个工具级原子）；`get_remake_video` 加 `project: true`（项目状态）与 `cancel: true`，标注改为非只读；
-  `start_remake_video` 带上 kabo#2011 的 `creator.photo_urls` / `voice_preset`；另含 PR #79 用到的 `collect_video_media`
-  （本分支不用，按 #79 同样写法进必需工具与标注）。`make_video_step` 的 inputs / params 在公开 schema 里只是对象，
-  服务端按 op 逐键严格校验，插件 `step-call` 的本地严格校验保留为第一道。kabo#2022 合并前不发版本。
+- 契约 v1.7（复刻包 V2-r95）：`make_video_step` 的 op 加 `first_frame`（改一张图出新静帧，重画脸、付费、只收三档 tested 模型）、`still_video`（图片成段，可缓推）、`audio_edit`（音量/响度/淡入淡出/速度/长度，本地 $0）；`frame` 收 `at: first|last`（与 `t` 二选一）；`refvideo` 用 Kling v4 时到 30 秒；`talking` 收 `prompt`；`captions` 收 `max_words` / `upper`；已交付复刻另有句柄 `master.mp4`（当前无字幕画面）、`broll_bNN.mp4|png`（B-roll 段与其静帧）、`frame_sNN.png`（口播段首帧）。`step-call` 按服务端同口径校验。
+- 契约：`tools-list.json` 整份换成数据层正式导出（kabo#2022 分支 `yutian/remake-atoms-launch` 提交 `9f6b0a74`，已并入 kabo main、含 1.0.14 钉住的 `096d598ba` 的全部工具；golden 逐字节一致，77 个工具），`pin.json` 重新钉住。相对 main（73 个）：新增 `start_video_project`、`make_video_step`、`edit_remake_video`、`finish_video_project`（权限 video，进必需工具）；`get_remake_video` 加 `project: true`（项目状态）与 `cancel: true`，标注改为非只读；`start_remake_video` 带上 kabo#2011 的 `creator.photo_urls` / `voice_preset`。`make_video_step` 的 inputs / params 在公开 schema 里只是对象，服务端按 op 逐键严格校验，插件 `step-call` 的本地严格校验保留为第一道。kabo#2022 合并前不发版本。
+
+## 1.0.14（2026-11-05；GitHub Release）
+
+- 交接改为交结果编号（#83）：取数结果带一个短编号，模型只把编号填进续跑命令，脚本按编号下载、核对长度与 sha256 后落盘，
+  不再让模型把结果写成文件；没有编号的结果仍按原方式保存。对照 1.0.10 的同一批 30 轮输入，模型手写保存从多次降为 0。
+- `review-creator-account-deep`（#79）：目录取数交出一次 `collect_account_history`，看片的元数据、字幕与抽帧交出一次
+  `collect_video_media`，两处交接都交结果编号；创作依据按运行名与相对路径绑定。
+- 每个按次计费的 Skill 在预留运行目录后调用一次 `start_skill_run`（Kabo 按 skill 记一次用量，同一运行不重复记）；额度用完时 Skill 停止并把账单链接交给用户，
+  工具缺失时照常继续。`remake-viral-video` 只走视频额度，不声明（#95）。
+- 目录契约重钉到已部署的 kabo `096d598ba`（73 个工具，含 `start_skill_run`、`get_credit_balances`、`get_credit_tasks`、`claim_credit_task`、`collect_video_media`）。
+- `verify-platform-rule`：判「谣言」须有官方原文相矛盾，未提及不算反驳；释义只翻译不概括；说明里点名门槛变化类传言与登记页面（#88）。
+- `diagnose-reach-drop`：流量来源分组可带各自的日历窗口；通用窗口只按发布时长（#92、#96）。
+- `plan-platform-monetization`：保留频道声明的国家；说明覆盖用户给出数字与没有账号的问题（#85、#86）。
+- `analyze-content-video`：中文视图的报告标签本地化，不再回退到后台分析（#87）。
+- 规范文档只保留英文版 `docs/skills-spec.md`（#93）。
+- 生产回归：待补。
 
 ## 1.0.13（2026-11-05；GitHub Release）
 
@@ -79,7 +91,7 @@
 - Instagram 最近七天走 Search collector（实验 B）：最多两个意图、各一页，原帖详情预算 24；只有详情完整、播放量已知且原帖日期在精确时间窗内的候选参与排名。
 - TikTok、YouTube 的热度层在本地再次检查 30 天边界；报告说明排除数量与资料缺失，名额不足时如实保留空缺。
 - 完整保留已发布 1.0.8 的口播稿出片与交付说明；本次包也包含 main 已合入的十五项 Skills、后端聚合取数与媒体 operation 名兼容修复。
-- 实验样本、GSB 口径及局限见 [推荐实验汇总](docs/2026-11-03-recommendation-experiments.md)。本次重点验收三平台推荐改动；十五项 Skills 的全部跨宿主验收与 OpenAI 商店审核仍独立记录，不能以本次 GitHub Release 代替。
+- 本次重点验收三平台推荐改动；十五项 Skills 的全部跨宿主验收与 OpenAI 商店审核仍独立记录，不能以本次 GitHub Release 代替。
 
 ## 1.0.8（2026-11-02；GitHub Release）
 
@@ -186,8 +198,8 @@
   - 读画像带 `effective: true`，被拒时去掉重发一次。四个 Skill 的 `allowed-tools` 加 `update_content_preferences`、
     `compatibility` 加 `workspace:write`；写入规则在新增的 `references/profile-edits.md`（四份同文），按 kabo CONTRACT §16.6
     （kabo-sh/kabo#1869）的确认规则执行，409 先重读，`insufficient_scope` 请用户批准补权后重试一次。
-  - 新增有效画像夹具（TikTok 三份取自 kabo `effective-content-profile-v1` golden 的向量）与相应测试；README、
-    `docs/submission.md` 补说明。上线前要重新走目录审核并重新做插件验收。
+  - 新增有效画像夹具（TikTok 三份取自 kabo `effective-content-profile-v1` golden 的向量）与相应测试；README 与提交材料
+    补说明。上线前要重新走目录审核并重新做插件验收。
 - 三个 trends Skill（`research-tiktok-trends`、`research-instagram-trends`、`research-youtube-trends`）接收后台账号画像：
   手工移植 creator-skills #918（`feat/reco-trends-allocation`，`e6fd8cfe7`）的 S1–S3。用户问自己已绑定账号的趋势时，
   先 `list_connected_accounts`、再 `get_creator_profile`（`include: ["content_profile"]`），完整结果原样存成文件交给

@@ -17,6 +17,10 @@ OAuth 通过 `securitySchemes` 与 `_meta.securitySchemes` 同值声明。下表
 | update_script | workspace:write | false | true | false | 替换用户已有正文；属主、乐观锁及幂等回执防止越权、重放与覆盖较新版本。 |
 | connect_public_account | workspace:write | false | true | true | 使用当前用户取数额度核验公开身份并建立观察关系；换绑须携带当前账号与版本。不进行官方 OAuth、不投递分析或同步任务。 |
 | update_content_preferences | workspace:write | false | true | false | 改本人对已绑定账号的画像偏好，remove / merge / reset 会去掉已有修改；必填 expected_version，改主打内容另带 basis。重放时版本已变必回 409、不会重复生效，所以不带幂等键（待目录面负责人确认）。不访问第三方、不启动生成、不扣 credits。 |
+| start_skill_run | data | false | false | false | 宿主声明一次 skill 运行：按 (用户, run_id) 幂等记一笔 Regular credits（价格读价表）。额度用完先拦；开关关闭、内部或审核账号不记。不访问第三方、不改产品数据。 |
+| get_credit_balances | workspace:read | true | false | false | 读取当前账号的 Regular 与 Video credits，与网页 GET /v1/credits 同一条 present()。用量已达标时会把当日任务奖励入账，这是网页打开额度时就会做的结算；不扣费、不发起充值。 |
+| get_credit_tasks | workspace:read | true | false | false | 读取当前账号的任务墙。每日任务若今天已完成，这次读取会把奖励入账，与网页打开额度时同一条结算；不领取一次性任务、不扣费。 |
+| claim_credit_task | workspace:write | false | false | false | 用户要求时领取一条一次性任务的 Regular credits；条件不满足或已领过则不发，账本唯一约束保证重放不重复入账。不领取每日任务。 |
 | collect_instagram_trend_candidates | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | enrich_instagram_shortlist | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | collect_youtube_trend_candidates | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
@@ -29,12 +33,12 @@ OAuth 通过 `securitySchemes` 与 `_meta.securitySchemes` 同值声明。下表
 | analyze_content_video | video | false | false | true | 创建账号拥有的视频分析记录（新分析需有效 Pro 订阅）；同一幂等键重放原分析，不发布或改动源视频。 |
 | get_analysis_run | video | true | false | false | 仅查询当前用户持有的已存分析，不启动任务、不读取任意外部地址。 |
 | start_remake_video | video | false | false | true | 取第三方公开视频（占取数额度）并创建账号拥有的复刻任务（占每日复刻名额）；idempotency_key 必填，同键同入参重放或续做同一任务，不发布或改动源视频。 |
-| get_remake_video | video | false | false | false | 读当前用户经 /mcp-pub 建的复刻任务或项目并签发短期下载链接；不访问第三方、不占额度。可选 cancel: true 终止自己在跑的步骤或准备任务（已产生花费照记），因此不标只读。 |
+| get_remake_video | video | false | false | false | 读当前用户经 /mcp-pub 建的复刻任务并签发短期下载链接；带 cancel 时终止该任务在跑的一步或准备（已花费照记），不访问第三方、不占额度。 |
 | render_remake_video | video | false | false | true | 提交宿主写的稿件并启动付费生成（runner 调用口播、配音与图像供应商）；已受理的任务再调只回当前状态、不重复启动。 |
-| start_video_project | video | false | false | true | 取第三方公开视频与公开图片（占取数额度）并为原子项目建账号拥有的工作区，或带 job_id 往已有项目追加素材；不生成、不扣费；idempotency_key 必填，同键同入参重放同一项目。 |
-| make_video_step | video | false | false | true | 在当前用户的项目或已交付复刻的工作区里做一步（op 封闭枚举，inputs/params 由服务端按 op 逐键严格校验，只收工作区句柄）；按实际花费计费，超出任务预算拒收；同键重放不重复计费。 |
-| edit_remake_video | video | false | false | true | 改当前用户已交付的成片（台词、字幕、叠图、换背景、插镜），生成新修订版、旧版保留；按实际花费计费；同键重放不重复计费。 |
-| finish_video_project | video | false | false | false | 把项目里的一个 .mp4 句柄定为成片（人脸核对后登记为新修订版并签下载）；不访问第三方；同键重放返回同一交付。 |
+| start_video_project | video | false | false | true | 取第三方公开视频（占取数额度）并创建账号拥有的原子项目；idempotency_key 必填，同键同入参重放同一项目。 |
+| make_video_step | video | false | false | true | 在账号自己的项目工作区里启动一步付费生成或剪辑（Runner 调视频、配音、图像供应商）；同键同入参只回当前状态、不重复启动。 |
+| edit_remake_video | video | false | false | true | 对账号自己已交付的视频做确定性修改并登记新版本，旧版本保留；同键同入参只回当前状态、不重复启动。 |
+| finish_video_project | video | false | false | false | 把账号自己项目里的一个成片句柄做相似度检查后登记为新版本成片；同键同入参只回当前状态。 |
 | get_research_capabilities | data | true | false | false | 只读 Kabo 自有状态（任务、制品、快照或目录），不访问第三方、不占额度。 |
 | youtube_search_videos | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | youtube_search_channels | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |

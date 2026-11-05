@@ -48,7 +48,8 @@ test("工具清单含四个新工具（权限 video）；get_remake_video 带 pr
   for (const key of ["kind", "handles", "revisions", "last_step", "lines"]) assert.ok(project[key], key);
   assert.ok(project.status.enum.includes("ready") && project.status.enum.includes("working"));
   assert.ok(get.inputSchema.properties.project && get.inputSchema.properties.cancel);
-  for (const op of ["trim", "mux", "extract_audio", "voice_change", "text_cards", "music", "persona", "retime", "crop", "inpaint_text", "layout"])
+  for (const op of ["trim", "mux", "extract_audio", "voice_change", "text_cards", "music", "persona", "retime", "crop", "inpaint_text", "layout",
+    "first_frame", "still_video", "audio_edit"])
     assert.ok(pinned.get("make_video_step").inputSchema.properties.op.enum.includes(op), op);
 });
 
@@ -112,6 +113,15 @@ test("project-call / step-call / edit-call / finish-call 生成的入参通过�
                { box: [0, 0, 1, 1], src_box: [0, 0.6, 1, 0.3], key: "light", grow: 0.01 }],
       audio: "base" } },
     canvas: { op: "layout", inputs: { layers: ["a06.mp4"] }, params: { layers: [{ box: [0, 0.25, 1, 0.5] }], canvas: { width: 1080, height: 1920, color: "#101010", duration: 6 } } },
+    // 契约 v1.7：first_frame / still_video / audio_edit、frame at、Kling 30 秒、talking prompt、字幕选项、已交付复刻的新句柄
+    firstFrame: { op: "first_frame", inputs: { image: "frame_s00.png", refs: ["creator/photo-01.jpg"] }, params: { prompt: "the same person standing, full body" } },
+    stillVideo: { op: "still_video", inputs: { images: ["broll_b02.png", "a01.png"] }, params: { duration: 3, zoom: 1.2, fit: "contain" } },
+    audioEdit: { op: "audio_edit", inputs: { media: "line_01.wav" }, params: { normalize: true, fade_out: 0.5, speed: 0.8, duration: 6 } },
+    masterGain: { op: "audio_edit", inputs: { media: "master.mp4" }, params: { gain_db: -6 } },
+    lastFrame: { op: "frame", inputs: { video: "broll_b02.mp4" }, params: { at: "last" } },
+    kling20: { op: "refvideo", inputs: { images: ["creator/photo-01.jpg"] }, params: { prompt: "x", duration: 20, model: "kling/v4/reference-to-video" } },
+    talkPrompt: { op: "talking", inputs: { image: "frame_s00.png", audio: "line_01.wav" }, params: { prompt: "calm, small nods" } },
+    capWords: { op: "captions", inputs: { video: "a02.mp4" }, params: { max_words: 2, upper: false } },
   };
   for (const [name, step] of Object.entries(steps)) {
     const file = path.join(run, "project/steps", `${name}.json`);
@@ -180,6 +190,17 @@ test("step-call / edit-call 在付费调用前拒收路径、链接、未列出�
     [{ op: "layout", inputs: { layers: ["a01.png"] }, params: { layers: [{ box: [0, 0, 1, 1], template: "product" }] } }, /box, src_box/],
     [{ op: "layout", inputs: { layers: ["a01.png"] }, params: { layers: [{ box: [0, 0, 1, 1] }], canvas: { color: "black" } } }, /#RRGGBB/],
     [{ op: "layout", inputs: { layers: [] }, params: { layers: [{ box: [0, 0, 1, 1] }] } }, /1 to 8 handles/],
+    [{ op: "first_frame", inputs: { image: "a01.png" }, params: {} }, /needs params prompt/],
+    [{ op: "first_frame", inputs: { image: "a01.png", refs: ["a01.png", "a01.png", "a01.png", "a01.png"] }, params: { prompt: "x" } }, /0 to 3 handles/],
+    [{ op: "first_frame", inputs: { image: "a01.png" }, params: { prompt: "x", model: "fal-ai/flux-pro/kontext" } }, /must be one of/],
+    [{ op: "still_video", inputs: { images: ["a01.png"] }, params: { duration: 3, zoom: 2 } }, /1 \(held still\) to 1.5/],
+    [{ op: "audio_edit", inputs: { media: "a01.wav" }, params: {} }, /at least one change/],
+    [{ op: "audio_edit", inputs: { media: "a01.wav" }, params: { normalize: true, gain_db: -3 } }, /leave gain_db out/],
+    [{ op: "frame", inputs: { video: "master.mp4" }, params: {} }, /exactly one of params.t/],
+    [{ op: "frame", inputs: { video: "master.mp4" }, params: { t: 1, at: "first" } }, /exactly one of params.t/],
+    [{ op: "refvideo", inputs: { images: ["a01.png"] }, params: { prompt: "x", duration: 20 } }, /kling\/v4/],
+    [{ op: "captions", inputs: { video: "a01.mp4" }, params: { max_words: 0 } }, /1 to 8/],
+    [{ op: "frame", inputs: { video: "broll_b1.mp4" }, params: { t: 1 } }, /workspace handle/],
   ];
   for (const [step, message] of bad) {
     const file = path.join(run, "project/steps/bad.json");
