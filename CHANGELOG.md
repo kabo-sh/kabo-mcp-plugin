@@ -2,6 +2,15 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.13（未发布）
+
+- 交接取数不再让模型抄结果（kabo-mcp-plugin #83，依赖 kabo#2028）：下载就绪的结果带 22 位结果编号，交接只让模型把编号填进续跑
+  命令（`--id NN=<编号>`），脚本按编号向 Kabo 取同一份字节、核对长度与 sha256 后落盘；没有下载链接的结果仍存文件兜底。
+  八个组合取数 Skill 的驱动与深度复盘的目录、看片交接都改成这样。同题 Codex 回归 30 轮：模型手写保存 0 次（1.0.10 手抄 3/10 成功）。
+- `review-creator-account-deep`：看片一次后台调用 `collect_video_media`（kabo#1992）取完选中视频的元数据、转写与抽帧，
+  还有任务在跑时同参数再调；没有标准复盘时目录一次 `collect_account_history`（kabo-mcp-plugin #79）。
+- 生产回归：待补。
+
 ## 1.0.12（2026-11-04；GitHub Release）
 
 - `remake-viral-video`：创作者只有照片时也能出片：`start-call --creator-photo`（1–4 个公开 JPEG/PNG 链接，与视频合计最多 4 个）
