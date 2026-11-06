@@ -272,8 +272,8 @@ sys.path.insert(0, sys.argv[1])
 from validate_creator_shape import figure_errors, source_values
 values = source_values({"frames": [{"t_seconds": 7.866}]})
 print(json.dumps({
-    "fraction": figure_errors({"cards": [{"why_for_you": "0:07.866: a back pose; 0:08.366–0:09.366: the approach; 00:00:07,866 in subtitles"}]}, values),
-    "figure_after": figure_errors({"cards": [{"why_for_you": "0:07.866: 3.5x more likes"}]}, values),
+    "fraction": figure_errors({"cards": [{"why_for_you": "0:07.866: a back pose; 0:08.366–0:09.366: the approach; 00:00:07,866 in subtitles; 0:07.8667 from a frame"}]}, values),
+    "figure_after": figure_errors({"cards": [{"why_for_you": "0:07.8667: 3.5x more likes"}]}, values),
 }))
 `;
   const scripts = path.join(import.meta.dirname, "..", "skills", "analyze-content-video", "scripts");
