@@ -55,6 +55,44 @@
 - 搭上游测试环境时只复制需要的 `creator-skill-tests/<dir>`，**不要复制 creator-skills 的 `v3` / `v4`**（体积很大，曾把磁盘写满）。
 - 已用过的用例与结果可参考：`DEEP`（Instagram @mkbhd 深度复盘）、`ACC`（Instagram 竞品）、`VID`（YouTube 视频分析）、`SCR`（写脚本）、`IDEA`（选题）、`TTA`（TikTok 账号复盘）。
 
+## 进展（2026-11-02）
+
+14 个 Skill 已瘦身并合入 main（复刻归视频线，未动）。每个 Skill 都在本机 Codex（gpt-5.6-luna medium，连生产 `/mcp-pub`）实测过：跑通、出正式报告、无断链。
+
+| Skill | PR | 正文字符 前 → 后 | 实测 |
+|---|---|---|---|
+| analyze-tiktok-competitors | #53 | 14,227 → 7,127 | 通过，原样交付 |
+| analyze-creator-competitors | #54 | 16,501 → 9,248 | 通过，原样交付 |
+| research-tiktok-trends | #55 | 20,579 → 12,862 | 通过，原样交付 |
+| research-youtube-trends | #57 | 17,853 → 10,957 | 通过，原样交付 |
+| develop-content-ideas | #58 | 19,162 → 10,152 | 通过，原样交付 |
+| create-script-and-packaging | #59 | 19,578 → 9,769 | 通过，原样交付 |
+| research-instagram-trends | #61 | 20,906 → 约 13,500 | 通过，原样交付 |
+| review-creator-account | #62 | 20,127 → 11,396 | 通过（先修了 #56），原样交付 |
+| plan-platform-monetization | #63 | 19,953 → 10,743 | 通过，原样交付 |
+| verify-platform-rule | #64 | 12,376 → 7,985 | 通过，原样交付 |
+| recommend-publish-timing | #65 | 19,982 → 约 12,800 | 第 2 轮通过 |
+| diagnose-reach-drop | #66 | 10,553 → 约 7,700 | 第 3 轮通过 |
+| analyze-content-video | #67 | 17,999 → 17,263 | 通过（A/B 见 PR） |
+| review-creator-account-deep | #68 | 18,101 → 12,629 | 第 2 轮通过 |
+
+共用改动：
+- **交接打印下一步**（#53 起，#60 定稿）：`connector_driver.py` 交接时在每条调用下打印要存的文件名与 `fetch` 命令，结尾打印续跑命令；并写明「结果里是下载链接，不要自己下载」。`scripts/shared-copies.test.mjs` 要求各副本逐字一致。
+- **`references/data-calls.md`**：保存、过期重签、延迟任务、失败处理的通用规则，各 Skill 一份相同副本，只点名所有 Skill 都声明的工具。
+- **最终步打印报告与交付说明**：实测里「流程跑通、报告也生成了，但最后回复被改写成摘要」是最常见的问题（main 上同样存在）。最终步打印 `creator_report:`、报告全文和一句「回复就是这份报告」后，回复都变成「一句话 + 报告原文」。已有驱动的 6 个 Skill 的同样改动在 `yutian/delivery-instruction` 实测中。
+- 顺带修的 bug：账号复盘校验把帖文里的域名（如 Ridge.com/MKBHD）误判为泄露（#56）。
+
+经验（后续改 Skill 时参照）：
+- 没有驱动脚本、由模型自己发调用的 Skill（视频分析）不要压缩取数规则：压缩后模型两次绕开取证直接作答，已退回原文。把这些规则搬进驱动脚本是下一步。
+- 测视频类 Skill 不要用极有名的视频（如 dQw4w9WgXcQ），模型会凭记忆作答，测不出流程。
+- 测试 CODEX_HOME 可以开多个并行跑（每个独立的插件 worktree）；临时目录里不要留测试产物，模型会去翻。
+
+遗留与待定：
+- 竞品补足到用户要的数量（`yutian/acc-backfill-requested`）已改未合：这轮实测候选已够 6 个、没触发补足，修复本身未验证；同时读调用次数 42 次，远超 20 次的测试规定。11-02 已定折中：先合补足（保证数量），再单独压每个账号的翻页（`REEL_PAGES` / `REEL_PAGES_MAX`），读调用目标 30 次以内。不阻塞主线，排在主线之后做。
+- 账号复盘：最终校验失败后同一 run 无法恢复（「report already exists」→「existing report differs」）。
+- 模型手抄 `creator_report:` 路径时会抄错（Instagram 热门、平台规则各一次），报告本身原样。
+- 视频分析：把取数规则搬进驱动。
+
 ## 待办（不属于瘦身本身）
 
 - Web Agent / Desktop 改用本仓 Skill 的方案 creator-skills#886：不等评审，直接推进；第一个开放问题是 Desktop 如何拿到 `/mcp-pub` 的 OAuth token。迁移时要补：账号复盘的「下载报告」导出（上游 #936，插件未搬，因为插件交付的就是本地 Markdown）、深度复盘上游 #923/#924 中 Web 运行器专用的落盘与回执机制（插件未搬）。
