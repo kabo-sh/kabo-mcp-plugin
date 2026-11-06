@@ -2,10 +2,14 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.19（未发布；待 1.0.18 发布、kabo `yutian/remake-align-mcp-text` 与 kabo-agent-service `yutian/remake-align-web`（含 runner）上线后发布）
+
+- `remake-viral-video`（上下文对齐本地实验，与 Web creator-remake-web 0.1.47 同改）：换人（replace→lipsync）只在用户要原镜头原动作时，去掉「参考片加本人素材不算整条复刻」一句（本地 r99 atoms.md 口径）；atoms.md 补生成镜头规则（一镜到底不剪拼、模型不写字、字卡按成片时间）；旁白预览首页是参考片关键帧与创作者外观（需 runner 同步上线），先预览初稿再定画面；修改交付前用 frame 自己看未改部分；为守住字数上限压缩了价格与人设段落。
+- 契约：kabo `yutian/remake-align-mcp-text`（基于 kabo#2022）把 `make_video_step` 说明里的「Run one paid step」改成「Run one step … (some ops are free, others paid)」，纯文案、schema 不变。本分支的 `contracts/directory-mcp/tools-list.json` 仍是 1.0.18 钉住的 `21a97d65`；**该 kabo 分支合并后须在 kabo main 上重跑 `mcp:audit --surface directory` 重导出并重钉 `pin.json`，再发 1.0.19。**
+
 ## 1.0.18（待 kabo#2022 合并部署后发布；GitHub Release）
 
 - `remake-viral-video`（pre t17 验收）：取消后等到任务不再 running 再回话，没等到就说「已请求取消、正在停止」；`bg` 估价改为约 $0.02/秒（与 runner 计价一致，不再归入「花费很少或不花钱」）；`quota_exceeded` 的 message 说另一步还在跑时等它跑完、用同一把键重提，不说成额度用完；修改后总花费读 `project.spend_usd`（kabo 已把交付后的步骤与修改算进去）。
-- `remake-viral-video`（上下文对齐本地实验，与 Web creator-remake-web 0.1.47 同改）：换人（replace→lipsync）只在用户要原镜头原动作时，去掉「参考片加本人素材不算整条复刻」一句（本地 r99 atoms.md 口径）；atoms.md 补生成镜头规则（一镜到底不剪拼、模型不写字、字卡按成片时间）；旁白预览首页是参考片关键帧与创作者外观（需 runner 同步上线），先预览初稿再定画面；修改交付前用 frame 自己看未改部分；为守住字数上限压缩了价格与人设段落。
 - `remake-viral-video`：出片后修改与原子项目（跨仓契约 v1–v1.4，2026-11-04；内容改写自复刻包 V2-r87 的 `skill/references/atoms.md`，
   从「跑 cr 命令」改成「调 /mcp-pub 工具」）。
   - 交付后的局部修改（换台词、字幕颜色/大小、某段换背景、叠图、插一段新镜头）走 `edit_remake_video`，只改用户点名的部分、
