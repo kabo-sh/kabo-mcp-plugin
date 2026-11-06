@@ -53,19 +53,29 @@ def answer_text(finding, answer, zh=False):
             age_limited = bool(limits & {"different_observation_ages", "unknown_observation_ages"})
             reading = fact.get("age_reading") or {}
             if age_limited and reading:
-                # One English sentence; the delivery step translates it into the creator's language.
+                # 交付时模型不一定翻译脚本原句，所以和相邻结论一样给中英两版。
                 days = reading.get("min_age_hours", 0) // 24
                 if reading["basis"] == "recent_younger_not_lower":
-                    return ("The recent posts are younger, yet their current cumulative median is not lower, so there "
+                    return ("近期视频发布时间更短，当前累计播放中位数却不低于前期，所以没有下降迹象；这不能说明原因或平台状态。"
+                            if zh else
+                            "The recent posts are younger, yet their current cumulative median is not lower, so there "
                             "is no sign of a decline, though this does not establish the cause or platform status.")
                 if reading["basis"] == "recent_too_young":
-                    return (f"The recent posts are all under {days} days old and still gaining views, so it is too early "
+                    return (f"近期视频都还没满 {days} 天，播放仍在增长，现在还判断不了是否下降，也不能据此确认原因或平台限制。"
+                            if zh else
+                            f"The recent posts are all under {days} days old and still gaining views, so it is too early "
                             "to tell whether views dropped, and this does not establish a cause or platform enforcement.")
                 if reading["change"]["after"] < reading["change"]["before"]:
-                    return (f"Comparing only posts at least {days} days old, an approximation that assumes most views "
+                    return (f"只比较发布满 {days} 天的视频（近似比较，假设大部分播放在此之前产生），近期中位数仍低于前期，"
+                            "构成下降信号；它不能确定原因或平台限制。"
+                            if zh else
+                            f"Comparing only posts at least {days} days old, an approximation that assumes most views "
                             "arrive by then, the recent median is still lower, which is a decline signal, though it does "
                             "not establish the cause or platform enforcement.")
-                return (f"Comparing only posts at least {days} days old, an approximation that assumes most views "
+                return (f"只比较发布满 {days} 天的视频（近似比较，假设大部分播放在此之前产生），近期中位数不低于前期，"
+                        "整体偏低可能来自仍在增长的新视频；这不能确认原因或平台限制。"
+                        if zh else
+                        f"Comparing only posts at least {days} days old, an approximation that assumes most views "
                         "arrive by then, the recent median is not lower, so the lower overall figure may reflect newer "
                         "posts still gaining views, and this does not establish a cause or platform enforcement.")
             if age_limited:
@@ -103,10 +113,15 @@ def answer_text(finding, answer, zh=False):
                         f"On the matched window, this source's share {share_word} and its estimated per-record source amount {count_word}. This is a source-mix and performance signal, not proof of platform enforcement.")
             amount = (fact.get("count_change") or {}).get("difference")
             if (fact.get("window_basis") or [None])[0] == "calendar" and type(amount) in (int, float) and math.isfinite(amount):
-                # One English sentence; the delivery step translates it into the creator's language.
                 # estimated_from_share marks a group with at least one share-derived row, so it cannot tell a
                 # wholly estimated amount from a partly estimated one.
                 estimated = any(group.get("estimated_from_share") for group in fact.get("groups", []))
+                if zh:
+                    share_zh = "下降" if share < 0 else "上升" if share > 0 else "持平"
+                    amount_zh = "下降" if amount < 0 else "上升" if amount > 0 else "持平"
+                    amount_label = "来源量（至少部分由所给占比估算）" if estimated else "来源量"
+                    return (f"在所给数据的两个日历周期之间，该来源占比{share_zh}，{amount_label}{amount_zh}；"
+                            "这只描述所给数据，不说明原因或平台限制。")
                 amount_name = "its amount, at least partly estimated from the reported shares," if estimated else "its amount"
                 share_word = "fell" if share < 0 else "rose" if share > 0 else "was unchanged"
                 amount_word = "fell" if amount < 0 else "rose" if amount > 0 else "was unchanged"

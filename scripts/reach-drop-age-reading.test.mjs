@@ -59,6 +59,7 @@ test("younger recent posts that are not lower mean no decline", async () => {
   const { out, fact, verdict } = await run(brief("short_video", EARLIER, [[10, 12000], [6, 13000], [2, 9500]]));
   assert.equal(fact?.age_reading?.basis, "recent_younger_not_lower", out);
   assert.match(verdict, /^The recent posts are younger, yet their current cumulative median is not lower, so there is no sign of a decline/m);
+  assert.match(verdict, /^近期视频发布时间更短，当前累计播放中位数却不低于前期，所以没有下降迹象/m);
 });
 
 test("a lower recent median is compared on matured short posts only", async () => {
@@ -69,6 +70,7 @@ test("a lower recent median is compared on matured short posts only", async () =
   assert.equal(fact.age_reading.change.after, 4500);
   assert.match(evidence, /Posts at least 7 days old only \(approximation\)/);
   assert.match(verdict, /^Comparing only posts at least 7 days old, an approximation .* the recent median is still lower, which is a decline signal/m);
+  assert.match(verdict, /^只比较发布满 7 天的视频（近似比较.*近期中位数仍低于前期，构成下降信号/m);
 });
 
 test("long YouTube videos use 28 days, and young matured-out posts say so", async () => {
