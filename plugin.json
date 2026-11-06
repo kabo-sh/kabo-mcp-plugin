@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kabo",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "Public creator research with bundled workflows and Kabo MCP evidence.",
   "author": {
     "name": "Dealism",
@@ -36,7 +36,7 @@
         ]
       },
       "publication": {
-        "release_notes": "Kabo 1.0.23 tells video analysis how to recover when its media result has not been brought into the run yet, so the diagnosis can reach its final checked report. Includes all eighteen Skills. OpenAI marketplace review remains separate."
+        "release_notes": "Kabo 1.0.24 fixes video analysis rejecting its own report when a moment is cited with fractional seconds, such as 0:07.866. Includes all eighteen Skills. OpenAI marketplace review remains separate."
       }
     }
   }

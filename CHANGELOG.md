@@ -2,6 +2,10 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.24（2026-11-06；GitHub Release）
+
+- `analyze-content-video`：最终数字核对把带小数秒的时间点（`0:07.866`、`0:08.366–0:09.366`）整体当时间。以前只剥掉 `0:07`，剩下的 `.866` 被当成证据里找不到的数字，整份报告被拒。Web pre 复测（M4c）和插件复测的 Instagram Reel 诊断都停在这一步；同一份运行目录换上修复后，完整通过最终检查。
+
 ## 1.0.23（2026-11-06；GitHub Release）
 
 - `analyze-content-video`：`collect_media.py` 续跑时找不到这一轮的媒体结果，报错里补一句：结果以证据引用传入的宿主，先对最后一次 `collect_video_media` 结果跑 `static_host.py stage`，再跑同一条续跑命令。Web pre 复测（M3b）里模型取完媒体没有先暂存就续跑，报错只提到结果编号和存文件，模型随即放弃，没有交正式报告。
