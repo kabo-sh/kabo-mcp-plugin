@@ -276,9 +276,12 @@ def errs(text):
 print(json.dumps({t: errs(t) for t in [
     "1800 万播放", "1,800 万+", "1.8千万", "约 1807 万", "18M", "2.6M+", "2.7M", "50 万点赞",
     "2000 万", "1900 万", "1.9千万", "18.2M", "3 倍", "100 次"]}, ensure_ascii=False))
+print(json.dumps(len(figure_errors({"summary": "跑了 5千米"}, source_values({"distance_km": 5})))))
 `;
   const scripts = path.join(import.meta.dirname, "..", "skills", "analyze-content-video", "scripts");
-  const out = JSON.parse(execFileSync("python3", ["-I", "-B", "-c", probe, scripts], { encoding: "utf8" }));
+  const [line, unitLine] = execFileSync("python3", ["-I", "-B", "-c", probe, scripts], { encoding: "utf8" }).trim().split("\n");
+  const out = JSON.parse(line);
+  assert.equal(JSON.parse(unitLine), 0, "千米 is a unit, not a scale");
   for (const ok of ["1800 万播放", "1,800 万+", "1.8千万", "约 1807 万", "18M", "2.6M+", "2.7M", "50 万点赞"]) {
     assert.equal(out[ok], 0, ok);
   }
