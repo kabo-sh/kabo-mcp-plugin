@@ -88,6 +88,9 @@ def digest(value: Any) -> str:
 
 # 近似成熟时长：短内容 7 天，YouTube 长视频 28 天。这是经验假设，不是平台事实；报告按“近似”写明。
 MATURE_HOURS = {"short": 168, "long": 672}
+# 只有随时间累积的计数适用；平均值、比率可能涨也可能跌，退回原来的年龄受限结论。
+CUMULATIVE_METRICS = frozenset(("views", "view_count", "plays", "play_count", "likes", "comments", "shares", "saves",
+                                "reach", "impressions"))
 
 
 def age_reading(q: dict, fmt: str, limits: list, change: dict | None, summaries: list, pairs: list) -> dict | None:
@@ -96,7 +99,8 @@ def age_reading(q: dict, fmt: str, limits: list, change: dict | None, summaries:
     Recent not lower despite being younger: no decline. Recent lower: compare only posts past an
     approximate maturity age, or say the recent posts are all too young to compare.
     """
-    if (q["kind"] != "recent_drop" or "different_observation_ages" not in limits or "minimum_age_hours" in q
+    if (q["kind"] != "recent_drop" or q["metric"] not in CUMULATIVE_METRICS
+            or "different_observation_ages" not in limits or "minimum_age_hours" in q
             or not change or change["ratio"] is None
             or any(len(p) != s["n"] or not p for p, s in zip(pairs, summaries))
             or max(a for a, _ in pairs[-1]) > min(a for a, _ in pairs[0])):

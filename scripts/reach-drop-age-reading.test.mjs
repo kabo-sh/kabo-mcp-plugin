@@ -82,7 +82,7 @@ test("long YouTube videos use 28 days, and young matured-out posts say so", asyn
   assert.match(young.verdict, /^The recent posts are all under 28 days old, short of the comparison age and possibly still accruing, so it is too early to tell/m);
 });
 
-test("same-age or explicit-age comparisons keep their existing verdicts", async () => {
+test("same-age, explicit-age and non-cumulative comparisons keep their existing verdicts", async () => {
   const sameAge = brief("short_video", EARLIER, [[12, 4000], [9, 5000]], { post_age_hours: 168 });
   for (const item of sameAge.questions[0].groups) { delete item.published_at; delete item.observed_at; }
   const same = await run(sameAge);
@@ -90,4 +90,8 @@ test("same-age or explicit-age comparisons keep their existing verdicts", async 
   const policy = await run(brief("short_video", EARLIER, [[12, 4000], [9, 5000], [3, 800]],
     { minimum_age_hours: 72, age_policy_reason: "The user only counts posts older than three days." }));
   assert.equal(policy.fact?.age_reading, undefined, policy.out);
+  const rate = brief("short_video", EARLIER, [[12, 4000], [9, 5000], [3, 800]]);
+  rate.questions[0].metric = "average_view_duration_seconds";
+  const average = await run(rate);
+  assert.equal(average.fact?.age_reading, undefined, average.out);
 });
