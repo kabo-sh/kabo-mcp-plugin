@@ -2,7 +2,7 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
-## 1.0.18（待 kabo#2022 合并部署后发布；GitHub Release）
+## 1.0.21（2026-11-06；GitHub Release）
 
 - `remake-viral-video`：旁白类（voice-over）参考不再因为创作者视频没有正脸而被当成不支持、先问用户要正脸照——旁白只用创作者的声音（本地插件闸门 C4/C5 发现，历史措辞）。正文等量压缩，20,999 字符。
 - `remake-viral-video`（pre t17 验收）：取消后等到任务不再 running 再回话，没等到就说「已请求取消、正在停止」；`bg` 估价改为约 $0.02/秒（与 runner 计价一致，不再归入「花费很少或不花钱」）；`quota_exceeded` 的 message 说另一步还在跑时等它跑完、用同一把键重提，不说成额度用完；修改后总花费读 `project.spend_usd`（kabo 已把交付后的步骤与修改算进去）。
@@ -37,7 +37,7 @@
     「What this covers」的几处措辞，规则不变。
 - 契约 v1.7（复刻包 V2-r95）：`make_video_step` 的 op 加 `first_frame`（改一张图出新静帧，重画脸、付费、只收三档 tested 模型）、`still_video`（图片成段，可缓推）、`audio_edit`（音量/响度/淡入淡出/速度/长度，本地 $0）；`frame` 收 `at: first|last`（与 `t` 二选一）；`refvideo` 用 Kling v4 时到 30 秒；`talking` 收 `prompt`；`captions` 收 `max_words` / `upper`；已交付复刻另有句柄 `master.mp4`（当前无字幕画面）、`broll_bNN.mp4|png`（B-roll 段与其静帧）、`frame_sNN.png`（口播段首帧）。`step-call` 按服务端同口径校验。
 - 契约 v1.8（复刻包 V2-r96）：`make_video_step` 加 `transcribe`（一段视频 / 音频说了什么，带时间；本地 $0，不出文件），结果在 `last_step.transcript`；出图 / 出视频的一步另有 `last_step.output.preview`（≤1280 px、≤200 KB 的 JPEG，视频为四帧拼图）。`fetch-step` 把预览另存成 `<句柄>.preview.jpg` 并给出 `preview_path` 让模型打开看，转写存成 JSON 并原样交回；`step-call` 校验 `transcribe` 的 `language`。
-- 契约：`tools-list.json` 整份换成数据层正式导出（kabo#2022 分支 `yutian/remake-atoms-launch` 同步 kabo main `6677ce0f` 后的提交 `21a97d65`，含 1.0.17 钉住的 `4c0b966e` 的全部工具（含 `collect_video_media`）；golden 逐字节一致，77 个工具；`start_remake_video` 说明与转写上限随 kabo#2022 改为参考片 10 分钟、1500 段 / 60000 字），`pin.json` 重新钉住。相对 1.0.17 钉住的版本（73 个）：新增 `start_video_project`、`make_video_step`、`edit_remake_video`、`finish_video_project`（权限 video，进必需工具）；`get_remake_video` 加 `project: true`（项目状态）与 `cancel: true`，标注改为非只读；`start_remake_video` 带上 kabo#2011 的 `creator.photo_urls` / `voice_preset`。`make_video_step` 的 inputs / params 在公开 schema 里只是对象，服务端按 op 逐键严格校验，插件 `step-call` 的本地严格校验保留为第一道。kabo#2022 合并前不发版本。
+- 契约：`tools-list.json` 整份换成数据层正式导出（kabo#2022 分支 `yutian/remake-atoms-launch` 同步 kabo main `6677ce0f` 后的提交 `21a97d65`；kabo#2022 合并进 kabo main 后在合并提交 `8c8cfc0d` 上重新导出，三份文件逐字节一致，`pin.json` 的 sourceCommit 改钉 `8c8cfc0d`，含 1.0.17 钉住的 `4c0b966e` 的全部工具（含 `collect_video_media`）；golden 逐字节一致，77 个工具；`start_remake_video` 说明与转写上限随 kabo#2022 改为参考片 10 分钟、1500 段 / 60000 字），`pin.json` 重新钉住。相对 1.0.17 钉住的版本（73 个）：新增 `start_video_project`、`make_video_step`、`edit_remake_video`、`finish_video_project`（权限 video，进必需工具）；`get_remake_video` 加 `project: true`（项目状态）与 `cancel: true`，标注改为非只读；`start_remake_video` 带上 kabo#2011 的 `creator.photo_urls` / `voice_preset`。`make_video_step` 的 inputs / params 在公开 schema 里只是对象，服务端按 op 逐键严格校验，插件 `step-call` 的本地严格校验保留为第一道。kabo#2022 已于 2026-11-06 合并并部署生产。原计划的版本号 1.0.18 已被 main 占用，本次发为 1.0.21。
 - `remake-viral-video` 说明文字并入契约 v1.7（与网页端 creator-remake-web 0.1.41 同文）：能力表加 `first_frame`（改本人的一帧/照片出新静帧，重画脸）、
   `audio_edit`、`still_video`；原则 3 点名已交付复刻的 `master.mp4`、takes、B-roll 与首帧；步骤 notes 说给的 box 压到画面文字或脸时
   去掉 box 重做或告知用户；`atoms.md` 补 `frame` 的 `at`、`refvideo` 到 30 s、`talking.prompt`、`captions.max_words` / `upper` 与价格。
@@ -49,6 +49,22 @@
   能力表加一行；原则 3「先看再用」改为看每一步的预览（`fetch-step` 打印的 `preview_path`，视频四帧）；`atoms.md` 补 `transcribe` 一行与
   `fetch-step` 输出的预览 / 转写。正文等量压缩（20,998 字符）。
 - `remake-viral-video` 正文压回 21,000 字符以内（此前 21,195，`skills:lint` KS3.1 报错）：第 1、2、3、8 步与取消、范围说明里的几处措辞等量压缩，规则不变（正文 20,996 字符）。
+## 1.0.20（2026-11-06；GitHub Release）
+
+- `analyze-content-video`：最终数字校验接受按有效数字取整或截断的大计数（如 18,067,177 写成「1800 万」「1.8千万」，2,689,000 写成「2.6M+」），并认「千 / 百万 / 千万」量级；小数字与只剩一位有效数字的写法仍按原规则拦。生产 Web 上视频分析曾因此在最后一步被拒（#120）。
+- `analyze-content-video`：本地度量作为独立命令运行并有时限（#115）。
+- `diagnose-reach-drop`：只有公开快照时给出按发布时长近似的下降判断（#119）。
+- 发布到 Web：发到 pre 测试账号（`target=test`）不再套用生产暂扣名单 `PLUGIN_WEB_HOLD`，可另设 `PLUGIN_WEB_TEST_HOLD`（#121）。
+
+## 1.0.19（2026-11-06；GitHub Release）
+
+- 发布到 Web 的流程：SKILL.md 声明了 `metadata.version` 时用它作为 Web 版本（须高于线上版本），探测打包不再比对版本；三个新 Skill 的声明版本升到线上之上（品牌 0.3.23、日历 0.1.25、报价 0.4.13），1.0.18 因此没能发到 Web（#117）。Skill 内容与 1.0.18 相同。
+
+## 1.0.18（2026-11-06；GitHub Release）
+
+- 新增三个 Skill：`optimize-creator-brand`（品牌命名、简介、品牌包）、`plan-content-calendar`（可审阅的内容日历）、`price-creator-brand-deals`（商单报价），由 creator-skills 移植（#97）。
+- 同步 creator-skills 在移植后、冻结点 `6f8ef681f` 之前的修复（#114）：竞品 / 流量下降 / 发布时间的 TikTok 图文与视频分开做基线、保留原始链接；账号复盘把「含当天」的成熟期截止交给报告撰写；选题可用普通对话原文做续写来源（`--conversation-context`）；脚本包装区分创作草稿与原生包、保留上游 SelectedIdea、成片交给宿主的媒体能力、助手建议的时长只算估计。
+- 生产回归：待补。
 
 ## 1.0.17（2026-11-06；GitHub Release）
 
