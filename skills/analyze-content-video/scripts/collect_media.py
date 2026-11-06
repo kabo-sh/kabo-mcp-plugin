@@ -94,7 +94,7 @@ def resume_command(args: argparse.Namespace) -> str:
             + " ".join(quote(part) for part in argv) + " --id <id>")
 
 
-def hand_over(args: argparse.Namespace, note: str = "") -> None:
+def hand_over_media(args: argparse.Namespace, note: str = "") -> None:
     current = state()
     results = Path.cwd() / "host-results"
     first = len(list(results.glob("*.json"))) + 1 if results.is_dir() else 1
@@ -236,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.placed:
             if state().get("awaiting"):
                 say("This media round was already handed over; make the call printed earlier, or run with --placed.")
-            hand_over(args)
+            hand_over_media(args)
             return 0
         take_saved(args.result_id)
         records = static_host.composite_records(TOOL)
@@ -248,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
         current["rounds"] = int(current.get("rounds") or 0) + 1
         save_state(current)
         if pending and current["rounds"] < MAX_ROUNDS:
-            hand_over(args, note=f"{pending} media job(s) are still running.")
+            hand_over_media(args, note=f"{pending} media job(s) are still running.")
             return 0
         finish(latest)
         return 0
