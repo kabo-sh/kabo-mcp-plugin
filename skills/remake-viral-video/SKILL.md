@@ -80,7 +80,8 @@ cancel was requested and is still stopping, not that it stopped.
 - Refused by the runner before any video is generated (`out_of_scope`): references over 10
   minutes, walking, vehicle or first-person vlogs where the camera keeps moving, dialogues between
   several people, and -- for a talking head -- a speaker on camera less than about half the time
-  or mostly other footage. So are creator videos with no clear frontal view of the creator's face.
+  or mostly other footage. So are creator videos with no clear frontal view of the creator's face,
+  except a voice-over, which needs only the creator's voice.
 - The creator is framed as the reference frames its speaker, shot by shot; the reference's other
   shots (cutaways, inserts, other people) are reused from its own footage. The reference's speaker
   never appears in the result.
@@ -89,10 +90,10 @@ cancel was requested and is still stopping, not that it stopped.
   author's claims about themselves, one closing summary and the call to action); the rest of the
   reference's lines are kept, or dropped with a reason. The whole face is generated, so likeness is
   lower than real footage of the creator.
-- The final video has no on-screen label, notice or watermark. Never say it carries one.
+- The final video has no on-screen label, notice or watermark; never say it has one.
 - Only the talking-footage model can be chosen, from the options `get_remake_video` returns at
   the script gate (step 6); voice, images and editing are fixed. If the user asks for another
-  model (e.g. Veo, HeyGen, ElevenLabs), say so in one line and carry on.
+  model (e.g. Veo, HeyGen, ElevenLabs), say so in a line and go on.
 
 ## Set up one run
 
@@ -151,21 +152,21 @@ is, ask once for what is missing and stop. Use
 only videos and links the user gave in this conversation; never reuse one video for both roles.
 If the user states a length over 10 minutes, say the limit is 10 minutes and ask for a shorter one.
 
-Whenever you stop before `start_remake_video` has accepted the job (something is missing, a video
-is refused, the inputs are refused), tell the user that no remake was started, no remake fee was
+Whenever you stop before `start_remake_video` has accepted the job (something missing, a video or
+the inputs refused), tell the user that no remake was started, no remake fee was
 charged and it does not count toward the daily remake limit. Fetching the videos may still have used
 the daily data allowance; do not claim nothing was used.
 
 `--creator-name` is a short ASCII name for the creator (letters, digits, `.`, `_`, `-`). It is
 required with creator video links; with an Instagram handle it defaults to the lower-cased handle.
-When the user gave video links and no name, use the name they go by in the conversation, or ask
-for one together with any other missing input. Pass `--language` (for example `en`) only when the
+With video links and no name, use the name they go by in the conversation, or ask for one with
+any other missing input. Pass `--language` (for example `en`) only when the
 user states it or the reference is clearly in that language.
 
 ## 2. Start the job and wait for the script gate
 
-Before the first paid call, tell the user in one or two sentences what will happen: the method
-above and that it takes 30 min to 3 hours. Do not wait for a reply unless the user asked to approve first. Then build the arguments:
+Before the first paid call, tell the user in a sentence or two what will happen: the method above
+and that it takes 30 min to 3 hours. Wait for a reply only if the user asked to approve first. Then build the arguments:
 
 ```sh
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' start-call --reference-url '<reference link>' --instagram-handle '<handle or profile link>'
