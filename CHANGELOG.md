@@ -2,10 +2,43 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
-## 未发布
+## 1.0.17（2026-11-06；GitHub Release）
 
-- 每个按次计费的 Skill 在预留运行目录后调用一次 `start_skill_run`（Kabo 按 skill 记一次用量，同一运行不重复记）；额度用完时 Skill 停止并把账单链接交给用户，工具缺失时照常继续。`remake-viral-video` 只走视频额度，不声明。
-- 重新钉住目录契约（kabo `d214da530` 为基线，**合入 kabo 后须按合入提交重钉**）：新增 `start_skill_run`、`get_credit_balances`、`get_credit_tasks`、`claim_credit_task`，并带入已上线的 `collect_video_media`。**须在 Kabo 服务端部署这些工具之后再发布本插件。**
+- `analyze-content-video`：转写、抽帧、度量（Instagram / TikTok 另加元数据）改为一次 `collect_video_media` 后台调用，由新脚本 `collect_media.py` 交接与续等，全部终态后逐项落成 `snapshot/envelope-NN.json` 并给出证据构建参数与一次读帧；模型不再逐个提交、轮询媒体 job（#112，需 kabo#2050）。Codex 生产回归同一条 YouTube 视频 3/3 出报告。
+
+## 1.0.16（2026-11-06；GitHub Release）
+
+- `create-script-and-packaging`：用户自己给定方向时，记录方向的脚本会打印下一步，模型接着写脚本包、校验并渲染 `SCRIPT_PACKAGE.md`，不再在这一步直接回答（#107）。
+
+## 1.0.15（2026-11-05；GitHub Release）
+
+- `review-creator-account`：报告被校验器拒收后，删掉未过校验的报告，改完 synthesis 重跑同一条命令即可出报告；
+  失败信息不涉及作者字段（文件、权限等系统错误）时提示报告并停止（#104）。
+- `review-creator-account-deep`：`--workspace` 先认领本 workspace 里刚预留、还没开始的 run（独占认领，已开始的跳过），
+  一次请求只预留一个 run、只记一次用量（#104）。
+- 三个移植 Skill 去掉过时的 `metadata.version`，Web 端能收这几个包（#98）。
+- 生产回归：待补。
+
+## 1.0.14（2026-11-05；GitHub Release）
+
+- 交接改为交结果编号（#83）：取数结果带一个短编号，模型只把编号填进续跑命令，脚本按编号下载、核对长度与 sha256 后落盘，
+  不再让模型把结果写成文件；没有编号的结果仍按原方式保存。对照 1.0.10 的同一批 30 轮输入，模型手写保存从多次降为 0。
+- `review-creator-account-deep`（#79）：目录取数交出一次 `collect_account_history`，看片的元数据、字幕与抽帧交出一次
+  `collect_video_media`，两处交接都交结果编号；创作依据按运行名与相对路径绑定。
+- 每个按次计费的 Skill 在预留运行目录后调用一次 `start_skill_run`（Kabo 按 skill 记一次用量，同一运行不重复记）；额度用完时 Skill 停止并把账单链接交给用户，
+  工具缺失时照常继续。`remake-viral-video` 只走视频额度，不声明（#95）。
+- 目录契约重钉到已部署的 kabo `096d598ba`（73 个工具，含 `start_skill_run`、`get_credit_balances`、`get_credit_tasks`、`claim_credit_task`、`collect_video_media`）。
+- `verify-platform-rule`：判「谣言」须有官方原文相矛盾，未提及不算反驳；释义只翻译不概括；说明里点名门槛变化类传言与登记页面（#88）。
+- `diagnose-reach-drop`：流量来源分组可带各自的日历窗口；通用窗口只按发布时长（#92、#96）。
+- `plan-platform-monetization`：保留频道声明的国家；说明覆盖用户给出数字与没有账号的问题（#85、#86）。
+- `analyze-content-video`：中文视图的报告标签本地化，不再回退到后台分析（#87）。
+- 规范文档只保留英文版 `docs/skills-spec.md`（#93）。
+- 生产回归（Codex，OAuth 连 `kabo.sh/mcp-pub`，测试账号，装 `#stable` = `4e9343a`）：
+  `review-creator-account-deep`（@mkbhd YouTube）交付 creator_report，目录 1 次 `collect_account_history`、看片 `collect_video_media`，
+  10 条视频全部看过，交接全用结果编号，模型手写保存 0；`review-creator-account`（@veritasium YouTube）交付 creator_report，
+  1 次 `collect_account_history`、结果编号交接、模型手写保存 0，`start_skill_run` 各记一次且未被额度拒绝。
+  遗留（不阻塞发布）：账号复盘首跑一次因模型在局限说明里写了 provider 被报告校验拦下，改写后重跑已交付的路径又报「报告与来源不一致」没能救回，
+  重跑一次正常交付；深度复盘那轮预留了两个运行目录，`start_skill_run` 记了两次。
 
 ## 1.0.13（2026-11-05；GitHub Release）
 

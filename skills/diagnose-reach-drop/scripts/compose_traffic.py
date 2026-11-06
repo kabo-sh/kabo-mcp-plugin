@@ -84,6 +84,17 @@ def answer_text(finding, answer, zh=False):
                 return (f"同窗口比较中，该来源占比{share_word}，估算的单条来源量也{count_word}；这是来源结构与表现信号，不能单独证明平台限制。"
                         if zh else
                         f"On the matched window, this source's share {share_word} and its estimated per-record source amount {count_word}. This is a source-mix and performance signal, not proof of platform enforcement.")
+            amount = (fact.get("count_change") or {}).get("difference")
+            if (fact.get("window_basis") or [None])[0] == "calendar" and type(amount) in (int, float) and math.isfinite(amount):
+                # One English sentence; the delivery step translates it into the creator's language.
+                # estimated_from_share marks a group with at least one share-derived row, so it cannot tell a
+                # wholly estimated amount from a partly estimated one.
+                estimated = any(group.get("estimated_from_share") for group in fact.get("groups", []))
+                amount_name = "its amount, at least partly estimated from the reported shares," if estimated else "its amount"
+                share_word = "fell" if share < 0 else "rose" if share > 0 else "was unchanged"
+                amount_word = "fell" if amount < 0 else "rose" if amount > 0 else "was unchanged"
+                return (f"Between the two calendar periods in the supplied data, this source's share {share_word} and "
+                        f"{amount_name} {amount_word}, which describes the supplied data, not a cause or platform enforcement.")
             return ("现有同窗口数据可以判断该来源占比变化，但缺少匹配的总量，不能确定绝对来源量如何变化，也不能据此证明平台限制。"
                     if zh else
                     "The matched-window data establishes the source-share change, but without matching totals it cannot establish the absolute source-amount change or platform enforcement.")
