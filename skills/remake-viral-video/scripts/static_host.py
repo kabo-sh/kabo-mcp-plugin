@@ -3,7 +3,8 @@
 
 Commands:
   init        reserve one run directory under <workspace>/.kabo-runs/
-  start-call  check the inputs and print the start_remake_video arguments with a stable idempotency_key
+  start-call  check the inputs (a reference video or an approved script) and print the start_remake_video
+              arguments with a stable idempotency_key
   fetch       save the brief bundle, the final MP4 or (voice-over) the picture review that a
               get_remake_video / render_remake_video result links to, after checking host, size,
               sha256 and content type
@@ -91,6 +92,10 @@ def run_dir():
             raise ValueError("Set KABO_STATIC_RUN_DIR to this request's reserved directory, or run the command from inside it")
     if not (run / ".static-run.json").is_file():
         raise ValueError("Not a reserved static Skill run")
+    # 有的宿主只在两次执行之间保留文件、不保留空目录(Web Agent 的沙箱工作区):init 建的
+    # 空子目录下一步就不在了。每次进入运行目录都补齐,已有的不动。
+    for name in ("snapshot", "snapshot/.host-evidence", "analysis", "report", "owner", "host-results"):
+        (run / name).mkdir(mode=0o700, parents=True, exist_ok=True)
     return run
 
 
@@ -163,13 +168,65 @@ def _same_video(a, b):
     return key(a) == key(b)
 
 
-def start_call(reference, handle, video_urls, creator_name, language, attempt):
-    """The arguments of start_remake_video, with an idempotency_key that is stable for the same inputs."""
+SCRIPT_MAX_CHARS = 12000
+
+
+def approved_script(path):
+    """The approved spoken text, byte for byte as the user gave it (only a final newline is dropped)."""
+    raw = Path(path).read_bytes()
+    if len(raw) > SCRIPT_MAX_CHARS * 4:
+        raise ValueError("The script file is too large")
+    text = raw.decode("utf-8")
+    if text.endswith("\n"):
+        text = text[:-1]
+    if not text.strip():
+        raise ValueError("The script file has no spoken words")
+    if len(text) > SCRIPT_MAX_CHARS:
+        raise ValueError(f"The script is longer than {SCRIPT_MAX_CHARS} characters")
+    return text
+
+
+# 与服务端 start_remake_video 的 voice_preset 闭集一致（Fish 预设音色），服务端仍会再校验。
+VOICE_PRESETS = {
+    "933563129e564b19a115bedd57b7406a": "female, young, soft and conversational",
+    "b545c585f631496c914815291da4e893": "female, young, bright",
+    "536d3a5e000945adb7038665781a4aca": "male, calm and professional",
+    "802e3bc2b27e49c2995d23ef70e6ac89": "male, young and energetic",
+}
+
+
+def _photo_url(raw):
+    url = (raw or "").strip()
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname or parts.username or parts.password:
+        raise ValueError("Each --creator-photo must be a public http(s) link to a JPEG or PNG image")
+    if any(ord(char) <= 32 or ord(char) == 127 for char in url):
+        raise ValueError("A --creator-photo link contains spaces or control characters")
+    return url
+
+
+def start_call(reference, handle, video_urls, creator_name, language, attempt, script_file=None,
+               photo_urls=(), voice_preset=None):
+    """The arguments of start_remake_video, with an idempotency_key that is stable for the same inputs.
+
+    Two starting points share this one call: a reference video (--reference-url) or the creator's
+    approved script (--script-file), never both."""
     if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
         raise ValueError("--attempt must be a positive integer")
-    reference = _url(reference, "Reference")
-    if bool(handle) == bool(video_urls):
-        raise ValueError("Give the creator as exactly one of --instagram-handle or --creator-video (1 to 4 links)")
+    if bool(reference) == bool(script_file):
+        raise ValueError("Give exactly one of --reference-url (a video to remake) or --script-file (the approved script)")
+    script = approved_script(script_file) if script_file else None
+    if script is not None and language:
+        raise ValueError("--language does not apply to a script: the script's own language is used")
+    reference = _url(reference, "Reference") if reference else None
+    photo_urls = list(photo_urls or [])
+    if bool(handle) == bool(video_urls or photo_urls):
+        raise ValueError("Give the creator as --instagram-handle, or as --creator-video and/or --creator-photo links")
+    if voice_preset is not None:
+        if voice_preset not in VOICE_PRESETS:
+            raise ValueError("--voice-preset must be one of: " + ", ".join(f"{k} ({v})" for k, v in VOICE_PRESETS.items()))
+        if handle or video_urls:
+            raise ValueError("--voice-preset is only for photos with no video of the creator speaking")
     if handle:
         handle = handle.strip()
         if handle.lower().startswith(("http://", "https://")):
@@ -181,21 +238,31 @@ def start_call(reference, handle, video_urls, creator_name, language, attempt):
             raise ValueError("--instagram-handle must be an Instagram handle (letters, digits, '.', '_')")
         creator = {"instagram_handle": handle}
     else:
-        if not 1 <= len(video_urls) <= 4:
-            raise ValueError("Give 1 to 4 creator video links")
+        if not 1 <= len(video_urls) + len(photo_urls) <= 4:
+            raise ValueError("Give 1 to 4 creator video and photo links in total")
+        if photo_urls and not video_urls and voice_preset is None:
+            raise ValueError("Only photos were given, so there is no recording of the creator's voice: ask for a public "
+                             "video of them speaking first (--creator-video); only if they have none, let them pick a "
+                             "--voice-preset")
         urls = [_url(url, "Creator video") for url in video_urls]
+        photos = [_photo_url(url) for url in photo_urls]
+        if len(set(photos)) != len(photos):
+            raise ValueError("The same creator photo is listed twice")
         if any(_same_video(a, b) for i, a in enumerate(urls) for b in urls[i + 1:]):
             raise ValueError("The same creator video is listed twice")
-        if any(_same_video(reference, url) for url in urls):
+        if reference and any(_same_video(reference, url) for url in urls):
             raise ValueError("The reference and a creator video are the same video; each role needs its own video")
         if not creator_name:
-            raise ValueError("--creator-name is required with --creator-video (a short ASCII name for the creator)")
-        creator = {"video_urls": urls}
-    arguments = {"reference_url": reference, "creator": creator}
+            raise ValueError("--creator-name is required with --creator-video or --creator-photo (a short ASCII name for the creator)")
+        creator = {**({"video_urls": urls} if urls else {}), **({"photo_urls": photos} if photos else {})}
+    arguments = ({"reference_url": reference} if reference else {"script": script})
+    arguments["creator"] = creator
     if creator_name:
         if not CREATOR_NAME.match(creator_name):
             raise ValueError("--creator-name must be 1-64 ASCII letters, digits, '.', '_' or '-', starting with a letter or digit")
         arguments["creator_name"] = creator_name
+    if voice_preset is not None:
+        arguments["voice_preset"] = voice_preset
     if language:
         if not LANGUAGE.match(language):
             raise ValueError("--language must look like 'en' or 'pt-BR'")
@@ -601,9 +668,12 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init").add_argument("--workspace", required=True)
     command = commands.add_parser("start-call")
-    command.add_argument("--reference-url", required=True)
+    command.add_argument("--reference-url")
+    command.add_argument("--script-file")
     command.add_argument("--instagram-handle")
     command.add_argument("--creator-video", action="append", default=[])
+    command.add_argument("--creator-photo", action="append", default=[])
+    command.add_argument("--voice-preset")
     command.add_argument("--creator-name")
     command.add_argument("--language")
     command.add_argument("--attempt", type=int, default=1)
@@ -617,7 +687,9 @@ def main():
         print(init(args.workspace))
     elif args.command == "start-call":
         print(json.dumps(start_call(args.reference_url, args.instagram_handle, args.creator_video,
-                                    args.creator_name, args.language, args.attempt), ensure_ascii=False))
+                                    args.creator_name, args.language, args.attempt, args.script_file,
+                                    args.creator_photo, args.voice_preset),
+                         ensure_ascii=False))
     else:
         if args.input == "-":
             raw = sys.stdin.buffer.read(MAX_RESULT_BYTES + 1)

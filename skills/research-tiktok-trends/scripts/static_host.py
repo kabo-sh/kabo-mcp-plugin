@@ -65,6 +65,10 @@ ROUTE_ALIASES = {"tiktok-discovery/get_video_by_share_url": {"tiktok-discovery/g
 # lookup 的 data 不是路线原生形状，而是这份投影；消费方按它判形状，不按 connector_id。
 PROJECTIONS = {"lookup_tiktok_video": "kabo.tiktok_video.v1"}
 
+# 本 Skill 交给模型的组合取数工具（热门视频的发现（各意图 × 两种排序 + 日榜）与入围作者的历史）：一次调用由后台做完那段多轮取数，
+# 结果按 calls[] 拆成单工具证据（见下方 COMPOSITE 段）。入参在顶层、不套 parameters。
+COMPOSITE_CALLS = {"collect_tiktok_video_candidates", "collect_account_history"}
+
 
 def run_dir():
     raw = os.environ.get("KABO_STATIC_RUN_DIR")
@@ -78,6 +82,10 @@ def run_dir():
             raise ValueError("Set KABO_STATIC_RUN_DIR to this request's reserved directory, or run the command from inside it")
     if not (run / ".static-run.json").is_file():
         raise ValueError("Not a reserved static Skill run")
+    # 有的宿主只在两次执行之间保留文件、不保留空目录(Web Agent 的沙箱工作区):init 建的
+    # 空子目录下一步就不在了。每次进入运行目录都补齐,已有的不动。
+    for name in ("snapshot", "snapshot/.host-evidence", "analysis", "report", "owner", "host-results"):
+        (run / name).mkdir(mode=0o700, parents=True, exist_ok=True)
     return run
 
 
@@ -108,6 +116,8 @@ def public_calls(call):
                 raise ValueError("lookup_tiktok_video needs the video link")
             return [{"tool": name, "arguments": {"video": video, "delivery": "download"}}]
         return [{"tool": name, "arguments": {"parameters": args["params"], "delivery": "download"}}]
+    if tool in COMPOSITE_CALLS:
+        return [{"tool": tool, "arguments": {**args, "delivery": "download"}}]
     raise ValueError("Unsupported public MCP operation: " + tool)
 
 
@@ -304,7 +314,16 @@ def download_mode(structured):
 
 
 def stage(tool, raw):
+    if tool in COMPOSITE_TOOLS:
+        return stage_composite(tool, raw)
+    return store(*staged(tool, raw))
+
+
+def staged(tool, raw):
+    # stage 的校验与成形，不写盘：组合结果逐项拆开时先全部校验，再统一写入。
     value, structured, envelope = complete_result(tool, raw)
+    if envelope.get("schema_version") == COMPOSITE_SCHEMA:
+        raise ValueError("A composite result must be staged with its composite tool name")
     # 下载就绪的结果省略了 data；当作内联证据保存会得到一份没有数据的 envelope。聚合工具例外：内联照旧完整。
     if download_mode(structured) and not typed_result(envelope):
         raise ValueError("This result carries a download instead of inline data; run static_host.py fetch on it")
@@ -339,7 +358,7 @@ def stage(tool, raw):
             payloads.append((f"{identifier}-{index}{extension}", body, artifact_meta(artifact, structured["job_id"])))
     else:
         payloads.append((identifier + ".json", json.dumps(envelope, ensure_ascii=False).encode(), {}))
-    return store(tool, envelope, payloads)
+    return tool, envelope, payloads
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -501,6 +520,8 @@ def no_download(tool, descriptors):
 
 def fetch(tool, raw):
     """Download the complete evidence a Kabo tool result links to, then store it the way stage does."""
+    if tool in COMPOSITE_TOOLS:
+        return fetch_composite(tool, raw)
     value, structured, envelope = complete_result(tool, raw, extra_blocks=True)
     if tool == "read_research_data_artifacts":
         return fetch_artifacts(tool, value, structured)
@@ -587,6 +608,260 @@ def fetch_artifacts(tool, value, structured):
     return result
 
 
+# 组合取数工具（kabo-composite-fetch.v1，docs/skills-spec.md KS8）：后台一次调用做完一段多轮取数，
+# calls[] 是后台实际发出的每一次单工具调用，calls[i].result 与单个 /mcp-pub 数据工具的结果信封完全相同。
+# 落盘时逐项拆开：每项按 calls[i].tool 走 stage 的同一套校验与命名（<id>.json + <id>.meta，正文逐字节相同），
+# 旁注另记 composite_tool / composite_id / composite_index / composite_group / composite_parameters；
+# 最后写一份整体记录 <composite_id>.json + .meta（旁注 tool 是组合工具、schema_version 是 COMPOSITE_RECORD），
+# 驱动用 composite_records() 读它的 summary / coverage / limitations 与逐项证据 id。
+# 任何一项校验不过，整份什么都不写。本段在各 Skill 的副本里逐字相同（scripts/shared-copies.test.mjs）。
+COMPOSITE_SCHEMA = "kabo-composite-fetch.v1"
+COMPOSITE_RECORD = "kabo-composite-fetch.record.v1"
+COMPOSITE_TOOLS = {"collect_account_history", "collect_tiktok_video_candidates", "collect_youtube_recent_videos",
+                   "render_official_pages", "collect_video_media"}
+
+
+def composite_result(tool, raw):
+    # 整份组合结果的读取，与 complete_result 同一套规矩：大小、工具名、MCP 包装；组合工具只在领域函数抛异常时
+    # 才是错误结果，失败与缺口收在 status / limitations 里，所以错误结果一律原样带出报错、不落盘。
+    if len(raw) > MAX_BYTES:
+        raise ValueError("Tool result exceeds the evidence limit")
+    if tool not in COMPOSITE_TOOLS:
+        raise ValueError("Not a declared evidence tool")
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError("Complete MCP result must be an object")
+    if value.get("isError"):
+        blocks = value.get("content") if isinstance(value.get("content"), list) else []
+        text = " ".join(block["text"] for block in blocks
+                        if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)).strip()
+        raise ValueError(f"{tool} failed and returned no composite result: " + (text[:300] or "no message"))
+    structured = value.get("structuredContent", value)
+    if "content" in value and "structuredContent" not in value:
+        blocks = value["content"]
+        if (not isinstance(blocks, list) or not blocks or not isinstance(blocks[0], dict) or
+                blocks[0].get("type") != "text" or not isinstance(blocks[0].get("text"), str)):
+            raise ValueError("Complete structured result is required")
+        structured = json.loads(blocks[0]["text"])
+    if isinstance(structured, dict) and "schema_version" not in structured and isinstance(structured.get("result"), dict):
+        structured = structured["result"]
+    if not isinstance(structured, dict) or structured.get("schema_version") != COMPOSITE_SCHEMA:
+        raise ValueError("Tool result has no supported evidence schema")
+    if structured.get("tool") != tool:
+        raise ValueError("Tool result does not match its declared operation")
+    return structured
+
+
+def previous_evidence(tool, body):
+    # 与 store 的去重同一判据（同一工具、同一 sha256）：已落过盘的那份的证据 id；被改过就拒收。
+    destination = run_dir() / "snapshot/.host-evidence"
+    fingerprint = hashlib.sha256(body).hexdigest()
+    for previous in sorted(destination.glob("*.meta")):
+        metadata = json.loads(previous.read_text())
+        if metadata.get("tool") == tool and metadata.get("sha256") == fingerprint:
+            if hashlib.sha256(previous.with_suffix(".json").read_bytes()).hexdigest() != fingerprint:
+                raise ValueError("Previously staged evidence was altered")
+            return previous.stem
+    return None
+
+
+def split_composite(tool, composite, extra, refetch=""):
+    calls = composite.get("calls")
+    if not isinstance(calls, list) or not all(isinstance(call, dict) for call in calls):
+        raise ValueError("Composite result must carry its calls" + refetch)
+    # 先把每一项都按单工具 stage 校验并成形，全部通过后才写：不留下半套证据。
+    prepared = []
+    for index, call in enumerate(calls):
+        name, result = call.get("tool"), call.get("result")
+        label = name if isinstance(name, str) else "?"
+        try:
+            if not isinstance(name, str) or name in COMPOSITE_TOOLS or not isinstance(result, dict):
+                raise ValueError("each call needs a single data tool name and its result envelope")
+            name, envelope, payloads = staged(name, json.dumps(result, ensure_ascii=False).encode())
+            if len(payloads) != 1 or not payloads[0][0].endswith(".json"):
+                raise ValueError("a composite call must be one data envelope")
+            previous_evidence(name, payloads[0][1])
+        except (ValueError, KeyError, TypeError) as error:
+            raise ValueError(f"calls[{index}] ({label}): {error}; nothing was written" + refetch) from None
+        prepared.append((name, envelope, payloads))
+    record_id, entries, written, duplicates = evidence_id(), [], 0, 0
+    for index, (call, (name, envelope, payloads)) in enumerate(zip(calls, prepared)):
+        marks = {**extra, "composite_tool": tool, "composite_id": record_id, "composite_index": index,
+                 "composite_group": call.get("group"), "composite_parameters": call.get("parameters")}
+        file, body, meta = payloads[0]
+        result = store(name, envelope, [(file, body, {**meta, **marks})])
+        stored = previous_evidence(name, body) if result.get("duplicate") else Path(file).stem
+        written += result["staged"]
+        entries.append({"index": index, "tool": name, "group": call.get("group"), "status": envelope.get("status"),
+                        "evidence_id": stored})
+        duplicates += 1 if result.get("duplicate") else 0
+    # 记录只含确定的内容：同一份组合再落一次时与上次逐字节相同，按 store 的去重指回上次那份。
+    record = {"schema_version": COMPOSITE_RECORD, "tool": tool, "status": composite.get("status"),
+              "summary": composite.get("summary"), "coverage": composite.get("coverage"),
+              "limitations": composite.get("limitations"), "calls": entries}
+    body = json.dumps(record, ensure_ascii=False).encode()
+    result = store(tool, record, [(record_id + ".json", body, {**extra, "composite_calls": len(entries)})])
+    if result.get("duplicate"):
+        record_id = previous_evidence(tool, body)
+    directory = run_dir() / "snapshot/.host-evidence"
+    return {"composite": tool, "status": composite.get("status"), "record": str(directory / (record_id + ".json")),
+            "staged": written, "duplicate": duplicates,
+            "directory": str(directory), "calls": entries}
+
+
+def stage_composite(tool, raw):
+    composite = composite_result(tool, raw)
+    ready = download_mode(composite)
+    refetch = f"; run static_host.py fetch --tool {tool} on the complete result instead" if ready else ""
+    # 下载描述含签名链接，不落盘；去掉它之后与下载到的那份是同一个对象。
+    composite = {key: item for key, item in composite.items() if key != "download"}
+    return split_composite(tool, composite, {}, refetch)
+
+
+def fetch_composite(tool, raw):
+    composite = composite_result(tool, raw)
+    descriptor = composite.get("download")
+    if not (isinstance(descriptor, dict) and descriptor.get("status") == "ready"):
+        return no_download(tool, [descriptor])
+    if descriptor.get("content_type") != "application/json":
+        raise ValueError("Envelope download must be JSON")
+    hint = (f"If this result still carries complete calls, export it through the host and run static_host.py stage "
+            f"--tool {tool} on it; otherwise call {tool} again with the same parameters and delivery \"download\" "
+            "(this re-runs it), then run fetch right away")
+    full = json.loads(download(tool, descriptor, "envelope", hint).decode("utf-8"))
+    # 下载字节是去掉 download 的整份出参；身份字段对不上说明拿错了文件。
+    if (not isinstance(full, dict) or full.get("schema_version") != COMPOSITE_SCHEMA or full.get("tool") != tool or
+            ("status" in composite and full.get("status") != composite["status"])):
+        raise ValueError("Downloaded evidence does not match this tool result")
+    full = {key: item for key, item in full.items() if key != "download"}
+    return {**split_composite(tool, full, {"delivery": "download"}), "fetched": [summary(descriptor)]}
+
+
+# 按结果编号取下载（kabo ADR-0084「2026-11-04」）：下载就绪的结果，其签名链接路径里有一个 22 字符的结果编号
+# （`research-export/v1/<编号>.json`）。模型只交编号，不再整份抄结果；脚本向 Kabo 按编号取同一份字节，
+# 按响应头里的 sha256 与长度校验后照 fetch 落盘。编号与签名链接同一张不记名票、同一个到期时刻（10 分钟）。
+# 本段在各 Skill 的副本里逐字相同（scripts/shared-copies.test.mjs）。
+RESULT_URL = "https://kabo.sh/v1/research-downloads/"
+RESULT_ID = re.compile(r"[A-Za-z0-9_-]{22}")
+RESULT_ID_IN_URL = re.compile(r"/research-export/v1/([A-Za-z0-9_-]{22})\.json(?:\?|$)")
+
+
+def result_id_of(text):
+    """The result id the model gave: the id itself (a trailing `.json` too), or a download url that contains one."""
+    text = str(text).strip().strip("'\"")
+    bare = text[:-len(".json")] if text.endswith(".json") else text
+    if RESULT_ID.fullmatch(bare.rsplit("/", 1)[-1]):
+        return bare.rsplit("/", 1)[-1]
+    found = RESULT_ID_IN_URL.search(text)
+    if found:
+        return found.group(1)
+    raise ValueError("A result id is the 22 letters, digits, - or _ between research-export/v1/ and .json in the "
+                     "result's download url")
+
+
+def download_result(result_id):
+    """GET the bytes Kabo holds under one result id, with their sha256, only if both match its headers."""
+    request = urllib.request.Request(RESULT_URL + result_id, method="GET", headers={"Accept-Encoding": "identity"})
+    hasher, chunks, total = hashlib.sha256(), [], 0
+    try:
+        with build_opener().open(request, timeout=DOWNLOAD_TIMEOUT) as response:
+            status = response.status
+            size = response.headers.get("Content-Length")
+            digest = str(response.headers.get("X-Content-SHA256") or "")
+            if status == 200 and (not str(size or "").isdigit() or int(size) > MAX_BYTES or
+                                  not re.fullmatch(r"[0-9a-f]{64}", digest)):
+                status = "headers"
+            while status == 200 and total <= int(size):
+                chunk = response.read(min(1024 * 1024, int(size) + 1 - total))
+                if not chunk:
+                    break
+                hasher.update(chunk)
+                chunks.append(chunk)
+                total += len(chunk)
+    except urllib.error.HTTPError as error:
+        status = error.code
+        error.close()
+    except Exception as error:
+        reason = str(error.reason)[:160] if isinstance(error, urllib.error.URLError) else ""
+        reason = "" if "http" in reason.lower() else reason
+        label = f"{type(error).__name__}: {reason}" if reason else type(error).__name__
+        raise ValueError(f"Download failed ({label}); if this host blocks network access for scripts, save the "
+                         "complete tool result to a file and run static_host.py fetch --input <file> on it") from None
+    if status == 404:
+        raise ValueError("no result under this id: it expired (ids last 10 minutes) or was mistyped. If that call was "
+                         "a data tool (not a lookup_* tool) and its result has an evidence_ref, call "
+                         "get_research_data_download with it (no new fetch, no allowance) and use the id in its new "
+                         "download url; otherwise make the same call again and use the id from its new result")
+    if status == "headers":
+        raise ValueError("Kabo did not return the size and sha256 for this id; nothing was written")
+    if status != 200:
+        raise ValueError(f"Download failed (HTTP {status}); try again, or make the same call again for a new id")
+    if total != int(size) or hasher.hexdigest() != digest:
+        raise ValueError("Download does not match its declared size and sha256; nothing was written")
+    return b"".join(chunks), digest
+
+
+def fetch_id(tool, text):
+    """`fetch` for a result given by its id: download, check, and store it the way fetch does."""
+    # 聚合工具（collect_* / enrich_*）只在部分副本里有；共享段不能直接引用，按 renew_hint 的办法取。
+    aggregates = set(globals().get("AGGREGATE_TOOLS", ()))
+    if tool not in COMPOSITE_TOOLS | {RESIGN_TOOL} | set(CONNECTOR_TOOLS.values()) | JOB_TOOLS | aggregates:
+        raise ValueError("Not a declared evidence tool")
+    if tool == "read_research_data_artifacts":
+        raise ValueError("Artifact results have no result id; save the complete result and run fetch on it")
+    raw, digest = download_result(result_id_of(text))
+    full = json.loads(raw.decode("utf-8"))
+    if not isinstance(full, dict):
+        raise ValueError("Downloaded evidence must be an object")
+    descriptor = {"kind": "envelope", "sha256": digest, "bytes": len(raw)}
+    if tool in COMPOSITE_TOOLS:
+        if full.get("schema_version") != COMPOSITE_SCHEMA or full.get("tool") != tool:
+            raise ValueError(f"This id holds no {tool} result; check that the id belongs to that call")
+        full = {key: item for key, item in full.items() if key != "download"}
+        return {**split_composite(tool, full, {"delivery": "download"}), "fetched": [summary(descriptor)]}
+    if full.get("schema_version") == COMPOSITE_SCHEMA:
+        raise ValueError("This id holds a composite result; pass the composite tool's name")
+    schema = globals().get("AGGREGATE_SCHEMAS", {}).get(tool)
+    if schema and full.get("schema_version") != schema:
+        raise ValueError(f"This id holds no {tool} result; check that the id belongs to that call")
+    if tool in aggregates:
+        full = {key: item for key, item in full.items() if key != "download"}
+    try:
+        check_envelope(tool, full)
+    except ValueError as error:
+        raise ValueError(f"{error}; check that the id belongs to the {tool} call") from None
+    body = json.dumps(full, ensure_ascii=False).encode()
+    result = store(tool, full, [(evidence_id() + ".json", body, {"delivery": "download"})])
+    return {**result, "fetched": [summary(descriptor)]}
+
+
+def composite_records(tool=None):
+    """This run's staged composite records, oldest first; each call carries the absolute path of its envelope."""
+    directory = run_dir() / "snapshot/.host-evidence"
+    found = []
+    for meta_path in directory.glob("*.meta"):
+        metadata = json.loads(meta_path.read_text())
+        if metadata.get("schema_version") != COMPOSITE_RECORD or (tool is not None and metadata.get("tool") != tool):
+            continue
+        body = meta_path.with_suffix(".json").read_bytes()
+        if hashlib.sha256(body).hexdigest() != metadata.get("sha256"):
+            raise ValueError("Previously staged evidence was altered")
+        record = {**json.loads(body), "id": meta_path.stem, "staged_at": metadata.get("staged_at")}
+        for call in record["calls"]:
+            call["path"] = str(directory / (call["evidence_id"] + ".json"))
+        found.append(record)
+    return sorted(found, key=lambda record: (str(record["staged_at"]), record["id"]))
+
+
+def render_result(result):
+    # 单工具结果照旧一行 JSON；组合结果整体仍是合法 JSON，逐项调用各占一行。
+    if not (isinstance(result, dict) and "composite" in result):
+        return json.dumps(result)
+    head = json.dumps({key: item for key, item in result.items() if key != "calls"})
+    lines = ",\n".join(json.dumps(entry) for entry in result["calls"])
+    return head[:-1] + ', "calls": [' + ("\n" + lines + "\n" if lines else "") + "]}"
+
+
 # 延迟媒体工具的幂等键：同一运行、同一工具、同一组入参、同一尝试序号得到同一把键。
 # 宿主超时后整条重发时，服务端凭它交回原来的 job，不再入队、不再计费。只在同一调用没拿到响应时复用；拿到错误结果后
 # 再试、入参改了或要重跑已终局的任务，都换下一个尝试序号（入队失败会留下一行永远不开始的 queued job，复用旧键会拿回它）。
@@ -622,11 +897,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init").add_argument("--workspace", required=True)
-    # 两个子命令都只从文件或 stdin 读完整结果；下载链接不进 argv，不出现在进程列表里。
+    # 两个子命令都只从文件或 stdin 读完整结果，签名下载链接不进 argv；`fetch --id` 只收结果编号（10 分钟有效），
+    # 交接也只让模型交编号（docs/skills-spec.md KS7.3）。
     for name in ("stage", "fetch"):
         command = commands.add_parser(name)
         command.add_argument("--tool", required=True)
         command.add_argument("--input", default="-")
+    # 下载就绪的结果只交编号（或含编号的下载链接），不存文件。
+    command.add_argument("--id", help="the result id from the result's download url, instead of --input")
     command = commands.add_parser("job-call")
     command.add_argument("--tool", required=True)
     command.add_argument("--parameters", required=True)
@@ -636,13 +914,15 @@ def main():
         print(init(args.workspace))
     elif args.command == "job-call":
         print(json.dumps(job_call(args.tool, args.parameters, args.attempt), ensure_ascii=False))
+    elif args.command == "fetch" and args.id:
+        print(render_result(fetch_id(args.tool, args.id)))
     else:
         if args.input == "-":
             raw = sys.stdin.buffer.read(MAX_BYTES + 1)
         else:
             with open(args.input, "rb") as stream:
                 raw = stream.read(MAX_BYTES + 1)
-        print(json.dumps((stage if args.command == "stage" else fetch)(args.tool, raw)))
+        print(render_result((stage if args.command == "stage" else fetch)(args.tool, raw)))
 
 
 if __name__ == "__main__":

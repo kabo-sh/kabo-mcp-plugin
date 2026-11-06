@@ -2,6 +2,113 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.20（2026-11-06；GitHub Release）
+
+- `analyze-content-video`：最终数字校验接受按有效数字取整或截断的大计数（如 18,067,177 写成「1800 万」「1.8千万」，2,689,000 写成「2.6M+」），并认「千 / 百万 / 千万」量级；小数字与只剩一位有效数字的写法仍按原规则拦。生产 Web 上视频分析曾因此在最后一步被拒（#120）。
+- `analyze-content-video`：本地度量作为独立命令运行并有时限（#115）。
+- `diagnose-reach-drop`：只有公开快照时给出按发布时长近似的下降判断（#119）。
+- 发布到 Web：发到 pre 测试账号（`target=test`）不再套用生产暂扣名单 `PLUGIN_WEB_HOLD`，可另设 `PLUGIN_WEB_TEST_HOLD`（#121）。
+
+## 1.0.19（2026-11-06；GitHub Release）
+
+- 发布到 Web 的流程：SKILL.md 声明了 `metadata.version` 时用它作为 Web 版本（须高于线上版本），探测打包不再比对版本；三个新 Skill 的声明版本升到线上之上（品牌 0.3.23、日历 0.1.25、报价 0.4.13），1.0.18 因此没能发到 Web（#117）。Skill 内容与 1.0.18 相同。
+
+## 1.0.18（2026-11-06；GitHub Release）
+
+- 新增三个 Skill：`optimize-creator-brand`（品牌命名、简介、品牌包）、`plan-content-calendar`（可审阅的内容日历）、`price-creator-brand-deals`（商单报价），由 creator-skills 移植（#97）。
+- 同步 creator-skills 在移植后、冻结点 `6f8ef681f` 之前的修复（#114）：竞品 / 流量下降 / 发布时间的 TikTok 图文与视频分开做基线、保留原始链接；账号复盘把「含当天」的成熟期截止交给报告撰写；选题可用普通对话原文做续写来源（`--conversation-context`）；脚本包装区分创作草稿与原生包、保留上游 SelectedIdea、成片交给宿主的媒体能力、助手建议的时长只算估计。
+- 生产回归：待补。
+
+## 1.0.17（2026-11-06；GitHub Release）
+
+- `analyze-content-video`：转写、抽帧、度量（Instagram / TikTok 另加元数据）改为一次 `collect_video_media` 后台调用，由新脚本 `collect_media.py` 交接与续等，全部终态后逐项落成 `snapshot/envelope-NN.json` 并给出证据构建参数与一次读帧；模型不再逐个提交、轮询媒体 job（#112，需 kabo#2050）。Codex 生产回归同一条 YouTube 视频 3/3 出报告。
+
+## 1.0.16（2026-11-06；GitHub Release）
+
+- `create-script-and-packaging`：用户自己给定方向时，记录方向的脚本会打印下一步，模型接着写脚本包、校验并渲染 `SCRIPT_PACKAGE.md`，不再在这一步直接回答（#107）。
+
+## 1.0.15（2026-11-05；GitHub Release）
+
+- `review-creator-account`：报告被校验器拒收后，删掉未过校验的报告，改完 synthesis 重跑同一条命令即可出报告；
+  失败信息不涉及作者字段（文件、权限等系统错误）时提示报告并停止（#104）。
+- `review-creator-account-deep`：`--workspace` 先认领本 workspace 里刚预留、还没开始的 run（独占认领，已开始的跳过），
+  一次请求只预留一个 run、只记一次用量（#104）。
+- 三个移植 Skill 去掉过时的 `metadata.version`，Web 端能收这几个包（#98）。
+- 生产回归：待补。
+
+## 1.0.14（2026-11-05；GitHub Release）
+
+- 交接改为交结果编号（#83）：取数结果带一个短编号，模型只把编号填进续跑命令，脚本按编号下载、核对长度与 sha256 后落盘，
+  不再让模型把结果写成文件；没有编号的结果仍按原方式保存。对照 1.0.10 的同一批 30 轮输入，模型手写保存从多次降为 0。
+- `review-creator-account-deep`（#79）：目录取数交出一次 `collect_account_history`，看片的元数据、字幕与抽帧交出一次
+  `collect_video_media`，两处交接都交结果编号；创作依据按运行名与相对路径绑定。
+- 每个按次计费的 Skill 在预留运行目录后调用一次 `start_skill_run`（Kabo 按 skill 记一次用量，同一运行不重复记）；额度用完时 Skill 停止并把账单链接交给用户，
+  工具缺失时照常继续。`remake-viral-video` 只走视频额度，不声明（#95）。
+- 目录契约重钉到已部署的 kabo `096d598ba`（73 个工具，含 `start_skill_run`、`get_credit_balances`、`get_credit_tasks`、`claim_credit_task`、`collect_video_media`）。
+- `verify-platform-rule`：判「谣言」须有官方原文相矛盾，未提及不算反驳；释义只翻译不概括；说明里点名门槛变化类传言与登记页面（#88）。
+- `diagnose-reach-drop`：流量来源分组可带各自的日历窗口；通用窗口只按发布时长（#92、#96）。
+- `plan-platform-monetization`：保留频道声明的国家；说明覆盖用户给出数字与没有账号的问题（#85、#86）。
+- `analyze-content-video`：中文视图的报告标签本地化，不再回退到后台分析（#87）。
+- 规范文档只保留英文版 `docs/skills-spec.md`（#93）。
+- 生产回归（Codex，OAuth 连 `kabo.sh/mcp-pub`，测试账号，装 `#stable` = `4e9343a`）：
+  `review-creator-account-deep`（@mkbhd YouTube）交付 creator_report，目录 1 次 `collect_account_history`、看片 `collect_video_media`，
+  10 条视频全部看过，交接全用结果编号，模型手写保存 0；`review-creator-account`（@veritasium YouTube）交付 creator_report，
+  1 次 `collect_account_history`、结果编号交接、模型手写保存 0，`start_skill_run` 各记一次且未被额度拒绝。
+  遗留（不阻塞发布）：账号复盘首跑一次因模型在局限说明里写了 provider 被报告校验拦下，改写后重跑已交付的路径又报「报告与来源不一致」没能救回，
+  重跑一次正常交付；深度复盘那轮预留了两个运行目录，`start_skill_run` 记了两次。
+
+## 1.0.13（2026-11-05；GitHub Release）
+
+- `remake-viral-video`：选口播模型按意思理解（同网页端 kas#320 / creator-remake-web 0.1.39）：确认话术不再要求「回编号 / 回 OK」，
+  改为「告诉我用哪个；想直接开始就用默认档；确认前不生成不扣费」；回复按意思（编号、名字或描述，任何语言）选中某档就用那档，
+  明确要开始但没选就用默认（第一档），看不出或答非所问就简短再问一次、不开工；仍不替用户选。
+- 离线检查（Codex，不调 Kabo，复用存档的写稿关口任务）：「the second one」「用 Wan」「用最便宜的那个吧」「go ahead」「哪个最自然」
+  各选中对应档（go ahead 用默认 Vivix），问天气时只简短再问一次、不写出片参数，6/6 通过；首条消息不要求回编号或 OK。
+
+## 1.0.12（2026-11-04；GitHub Release）
+
+- `remake-viral-video`：创作者只有照片时也能出片：`start-call --creator-photo`（1–4 个公开 JPEG/PNG 链接，与视频合计最多 4 个）
+  进 `creator.photo_urls`；只有照片时先向用户要一段本人说话的视频，实在没有才在 4 个预设音色里让用户选（`--voice-preset`）。
+  规则在 `references/creator-photos.md`，与网页端 0.1.35 一致。依赖 kabo#2011（`/mcp-pub` 服务端安全取图）与 runner V2-r72。
+- 生产回归（Codex，OAuth 连 `kabo.sh/mcp-pub`，测试账号，runner V2-r74 系）：照片 + 本人视频（job `dadcaedf`）与只有照片
+  （job `e76090ba`）均交付。只有照片时先问「有没有 10–30 秒本人说话的公开视频」，用户说没有后才按编号列出 4 个预设音色，
+  选 3 号后用 Male calm 出片，最终说明照实告诉用户「长相来自照片、声音是预设」，插件侧全部通过。
+  runner 侧：照片 + 视频同时给时，长相参考全部取自视频，交付说明也没写照片来源（已转 runner 跟进）。
+
+## 1.0.11（2026-11-04；GitHub Release）
+
+- `remake-viral-video`：说明收窄到「要成片时才用」，同网页端 creator-remake-web 0.1.36（creator-skills #955）：借参考结构写稿、
+  拆解剪辑/音效/格式、账号诊断、增长建议与选题不触发复刻（线上出现过写稿/拆解/诊断请求误加载复刻技能）。
+- 路由检查（Codex，不调 Kabo，十五个 Skill 的包）：6 条写稿 / 拆解 / 掉量诊断 / 增长与选题请求都没有加载复刻技能，复刻与按稿出片 2 条都加载了，8/8 通过。
+
+## 1.0.10（2026-11-03；GitHub Release）
+
+- 三平台最近七天推荐独立核对内容语言；只有领域与语言均合格的候选进入排序，语言不匹配或证据不足时如实留缺口。
+- 用户明确同意加入指定语言时扩大允许集合；同意任何语言时取消本次请求的语言限制。授权优先于账号默认值，不改写画像；领域、时间窗与详情校验继续生效。
+- 跨语言检索在现有调用预算内使用获准语言的搜索词，报告注明覆盖范围；YouTube 可按每条查询的语言传入检索偏好。
+- YouTube 组合取数可选返回平台声明的音频语言；音频声明冲突不能被英语标题或简介覆盖。TikTok 按原始 caption 的字段映射读取文案，Instagram 读取原始 caption.text。
+- 保留原文证据和简短原因，区分平台声明、文案推断与未确认；旧版领域判断不能直接当作新版语言审核结果。不限语言时也不把未知口播冒称已核实。
+- 保留十五项 Skills 与现有 MCP/OAuth 连接。此次 GitHub Release、stable 更新与 OpenAI 商店审核、全部跨宿主验收分别记录。
+
+## 1.0.9（2026-11-03；GitHub Release）
+
+- Instagram、TikTok、YouTube 的短时间窗推荐先按完整候选文本判断领域，再按热度排序；每项保留判断与简短原因。
+- Instagram 最近七天走 Search collector（实验 B）：最多两个意图、各一页，原帖详情预算 24；只有详情完整、播放量已知且原帖日期在精确时间窗内的候选参与排名。
+- TikTok、YouTube 的热度层在本地再次检查 30 天边界；报告说明排除数量与资料缺失，名额不足时如实保留空缺。
+- 完整保留已发布 1.0.8 的口播稿出片与交付说明；本次包也包含 main 已合入的十五项 Skills、后端聚合取数与媒体 operation 名兼容修复。
+- 本次重点验收三平台推荐改动；十五项 Skills 的全部跨宿主验收与 OpenAI 商店审核仍独立记录，不能以本次 GitHub Release 代替。
+
+## 1.0.8（2026-11-02；GitHub Release）
+
+- `remake-viral-video`：按已确认的口播稿出片（没有参考视频）。复用复刻同一条链路：`start-call --script-file` 原样带上稿子
+  （与 `--reference-url` 恰好给一项），`check_documents.py copy-drafts` 把 runner 的四份草稿原样写成提交文件，只许改分行；
+  选模型、出片、终审转述、失败处理与复刻共用。写稿规则移植自 creator-remake-web 0.1.32 的 approved-script 流程
+  （`references/approved-script.md`）。依赖 kabo#1925（`start_remake_video` 新增可选 `script`）。
+- `remake-viral-video`：在子 agent 里跑时，主线程把子 agent 的最终结果完整转给用户（路径、花费、终审）。
+- 生产回归（Codex，OAuth 连 `kabo.sh/mcp-pub`，默认 Vivix A1，runner V2-r71 系 `a028b1a9`）：一条已确认的 54 词口播稿
+  （job `5dfe48ee`，20.7 秒，$0.46）交付，逐字核对 54/54 一致；走 approved-script 路径、`--script-file` 只带 `script`、
+  `copy-drafts` 原样写入、默认 Vivix、终审为空时不编造结论，均通过。主线程转述时丢了花费，已在本版修正说法。
+
 ## 1.0.7（2026-11-02；GitHub Release）
 
 - `remake-viral-video`：参考视频上限 60 秒 → 90 秒（kabo#1826，runner r62）。
@@ -96,8 +203,8 @@
   - 读画像带 `effective: true`，被拒时去掉重发一次。四个 Skill 的 `allowed-tools` 加 `update_content_preferences`、
     `compatibility` 加 `workspace:write`；写入规则在新增的 `references/profile-edits.md`（四份同文），按 kabo CONTRACT §16.6
     （kabo-sh/kabo#1869）的确认规则执行，409 先重读，`insufficient_scope` 请用户批准补权后重试一次。
-  - 新增有效画像夹具（TikTok 三份取自 kabo `effective-content-profile-v1` golden 的向量）与相应测试；README、
-    `docs/submission.md` 补说明。上线前要重新走目录审核并重新做插件验收。
+  - 新增有效画像夹具（TikTok 三份取自 kabo `effective-content-profile-v1` golden 的向量）与相应测试；README 与提交材料
+    补说明。上线前要重新走目录审核并重新做插件验收。
 - 三个 trends Skill（`research-tiktok-trends`、`research-instagram-trends`、`research-youtube-trends`）接收后台账号画像：
   手工移植 creator-skills #918（`feat/reco-trends-allocation`，`e6fd8cfe7`）的 S1–S3。用户问自己已绑定账号的趋势时，
   先 `list_connected_accounts`、再 `get_creator_profile`（`include: ["content_profile"]`），完整结果原样存成文件交给

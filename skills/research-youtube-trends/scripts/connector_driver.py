@@ -147,13 +147,186 @@ def supersede(path: Path | None) -> None:
     target.chmod(0o600)
 
 
+def resume_command() -> str:
+    """This same stage, with the same arguments, run again with `--placed` from this run directory.
+
+    `--without-include` answered one hand-over and is remembered by the run. `--question-file -` stays:
+    the run checks a first stage's arguments, and a `--placed` run keeps the stored ask without
+    waiting on standard input. The run is found from the working directory (`static_host.run_dir`),
+    so the command names the directory once.
+    """
+    stage = [arg for arg in sys.argv[1:] if arg not in ("--placed", "--without-include")]
+    return (f"cd '{Path.cwd()}' && python3 '{SCRIPTS / 'drive.py'}' "
+            + " ".join(f"'{arg}'" if re.search(r"[^\w./=:-]", arg) else arg for arg in stage) + " --placed")
+
+
+def take_result_ids(argv: list[str]) -> dict[str, str]:
+    """Take every `--id NN=<id>` out of argv, before the stage's own parser reads it.
+
+    A hand-over names one numbered slot per call; the model answers each with the result id from that
+    call's download link instead of saving the result (kabo ADR-0084 2026-11-04). The ids are only for
+    this resume, so the printed resume command never carries them.
+    """
+    ids: dict[str, str] = {}
+    kept = argv[:1]
+    rest = iter(argv[1:])
+    for arg in rest:
+        if arg == "--id":
+            value = next(rest, "")
+        elif arg.startswith("--id="):
+            value = arg[len("--id="):]
+        else:
+            kept.append(arg)
+            continue
+        slot, _, given = value.partition("=")
+        ids[slot.strip().zfill(2)] = given.strip()
+    argv[:] = kept
+    return ids
+
+
+RESULT_IDS = take_result_ids(sys.argv)
+# 交接点名的结果槽位（编号、工具、退路文件的绝对路径，按调用顺序）与续跑已取走的槽位（路径 -> 内容 sha256），记在本次运行的状态里。
+AWAITING = "awaiting_results"
+TAKEN = "taken_results"
+# 每轮交接都打印，所以要短。实测里模型手抄结果是插件交接的头号故障（patch 写坏、签名链接抄漏、改写字段、
+# 存错目录）；现在只交编号，结果由续跑按编号自己取。存文件只是没有下载链接时的退路。
+SAVE_RULE = ("Do not save the results. Each result's download url holds its result id: the 22 characters between "
+             "`research-export/v1/` and `.json`. Put each call's id into the resume command below as "
+             "`--id <slot>=<id>`. Only for a result with no download url, save that result whole, as returned, "
+             "to the file named for its slot (with the host's file-write tool, never as a command-line argument) "
+             "and leave its `--id` out. Never download anything yourself; call get_research_data_download only "
+             "when the resume says an id expired.")
+
+
+def slot_of(file: Path) -> str:
+    return file.name.split("-", 1)[0]
+
+
+def await_results(tools: list[str]) -> list[Path]:
+    """Name one slot per handed-over call, in call order, and remember them.
+
+    Each slot has a number (the resume's `--id NN=<id>`) and, as the fallback for a result with no
+    download link, a file under this run's host-results/. The paths are absolute, so a save from another
+    working directory still lands in this run; the resume takes exactly these slots (`take_handed_results`).
+    """
+    results = Path.cwd() / "host-results"
+    first = len(list(results.glob("*.json"))) + 1 if results.is_dir() else 1
+    files = [results / f"{number:02d}-{tool}.json" for number, tool in enumerate(tools, first)]
+    save_state(**{AWAITING: [{"tool": tool, "file": str(file)} for tool, file in zip(tools, files)]})
+    return files
+
+
+def say_slot(file: Path) -> None:
+    # 退路文件只在没有下载链接时才用；写成「存到」会让模型照着先存一份（实测）。
+    say(f"  result {slot_of(file)}  (fallback file, only if this result has no download url: {file})")
+
+
+def say_resume(files: list[Path] | None = None) -> None:
+    slots = [slot_of(file) for file in files or [Path(item["file"]) for item in state().get(AWAITING) or []]]
+    say("Then run this one command right away, each <id> replaced by that call's result id (ids expire in 10 "
+        "minutes): " + resume_command() + "".join(f" --id {slot}=<id>" for slot in slots))
+
+
 def hand_over(calls, why=""):
+    # 每条调用下面打印它的槽位，结尾只打印一条带 --id 的续跑命令：续跑按编号自己取（没有编号时读退路文件），
+    # 模型不存结果，也不单独跑 static_host.py。
     from static_host import public_calls
-    say("This host does not fetch for scripts: call these public MCP tools, each as its own individual call (never combined into one batch call), save each complete result as its own file in the run's host-results/ folder and run static_host.py fetch on it (static_host.py stage when fetch reports no ready download), then resume with --placed:")
-    for call in calls:
-        for public in public_calls(call):
-            say(HANDOVER_PREFIX + json.dumps(public, ensure_ascii=False))
+    public = [mapped for call in calls for mapped in public_calls(call)]
+    files = await_results([mapped["tool"] for mapped in public])
+    say(f"Hand-over: make these {len(public)} call(s) now, each as its own call (never combined into one batch "
+        "call), all in one response, with the arguments verbatim. " + SAVE_RULE)
+    for mapped, file in zip(public, files):
+        say(HANDOVER_PREFIX + json.dumps(mapped, ensure_ascii=False))
+        say_slot(file)
+    say_resume(files)
     raise SystemExit(0)
+
+
+def take_saved_results(pairs: list[tuple[str, Path]]) -> None:
+    """Take each slot's result, in order, each once: by its `--id` id, else from its saved file.
+
+    An id is fetched by `static_host.fetch_id`; a saved file is fetched (staged when it holds no ready
+    download) the way the model used to run static_host by hand. Every saved file is read before any is
+    taken; a slot already taken with the same id or bytes is skipped, so a resume run again does not
+    download an expired link a second time.
+    """
+    import static_host
+
+    read = []
+    for tool, path in pairs:
+        given = RESULT_IDS.get(slot_of(path))
+        if given:
+            read.append((tool, path, None, given))
+            continue
+        try:
+            with path.open("rb") as stream:
+                read.append((tool, path, stream.read(static_host.MAX_BYTES + 1), None))
+        except OSError as error:
+            raise StageError(f"no result id for slot {slot_of(path)} ({tool}) and cannot read {path} "
+                             f"({error.strerror or error}). Run the resume command again with "
+                             f"--id {slot_of(path)}=<id>, the id from that call's download url") from None
+    # 同一个编号交给两个槽位，后一个槽位会被当成「已持有」跳过、少一份结果：续跑前就拒掉。
+    seen: dict[str, str] = {}
+    for tool, path, raw, given in read:
+        if not given:
+            continue
+        try:
+            key = static_host.result_id_of(given)
+        except ValueError:
+            continue  # 取的时候按编号格式报错
+        if key in seen:
+            raise StageError(f"slots {seen[key]} and {slot_of(path)} were given the same result id; each call's "
+                             "result has its own id. Run the resume command again with each slot's own id") from None
+        seen[key] = slot_of(path)
+    taken = dict(state().get(TAKEN) or {})
+    for tool, path, raw, given in read:
+        digest = hashlib.sha256(raw if raw is not None else ("id:" + given).encode()).hexdigest()
+        if taken.get(str(path)) == digest:
+            continue
+        try:
+            if given:
+                result, how = static_host.fetch_id(tool, given), "fetched by id"
+            else:
+                result, how = static_host.fetch(tool, raw), "fetched"
+                if result.get("fetched") == 0:
+                    result, how = static_host.stage(tool, raw), "staged"
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            source = f"--id {slot_of(path)}" if given else str(path)
+            raise StageError(f"{source} gave no usable {tool} result ({error}). Run the resume command again "
+                             f"with --id {slot_of(path)}=<id> from that call's result (a result with no download "
+                             f"url: save it whole to {path} instead)") from None
+        taken[str(path)] = digest
+        save_state(**{TAKEN: taken})
+        held = result.get("duplicate")
+        label = f"result {slot_of(path)}" if slot_of(path).isdigit() else path.name
+        say(f"[drive] {label}: {how} {tool}"
+            + (" (already held)" if held is True or (held and not result.get("staged")) else ""))
+
+
+def take_handed_results(calls: list[dict[str, Any]], handed_at: str, placed: bool, optional: bool = False) -> None:
+    """Before a handed-over round is placed, take the results its hand-over named.
+
+    Each slot with a `--id` id, or with its saved file, is taken (`take_saved_results`). Nothing is
+    taken when the host already recorded a response for every call of the round some other way (a host
+    that stages results itself, a result fetched by hand). With `--placed`, a slot with neither stops the
+    stage, unless the round is `optional` (its placement goes on without the answers that did not come
+    back, and names them).
+    """
+    awaited = [(str(item["tool"]), Path(str(item["file"]))) for item in state().get(AWAITING) or []
+               if isinstance(item, dict) and item.get("tool") and item.get("file")]
+    if not awaited or made_since(calls, handed_at):
+        return
+    missing = [(tool, path) for tool, path in awaited
+               if not RESULT_IDS.get(slot_of(path)) and not path.is_file()]
+    if missing and placed and optional:
+        say("[drive] no result for slot " + ", ".join(slot_of(path) for _, path in missing)
+            + "; placing what came back")
+    elif missing and placed:
+        raise StageError("no result for " + "; ".join(f"slot {slot_of(path)} ({tool})" for tool, path in missing)
+                         + ". Run the resume command again with " + " ".join(f"--id {slot_of(path)}=<id>"
+                                                                             for _, path in missing)
+                         + ", each id from that call's download url")
+    take_saved_results([pair for pair in awaited if pair not in missing])
 
 
 def fetch_or_hand_over(calls: list[dict[str, Any]], placed: bool,
@@ -347,6 +520,14 @@ def fetch_round(calls: list[dict[str, Any]], args: argparse.Namespace, place_res
     if key in done:
         return False
     handed = dict(current.get("handed") or {})
+    if args.placed and key not in handed:
+        # 这一轮还没交接过（例如阶段在交接前就因为模型写的产物报错停了），--placed 没有可放置的结果：
+        # 照常交接，免得模型自己去调取数工具、把编号交给一个没有槽位的续跑（实测白白多取一次）。
+        say("[drive] --placed, but this round was not handed over yet; handing it over now")
+        args.placed = False
+    if key in handed:
+        # 交接点名的结果文件由续跑自己 fetch / stage，模型只存文件、跑一条续跑命令。
+        take_handed_results(calls, str(handed[key]), args.placed, optional)
     if not args.placed and key in handed:
         if made_since(calls, str(handed[key])):
             say("[drive] the calls handed over earlier were made; placing their responses (as --placed would)")

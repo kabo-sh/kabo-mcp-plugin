@@ -1,11 +1,11 @@
 # Kabo plugin repository
 
-- Write commit messages, PR titles and PR descriptions in English. Code comments and the maintainer
-  guides in `docs/` stay in Chinese. Plugin metadata and user-facing content are in English.
+- Write commit messages, PR titles and PR descriptions in English. Code comments stay in Chinese.
+  Maintainer documentation in `docs/`, plugin metadata and user-facing content are in English.
 - The repository root is the plugin root. Maintain one `skills/` directory, one `kabo` entry and one
   build entry point. Codex, Claude Code and Cursor add only host metadata; do not copy business content
   or remove features for a particular host.
-- The user selected fifteen Skills; see `skills.lock.json`. They were adapted from
+- The user selected eighteen Skills; see `skills.lock.json`. They were adapted from
   creator-skills and are now edited directly in this repository; do not overwrite them with a new
   creator-skills import. The lock file records only the starting point of the adaptation.
   Follow `docs/skills-spec.md` when changing a Skill. Enforcement stays off: keep `enforced` in
@@ -16,6 +16,10 @@
   Research judgments, scripts and reports run in the AI host. The plugin runs independently of Kabo's
   web agent and never calls it, directly or through the API, a queue or another proxy.
   They share no sessions, tasks, model loop, sandbox or report chain; only the Skills share an origin.
+- A multi-round fetch runs in one backend data tool, not as rounds handed to the host model
+  (`docs/skills-spec.md` KS9, enforced by `scripts/fetch-orchestration.test.mjs`). Judgment needed between
+  fetch rounds may run as a backend prompt node inside that tool; analysis and the report stay in the host.
+  Scripts never branch on the host to choose a fetch path.
 - The only production MCP connection is `/mcp-pub`. Each data operation is pinned and must match the
   provider's artifacts. Do not introduce a registry, a general-purpose executor or remote end-to-end
   research tasks. The provider keeps the old dynamic server protocol compatible.
@@ -32,3 +36,10 @@
   marketplace console or Publish. CI, a buildable ZIP, real-host and production acceptance, and
   marketplace review are separate facts. State any missing acceptance explicitly and never claim the
   plugin is ready for listing.
+- Kabo Web serves the Skills of the latest GitHub release (desktop stays on its frozen channel). Publishing a
+  release runs `.github/workflows/web-publish.yml`, which packs each Skill and rewrites the Web overlay
+  (`scripts/web-publish/plugin-web.mjs`; it never writes a channel index) when the `web-publish` environment
+  variable `PLUGIN_WEB_AUTO` is `on`; `PLUGIN_WEB_HOLD` keeps listed Skills on their Registry version in production (the pre test target ignores it; `PLUGIN_WEB_TEST_HOLD` is its own list). To
+  publish by hand, or to the pre test accounts, run `gh workflow run web-publish.yml -f tag=<tag> -f target=index|test`
+  (idempotent; a no-op when Web is already on the release). Check with
+  `curl -s https://agent.kabo.sh/health | jq '.skill_channels.production.runtime.plugin_overlay'`.

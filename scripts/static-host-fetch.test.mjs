@@ -51,13 +51,21 @@ for scenario in scenarios:
     _, run_dir, _ = run(["init", "--workspace", workspace])
     run_dir = run_dir.strip()
     os.environ["KABO_STATIC_RUN_DIR"] = run_dir
+    # before：同一运行目录里先跑的命令（重复落盘等场景），它们的输出不进报告。
+    for index, step in enumerate(scenario.get("before", [])):
+        prior = os.path.join(run_dir, f"before-{index}.json")
+        with open(prior, "w") as stream:
+            json.dump(step["result"], stream)
+        run([step["command"], "--tool", step["tool"], "--input", prior])
     responses.clear()
     responses.update(scenario.get("responses", {}))
     requests.clear()
     source = os.path.join(run_dir, "result.json")
     with open(source, "w") as stream:
         json.dump(scenario["result"], stream)
-    code, out, err = run([scenario["command"], "--tool", scenario["tool"], "--input", source])
+    argv = ([scenario["command"], "--tool", scenario["tool"], "--id", scenario["id"]] if "id" in scenario else
+            [scenario["command"], "--tool", scenario["tool"], "--input", source])
+    code, out, err = run(argv)
     evidence = os.path.join(run_dir, "snapshot/.host-evidence")
     files = {name: base64.b64encode(open(os.path.join(evidence, name), "rb").read()).decode()
              for name in sorted(os.listdir(evidence))}
@@ -460,14 +468,14 @@ test("fetch 与 stage 不互相指回：产物全部不可用时指向缺口记�
   assert.deepEqual(Buffer.from(staged.files[Object.keys(staged.files).find((name) => name.endsWith("-0.png"))], "base64"), png);
 });
 
-test("九份 static_host.py 的共用部分逐字相同；交给模型的调用带 delivery，且钉住的 tools/list 声明了它", async (t) => {
+test("各份 static_host.py 的共用部分逐字相同；交给模型的调用带 delivery，且钉住的 tools/list 声明了它", async (t) => {
   const tools = new Map(JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools.map((tool) => [tool.name, tool]));
   const shared = new Set();
   for (const id of fetchSkills) {
     const text = await readFile(path.join(root, "skills", id, "scripts/static_host.py"), "utf8");
     shared.add(text.slice(text.indexOf("def evidence_id():")));
   }
-  assert.equal(fetchSkills.length, 13);
+  assert.equal(fetchSkills.length, 15);
   assert.equal(shared.size, 1, "evidence_id 之后的共用函数在各副本间不一致");
   const probe = String.raw`
 import json, runpy, sys
@@ -732,7 +740,7 @@ const VIDEO = ["--connector", "youtube-public", "--operation", "get_video"];
 const VIDEO_META = { connector_id: "youtube-public", operation: "get_video", delivery: "download" };
 
 test("persist：宿主导出的原始工具结果放在 snapshot/、host-results/ 或运行目录根都不算已放置；放置过的照旧去重", async (t) => {
-  assert.equal(persistCopies.size, 13);
+  assert.equal(persistCopies.size, 15);
   assert.equal(persistVariants.length, 3);
   const raw = (full) => downloadResult({ result: withoutData(full) });
   const placements = [
@@ -845,4 +853,340 @@ test("stage：状态为完成却没有 data 的结果（下载结果丢了 downl
     checked += 1;
   }
   assert.ok(checked >= 9, String(checked));
+});
+
+// 组合取数工具（kabo-composite-fetch.v1，KS8）：calls[i].result 与单个数据工具的结果信封完全相同。
+// stage / fetch 把 calls[] 拆开，每项落盘与对同一信封单独 stage 逐字节相同（旁注只多 composite_* 与 delivery），
+// 另写一份整体记录；任何一项不过整份不落盘。
+const COMPOSITE = "kabo-composite-fetch.v1";
+const env = (connector_id, operation, n, data, extra = {}) => ({
+  connector_id, operation, status: "completed", summary: `Found ${n} rows`, limitations: [],
+  evidence_ref: `ev-${operation}-${n}`, raw_sha256: "a".repeat(64), request_id: `req-${operation}-${n}`, data, ...extra,
+});
+const rows = (prefix, n) => ({ rows: Array.from({ length: n }, (_, i) => ({ id: `${prefix}-${i}`, caption: `Ünïcode ${prefix} ${i}` })) });
+const compositeFixtures = [
+  {
+    skill: "review-creator-account",
+    tool: "collect_account_history",
+    status: "completed",
+    calls: [
+      { tool: "instagram_resolve_profile", group: "acct-0", parameters: { username: "neutral.creator" },
+        result: env("instagram-discovery", "resolve_profile", 1, { rows: [{ handle: "neutral.creator", id: "u1", followers: 1200 }] }) },
+      { tool: "instagram_list_posts", group: "acct-0", parameters: { username: "neutral.creator", count: 12 },
+        result: env("instagram-discovery", "list_posts", 2, rows("post", 2)) },
+      { tool: "instagram_list_reels", group: "acct-0", parameters: { username: "neutral.creator", count: 12, cursor: "c-2" },
+        result: env("instagram-discovery", "list_reels", 3, rows("reel", 3)) },
+    ],
+    summary: { accounts: [{ group: "acct-0", input: { handle: "neutral.creator" }, resolved: { handle: "neutral.creator", id: "u1" }, status: "completed", items_total: 5, pages: 2 }] },
+    coverage: { accounts_requested: 1, accounts_completed: 1 },
+    limitations: [],
+  },
+  {
+    skill: "research-tiktok-trends",
+    tool: "collect_tiktok_video_candidates",
+    status: "partial",
+    calls: [
+      { tool: "tiktok_discovery_search_videos", group: "intent-0-sort-0", parameters: { keyword: "desk setup", sort_type: 0, publish_time: 7, count: 30 },
+        result: env("tiktok-discovery", "search_videos", 2, rows("tt0", 2)) },
+      { tool: "tiktok_discovery_search_videos", group: "intent-0-sort-1", parameters: { keyword: "desk setup", sort_type: 1, publish_time: 7, count: 30 },
+        result: env("tiktok-discovery", "search_videos", 1, rows("tt1", 1)) },
+      { tool: "tiktok_discovery_list_top_contents", group: "top-2026-11-01", parameters: { date: "2026-10-31", region: "US" },
+        result: env("tiktok-discovery", "list_top_contents", 1, rows("top", 1)) },
+    ],
+    summary: { intents: [{ group: "intent-0", keyword: "desk setup", rows: 3 }] },
+    coverage: { top_contents: { requested: "2026-11-01", used: "2026-10-31" } },
+    limitations: ["Top contents were empty for 2026-11-01; used 2026-10-31."],
+  },
+  {
+    skill: "research-youtube-trends",
+    tool: "collect_youtube_recent_videos",
+    status: "completed",
+    calls: [
+      { tool: "youtube_search_videos", group: "query-0", parameters: { q: "budget travel", order: "viewCount", max_results: 50 },
+        result: env("youtube-public", "search_videos", 2, rows("yt0", 2)) },
+      { tool: "youtube_search_videos", group: "query-1", parameters: { q: "budget travel tips", order: "date", max_results: 50 },
+        result: env("youtube-public", "search_videos", 2, rows("yt1", 2)) },
+      { tool: "youtube_get_video", group: "details-0", parameters: { video_ids: ["yt0-0", "yt0-1", "yt1-0", "yt1-1"] },
+        result: env("youtube-public", "get_video", 4, rows("detail", 4)) },
+    ],
+    summary: { unique_videos: 4 },
+    coverage: { queries: 2, detail_chunks: 1 },
+    limitations: [],
+  },
+  {
+    skill: "verify-platform-rule",
+    tool: "render_official_pages",
+    status: "partial",
+    calls: [
+      { tool: "official_page_render_page", group: "page-0", parameters: { url: "https://help.example.com/rules", source_id: "src-0" },
+        result: env("official-page-render", "render_page", 1, { rows: [{ url: "https://help.example.com/rules", text: "Rule text" }] }) },
+      { tool: "official_page_render_page", group: "page-1", parameters: { url: "https://help.example.com/gone", source_id: "src-1" },
+        result: { connector_id: "official-page-render", operation: "render_page", status: "failed", summary: "Page unavailable", limitations: ["The page returned 404."], evidence_ref: "ev-gone" } },
+    ],
+    summary: { pages: [{ group: "page-0", url: "https://help.example.com/rules", source_id: "src-0", status: "completed" }, { group: "page-1", url: "https://help.example.com/gone", source_id: "src-1", status: "unavailable" }] },
+    coverage: { pages_requested: 2, pages_rendered: 1 },
+    limitations: ["page-1 could not be rendered."],
+  },
+];
+const compositeOf = ({ tool, status, calls, summary, coverage, limitations }) => ({ schema_version: COMPOSITE, tool, status, calls, summary, coverage, limitations });
+const decoded = (files, name) => Buffer.from(files[name], "base64");
+const COMPOSITE_MARKS = ["composite_tool", "composite_id", "composite_index", "composite_group", "composite_parameters", "delivery", "staged_at"];
+const withoutMarks = (meta) => Object.fromEntries(Object.entries(meta).filter(([key]) => !COMPOSITE_MARKS.includes(key)));
+
+// 读出组合落盘：整体记录（旁注 schema_version 为记录 schema）与逐项调用的正文和旁注。
+function splitFiles(files) {
+  const metas = Object.keys(files).filter((name) => name.endsWith(".meta")).map((name) => ({ name, meta: JSON.parse(decoded(files, name)) }));
+  const record = metas.find(({ meta }) => meta.schema_version === "kabo-composite-fetch.record.v1");
+  assert.ok(record, "缺整体记录");
+  const recordBody = JSON.parse(decoded(files, record.name.replace(/\.meta$/, ".json")));
+  const calls = recordBody.calls.map((entry) => ({
+    entry,
+    body: decoded(files, `${entry.evidence_id}.json`),
+    meta: JSON.parse(decoded(files, `${entry.evidence_id}.meta`)),
+  }));
+  return { record, recordBody, calls };
+}
+
+function checkSplit(fixture, result, singles, { delivery } = {}) {
+  assert.equal(result.exit, 0, result.stderr);
+  noSecrets(result);
+  const { record, recordBody, calls } = splitFiles(result.files);
+  assert.equal(Object.keys(result.files).length, 2 * fixture.calls.length + 2);
+  assert.equal(record.meta.tool, fixture.tool);
+  assert.equal(record.meta.composite_calls, fixture.calls.length);
+  assert.equal(record.meta.delivery, delivery);
+  assert.deepEqual(
+    { ...recordBody, calls: recordBody.calls.map(({ evidence_id: _id, ...rest }) => rest) },
+    {
+      schema_version: "kabo-composite-fetch.record.v1", tool: fixture.tool, status: fixture.status,
+      summary: fixture.summary, coverage: fixture.coverage, limitations: fixture.limitations,
+      calls: fixture.calls.map((call, index) => ({ index, tool: call.tool, group: call.group, status: call.result.status })),
+    },
+  );
+  const recordId = record.name.replace(/\.meta$/, "");
+  calls.forEach(({ entry, body, meta }, index) => {
+    const call = fixture.calls[index];
+    // 与对同一信封单独 stage 逐字节相同；旁注只多组合标记。
+    const single = singles[index];
+    const singleBody = Object.entries(single.files).find(([name]) => name.endsWith(".json"));
+    const singleMeta = JSON.parse(decoded(single.files, singleBody[0].replace(/\.json$/, ".meta")));
+    assert.deepEqual(body, decoded(single.files, singleBody[0]), `${fixture.tool} calls[${index}] 正文与单独 stage 不同`);
+    assert.deepEqual(withoutMarks(meta), withoutMarks(singleMeta));
+    assert.equal(meta.tool, call.tool);
+    assert.equal(meta.composite_tool, fixture.tool);
+    assert.equal(meta.composite_id, recordId);
+    assert.equal(meta.composite_index, index);
+    assert.equal(meta.composite_group, call.group);
+    assert.deepEqual(meta.composite_parameters, call.parameters);
+    assert.equal(meta.delivery, delivery);
+    assert.equal(entry.tool, call.tool);
+  });
+  // 输出整体是合法 JSON，逐项调用各占一行。
+  const printed = JSON.parse(result.stdout);
+  assert.equal(printed.composite, fixture.tool);
+  assert.equal(printed.staged, fixture.calls.length);
+  assert.equal(printed.record, path.join(result.run_dir, "snapshot/.host-evidence", `${recordId}.json`));
+  assert.deepEqual(printed.calls.map((entry) => entry.evidence_id), calls.map(({ entry }) => entry.evidence_id));
+  const lines = result.stdout.trim().split("\n");
+  assert.equal(lines.length, fixture.calls.length + 2);
+  fixture.calls.forEach((call, index) => assert.match(lines[index + 1], new RegExp(`^\\{"index": ${index}, "tool": "${call.tool}"`)));
+}
+
+for (const fixture of compositeFixtures) {
+  test(`组合结果 ${fixture.tool}：stage 与下载 fetch 都逐项拆开落盘，与单工具 stage 逐字节相同；坏一项整份不落盘`, async (t) => {
+    const composite = compositeOf(fixture);
+    const bytes = Buffer.from(JSON.stringify(composite));
+    const { calls: _calls, ...inline } = composite;
+    const ready = { status: "ready", kind: "envelope", url: SIGNED, expires_at: "2099-01-01T00:10:00Z", sha256: sha256(bytes), bytes: bytes.length, content_type: "application/json" };
+    const downloaded = { ...inline, download: ready };
+    const broken = structuredClone(composite);
+    broken.calls[1].result.operation = "some_other_operation";
+    const brokenBytes = Buffer.from(JSON.stringify(broken));
+    const report = await harness(t, fixture.skill, [
+      { name: "stage", command: "stage", tool: fixture.tool, result: { structuredContent: composite } },
+      { name: "stageText", command: "stage", tool: fixture.tool, result: { content: [{ type: "text", text: JSON.stringify(composite) }] } },
+      ...fixture.calls.map((call, index) => ({ name: `single${index}`, command: "stage", tool: call.tool, result: { structuredContent: { result: call.result } } })),
+      { name: "fetch", command: "fetch", tool: fixture.tool, result: { structuredContent: downloaded, content: [{ type: "text", text: JSON.stringify(downloaded) }] }, responses: { [SIGNED]: ok(bytes) } },
+      { name: "stageDownloadOnly", command: "stage", tool: fixture.tool, result: { structuredContent: downloaded } },
+      { name: "stageBroken", command: "stage", tool: fixture.tool, result: { structuredContent: broken } },
+      { name: "fetchBroken", command: "fetch", tool: fixture.tool,
+        result: { structuredContent: { ...inline, download: { ...ready, sha256: sha256(brokenBytes), bytes: brokenBytes.length } } }, responses: { [SIGNED]: ok(brokenBytes) } },
+      { name: "fetchMismatch", command: "fetch", tool: fixture.tool,
+        result: { structuredContent: { ...downloaded, status: fixture.status === "partial" ? "completed" : "partial" } }, responses: { [SIGNED]: ok(bytes) } },
+      { name: "fetchUnavailable", command: "fetch", tool: fixture.tool, result: { structuredContent: { ...inline, download: { status: "unavailable", reason: "too_large" } } } },
+    ]);
+    const singles = fixture.calls.map((_, index) => report[`single${index}`]);
+    for (const single of singles) assert.equal(single.exit, 0, single.stderr);
+    checkSplit(fixture, report.stage, singles);
+    checkSplit(fixture, report.stageText, singles);
+    checkSplit(fixture, report.fetch, singles, { delivery: "download" });
+    assert.deepEqual(report.fetch.requests, ["GET"]);
+    assert.deepEqual(JSON.parse(report.fetch.stdout).fetched, [{ kind: "envelope", sha256: sha256(bytes), bytes: bytes.length, status: "fetched" }]);
+
+    assert.equal(report.stageDownloadOnly.exit, 1);
+    assert.match(report.stageDownloadOnly.stderr, new RegExp(`run static_host\\.py fetch --tool ${fixture.tool}`));
+    for (const name of ["stageDownloadOnly", "stageBroken", "fetchBroken", "fetchMismatch"]) {
+      assert.equal(report[name].exit, 1, `${name} 应失败`);
+      assert.deepEqual(report[name].files, {}, `${name} 不得落盘`);
+      noSecrets(report[name]);
+    }
+    for (const name of ["stageBroken", "fetchBroken"]) assert.match(report[name].stderr, /calls\[1\] .*does not match its declared operation; nothing was written/);
+    assert.match(report.fetchMismatch.stderr, /does not match this tool result/);
+    assert.equal(report.fetchUnavailable.exit, 0, report.fetchUnavailable.stderr);
+    assert.match(JSON.parse(report.fetchUnavailable.stdout).next, new RegExp(`stage --tool ${fixture.tool}`));
+    assert.deepEqual(report.fetchUnavailable.files, {});
+  });
+}
+
+test("组合结果：未知组合工具名、借单工具名 stage 组合结果、本 Skill 未声明的调用、嵌套组合与错误结果一律拒收，不落盘", async (t) => {
+  const fixture = compositeFixtures[0];
+  const composite = compositeOf(fixture);
+  const undeclared = structuredClone(composite);
+  undeclared.calls[0] = { tool: "youtube_search_videos", group: "acct-0", parameters: {}, result: env("youtube-public", "search_videos", 1, rows("x", 1)) };
+  const nested = structuredClone(composite);
+  nested.calls[2] = { tool: "collect_account_history", group: "acct-0", parameters: {}, result: composite };
+  const report = await harness(t, fixture.skill, [
+    { name: "unknown", command: "stage", tool: "collect_everything", result: { structuredContent: { ...composite, tool: "collect_everything" } } },
+    { name: "unknownFetch", command: "fetch", tool: "collect_everything", result: { structuredContent: { ...composite, tool: "collect_everything" } } },
+    { name: "otherName", command: "stage", tool: "instagram_list_posts", result: { structuredContent: composite } },
+    { name: "wrongTool", command: "stage", tool: "render_official_pages", result: { structuredContent: composite } },
+    { name: "undeclared", command: "stage", tool: fixture.tool, result: { structuredContent: undeclared } },
+    { name: "nested", command: "stage", tool: fixture.tool, result: { structuredContent: nested } },
+    { name: "noCalls", command: "stage", tool: fixture.tool, result: { structuredContent: { ...composite, calls: undefined } } },
+    { name: "error", command: "stage", tool: fixture.tool, result: { isError: true, content: [{ type: "text", text: "budget exceeded" }] } },
+  ]);
+  for (const [name, result] of Object.entries(report)) {
+    assert.equal(result.exit, 1, `${name} 应失败：${result.stdout}`);
+    assert.deepEqual(result.files, {}, `${name} 不得落盘`);
+  }
+  assert.match(report.unknown.stderr, /Not a declared evidence tool/);
+  assert.match(report.unknownFetch.stderr, /Not a declared evidence tool/);
+  assert.match(report.otherName.stderr, /does not match its declared operation|composite tool name/);
+  assert.match(report.wrongTool.stderr, /does not match its declared operation/);
+  assert.match(report.undeclared.stderr, /calls\[0\] \(youtube_search_videos\): Not a declared evidence tool/);
+  assert.match(report.nested.stderr, /calls\[2\] \(collect_account_history\)/);
+  assert.match(report.noCalls.stderr, /must carry its calls/);
+  assert.match(report.error.stderr, /collect_account_history failed.*budget exceeded/);
+});
+
+test("组合结果：同一份再 stage 不重复落盘，记录指回原证据；composite_records 读出摘要与逐项证据路径", async (t) => {
+  const fixture = compositeFixtures[1];
+  const composite = { structuredContent: compositeOf(fixture) };
+  const report = await harness(t, fixture.skill, [
+    { name: "again", command: "stage", tool: fixture.tool, result: composite, before: [{ command: "stage", tool: fixture.tool, result: composite }] },
+  ]);
+  const again = report.again;
+  assert.equal(again.exit, 0, again.stderr);
+  const printed = JSON.parse(again.stdout);
+  assert.equal(printed.staged, 0);
+  assert.equal(printed.duplicate, fixture.calls.length);
+  assert.equal(Object.keys(again.files).length, 2 * fixture.calls.length + 2);
+  const { record, calls } = splitFiles(again.files);
+  assert.equal(printed.record, path.join(again.run_dir, "snapshot/.host-evidence", record.name.replace(/\.meta$/, ".json")));
+  assert.deepEqual(printed.calls.map((entry) => entry.evidence_id), calls.map(({ entry }) => entry.evidence_id));
+
+  const script = path.join(root, "skills", fixture.skill, "scripts/static_host.py");
+  const read = execFileSync("python3", ["-I", "-B", "-c", String.raw`
+import json, runpy, sys
+host = runpy.run_path(sys.argv[1])
+print(json.dumps(host["composite_records"]("collect_tiktok_video_candidates")))
+print(json.dumps(host["composite_records"]("render_official_pages")))
+`, script], { encoding: "utf8", env: { ...process.env, KABO_STATIC_RUN_DIR: again.run_dir } }).trim().split("\n");
+  const records = JSON.parse(read[0]);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].status, "partial");
+  assert.deepEqual(records[0].coverage, fixture.coverage);
+  assert.deepEqual(records[0].limitations, fixture.limitations);
+  for (const [index, call] of records[0].calls.entries()) {
+    assert.equal(call.group, fixture.calls[index].group);
+    assert.deepEqual(JSON.parse(await readFile(call.path, "utf8")), fixture.calls[index].result);
+  }
+  assert.deepEqual(JSON.parse(read[1]), []);
+});
+
+test("组合结果的读取与拆分段在各 Skill 的 static_host.py 中逐字相同", async () => {
+  const blocks = [];
+  for (const id of fetchSkills) {
+    const text = await readFile(path.join(root, "skills", id, "scripts/static_host.py"), "utf8");
+    const start = text.indexOf("# 组合取数工具（kabo-composite-fetch.v1");
+    const end = text.indexOf("# 延迟媒体工具的幂等键");
+    assert.ok(start > 0 && end > start, id);
+    blocks.push({ id, block: text.slice(start, end) });
+    assert.match(text, /def stage\(tool, raw\):\n    if tool in COMPOSITE_TOOLS:\n        return stage_composite\(tool, raw\)\n/, id);
+    assert.match(text, /    if tool in COMPOSITE_TOOLS:\n        return fetch_composite\(tool, raw\)\n/, id);
+  }
+  for (const { id, block } of blocks) assert.equal(block, blocks[0].block, `${id} 与 ${blocks[0].id} 不同`);
+});
+
+test("persist：媒体任务按请求名或托管变体名都能放置（宿主记哪一个都行），其他操作不借用", async (t) => {
+  const variants = [...persistCopies].filter(([, text]) => text.includes("MEDIA_VARIANTS"));
+  assert.ok(variants.length >= 1);
+  for (const [id] of variants) {
+    for (const [recorded, named] of [["extract_keyframes_hosted_stream", "extract_keyframes"], ["extract_keyframes", "extract_keyframes_hosted_media"],
+      ["measure_media_signals", "measure_media_signals_hosted_stream"]]) {
+      const run = await persistRun(t, id);
+      const job = { ...envelope, schema_version: "1.0", connector_id: "public-video-media", operation: recorded, raw_sha256: sha256(Buffer.from(recorded)),
+        request_id: `req-${recorded}`, evidence_ref: `ev-${recorded}`, data: { frames: [] } };
+      const staged = await run.stage(job, { connector_id: "public-video-media", operation: recorded });
+      const media = ["--connector", "public-video-media", "--any-status"];
+      assert.match(run.persist("--dest", "snapshot/other.json", ...media, "--operation", "fetch_transcript").out, /no complete host record/, `${id} ${recorded}`);
+      const placed = run.persist("--dest", "snapshot/media.json", ...media, "--operation", named);
+      assert.equal(placed.exit, 0, `${id} ${recorded} as ${named}: ${placed.out}`);
+      assert.deepEqual(await run.read("snapshot/media.json"), staged);
+    }
+  }
+});
+
+// 按结果编号取（kabo ADR-0084「2026-11-04」）：交接时模型只交编号（或含编号的下载链接），脚本向 Kabo 取同一份
+// 字节、按响应头的长度与 sha256 校验后照 fetch 落盘。每个带 fetch 的 static_host 副本都走一遍。
+const RESULT_ID = "AbCdEfGhIjKlMnOpQrSt_-";
+const BY_ID = `https://kabo.sh/v1/research-downloads/${RESULT_ID}`;
+const byId = (body = envelopeBytes, { digest = sha256(body), length = body.length, code = 200 } = {}) =>
+  [code, body.toString("base64"), { "Content-Type": "application/json", "Content-Length": String(length), "X-Content-SHA256": digest }];
+
+for (const skill of fetchSkills) {
+  test(`${skill} fetch --id：按编号取、核对长度与 sha256 后落盘；链接形式也认；不符、过期、错工具一律不落盘`, async (t) => {
+    const tool = "get_research_data_job";
+    const report = await harness(t, skill, [
+      { name: "valid", command: "fetch", tool, id: RESULT_ID, result: {}, responses: { [BY_ID]: byId() } },
+      { name: "url", command: "fetch", tool, id: SIGNED.replace("0f3c", RESULT_ID), result: {}, responses: { [BY_ID]: byId() } },
+      { name: "digest", command: "fetch", tool, id: RESULT_ID, result: {}, responses: { [BY_ID]: byId(envelopeBytes, { digest: "0".repeat(64) }) } },
+      { name: "length", command: "fetch", tool, id: RESULT_ID, result: {}, responses: { [BY_ID]: byId(envelopeBytes, { length: envelopeBytes.length + 1 }) } },
+      { name: "expired", command: "fetch", tool, id: RESULT_ID, result: {}, responses: { [BY_ID]: [404, "", {}] } },
+      { name: "malformed", command: "fetch", tool, id: "short", result: {}, responses: {} },
+    ]);
+    // 读回任务结果只认本 Skill 声明的数据操作；不认的 Skill 至少要以 Job 字样拒收，不落盘。
+    const valid = report.valid;
+    if (valid.exit === 0) {
+      assert.deepEqual(valid.requests, ["GET"]);
+      assert.equal(JSON.parse(valid.stdout).staged, 1, valid.stdout);
+      assert.equal(report.url.exit, 0, report.url.stderr);
+    } else {
+      assert.match(valid.stderr, /Job returned an undeclared data operation; check that the id belongs/);
+    }
+    for (const name of ["digest", "length"]) {
+      assert.equal(report[name].exit, 1, name);
+      assert.match(report[name].stderr, /does not match its declared size and sha256; nothing was written/);
+      assert.deepEqual(Object.keys(report[name].files), [], name);
+    }
+    assert.match(report.expired.stderr, /no result under this id: it expired \(ids last 10 minutes\) or was mistyped/);
+    assert.deepEqual(Object.keys(report.expired.files), []);
+    assert.match(report.malformed.stderr, /A result id is the 22 letters/);
+    assert.deepEqual(report.malformed.requests, []);
+    for (const result of Object.values(report)) assert.equal(result.stderr.includes(RESULT_ID), false, result.stderr);
+  });
+}
+
+test("fetch --id：聚合工具（collect_*）按编号取，按本副本的 schema 校验；编号带 .json 也认", async (t) => {
+  const typed = Buffer.from(JSON.stringify({ schema_version: "youtube-trend-candidate-set.v1", items: [], coverage: {} }));
+  const other = Buffer.from(JSON.stringify({ schema_version: "youtube-trend-enrichment.v1", items: [] }));
+  const report = await harness(t, "research-youtube-trends", [
+    { name: "typed", command: "fetch", tool: "collect_youtube_trend_candidates", id: `${RESULT_ID}.json`, result: {}, responses: { [BY_ID]: byId(typed) } },
+    { name: "wrongSchema", command: "fetch", tool: "collect_youtube_trend_candidates", id: RESULT_ID, result: {}, responses: { [BY_ID]: byId(other) } },
+  ]);
+  assert.equal(report.typed.exit, 0, report.typed.stderr);
+  assert.equal(JSON.parse(report.typed.stdout).staged, 1);
+  assert.equal(report.wrongSchema.exit, 1);
+  assert.match(report.wrongSchema.stderr, /This id holds no collect_youtube_trend_candidates result/);
+  assert.deepEqual(Object.keys(report.wrongSchema.files), []);
 });

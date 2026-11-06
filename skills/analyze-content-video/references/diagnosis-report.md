@@ -75,12 +75,13 @@ read quickly because each part is one or two sentences; the reason to cap a fiel
 that the sequence is what carries the analysis, and dropping a card would drop a reading.
 
 `data_note` is read-only and derived by `build_creator_result.py`, not authored by the model.
-It is one English measurement line within 240 columns: recorded extraction, canonical frame
-references cited by these cards, transcript provenance and owner-metric availability. Requested
+It is one measurement line within 240 columns — Chinese when `language` starts with `zh`, English
+otherwise: recorded extraction, canonical frame references cited by these cards, transcript
+provenance and owner-metric availability. Requested
 `sampling_plan` intervals and possibly nominal `t_seconds` do not establish actual decoded spacing
 or viewing. Without verified decode records, describe intervals only as planned/requested
 limitations beside the relevant finding. Extraction and citation never establish pixel viewing;
-no viewing ledger exists in these inputs. The host
+no viewing ledger exists in these inputs. For a language other than Chinese or English, the host
 translates the complete line for delivery without changing its quantities or uncertainty.
 Put claim-specific uncertainty once beside the claim it weakens, not in this measurement line.
 
@@ -155,6 +156,6 @@ its timestamp and its `observations.{id}`, not by a second copy of the same URL.
 `details` is the host's half of the result, not the audit ledger. It must not carry
 `calculations`, `reproducibility`, `limitations` or `evidence`: those belong to the `VideoAnalysis`
 and `ContentEvidence` objects, which travel alongside and are where anyone checking the work will
-look. Keeping them out of the creator's text is *Output boundary* in `SKILL.md`; this is a second thing. Copying
+look. Keeping them out of the creator's text is *Delivery* in `SKILL.md`; this is a second thing. Copying
 them into `details` duplicates the audit layer into the object the App renders, and the two copies
 then drift.

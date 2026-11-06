@@ -1,7 +1,7 @@
 # Short window: hottest and fastest-rising
 
 Read this whole file before the first call of this route. `<run directory>` and
-`<skill directory>` are the absolute paths from *Set up one run* in `SKILL.md`; run every command
+`<skill directory>` are the absolute paths from *Running commands* in `SKILL.md`; run every command
 from the run directory.
 
 Use this route when the requested window is seven days or shorter (the last day, the last 48
@@ -14,6 +14,8 @@ route, and do not run the workflow's collection: a collection on a short-window 
 delivery.
 
 ## Collect
+
+First read `references/short-window-topic-gate.md` and freeze its request context before retrieval.
 
 1. Readiness: `tiktok-discovery/search_videos` implemented and ready.
 2. Freeze the requested window in UTC: `until` is now unless the user named an end, and `since` is
@@ -37,7 +39,7 @@ cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill di
 ```
 
 Keep each completed response at its own slot before building. The placement refuses a failed
-response, and a call that still fails after its one retry (*Failed tool calls* in `SKILL.md`)
+response, and a call that still fails after its one retry (`references/data-calls.md`)
 leaves its slot empty. Then the short-window report cannot be completed: say so and stop. Never
 build the layers from the remaining lanes. Missing collections, or only failed responses, stop the
 builder rather than proving zero results. A completed empty collection remains
@@ -46,8 +48,10 @@ completed sources, stops the builder because these layers do not project partial
 
 ## Build and author
 
+Complete the projection and every topic decision in `references/short-window-topic-gate.md` first.
+
 ```bash
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/build_short_window_layers.py' short-window-input.json --output short-window-layers.json
+cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/build_short_window_layers.py' short-window-input.json --topic-gate-input short-window-topic-input.json --topic-decisions short-window-topic-decisions.json --output short-window-layers.json
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/render_short_window_report.py' short-window-layers.json --language <the user's chat language> --print-presentation-contract --text-only --contract-output short-window-presentation.json
 ```
 
@@ -118,4 +122,4 @@ It recomputes the original strict validation and requires the existing report by
 exactly; it never creates or rewrites a report. No connector call, new run or extra evidence is
 needed. Do not emit, return or claim success from the rendered file until this final step
 succeeds; then deliver `creator-report.md` after the complete-report language check in `SKILL.md`
-(*Deliver once*).
+(*Language at delivery*).

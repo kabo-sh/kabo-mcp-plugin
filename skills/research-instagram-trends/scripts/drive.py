@@ -41,8 +41,8 @@ The manual commands these stages replace, unchanged in what they run and write:
     compose_report.py … ; validate_output.py … ; render_creator_report.py …
 
 Connector calls are handed to the model (connector_driver.py): the stage prints each call as a
-named /mcp-pub tool call and stops, the model makes it and stages the complete result with
-`static_host.py stage`, and the same stage run again with `--placed` places that response. With a
+named /mcp-pub tool call and stops, the model makes it and saves the complete result to the file
+named under it, and the same stage run again with `--placed` fetches (or stages) and places it. With a
 profile attached the collect calls carry `include`; when Kabo refuses one only for it, the same
 stage run with `--without-include` hands it over once more without it (attach_creator_profile.py).
 """
@@ -823,10 +823,12 @@ def hand_over_lean(call: dict[str, Any]) -> None:
     call = {**call, "delivery": "download"}
     Path(ENRICH_CALL).write_text(json.dumps(call, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     cd.say(json.dumps(call, ensure_ascii=False, separators=(",", ":")))
+    [saved] = cd.await_results(["enrich_instagram_shortlist"])
     cd.say(f"This host does not fetch the enrichment for scripts. Call `enrich_instagram_shortlist` exactly once "
            f"with the JSON printed above (also in {ENRICH_CALL}) verbatim as the tool arguments — every item and "
-           "every top-level field, `window` included; do not add, drop or reorder items — then run this same "
-           "command again with --placed added.")
+           "every top-level field, `window` included; do not add, drop or reorder items. " + cd.SAVE_RULE)
+    cd.say_slot(saved)
+    cd.say_resume([saved])
     raise SystemExit(0)
 
 
@@ -864,8 +866,9 @@ def hand_over_inline(calls: list[dict[str, Any]], args: argparse.Namespace, plac
     finally:
         # Split on newlines only: a caption can hold U+2028 and the like, which splitlines() also breaks on.
         for line in buffer.getvalue().rstrip("\n").split("\n"):
-            if line and not (handed and (line.startswith(cd.HANDOVER_PREFIX)
-                                         or line.startswith("This host does not fetch for scripts"))):
+            if line and not (handed and line.startswith((cd.HANDOVER_PREFIX, "Hand-over:", "  result ", "  then: ",
+                                                             "Then run this one command",
+                                                             "When every result above is fetched"))):
                 cd.say(line)
     if handed:
         hand_over_lean(handed_enrichment(calls[0]["arguments"]))
@@ -1134,6 +1137,8 @@ def stage_report(args: argparse.Namespace) -> None:
     # Deliver by this path where the host can send a file as one block; its text follows unchanged.
     cd.say(f"creator_report: {report}")
     cd.say(report.read_text(encoding="utf-8").rstrip())
+    # 交付方式紧跟报告打印：实测里短问题的回复常被模型改写成摘要。
+    cd.say('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says), then this creator_report line.')
 
 
 STAGES = {

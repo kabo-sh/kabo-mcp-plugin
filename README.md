@@ -2,13 +2,13 @@
 
 Kabo helps you research public creator accounts, compare competitors, find trends, analyze videos,
 develop content ideas and scripts, and remake a viral talking-head video with you in it. This
-repository contains one plugin: a `kabo` MCP connection, fifteen bundled Skills, and the metadata
+repository contains one plugin: a `kabo` MCP connection, eighteen bundled Skills, and the metadata
 needed by each host. The AI host runs the workflows and writes
 reports; Kabo provides the data tools. The plugin does not hand work to Kabo's web agent, download
 Skills at runtime, or register lifecycle hooks.
 
-The current GitHub package release is [**1.0.7**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.7),
-packaged as `kabo-1.0.7.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
+The current GitHub package release is [**1.0.20**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.20),
+packaged as `kabo-1.0.20.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
 implementation. Earlier version history and source Skill versions remain separate. OpenAI marketplace
 review and production acceptance remain separate from this GitHub release.
 
@@ -16,7 +16,7 @@ review and production acceptance remain separate from this GitHub release.
 
 | Your setup | Install |
 | --- | --- |
-| You already connected Kabo MCP in your AI host | [Skills only](#skills-only): use Git, ZIP or the optional skills CLI to add the fifteen workflows and keep your existing connection. |
+| You already connected Kabo MCP in your AI host | [Skills only](#skills-only): use Git, ZIP or the optional skills CLI to add the eighteen workflows and keep your existing connection. |
 | You want the MCP connection and workflows together | [Full plugin](#installation-and-authentication): use your host's plugin installer. |
 
 [MCP setup and Skills guide](https://kabo.sh/docs/mcp#skills) ·
@@ -102,7 +102,7 @@ for `-g`. The repository's `skills.lock.json` is a separate record of the origin
 
 - `#stable` follows published releases. It advances only after a release; installed files stay as
   they are until you run an installation or update command.
-- `#v1.0.7` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
+- `#v1.0.20` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
 - Without a ref, the CLI follows `main`, which includes unreleased changes.
 
 See [GitHub Releases](https://github.com/kabo-sh/kabo-mcp-plugin/releases) for new versions and release
@@ -264,7 +264,7 @@ Normal update commands:
 
 The connection and OAuth resource stay at `/mcp-pub` when moving from the old 3.0.1 or 3.1.x versions.
 Renumbering alone does not change authorization. Older installations using `/mcp-directory` must
-reauthorize for `/mcp-pub`. The current package has fifteen fixed Skills, downloads full evidence, and
+reauthorize for `/mcp-pub`. The current package has eighteen fixed Skills, downloads full evidence, and
 stores raw tool results in each run's `host-results/` directory. The old dynamic menu, channel switch,
 download cache and Node runner are no longer included. Validate in a separate workspace before
 updating the existing `kabo` entry. Old research directories are not migrated or deleted automatically.
@@ -283,23 +283,26 @@ mcp.json                        # Production MCP connection
 .claude-plugin/marketplace.json  # Claude Code marketplace (not included in the ZIP)
 .agents/plugins/marketplace.json # Codex marketplace (not included in the ZIP)
 .mcp.json                       # Claude Code HTTP MCP configuration
-skills/                         # Fifteen complete Skills and their resources
+skills/                         # Eighteen complete Skills and their resources
 skills.lock.json                # Original Skill source and versions
 runtime-contract.json           # Fixed tool and Skill inventory
 CHANGELOG.md                    # Version history (Chinese)
 ```
 
-The fifteen Skills cover video analysis, standard and deep account reviews, scripts and packaging,
+The eighteen Skills cover video analysis, standard and deep account reviews, scripts and packaging,
 content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor research, reach-drop
 diagnosis, publish-timing recommendations, platform monetization plans, official platform rule checks,
-and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 90 seconds or less
+brand identity options and media kits, content calendars, brand-deal pricing, and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 90 seconds or less
 (talking videos may cut to screen recordings or show a product) with the creator in it. See
 [skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
 same Skills.
 
 `diagnose-reach-drop`, `recommend-publish-timing`, `plan-platform-monetization` and
-`verify-platform-rule` are not released yet and have not been run in a real host.
+`verify-platform-rule` are included in 1.0.9. Their complete cross-host acceptance is still pending;
+Current release acceptance focuses on short-window content-language checks and user-approved cross-language searches.
 `verify-platform-rule` needs the `official_page_render_page` tool on `/mcp-pub` (restored by kabo#1817).
+`optimize-creator-brand`, `plan-content-calendar` and `price-creator-brand-deals` are ported from
+creator-skills; their cross-host acceptance is pending.
 
 `remake-viral-video` uses the `start_remake_video`, `get_remake_video` and `render_remake_video`
 tools on `/mcp-pub`. Its scripts download the brief and the finished MP4 from the same signed
@@ -325,7 +328,7 @@ upstream export. The web agent's Skills are maintained separately.
 `skills.lock.json` records the original source, not a byte-for-byte comparison; update it and
 `runtime-contract.json` when adding or removing a Skill.
 
-Follow the [Kabo Skills specification](docs/skills-spec.md) (Chinese). Run `npm run skills:lint` for
+Follow the [Kabo Skills specification](docs/skills-spec.md). Run `npm run skills:lint` for
 details. Enforcement remains disabled (`skills-spec.json` has an empty `enforced` list), and
 `npm run verify` prints the summary. The MCP artifacts in `contracts/directory-mcp/` record the
 provider commit and file hashes. New tools require an explicit update to those artifacts.
@@ -349,8 +352,6 @@ video evidence, OAuth, incorrect audience/scope, account isolation, deletion, fi
 negative review cases, and a reviewer account. Without complete production evidence,
 `submissionReady=false`.
 
-Maintainer guides are in Chinese: [production acceptance](docs/acceptance.md) and
-[submission materials](docs/submission.md).
 Deployment, marketplace upload and Publish are separate actions.
 
 [Privacy](https://kabo.sh/privacy) · [Terms](https://kabo.sh/terms)
@@ -377,8 +378,11 @@ your own linked account, the agent reads the account's saved content profile (yo
 content, content language and formats) with `get_creator_profile`, keeps the complete result as a
 local file and passes it to the trends driver. The searches then start from your own seed words,
 leave out your own posts and accounts far larger or smaller than yours, and share the
-recommendations across your signature content. The content language only steers the search words;
-it never filters results by language. The Skills never write or edit the profile file. If the
+recommendations across your signature content. In the general trend-research Workflow, content
+language steers the search words. Short-window recommendations (seven days or less) also check
+candidate language before ranking. You can explicitly add other languages or allow any language
+for the current request; that choice overrides the account default without editing your profile.
+The Skills never write or edit the profile file. If the
 profile is missing or empty, workspace access is not granted, or Kabo does not offer the profile
 yet, the Skills run the same public trend scan as before.
 
@@ -389,7 +393,7 @@ with `update_content_preferences`. Your edits are kept per account and come back
 read, in this plugin and in Kabo's web app; the profile Kabo computed stays as it was, and you can
 reset your edits. A plain, unambiguous change is saved and repeated back to you in one sentence; a
 guess, a removal, a merge or a reset is restated for you to confirm first. Your market is only the
-default search region (Instagram search takes none), and like the language it never filters
-results. An edit applies from the next trend run. Saving needs write access, which your host asks
+default search region (Instagram search takes none); it never filters results by region.
+Content-language checks follow the short-window rules above. An edit applies from the next trend run. Saving needs write access, which your host asks
 you to approve the first time; without it, or when Kabo does not offer the tool yet, nothing is
 saved and the research runs as before.
