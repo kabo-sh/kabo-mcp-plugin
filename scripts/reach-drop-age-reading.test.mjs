@@ -95,3 +95,10 @@ test("same-age, explicit-age and non-cumulative comparisons keep their existing 
   const average = await run(rate);
   assert.equal(average.fact?.age_reading, undefined, average.out);
 });
+
+test("a generic video format gets no maturity age, so no lower-median reading", async () => {
+  const generic = await run(brief("video", EARLIER, [[12, 4000], [9, 5000], [3, 800]]));
+  assert.equal(generic.fact?.age_reading, undefined, generic.out);
+  const youtube = await run(brief("youtube_video", EARLIER, [[12, 4000], [9, 5000], [3, 800]]));
+  assert.equal(youtube.fact?.age_reading, undefined, youtube.out);
+});

@@ -93,6 +93,16 @@ CUMULATIVE_METRICS = frozenset(("views", "view_count", "plays", "play_count", "l
                                 "reach", "impressions"))
 
 
+def maturity_hours(fmt: str) -> int | None:
+    """Only a format that says it is short or long gets a maturity age; a generic video may be either."""
+    name = fmt.lower()
+    if "long" in name:
+        return MATURE_HOURS["long"]
+    if any(word in name for word in ("short", "tiktok", "reel", "instagram")):
+        return MATURE_HOURS["short"]
+    return None
+
+
 def age_reading(q: dict, fmt: str, limits: list, change: dict | None, summaries: list, pairs: list) -> dict | None:
     """One snapshot makes earlier posts older, so a cumulative comparison favours the earlier group.
 
@@ -107,7 +117,9 @@ def age_reading(q: dict, fmt: str, limits: list, change: dict | None, summaries:
         return None
     if change["ratio"] >= 1:
         return {"basis": "recent_younger_not_lower"}
-    hours = MATURE_HOURS["long" if "long" in fmt else "short"]
+    hours = maturity_hours(fmt)
+    if hours is None:
+        return None
     mature = [[v for a, v in p if a >= hours] for p in pairs]
     if not all(mature):
         return {"basis": "recent_too_young", "min_age_hours": hours}
