@@ -51,6 +51,23 @@ def answer_text(finding, answer, zh=False):
             lower = change["ratio"] < 1
             limits = set(fact.get("limits", []))
             age_limited = bool(limits & {"different_observation_ages", "unknown_observation_ages"})
+            reading = fact.get("age_reading") or {}
+            if age_limited and reading:
+                # One English sentence; the delivery step translates it into the creator's language.
+                days = reading.get("min_age_hours", 0) // 24
+                if reading["basis"] == "recent_younger_not_lower":
+                    return ("The recent posts are younger, yet their current cumulative median is not lower, so there "
+                            "is no sign of a decline, though this does not establish the cause or platform status.")
+                if reading["basis"] == "recent_too_young":
+                    return (f"The recent posts are all under {days} days old and still gaining views, so it is too early "
+                            "to tell whether views dropped, and this does not establish a cause or platform enforcement.")
+                if reading["change"]["after"] < reading["change"]["before"]:
+                    return (f"Comparing only posts at least {days} days old, an approximation that assumes most views "
+                            "arrive by then, the recent median is still lower, which is a decline signal, though it does "
+                            "not establish the cause or platform enforcement.")
+                return (f"Comparing only posts at least {days} days old, an approximation that assumes most views "
+                        "arrive by then, the recent median is not lower, so the lower overall figure may reflect newer "
+                        "posts still gaining views, and this does not establish a cause or platform enforcement.")
             if age_limited:
                 messages = (
                     ("所选近期队列的当前累计中位数较前期低，但观察年龄不一致；这只能描述当前快照，不能确认同龄下滑、原因或平台限制。",
