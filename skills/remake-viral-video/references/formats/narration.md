@@ -52,8 +52,8 @@ question: **does the picture have words in it that must read?**
   first web batch came out with garbled text.
 - **No words -- `kind: "generated"`.** People, places, objects, an illustrated scene. The runner
   generates the still from `prompt` with frames from the creator's own videos as its references
-  (so "in the look of the reference images" carries the creator's look; you cannot see those
-  frames, so do not describe colours or characters you have not been told about), and asks for
+  (so "in the look of the reference images" carries the creator's look; describe only colours
+  and characters you have seen on the preview's look page or been told about), and asks for
   no text in it. With `motion` it becomes a 5-second moving clip; leave `motion` empty only where
   the reference itself holds a still. **When the reference moves, every picture moves.**
   Neighbouring short lines of one scene share one row and one clip.
@@ -126,7 +126,10 @@ $0.35 for each moving clip.
 
 The r30 runs that matched their references rendered every picture two to four times and looked
 at it each time; written once, blind, the map and result-image lines came out empty. Once the four
-documents pass step 5, and before the paid render, preview the pictures:
+documents pass step 5, and before the paid render, preview the pictures. Preview the first draft
+early: when there is room, the first pages are the reference's keyframes and the creator's look,
+which the local runs looked at before planning any picture; plan each row as the kind of picture
+the reference shows there (a diagram stays a diagram: a composition, not a card):
 
 ```sh
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/check_documents.py' render-args --preview pictures

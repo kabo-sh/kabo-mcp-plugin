@@ -15,8 +15,8 @@ of a delivered video (`edit_remake_video`), or single steps in a project or on a
 not available on this connection, say that this kind of video is not available here and stop.
 
 A remake takes 30 min to 3 hours, mostly waiting on the runner. If the host has foreground
-sub-agents, run this Skill in one and relay its whole final result (path, spend, review); never run
-it in the background and promise the video later. Otherwise follow the steps in the main thread.
+sub-agents, run this Skill in one and relay its whole final result (path, spend, review), never
+in the background with a promise. Otherwise follow the steps in the main thread.
 
 ## Choose what to make
 
@@ -29,13 +29,12 @@ it. Decide by that, not by the request's wording ("remake" included):
 2. Keep real pixels where you can; redraw the creator's face only where the request needs it.
 3. Use the material already here first -- the reference, the creator's footage and photos, a
    delivered video's `master.mp4`, takes, B-roll and first frames, earlier results. Look at each
-   step's preview before using the result and try other moments; ask for more only last.
+   step's preview before using the result, other moments with `frame`; ask for more only last.
 4. Ask only what only the user can decide or knows (a fact, a real trade-off, money beyond the
    plan). Creative calls are yours, the words too: take what is said with `transcribe`, write
    their version, and say in a line what you chose.
 5. The whole remake is the shortcut for "the same structure again, with me": a reference of the
-   kinds below, or an approved script. It is not the fallback, and a reference plus the creator's
-   footage does not make a request one. The creator's own video is footage to keep, not a reference. What it does not make (the
+   kinds below, or an approved script. It is not the fallback. The creator's own video is footage to keep, not a reference. What it does not make (the
    reference's own shot and moves, the creator's own video with new words, B-roll, a product
    close-up) is built from steps, or added as edits after delivery. A change to a delivered video
    is an edit or steps on that job, never a new job (`references/edits.md`).
@@ -45,7 +44,7 @@ it. Decide by that, not by the request's wording ("remake" included):
 | the creator's footage | the words, or their language | `tts` (their voice), then `lipsync` | mouth only |
 | footage and words | the voice's tone | `voice_change` | no |
 | the creator and the words | the background | `bg` | no |
-| a reference shot: camera, moves, props | the person, then the words | `replace`, then `lipsync` | yes |
+| a reference shot frame for frame (asked for) | the person, then the words | `replace`, then `lipsync` | yes |
 | a movement in any video | who does it | `motion` (a picture of the creator: a `frame` of their footage will do) | yes |
 | the creator's look | a new still of them (pose, framing, outfit, setting) | `first_frame` (edits a `frame` or photo) | yes |
 | the creator's look | a new shot of them, silent | `refvideo` | yes |
@@ -314,8 +313,8 @@ It checks the MP4 and prints its local `path`. A failed download is handled as i
 Read `references/final-review.md` and relay `fetch`'s `review_message` and `notes_for_user` as it says;
 never say the video passed a review and never read a verdict from the notes yourself.
 
-Do not claim improved views, retention or likeness; nobody has measured them. Suggest the user
-watch it in full before publishing.
+Do not claim views, retention or likeness nobody measured. Suggest watching it in full before
+publishing.
 
 ## 8. When it does not finish
 

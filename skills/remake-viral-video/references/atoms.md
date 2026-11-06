@@ -18,7 +18,7 @@ For a new video the whole remake does not make, for example (examples, not a rou
 - the creator doing something without speaking, under long text cards and music;
 - a short product ad from product pictures and the creator's footage;
 - the creator's own footage placed somewhere else, with new words, or in another language;
-- a reference's own shot and moves kept, with the creator in it;
+- a reference's own shot and moves kept frame for frame (when asked), with the creator in it;
 - a reference the remake refused because nobody talks to the camera in it (below);
 - a short clip without the creator in it (a scene, an animal, an object), from no-face steps only;
 - no material of the user at all but someone should present: an invented AI presenter (`persona`);
@@ -39,9 +39,8 @@ A change to a video that was already delivered is an edit or steps on that job
 - one to eight public picture links that are not the creator (`--reference-image`: a product, a
   place), which become `input/img_NN.<ext>`.
 
-Video links are YouTube, Instagram or TikTok; picture links are public JPEG or PNG. Files on the
-user's computer cannot be sent in this version. More photos, reference videos or pictures can be
-added to a ready project later (`--job-id`, below).
+Video links are YouTube, Instagram or TikTok; picture links public JPEG or PNG; no local files.
+More can be added to a ready project later (`--job-id`, below).
 
 **Without the creator.** A project with no creator footage or photos can use only the steps that
 draw no face of the creator (`still`, `animate`, `text_cards`, `music`, `tts` with a stock voice,
@@ -62,12 +61,11 @@ stock voice the user picks (`tts` `voice`, below). `count` is two to four portra
 `inputs.seed_images` may add up to four style pictures (handles of pictures that show no real
 person, never `creator/...`). The project then reports `persona: true`.
 
-- The persona is always fictional. Never describe, name or imitate a real, identifiable person (a
-  celebrity, a public figure, someone the user names, or the user); refuse such a request and offer
-  an invented person instead. No handles or links in the description.
-- Never mix: a project with the creator's real footage or photos cannot get a persona, and a
-  persona project cannot take creator footage later. When real footage exists, use it instead.
-- At delivery, say plainly that the person on screen is an AI-generated fictional presenter.
+- Always fictional: never describe, name or imitate a real, identifiable person (a celebrity, a
+  public figure, someone the user names, or the user); offer an invented one instead. No handles
+  or links in the description.
+- Never mixed with the creator's real footage or photos, either way; real footage wins.
+- At delivery, say the person on screen is an AI-generated fictional presenter.
 
 **No speech in the creator's footage.** `tts` reads lines in the creator's cloned voice by default;
 with nothing to clone it is refused with `no_voice`. First ask for a link to a video of the
@@ -91,7 +89,7 @@ Pass the pick as `params.voice` of `tts`, and say at delivery that a stock voice
 | A new shot of the creator doing something without speaking | `refvideo` (1-10 pictures + what happens in words; optional `ref_video` to follow a motion) | the model draws the shot from the pictures; it is checked against the creator. Up to 15 s; up to 30 s with `model` `kling/v4/reference-to-video` |
 | A new still of the creator: another pose, framing, outfit or setting | `first_frame` (`image`: a `frame`, a photo or `frame_sNN.png`; optional `refs` 0-3; `prompt`) | edits the picture; redraws the face and is checked against the creator |
 | A still of the creator speaking a line | `tts`, then `talking` (picture + line audio; optional `prompt` for the performance) | a talking take from one picture |
-| A reference's own shot and moves with the creator in it | `replace` (shot + picture of the creator), then `lipsync` with the creator's words from `tts` | keeps the camera, props and gestures; a whole remake instead recreates the scene. Small moving text can garble |
+| A reference's own shot and moves, frame for frame (when asked) | `replace` (shot + picture of the creator), then `lipsync` with the creator's words from `tts` | keeps the camera, props and gestures; a whole remake instead recreates the scene. Small moving text can garble |
 | B-roll, a scene, a product shot (no creator) | `still` (product pictures as `refs`), then `animate` to move it | no face is drawn |
 | Words that must be read on screen | `text_cards` on a base video | real text; never ask a generated picture to contain words |
 | Background music | `music` with a mood | royalty-free; if it says it is not available, leave music out and say so |
@@ -173,6 +171,15 @@ creator.
 - Never put anyone else in the creator's place, and never the speaker of a reference video.
   `still` and `animate` must not show the creator (that would be a face step without the check).
 
+## Generated shots
+
+- A drawn shot is one continuous take: never cut a generated clip into pieces and reorder them (the
+  person and props jump at the seam). For actions in order, one `refvideo` per action, each opening
+  on the last `frame` of the one before, then `concat`; say the order in the prompt.
+- Models cannot write: words that must read go on top (`text_cards`, `captions`); garbled marks on
+  paper, screens or packaging are made again or covered (`crop`, a card), never delivered.
+- Time cards and overlays from the finished shot (`frame`), not the plan.
+
 ## Plan before spending
 
 Before the first paid step, write `project/plan.json` in the run directory and tell the user in two
@@ -185,14 +192,11 @@ or three lines what you will make, which steps, and roughly what it costs, then 
  "est_usd_total": 4.0}
 ```
 
-Rough provider prices per second of output, for the estimate only (the result's `spend_usd` is
-what is charged): `motion` about $0.17-0.40, `refvideo` about $0.20-0.24, `replace` about $0.30,
-`lipsync` about $0.08 (or about $0.20 per call up to 40 s with `fal-ai/latentsync`), `talking` from
-under $0.01 to about $0.30 depending on the model. `still` is a few cents per picture and `persona` about $0.15 per portrait; `animate`
-and `voice_change` are cents per second; `bg` about $0.02 per second of the input video (30 s is
-about $0.70); `tts`, `frame`, `trim`, `mux`, `extract_audio`,
-`overlay`, `splice`, `concat`, `text_cards`, `music`, `captions` and `face_check` cost little or
-nothing; `first_frame` about $0.15 a picture; `retime`, `crop`, `inpaint_text`, `layout`, `still_video` and `audio_edit` cost nothing.
+Rough prices per second of output, for the estimate only (`spend_usd` is what is charged):
+`motion` $0.17-0.40, `refvideo` $0.20-0.24, `replace` $0.30, `lipsync` $0.08 (`fal-ai/latentsync`
+about $0.20 a call up to 40 s), `talking` under $0.01-0.30 by model, `bg` about $0.02 per second of input;
+`animate`, `voice_change` cents. Per picture: `still` a few cents, `persona` and `first_frame` $0.15. The
+rest cost little or nothing; the tool steps nothing.
 
 ## Run it
 
