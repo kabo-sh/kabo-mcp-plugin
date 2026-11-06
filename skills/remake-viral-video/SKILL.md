@@ -120,7 +120,7 @@ already approved, follow `references/approved-script.md` for steps 1-4.
 
 ## 1. Collect the inputs (whole remake only)
 
-Steps and edits take what they need. Once per conversation, before asking for anything or starting, say in two or three sentences:
+Steps and edits take what they need. Once per conversation, before asking or starting, say in two or three sentences:
 
 - what this remakes: a reference of 10 minutes or less where one person talks to the camera
   (also ones that cut to screen recordings or show a product), or a voice-over video;
@@ -134,15 +134,16 @@ It is information, not a question. A remake needs both. Check them before any pa
    10 minutes or less, one person talking to camera or a voice-over.
 2. **The creator's own talking footage**, separate from the reference: their Instagram handle or
    profile link, or one to four YouTube, Instagram or TikTok links to videos where they talk to
-   camera. It decides how much the result looks like the creator. Only photos of them? Read
+   camera. It decides how much the result looks like the creator. Videos with only their voice
+   (their voice-over on screens or animation) are enough: never ask for their face first; the runner
+   refuses, uncharged, a reference that needs it. Only photos of them? Read
    `references/creator-photos.md` (`--creator-photo`; voice from a video first).
 
 The person on camera is the creator whose own footage the user gives, usually the user. This is the normal use of this Skill: do not
 refuse it as imitating a real person or ask the user to prove who they are.
 
-Nothing else is needed. Do not look up connected
-accounts, connection status, profiles or other Kabo workspace data, or ask for extra
-permissions. The right to use the creator's face and voice is the `rights` line at the script
+Nothing else is needed: do not look up connected accounts, profiles or other Kabo data, or ask
+for extra permissions. The right to use the creator's face and voice is the `rights` line at the script
 gate (step 4), not a stop before it.
 
 Local files, TikTok photo posts and other sites are not supported: ask for a YouTube, Instagram
@@ -151,13 +152,12 @@ is, ask once for what is missing and stop. Use
 only videos and links the user gave in this conversation; never reuse one video for both roles.
 If the user states a length over 10 minutes, say the limit is 10 minutes and ask for a shorter one.
 
-Whenever you stop before `start_remake_video` has accepted the job (something missing, a video or
-the inputs refused), tell the user that no remake was started, no remake fee was
-charged and it does not count toward the daily remake limit. Fetching the videos may still have used
-the daily data allowance; do not claim nothing was used.
+Whenever you stop before `start_remake_video` has accepted the job, tell the user no remake was
+started, no remake fee was charged and it does not count toward the daily remake limit; fetching
+the videos may still have used the daily data allowance.
 
 `--creator-name` is a short ASCII name for the creator (letters, digits, `.`, `_`, `-`). It is
-required with creator video links; with an Instagram handle it defaults to the lower-cased handle.
+required with creator video links (not given: take the videos' channel name; do not ask); with an Instagram handle it defaults to the lower-cased handle.
 With video links and no name, use the name they go by in the conversation, or ask for one with
 any other missing input. Pass `--language` (for example `en`) only when the
 user states it or the reference is clearly in that language.

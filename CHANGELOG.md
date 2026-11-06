@@ -2,11 +2,15 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 未发布
+
+- `remake-viral-video`（上下文对齐本地实验，与 Web creator-remake-web 0.1.47 同改）：换人（replace→lipsync）只在用户要原镜头原动作时，去掉「参考片加本人素材不算整条复刻」一句（本地 r99 atoms.md 口径）；atoms.md 补生成镜头规则（一镜到底不剪拼、模型不写字、字卡按成片时间）；旁白预览首页是参考片关键帧与创作者外观（需 runner 同步上线），先预览初稿再定画面；修改交付前用 frame 自己看未改部分；为守住字数上限压缩了价格与人设段落。
+- `remake-viral-video`（对齐版本地闸门 C5 发现）：创作者只给了带自己旁白的视频（录屏、动画）时，不再先要正脸——这些就够，参考片真需要脸时 runner 会在收费前拒绝；没给创作者名字时取视频的频道名，不再问用户。正文压缩到 20,997 字符。
+
 ## 1.0.21（2026-11-06；GitHub Release）
 
 - `remake-viral-video`：旁白类（voice-over）参考不再因为创作者视频没有正脸而被当成不支持、先问用户要正脸照——旁白只用创作者的声音（本地插件闸门 C4/C5 发现，历史措辞）。正文等量压缩，20,999 字符。
 - `remake-viral-video`（pre t17 验收）：取消后等到任务不再 running 再回话，没等到就说「已请求取消、正在停止」；`bg` 估价改为约 $0.02/秒（与 runner 计价一致，不再归入「花费很少或不花钱」）；`quota_exceeded` 的 message 说另一步还在跑时等它跑完、用同一把键重提，不说成额度用完；修改后总花费读 `project.spend_usd`（kabo 已把交付后的步骤与修改算进去）。
-- `remake-viral-video`（上下文对齐本地实验，与 Web creator-remake-web 0.1.47 同改）：换人（replace→lipsync）只在用户要原镜头原动作时，去掉「参考片加本人素材不算整条复刻」一句（本地 r99 atoms.md 口径）；atoms.md 补生成镜头规则（一镜到底不剪拼、模型不写字、字卡按成片时间）；旁白预览首页是参考片关键帧与创作者外观（需 runner 同步上线），先预览初稿再定画面；修改交付前用 frame 自己看未改部分；为守住字数上限压缩了价格与人设段落。
 - `remake-viral-video`：出片后修改与原子项目（跨仓契约 v1–v1.4，2026-11-04；内容改写自复刻包 V2-r87 的 `skill/references/atoms.md`，
   从「跑 cr 命令」改成「调 /mcp-pub 工具」）。
   - 交付后的局部修改（换台词、字幕颜色/大小、某段换背景、叠图、插一段新镜头）走 `edit_remake_video`，只改用户点名的部分、
