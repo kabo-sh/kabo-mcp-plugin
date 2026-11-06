@@ -46,6 +46,8 @@
 
 ## 实机测试
 
+验证顺序：先在本地（单测、用保存的 run 状态重跑某一步），再用插件在本机 Codex 实测，Web（pre / 生产）只在最后回归时走飞书「任务交流记录」。
+
 - 用本机 Codex 连生产 `https://kabo.sh/mcp-pub`，插件装在独立的 `CODEX_HOME`（已 OAuth 登录），从待测分支的 checkout 安装；换分支后删掉 `$CODEX_HOME/plugins/cache/kabo-plugin-openai/kabo` 再 `codex plugin add kabo@kabo-plugin-openai`，并 `diff -rq` 确认装上的 `skills/` 与分支一致。
 - 每条用例单独目录，`prompt.txt` 只放用户原问：
   `codex exec --skip-git-repo-check -C "$PWD" --approve-for-me -m gpt-5.6-luna -c model_reasoning_effort=medium -c sandbox_workspace_write.network_access=true --json -o last.txt < prompt.txt > events.jsonl`
