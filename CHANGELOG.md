@@ -2,7 +2,7 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
-## 未发布
+## 1.0.18（待 kabo#2022 合并部署后发布；GitHub Release）
 
 - `remake-viral-video`（pre t17 验收）：取消后等到任务不再 running 再回话，没等到就说「已请求取消、正在停止」；`bg` 估价改为约 $0.02/秒（与 runner 计价一致，不再归入「花费很少或不花钱」）；`quota_exceeded` 的 message 说另一步还在跑时等它跑完、用同一把键重提，不说成额度用完；修改后总花费读 `project.spend_usd`（kabo 已把交付后的步骤与修改算进去）。
 - `remake-viral-video`（上下文对齐本地实验，与 Web creator-remake-web 0.1.47 同改）：换人（replace→lipsync）只在用户要原镜头原动作时，去掉「参考片加本人素材不算整条复刻」一句（本地 r99 atoms.md 口径）；atoms.md 补生成镜头规则（一镜到底不剪拼、模型不写字、字卡按成片时间）；旁白预览首页是参考片关键帧与创作者外观（需 runner 同步上线），先预览初稿再定画面；修改交付前用 frame 自己看未改部分；为守住字数上限压缩了价格与人设段落。
@@ -37,7 +37,7 @@
     「What this covers」的几处措辞，规则不变。
 - 契约 v1.7（复刻包 V2-r95）：`make_video_step` 的 op 加 `first_frame`（改一张图出新静帧，重画脸、付费、只收三档 tested 模型）、`still_video`（图片成段，可缓推）、`audio_edit`（音量/响度/淡入淡出/速度/长度，本地 $0）；`frame` 收 `at: first|last`（与 `t` 二选一）；`refvideo` 用 Kling v4 时到 30 秒；`talking` 收 `prompt`；`captions` 收 `max_words` / `upper`；已交付复刻另有句柄 `master.mp4`（当前无字幕画面）、`broll_bNN.mp4|png`（B-roll 段与其静帧）、`frame_sNN.png`（口播段首帧）。`step-call` 按服务端同口径校验。
 - 契约 v1.8（复刻包 V2-r96）：`make_video_step` 加 `transcribe`（一段视频 / 音频说了什么，带时间；本地 $0，不出文件），结果在 `last_step.transcript`；出图 / 出视频的一步另有 `last_step.output.preview`（≤1280 px、≤200 KB 的 JPEG，视频为四帧拼图）。`fetch-step` 把预览另存成 `<句柄>.preview.jpg` 并给出 `preview_path` 让模型打开看，转写存成 JSON 并原样交回；`step-call` 校验 `transcribe` 的 `language`。
-- 契约：`tools-list.json` 整份换成数据层正式导出（kabo#2022 分支 `yutian/remake-atoms-launch` 提交 `642737a2`，已并入 kabo main、含 1.0.14 钉住的 `096d598ba` 的全部工具；golden 逐字节一致，77 个工具），`pin.json` 重新钉住。相对 main（73 个）：新增 `start_video_project`、`make_video_step`、`edit_remake_video`、`finish_video_project`（权限 video，进必需工具）；`get_remake_video` 加 `project: true`（项目状态）与 `cancel: true`，标注改为非只读；`start_remake_video` 带上 kabo#2011 的 `creator.photo_urls` / `voice_preset`。`make_video_step` 的 inputs / params 在公开 schema 里只是对象，服务端按 op 逐键严格校验，插件 `step-call` 的本地严格校验保留为第一道。kabo#2022 合并前不发版本。
+- 契约：`tools-list.json` 整份换成数据层正式导出（kabo#2022 分支 `yutian/remake-atoms-launch` 同步 kabo main `6677ce0f` 后的提交 `21a97d65`，含 1.0.17 钉住的 `4c0b966e` 的全部工具（含 `collect_video_media`）；golden 逐字节一致，77 个工具；`start_remake_video` 说明与转写上限随 kabo#2022 改为参考片 10 分钟、1500 段 / 60000 字），`pin.json` 重新钉住。相对 1.0.17 钉住的版本（73 个）：新增 `start_video_project`、`make_video_step`、`edit_remake_video`、`finish_video_project`（权限 video，进必需工具）；`get_remake_video` 加 `project: true`（项目状态）与 `cancel: true`，标注改为非只读；`start_remake_video` 带上 kabo#2011 的 `creator.photo_urls` / `voice_preset`。`make_video_step` 的 inputs / params 在公开 schema 里只是对象，服务端按 op 逐键严格校验，插件 `step-call` 的本地严格校验保留为第一道。kabo#2022 合并前不发版本。
 - `remake-viral-video` 说明文字并入契约 v1.7（与网页端 creator-remake-web 0.1.41 同文）：能力表加 `first_frame`（改本人的一帧/照片出新静帧，重画脸）、
   `audio_edit`、`still_video`；原则 3 点名已交付复刻的 `master.mp4`、takes、B-roll 与首帧；步骤 notes 说给的 box 压到画面文字或脸时
   去掉 box 重做或告知用户；`atoms.md` 补 `frame` 的 `at`、`refvideo` 到 30 s、`talking.prompt`、`captions.max_words` / `upper` 与价格。
@@ -48,6 +48,11 @@
 - `remake-viral-video` 说明文字并入契约 v1.8（与网页端 creator-remake-web 0.1.43 同文）：原则 4「从转写拿原话」指向 `transcribe`，
   能力表加一行；原则 3「先看再用」改为看每一步的预览（`fetch-step` 打印的 `preview_path`，视频四帧）；`atoms.md` 补 `transcribe` 一行与
   `fetch-step` 输出的预览 / 转写。正文等量压缩（20,998 字符）。
+- `remake-viral-video` 正文压回 21,000 字符以内（此前 21,195，`skills:lint` KS3.1 报错）：第 1、2、3、8 步与取消、范围说明里的几处措辞等量压缩，规则不变（正文 20,996 字符）。
+
+## 1.0.17（2026-11-06；GitHub Release）
+
+- `analyze-content-video`：转写、抽帧、度量（Instagram / TikTok 另加元数据）改为一次 `collect_video_media` 后台调用，由新脚本 `collect_media.py` 交接与续等，全部终态后逐项落成 `snapshot/envelope-NN.json` 并给出证据构建参数与一次读帧；模型不再逐个提交、轮询媒体 job（#112，需 kabo#2050）。Codex 生产回归同一条 YouTube 视频 3/3 出报告。
 
 ## 1.0.16（2026-11-06；GitHub Release）
 

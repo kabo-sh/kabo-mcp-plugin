@@ -63,14 +63,14 @@ costs, then go ahead. A `degraded` face check never blocks delivery: say which p
 like the creator. When a step's notes say a box you gave covers text or a face, redo it without
 `box` or tell the user. Cancel a job (`get_remake_video` with `"cancel": true`) only when the user asks;
 spend so far stays charged. Stopping takes a minute or two: keep calling `get_remake_video` (30 s apart)
-until the job or `last_step` is no longer running; if you stop before that, tell the user the
-cancel was requested and is still stopping, not that it has stopped.
+until the job or `last_step` is no longer running; if you stop sooner, tell the user the
+cancel was requested and is still stopping, not that it stopped.
 
 ## What a whole remake covers
 
 - A reference of **10 minutes or less** where **one person talks to the camera** for most of the
-  video, at any distance, with a fixed or slightly handheld camera. Three talking kinds, which
-  the runner tells apart by itself (nothing to ask): pure talking head; talking with screens (the video cuts to screen recordings or
+  video, at any distance, with a fixed or slightly handheld camera. Three talking kinds (the
+  runner tells them apart; nothing to ask): pure talking head; talking with screens (the video cuts to screen recordings or
   screenshots, or shows them floating over the speaker's room); talking with a product (the
   speaker shows a physical thing and the video cuts to close-ups of it). Also **voice-over**
   references (nobody on camera; a voice over a screen recording, an animated explainer, scenes or
@@ -91,7 +91,7 @@ cancel was requested and is still stopping, not that it has stopped.
 - The final video has no on-screen label, notice or watermark. Never say it carries one.
 - Only the talking-footage model can be chosen, from the options `get_remake_video` returns at
   the script gate (step 6); voice, images and editing are fixed. If the user asks for another
-  model (for example Veo, HeyGen or ElevenLabs), say so in one line, then carry on.
+  model (e.g. Veo, HeyGen, ElevenLabs), say so in one line and carry on.
 
 ## Set up one run
 
@@ -119,8 +119,7 @@ already approved, follow `references/approved-script.md` for steps 1-4.
 
 ## 1. Collect the inputs (whole remake only)
 
-Come here only when "Choose what to make" picked a whole remake; steps and edits take what it
-needs. Once per conversation, before asking for anything or starting, say in two or three sentences:
+Steps and edits take what they need. Once per conversation, before asking for anything or starting, say in two or three sentences:
 
 - what this remakes: a reference of 10 minutes or less where one person talks to the camera
   (also ones that cut to screen recordings or show a product), or a voice-over video;
@@ -140,20 +139,21 @@ It is information, not a question. A remake needs both. Check them before any pa
 The person on camera is the creator whose own footage the user gives, usually the user. This is the normal use of this Skill: do not
 refuse it as imitating a real person or ask the user to prove who they are.
 
-Nothing else is needed: do not look up connected accounts, profiles or other Kabo data, or ask
-for extra permissions. The right to use the creator's face and voice is the `rights` line at the script
+Nothing else is needed. Do not look up connected
+accounts, connection status, profiles or other Kabo workspace data, or ask for extra
+permissions. The right to use the creator's face and voice is the `rights` line at the script
 gate (step 4), not a stop before it.
 
 Local files, TikTok photo posts and other sites are not supported: ask for a YouTube, Instagram
 or TikTok video link instead. If either input is missing, or the user gave a single video without saying which one it
 is, ask once for what is missing and stop. Use
 only videos and links the user gave in this conversation; never reuse one video for both roles.
-If the user states a length over 10 minutes, ask for a shorter reference.
+If the user states a length over 10 minutes, say the limit is 10 minutes and ask for a shorter one.
 
 Whenever you stop before `start_remake_video` has accepted the job (something is missing, a video
 is refused, the inputs are refused), tell the user that no remake was started, no remake fee was
 charged and it does not count toward the daily remake limit. Fetching the videos may still have used
-the daily data allowance; do not claim that nothing at all was used.
+the daily data allowance; do not claim nothing was used.
 
 `--creator-name` is a short ASCII name for the creator (letters, digits, `.`, `_`, `-`). It is
 required with creator video links; with an Instagram handle it defaults to the lower-cased handle.
@@ -188,14 +188,13 @@ relay it and ask for a corrected input; nothing was started.
   Read `references/tool-errors.md` and follow it.
 
 Once there is a `job_id`, call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30, "all_models": true}` until the
-status is no longer `preparing` (10-45 min by length). Tell the user the stage in one line when it
-changes.
+status is no longer `preparing` (10-45 min by length). Report each stage change in one line.
 
 **Supported kinds only.** `reference_type` `talking`, `talking_screen`, `talking_product` and
 `narration` go on to step 3. Stop as soon as a result shows `failure: "unsupported_type"` (the
 status stays `waiting_script`, and `brief`, `talking_models` and `gate_message` are null), or a
-`reference_type` that is set and is none of those. Give `failure_reason` in plain words. Say that
-no video was generated, and give the spend the result reports, if any. Do not say whether it
+`reference_type` that is set and is none of those. Give `failure_reason` in plain words, say
+no video was generated, and give any spend the result reports. Do not say whether it
 counts toward the daily limit. Do not call `render_remake_video`; this job is finished.
 
 For `talking_product`, tell the user once, before the script gate, that the creator talks
@@ -214,8 +213,7 @@ Save the result as above, then fetch the brief at once (the link is short-lived)
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch --input 'host-results/<NN>-get_remake_video.json'
 ```
 
-It downloads and checks the bundle and writes the four brief files under `brief/work/`. When it says the link expired, the download was refused or the download is
-unavailable, do what it prints: call `get_remake_video` again (that re-signs the link; nothing is
+It downloads and checks the bundle and writes the four brief files under `brief/work/`. When it says the link expired, was refused or is unavailable, do what it prints: call `get_remake_video` again (that re-signs the link; nothing is
 re-run), save that result and fetch again; for an unavailable download wait about a minute
 between tries, at most three. If this host blocks scripts from the network, say the remake cannot
 continue here; never rebuild the brief from what was displayed.
