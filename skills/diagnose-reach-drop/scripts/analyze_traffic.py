@@ -96,9 +96,9 @@ CUMULATIVE_METRICS = frozenset(("views", "view_count", "plays", "play_count", "l
 def maturity_hours(fmt: str) -> int | None:
     """Only a format that says it is short or long gets a maturity age; a generic video may be either."""
     name = fmt.lower()
-    if "long" in name:
+    if any(word in name for word in ("long", "长视频")):
         return MATURE_HOURS["long"]
-    if any(word in name for word in ("short", "tiktok", "reel", "instagram")):
+    if any(word in name for word in ("short", "tiktok", "reel", "instagram", "短视频")):
         return MATURE_HOURS["short"]
     return None
 

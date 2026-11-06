@@ -101,4 +101,6 @@ test("a generic video format gets no maturity age, so no lower-median reading", 
   assert.equal(generic.fact?.age_reading, undefined, generic.out);
   const youtube = await run(brief("youtube_video", EARLIER, [[12, 4000], [9, 5000], [3, 800]]));
   assert.equal(youtube.fact?.age_reading, undefined, youtube.out);
+  const chinese = await run(brief("短视频", EARLIER, [[12, 4000], [9, 5000], [3, 800]]));
+  assert.equal(chinese.fact?.age_reading?.min_age_hours, 168, chinese.out);
 });
