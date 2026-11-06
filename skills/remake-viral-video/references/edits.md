@@ -84,13 +84,16 @@ It saves the newest revision as `output/remake-<id>-r<N>.mp4` next to the earlie
   days and are gone; the video cannot be edited any more. Say so and offer a new remake.
 - Any other `validation_error`: read `message` (for example a time range past the end of the video
   or a handle that does not exist), fix the edits file and build again with the next `--attempt`.
-- `quota_exceeded`: a daily limit or the spending safety stop; nothing was changed.
+- `quota_exceeded`: if `message` says another remake or step is still running, wait for it and call
+  again with the same key; otherwise a daily limit or the spending safety stop; nothing was changed.
 - `last_step.status` `failed`: relay `error` in plain words; the delivered video is unchanged.
 
 ## Telling the user
 
 Give the new revision's local path and say that the earlier one is kept; what changed, in one or
-two lines; from `revision_notes`, whether anything outside the request changed; the spend; and the
+two lines; from `revision_notes`, whether anything outside the request changed; the spend (this edit's in `last_step`; the total,
+with every edit, in `project.spend_usd`; notes from before the edit describe the earlier version);
+and the
 face verdict when a line was re-synced. A `degraded` face check does not stop delivery: say in
 plain words which part looks less like the creator. Relay the final review as in
 `references/final-review.md`.

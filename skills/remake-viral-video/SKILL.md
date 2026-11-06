@@ -63,7 +63,9 @@ costs) or `references/edits.md`, say in two or three lines what you will make an
 costs, then go ahead. A `degraded` face check never blocks delivery: say which part looks less
 like the creator. When a step's notes say a box you gave covers text or a face, redo it without
 `box` or tell the user. Cancel a job (`get_remake_video` with `"cancel": true`) only when the user asks;
-spend so far stays charged.
+spend so far stays charged. Stopping takes a minute or two: keep calling `get_remake_video` (30 s apart)
+until the job or `last_step` is no longer running; if you stop before that, tell the user the
+cancel was requested and is still stopping, not that it has stopped.
 
 ## What a whole remake covers
 

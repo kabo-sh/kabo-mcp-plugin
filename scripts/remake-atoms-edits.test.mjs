@@ -352,3 +352,17 @@ test("G8：description 只在要成片或改成片时触发，写稿、拆解、
   assert.match(description, /only when the user wants the video itself made or changed/);
   assert.match(description, /not for writing or adapting a script, breaking down a video, or reviewing an account/);
 });
+
+test("skill 说法：取消等到终态或明说正在停止；bg 按秒计价；在跑的一步撞上 quota_exceeded 不说成额度用完", async () => {
+  const doc = async (p) => readFile(path.join(root, "skills/remake-viral-video", p), "utf8");
+  const skill = await doc("SKILL.md");
+  assert.match(skill, /until the job or `last_step` is no longer running/);
+  assert.match(skill, /cancel was requested and is still stopping/);
+  const atoms = await doc("references/atoms.md");
+  assert.match(atoms, /`bg` about \$0\.02 per second/);
+  assert.doesNotMatch(atoms, /`bg`,\s*`overlay`/, "bg 不再归在花费很少或不花钱那一组");
+  assert.match(atoms, /still running: not a limit/);
+  const edits = await doc("references/edits.md");
+  assert.match(edits, /another remake or step is still running, wait for it/);
+  assert.match(edits, /the total,\s+with every edit, in `project\.spend_usd`/);
+});

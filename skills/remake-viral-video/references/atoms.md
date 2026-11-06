@@ -189,7 +189,8 @@ Rough provider prices per second of output, for the estimate only (the result's 
 what is charged): `motion` about $0.17-0.40, `refvideo` about $0.20-0.24, `replace` about $0.30,
 `lipsync` about $0.08 (or about $0.20 per call up to 40 s with `fal-ai/latentsync`), `talking` from
 under $0.01 to about $0.30 depending on the model. `still` is a few cents per picture and `persona` about $0.15 per portrait; `animate`
-and `voice_change` are cents per second; `tts`, `frame`, `trim`, `mux`, `extract_audio`, `bg`,
+and `voice_change` are cents per second; `bg` about $0.02 per second of the input video (30 s is
+about $0.70); `tts`, `frame`, `trim`, `mux`, `extract_audio`,
 `overlay`, `splice`, `concat`, `text_cards`, `music`, `captions` and `face_check` cost little or
 nothing; `first_frame` about $0.15 a picture; `retime`, `crop`, `inpaint_text`, `layout`, `still_video` and `audio_edit` cost nothing.
 
@@ -248,7 +249,9 @@ Errors from `start_video_project` are read as in `references/tool-errors.md`.
   offer a new project. `no_creator`: a face step in a project without the creator. `no_voice`:
   nothing to clone; ask for a recording, then offer a stock voice (above). A `persona` refused
   because the project has creator material: use that material instead.
-- `quota_exceeded`: a daily limit or the spending safety stop; nothing was generated. Tell the
+- `quota_exceeded` whose `message` says another remake or step is still running: not a limit;
+  wait for it (`get_remake_video`), then call again with the same key.
+- Any other `quota_exceeded`: a daily limit or the spending safety stop; nothing was generated. Tell the
   user; do not split the step to get around it.
 - A step that ends `failed`: relay `message` in plain words and the spend, if any; try another
   listed model once if it was a refusal or a provider failure, otherwise stop and ask the user.
