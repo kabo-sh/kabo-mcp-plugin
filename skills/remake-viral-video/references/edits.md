@@ -43,8 +43,8 @@ an edit when the moment is not obvious.
 Tell the user in one or two lines exactly what will change and what stays the same, and the rough
 cost: a caption change costs next to nothing; a line change costs the new voice line plus
 re-syncing the changed take (usually well under a dollar per line); a new background, overlay or
-clip costs what its picture or clip costs (`references/atoms.md`, "Plan before spending"). There is no
-spending cap: over $5, wait for their OK; otherwise go ahead.
+clip costs what its picture or clip costs (`references/atoms.md`, "Plan before spending"). Then go
+ahead.
 
 ## Run it
 

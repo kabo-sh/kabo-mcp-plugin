@@ -176,8 +176,7 @@ creator.
 ## Plan before spending
 
 Before the first paid step, write `project/plan.json` in the run directory and tell the user in two
-or three lines what you will make, which steps, and roughly what it costs. There is no spending
-cap: over $5, wait for their OK; otherwise go ahead.
+or three lines what you will make, which steps, and roughly what it costs, then go ahead.
 
 ```json
 {"goal": "one line: what the user asked for",
