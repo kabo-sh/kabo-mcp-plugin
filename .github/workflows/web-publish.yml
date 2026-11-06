@@ -7,7 +7,8 @@ name: Publish a release to Kabo Web
 #
 # - release published: publishes that release when the environment variable PLUGIN_WEB_AUTO is "on".
 # - workflow_dispatch: publishes `tag` (default: the latest release) to `target`; ignores PLUGIN_WEB_AUTO.
-# Idempotent: the production target is skipped when Web is already on that commit. PLUGIN_WEB_HOLD
+# Idempotent: the production target is skipped when Web is already on that commit (`force` overrides,
+# for instance after changing PLUGIN_WEB_HOLD). PLUGIN_WEB_HOLD
 # (comma-separated Skill ids) keeps those Skills on their Registry version.
 on:
   release:
@@ -22,6 +23,10 @@ on:
         type: choice
         options: [index, test]
         default: index
+      force:
+        description: Republish even when Web is already on this release (e.g. after changing PLUGIN_WEB_HOLD)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -44,6 +49,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          # This job holds publish credentials and installs nothing; no cache to poison.
+          package-manager-cache: false
       - name: Resolve the release to publish
         id: target
         env:
@@ -86,12 +93,13 @@ jobs:
           KABO_SKILL_REGISTRY_BUCKET: ${{ vars.GCP_SKILL_REGISTRY_BUCKET }}
           COMMIT: ${{ steps.target.outputs.commit }}
           TARGET: ${{ steps.target.outputs.target }}
+          FORCE: ${{ inputs.force && 'true' || 'false' }}
         run: |
           set -euo pipefail
           current=$(node scripts/web-publish/plugin-web.mjs released)
           echo "Web overlay is at ${current:-<none>}"
           # release.json records only the production overlay; the test target always publishes.
-          if [[ "$TARGET" == "index" && "$COMMIT" == "$current" ]]; then
+          if [[ "$TARGET" == "index" && "$COMMIT" == "$current" && "$FORCE" != "true" ]]; then
             echo "already on Web; nothing to publish"; echo "publish=false" >> "$GITHUB_OUTPUT"
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
