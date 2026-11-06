@@ -167,7 +167,7 @@ def render(value: dict, language: str = "en") -> str:
                                  + ("undefined with zero baseline" if ratio is None else fmt(ratio) + "×"))
                 elif reading.get("basis") == "recent_too_young":
                     lines.append(f"No recent post is yet {reading['min_age_hours'] // 24} days old, the approximate "
-                                 "age by which most views have arrived.")
+                                 "age by which most of the value has accrued.")
                 if "target_evaluation" in fact:
                     target_evaluation = fact["target_evaluation"]
                     current = target_evaluation["groups"][-1]

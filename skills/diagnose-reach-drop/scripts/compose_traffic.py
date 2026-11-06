@@ -56,28 +56,29 @@ def answer_text(finding, answer, zh=False):
                 # 交付时模型不一定翻译脚本原句，所以和相邻结论一样给中英两版。
                 days = reading.get("min_age_hours", 0) // 24
                 if reading["basis"] == "recent_younger_not_lower":
-                    return ("近期视频发布时间更短，当前累计播放中位数却不低于前期，所以没有下降迹象；这不能说明原因或平台状态。"
+                    return ("近期内容发布时间更短，当前累计中位数却不低于前期，所以没有下降迹象；这不能说明原因或平台状态。"
                             if zh else
                             "The recent posts are younger, yet their current cumulative median is not lower, so there "
                             "is no sign of a decline, though this does not establish the cause or platform status.")
                 if reading["basis"] == "recent_too_young":
-                    return (f"近期视频都还没满 {days} 天，播放仍在增长，现在还判断不了是否下降，也不能据此确认原因或平台限制。"
+                    return (f"近期内容都还没满 {days} 天，尚未到比较时长、之后可能还会增加，现在还判断不了是否下降，也不能据此确认原因或平台限制。"
                             if zh else
-                            f"The recent posts are all under {days} days old and still gaining views, so it is too early "
-                            "to tell whether views dropped, and this does not establish a cause or platform enforcement.")
+                            f"The recent posts are all under {days} days old, short of the comparison age and possibly still "
+                            "accruing, so it is too early to tell whether they dropped, and this does not establish a cause "
+                            "or platform enforcement.")
                 if reading["change"]["after"] < reading["change"]["before"]:
-                    return (f"只比较发布满 {days} 天的视频（近似比较，假设大部分播放在此之前产生），近期中位数仍低于前期，"
+                    return (f"只比较发布满 {days} 天的内容（近似比较，假设大部分数值在此之前累积），近期中位数仍低于前期，"
                             "构成下降信号；它不能确定原因或平台限制。"
                             if zh else
-                            f"Comparing only posts at least {days} days old, an approximation that assumes most views "
-                            "arrive by then, the recent median is still lower, which is a decline signal, though it does "
+                            f"Comparing only posts at least {days} days old, an approximation that assumes most of the "
+                            "value accrues by then, the recent median is still lower, which is a decline signal, though it does "
                             "not establish the cause or platform enforcement.")
-                return (f"只比较发布满 {days} 天的视频（近似比较，假设大部分播放在此之前产生），近期中位数不低于前期，"
-                        "整体偏低可能来自仍在增长的新视频；这不能确认原因或平台限制。"
+                return (f"只比较发布满 {days} 天的内容（近似比较，假设大部分数值在此之前累积），近期中位数不低于前期，"
+                        "整体偏低可能来自尚未累积完的新内容；这不能确认原因或平台限制。"
                         if zh else
-                        f"Comparing only posts at least {days} days old, an approximation that assumes most views "
-                        "arrive by then, the recent median is not lower, so the lower overall figure may reflect newer "
-                        "posts still gaining views, and this does not establish a cause or platform enforcement.")
+                        f"Comparing only posts at least {days} days old, an approximation that assumes most of the "
+                        "value accrues by then, the recent median is not lower, so the lower overall figure may reflect newer "
+                        "posts that have not finished accruing, and this does not establish a cause or platform enforcement.")
             if age_limited:
                 messages = (
                     ("所选近期队列的当前累计中位数较前期低，但观察年龄不一致；这只能描述当前快照，不能确认同龄下滑、原因或平台限制。",

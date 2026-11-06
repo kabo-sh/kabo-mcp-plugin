@@ -59,7 +59,7 @@ test("younger recent posts that are not lower mean no decline", async () => {
   const { out, fact, verdict } = await run(brief("short_video", EARLIER, [[10, 12000], [6, 13000], [2, 9500]]));
   assert.equal(fact?.age_reading?.basis, "recent_younger_not_lower", out);
   assert.match(verdict, /^The recent posts are younger, yet their current cumulative median is not lower, so there is no sign of a decline/m);
-  assert.match(verdict, /^近期视频发布时间更短，当前累计播放中位数却不低于前期，所以没有下降迹象/m);
+  assert.match(verdict, /^近期内容发布时间更短，当前累计中位数却不低于前期，所以没有下降迹象/m);
 });
 
 test("a lower recent median is compared on matured short posts only", async () => {
@@ -70,16 +70,16 @@ test("a lower recent median is compared on matured short posts only", async () =
   assert.equal(fact.age_reading.change.after, 4500);
   assert.match(evidence, /Posts at least 7 days old only \(approximation\)/);
   assert.match(verdict, /^Comparing only posts at least 7 days old, an approximation .* the recent median is still lower, which is a decline signal/m);
-  assert.match(verdict, /^只比较发布满 7 天的视频（近似比较.*近期中位数仍低于前期，构成下降信号/m);
+  assert.match(verdict, /^只比较发布满 7 天的内容（近似比较.*近期中位数仍低于前期，构成下降信号/m);
 });
 
 test("long YouTube videos use 28 days, and young matured-out posts say so", async () => {
   const lower = await run(brief("youtube_long", [[90, 9000], [70, 10000]], [[30, 12000], [5, 1000], [2, 500]]));
   assert.equal(lower.fact?.age_reading?.min_age_hours, 672, lower.out);
-  assert.match(lower.verdict, /^Comparing only posts at least 28 days old, .* the recent median is not lower, so the lower overall figure may reflect newer posts still gaining views/m);
+  assert.match(lower.verdict, /^Comparing only posts at least 28 days old, .* the recent median is not lower, so the lower overall figure may reflect newer posts that have not finished accruing/m);
   const young = await run(brief("youtube_long", [[90, 9000], [70, 10000]], [[20, 3000], [5, 1000]]));
   assert.equal(young.fact?.age_reading?.basis, "recent_too_young", young.out);
-  assert.match(young.verdict, /^The recent posts are all under 28 days old and still gaining views, so it is too early to tell/m);
+  assert.match(young.verdict, /^The recent posts are all under 28 days old, short of the comparison age and possibly still accruing, so it is too early to tell/m);
 });
 
 test("same-age or explicit-age comparisons keep their existing verdicts", async () => {
