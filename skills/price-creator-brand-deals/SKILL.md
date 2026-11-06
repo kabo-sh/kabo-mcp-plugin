@@ -88,8 +88,9 @@ from the creator's own figures.
   ```
 
 - **Anything else** (no ready download, an expired id, a queued job, a refused result) follows
-  `references/data-calls.md`. A retrieval that still fails leaves the account facts to the creator:
-  price with their figures labelled `user_supplied`, or with none.
+  `references/data-calls.md`. A retrieval that still fails is a data gap, not a failed step: price
+  with the creator's own figures labelled `user_supplied`; without a follower count from them, ask for
+  it and stop.
 
 ## Workflow
 
@@ -132,7 +133,7 @@ from the creator's own figures.
 
 5. **Price, validate and render.** These four commands run once each, in this order, each only after
    the one before succeeded; do not split, reorder or replace them. Without retrieved account facts
-   (the creator's figures stay `user_supplied`, or there are none), drop `--account-facts …` from the
+   (the creator's figures stay `user_supplied`), drop `--account-facts …` from the
    pricing step and run the same four commands.
 
   ```sh

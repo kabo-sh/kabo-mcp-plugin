@@ -35,7 +35,8 @@ cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill di
 ```
 
 Anything else (no ready download, an expired id, a queued job, a refused result) follows
-`references/data-calls.md`.
+`references/data-calls.md`. If the account still cannot be retrieved, deliver the `checklist` kit and
+say the account data was not retrieved; never present it as a kit built from the account.
 
 Write `brand_kit.json` with what you author, then fill each resolved account from its placed
 envelopes, once per account, giving `--envelope` for every file `place_composite.py` placed for it:
