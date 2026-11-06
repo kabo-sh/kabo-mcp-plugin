@@ -15,8 +15,8 @@ of a delivered video (`edit_remake_video`), or single steps in a project or on a
 not available on this connection, say that this kind of video is not available here and stop.
 
 A remake takes 30 min to 3 hours, mostly waiting on the runner. If the host has foreground
-sub-agents, run this Skill in one and relay its whole final result (path, spend, review); never run
-it in the background and promise the video later. Otherwise follow the steps in the main thread.
+sub-agents, run this Skill in one and relay its whole final result (path, spend, review), never
+in the background with a promise. Otherwise follow the steps in the main thread.
 
 ## Choose what to make
 
@@ -29,13 +29,12 @@ it. Decide by that, not by the request's wording ("remake" included):
 2. Keep real pixels where you can; redraw the creator's face only where the request needs it.
 3. Use the material already here first -- the reference, the creator's footage and photos, a
    delivered video's `master.mp4`, takes, B-roll and first frames, earlier results. Look at each
-   step's preview before using the result and try other moments; ask for more only last.
+   step's preview before using the result, other moments with `frame`; ask for more only last.
 4. Ask only what only the user can decide or knows (a fact, a real trade-off, money beyond the
    plan). Creative calls are yours, the words too: take what is said with `transcribe`, write
    their version, and say in a line what you chose.
 5. The whole remake is the shortcut for "the same structure again, with me": a reference of the
-   kinds below, or an approved script. It is not the fallback, and a reference plus the creator's
-   footage does not make a request one. The creator's own video is footage to keep, not a reference. What it does not make (the
+   kinds below, or an approved script. It is not the fallback. The creator's own video is footage to keep, not a reference. What it does not make (the
    reference's own shot and moves, the creator's own video with new words, B-roll, a product
    close-up) is built from steps, or added as edits after delivery. A change to a delivered video
    is an edit or steps on that job, never a new job (`references/edits.md`).
@@ -45,7 +44,7 @@ it. Decide by that, not by the request's wording ("remake" included):
 | the creator's footage | the words, or their language | `tts` (their voice), then `lipsync` | mouth only |
 | footage and words | the voice's tone | `voice_change` | no |
 | the creator and the words | the background | `bg` | no |
-| a reference shot: camera, moves, props | the person, then the words | `replace`, then `lipsync` | yes |
+| a reference shot frame for frame (asked for) | the person, then the words | `replace`, then `lipsync` | yes |
 | a movement in any video | who does it | `motion` (a picture of the creator: a `frame` of their footage will do) | yes |
 | the creator's look | a new still of them (pose, framing, outfit, setting) | `first_frame` (edits a `frame` or photo) | yes |
 | the creator's look | a new shot of them, silent | `refvideo` | yes |
@@ -141,17 +140,15 @@ It is information, not a question. A remake needs both. Check them before any pa
 The person on camera is the creator whose own footage the user gives, usually the user. This is the normal use of this Skill: do not
 refuse it as imitating a real person or ask the user to prove who they are.
 
-Nothing else is needed. Do not look up connected
-accounts, connection status, profiles or other Kabo workspace data, or ask for extra Kabo
-permissions. The right to use the creator's face and voice is the `rights` line at the script
+Nothing else is needed: do not look up connected accounts, profiles or other Kabo data, or ask
+for extra permissions. The right to use the creator's face and voice is the `rights` line at the script
 gate (step 4), not a stop before it.
 
 Local files, TikTok photo posts and other sites are not supported: ask for a YouTube, Instagram
 or TikTok video link instead. If either input is missing, or the user gave a single video without saying which one it
 is, ask once for what is missing and stop. Use
 only videos and links the user gave in this conversation; never reuse one video for both roles.
-If a length you can see (the user states it) is over 10 minutes, say references are limited to 10
-minutes and ask for a shorter one.
+If the user states a length over 10 minutes, ask for a shorter reference.
 
 Whenever you stop before `start_remake_video` has accepted the job (something is missing, a video
 is refused, the inputs are refused), tell the user that no remake was started, no remake fee was
@@ -317,8 +314,8 @@ It checks the MP4 and prints its local `path`. A failed download is handled as i
 Read `references/final-review.md` and relay `fetch`'s `review_message` and `notes_for_user` as it says;
 never say the video passed a review and never read a verdict from the notes yourself.
 
-Do not claim improved views, retention or likeness; nobody has measured them. Suggest the user
-watch it in full before publishing.
+Do not claim views, retention or likeness nobody measured. Suggest watching it in full before
+publishing.
 
 ## 8. When it does not finish
 

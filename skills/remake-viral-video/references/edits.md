@@ -91,7 +91,7 @@ It saves the newest revision as `output/remake-<id>-r<N>.mp4` next to the earlie
 ## Telling the user
 
 Give the new revision's local path and say that the earlier one is kept; what changed, in one or
-two lines; from `revision_notes`, whether anything outside the request changed; the spend (this edit's in `last_step`; the total,
+two lines; from `revision_notes` and a `frame` of an untouched moment in both versions, whether anything outside the request changed; the spend (this edit's in `last_step`; the total,
 with every edit, in `project.spend_usd`; notes from before the edit describe the earlier version);
 and the
 face verdict when a line was re-synced. A `degraded` face check does not stop delivery: say in
