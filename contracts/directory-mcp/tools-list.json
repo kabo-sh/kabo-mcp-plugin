@@ -13951,7 +13951,8 @@
                   "enum": [
                     "collect_public_metadata",
                     "fetch_transcript",
-                    "extract_keyframes"
+                    "extract_keyframes",
+                    "measure_media_signals"
                   ],
                   "type": "string"
                 },
@@ -14997,7 +14998,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Remake a public talking-head video (YouTube, Instagram or TikTok, 90 s max) with the creator's videos or photos. Only after the user confirms. Top-level. Fetching uses daily quota. Uses one daily remake (shared with web) either way; one at a time. On fetching_inputs, repeat after retry_after_s. Next: poll get_remake_video.",
+      "description": "Remake a public talking-head video (YouTube, Instagram or TikTok, 10 min max) with the creator's videos or photos. Only after the user confirms. Top-level. Fetching uses daily quota. Uses one daily remake (shared with web) either way; one at a time. On fetching_inputs, repeat after retry_after_s. Next: poll get_remake_video.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -15840,11 +15841,11 @@
                                   ],
                                   "type": "object"
                                 },
-                                "maxItems": 200,
+                                "maxItems": 1500,
                                 "type": "array"
                               },
                               "text": {
-                                "maxLength": 12000,
+                                "maxLength": 60000,
                                 "type": "string"
                               },
                               "truncated": {
@@ -17466,11 +17467,11 @@
                               ],
                               "type": "object"
                             },
-                            "maxItems": 200,
+                            "maxItems": 1500,
                             "type": "array"
                           },
                           "text": {
-                            "maxLength": 12000,
+                            "maxLength": 60000,
                             "type": "string"
                           },
                           "truncated": {
@@ -18360,11 +18361,11 @@
                               ],
                               "type": "object"
                             },
-                            "maxItems": 200,
+                            "maxItems": 1500,
                             "type": "array"
                           },
                           "text": {
-                            "maxLength": 12000,
+                            "maxLength": 60000,
                             "type": "string"
                           },
                           "truncated": {
@@ -19276,11 +19277,11 @@
                               ],
                               "type": "object"
                             },
-                            "maxItems": 200,
+                            "maxItems": 1500,
                             "type": "array"
                           },
                           "text": {
-                            "maxLength": 12000,
+                            "maxLength": 60000,
                             "type": "string"
                           },
                           "truncated": {
@@ -20106,11 +20107,11 @@
                               ],
                               "type": "object"
                             },
-                            "maxItems": 200,
+                            "maxItems": 1500,
                             "type": "array"
                           },
                           "text": {
-                            "maxLength": 12000,
+                            "maxLength": 60000,
                             "type": "string"
                           },
                           "truncated": {
