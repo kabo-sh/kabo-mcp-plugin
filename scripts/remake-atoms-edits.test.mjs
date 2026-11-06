@@ -366,3 +366,18 @@ test("skill 说法：取消等到终态或明说正在停止；bg 按秒计价�
   assert.match(edits, /another remake or step is still running, wait for it/);
   assert.match(edits, /the total,\s+with every edit, in `project\.spend_usd`/);
 });
+
+test("skill 说法对齐本地实验：换人只在要原镜头原动作时；旁白预览先看参考片与外观；生成镜头规则；修改后自己看未改部分", async () => {
+  const doc = async (p) => readFile(path.join(root, "skills/remake-viral-video", p), "utf8");
+  const skill = await doc("SKILL.md");
+  assert.match(skill, /a reference shot frame for frame \(asked for\)/);
+  assert.doesNotMatch(skill, /does not make a request one/);
+  const atoms = await doc("references/atoms.md");
+  assert.match(atoms, /## Generated shots/);
+  assert.match(atoms, /never cut a generated clip into pieces/);
+  const narration = await doc("references/formats/narration.md");
+  assert.match(narration, /first pages are the reference's keyframes and the creator's look/);
+  assert.doesNotMatch(narration, /you cannot see those/);
+  const edits = await doc("references/edits.md");
+  assert.match(edits, /a `frame` of an untouched moment in both versions/);
+});
