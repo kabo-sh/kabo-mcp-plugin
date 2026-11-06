@@ -2,7 +2,7 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
-## 未发布
+## 1.0.18（待 kabo#2022 合并部署后发布；GitHub Release）
 
 - `remake-viral-video`（pre t17 验收）：取消后等到任务不再 running 再回话，没等到就说「已请求取消、正在停止」；`bg` 估价改为约 $0.02/秒（与 runner 计价一致，不再归入「花费很少或不花钱」）；`quota_exceeded` 的 message 说另一步还在跑时等它跑完、用同一把键重提，不说成额度用完；修改后总花费读 `project.spend_usd`（kabo 已把交付后的步骤与修改算进去）。
 - `remake-viral-video`：出片后修改与原子项目（跨仓契约 v1–v1.4，2026-11-04；内容改写自复刻包 V2-r87 的 `skill/references/atoms.md`，
