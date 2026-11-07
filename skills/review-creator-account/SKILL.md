@@ -17,14 +17,16 @@ takes many steps, and wait for its final result before replying; never run it in
 tell the user the report will come later. Without a foreground sub-agent, follow the same steps in
 the main thread.
 
-**Delivery.** The final step prints `ACCOUNT_REVIEW.md` between `KABO_FINAL_REPLY_BEGIN` and
+**Complete-review delivery only.** Supplied-funnel answers and narrow operations return their
+own supported result directly; they do not compose `ACCOUNT_REVIEW.md` or run this delivery check.
+For a complete review, the final step prints `ACCOUNT_REVIEW.md` between `KABO_FINAL_REPLY_BEGIN` and
 `KABO_FINAL_REPLY_END`. That entire body is the reply, not source material for another answer.
 Deliver it once, immediately, in full and in the user's requested language (`output_language`):
 if it already matches, relay it unchanged; otherwise translate only its fixed labels and the
 deterministic identity and metric descriptions, keeping every semantic string, quoted title, number,
 link, order and structure. Close with one short sentence and end with the `creator_report:` line.
 Keep every section, paragraph, example link, adjacent evidence limit and action's success criterion.
-Before sending, write the full draft to `reply.md` and run the printed `validate_delivery.py`
+Before sending a complete review, write the full draft to `reply.md` and run the printed `validate_delivery.py`
 command. Restore any omissions in that draft only; then send the returned `final_reply` in full, unchanged. The actual final message must contain the
 whole report; validating a file and then sending a shorter message still fails delivery. This
 read-only delivery check does not reopen the research run or permit editing its validated sources.

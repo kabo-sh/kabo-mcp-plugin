@@ -10,13 +10,18 @@ test("报告译标签后可交付；删正文、证据、指标或成功标准�
 import json, sys, tempfile, subprocess
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
-from validate_delivery import delivery_issues
+from validate_delivery import delivery_issues, displayed_numbers
 report={"schema_version":"account-review-report.v3",
         "headline":"窗口没有对齐，先验证原因", "diagnosis":"当前累计量不能证明内容强弱。",
         "what_works":[{"pattern":"标题提出一个具体问题", "explanation":"这里只观察标题，不据此确认销量原因。"}],
         "recommendations":{"test":[{"action":"保持相同观察窗口与归因周期。", "success_metric":"记录每一组的询盘和付费订单。"}]}}
 body="# 窗口没有对齐，先验证原因\n\n当前累计量不能证明内容强弱。\n\n## Public content observations\n\n### 标题提出一个具体问题\n\n这里只观察标题，不据此确认销量原因。\n\n- [原始标题](https://example.com/post) (200 views; cumulative snapshot, not equal windows)\n\n## What to do next\n\n保持相同观察窗口与归因周期。 (Success criterion: 记录每一组的询盘和付费订单。)\n"
 assert not delivery_issues(body, report, body)
+for unit in [' 倍',' ×',' times']:
+    assert displayed_numbers('1.20x; 200 views; 20%') == displayed_numbers('1.20'+unit+'; 200 views; 20%')
+for changed in ['1.20; 200 views; 20%','1.21 倍; 200 views; 20%','1.20 倍; 20 views; 20%','1.20 倍; 200 views; 2%']:
+    assert displayed_numbers('1.20x; 200 views; 20%') != displayed_numbers(changed)
+
 localized=body.replace("Public content observations","公开内容观察").replace("What to do next","下一步").replace("views","播放").replace("Success criterion:","成功标准：").replace("cumulative snapshot, not equal windows","累计快照，不是等长窗口")
 assert not delivery_issues(body,report,localized)
 for incomplete in ["# 窗口没有对齐，先验证原因\n\n当前累计量不能证明内容强弱。", body.replace(report["what_works"][0]["explanation"],""),body.replace(" (Success criterion: 记录每一组的询盘和付费订单。)",""),body.replace("https://example.com/post","https://example.com/other"),body.replace("200 views","20 views")]:
@@ -28,6 +33,8 @@ with tempfile.TemporaryDirectory() as temp:
     good=subprocess.run(cmd,input=localized,text=True,capture_output=True)
     assert good.returncode == 0 and json.loads(good.stdout)['status']=='ready_to_send',good.stdout
     assert json.loads(good.stdout)['final_reply'] == localized, 'the last step must hand back the full text, not only a status/path'
+    assert json.loads(good.stdout)['delivery_checklist']['cited_examples_to_relay'] == 1
+    assert len(json.loads(good.stdout)['delivery_checklist']['sections_to_relay']) == 4
     bad=subprocess.run(cmd,input=report['diagnosis'],text=True,capture_output=True)
     assert bad.returncode == 1 and json.loads(bad.stdout)['status']=='needs_revision',bad.stdout
     assert before == (md.read_bytes(),js.read_bytes()), 'checking replies must not edit sources'

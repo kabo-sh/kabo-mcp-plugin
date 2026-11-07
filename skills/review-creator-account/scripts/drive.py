@@ -688,6 +688,7 @@ def preflight_report_sources(analysis: dict[str, Any], snapshot: dict[str, Any],
 
 
 def emit_final_report(report: Path) -> None:
+    """Hand off the validated full report and its read-only delivery check."""
     # 最后一步交付完整已校验正文，避免模型把文件路径或开头诊断当作完整答案。
     say("KABO_FINAL_REPLY_BEGIN")
     say(report.read_text(encoding="utf-8").rstrip())
