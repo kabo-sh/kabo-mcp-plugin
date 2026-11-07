@@ -489,7 +489,12 @@ def render_markdown(report: dict[str, Any], output_language: str = "en") -> str:
         lines += [f"## {status_text['title']}", "", status_text[platform], ""]
     view_counts = {row["format"]: row.get("metrics", {}).get("views", {}).get("available_n", 0)
                    for row in report["baselines"]}
-    for title, key in ((text["works"], "what_works"), (text["hurts"], "what_hurts")):
+    # 公开累计快照不证明内容优劣；固定章节标题也必须遵守相同边界。
+    if report["scope"].get("source_mode", "").startswith("public"):
+        headings = (("Public content observations", "what_works"), ("Questions to test", "what_hurts"))
+    else:
+        headings = ((text["works"], "what_works"), (text["hurts"], "what_hurts"))
+    for title, key in headings:
         rows = report[key]
         if not rows:
             continue

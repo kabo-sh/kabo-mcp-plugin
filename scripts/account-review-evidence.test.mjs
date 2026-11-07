@@ -109,6 +109,8 @@ class EvidenceTests(unittest.TestCase):
         a=fixture();s=synthesis(['mature']);r,p,markdown=compose(a,s)
         validate(a,s,r,p)
         self.assertIn('not an equal-age performance comparison',markdown)
+        self.assertIn('## Questions to test',markdown)
+        self.assertNotIn('## What is holding the account back',markdown)
         self.assertEqual(r['what_hurts'][0]['examples'][0]['metrics']['views'],200)
         self.assertEqual(r['what_hurts'][0]['examples'][0]['view_multiple_vs_format_median'],2)
         s['output_language']='zh-CN'

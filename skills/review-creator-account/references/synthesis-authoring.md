@@ -45,7 +45,27 @@ the report or profile schemas once the compact input exists. `scope.user_questio
 
 ## Evidence boundary
 
-Read [observation-windows.md](observation-windows.md) before assigning claim types.
+When `scope.metric_comparison.basis` is `cumulative_public_snapshot`, complete the review with
+**observations and proposed tests, not winners and losers**. All post counts in that input are
+cumulative snapshots. Maturity does not establish equal measurement windows. In every pattern,
+heading and recommendation:
+
+- Do not call a post/style stronger, weaker, effective or ineffective from its rank, count or
+  multiple, including mature posts. "The cause of its weak performance is unknown" still asserts
+  weak performance and is unsupported. A caveat beside or after that claim does not repair it.
+- Do not select a style to keep/copy/stop because its count is above/below the snapshot median.
+  Select useful wording assets and specific wording gaps from the actual captions; frame proposed
+  mechanisms as hypotheses. In this mode, `what_works` holds observed assets and `what_hurts` holds
+  questions to test, not established performance conclusions. Use neutral pattern headings.
+- If mentioning counts or ranks, label them current snapshot facts with unequal/unknown exposure
+  windows. They cannot establish a reach trend, eliminate reach as a problem or locate sales loss.
+  State the unknown central outcome in the headline/diagnosis, then give useful content observations.
+- Use `public_observation` or `hypothesis`. Changing the claim type without removing the performance
+  conclusion is not a correction. Before delivery, read every heading and recommendation without
+  its caveats: remove any performance judgment unsupported by equal-window measurements.
+
+For separately supplied matched measurements, apply [observation-windows.md](observation-windows.md)
+and [sales-evidence.md](sales-evidence.md); do not insert them into the public snapshot.
 
 - Write the cited patterns first, and the headline and diagnosis last. Build each summary claim
   about post patterns only from those checked patterns: preserve the same content examples,
@@ -67,7 +87,7 @@ Read [observation-windows.md](observation-windows.md) before assigning claim typ
   `performance_association` only for supported comparable measurements (unavailable from the public
   cumulative snapshot), or `hypothesis` for a
   clearly labelled proposed explanation to test. Young posts may support wording observations and
-  tests, but not established performance patterns. The composer checks the declared comparisons;
+  tests, but public cumulative counts never establish performance patterns, even for mature posts. The composer checks the declared comparisons;
   it does not understand free-text claims, so check the title and explanations before delivery.
   Check observation windows as well as every cited post's maturity before choosing a performance association. If one is too young,
   remove the performance conclusion or use supported measurements; changing only `claim_type` while
@@ -77,7 +97,7 @@ Read [observation-windows.md](observation-windows.md) before assigning claim typ
   current count and insufficient age together, without using the count as support for weakness.
   Summaries must inherit these limits; do not compress mixed evidence into a claim that a whole
   content style underperforms. Each example mentioned in an explanation must appear in its cited IDs.
-  Select eligible same-format examples before drafting performance sections. Keep any young or
+  Select same-format examples for descriptive sections; maturity alone never permits performance judgments. Keep any young or
   age-unknown example in a separate current-observation statement: publication date, current count
   and the missing comparable exposure window. Do not place it beside an older post's count or the
   mature median as evidence for a stronger/weaker style, even in an optional recommendation.

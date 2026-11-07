@@ -137,7 +137,8 @@ command again while it runs.
    before the synthesis, as `references/growth-estimation.md` says. Any growth figure in the
    synthesis is one that command printed.
 
-3. **Synthesis.** Read `references/synthesis-authoring.md` whole, then write one
+3. **Synthesis.** Read `references/synthesis-authoring.md` whole. Apply its public-snapshot
+   branch even to mature posts: observations and proposed tests, not performance winners/losers. Write one
    `account-review-synthesis.v3` object and compose in the same call:
 
    ```sh
