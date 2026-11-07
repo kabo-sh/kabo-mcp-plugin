@@ -109,7 +109,8 @@ def capture(call):
     text=out.getvalue()
     assert text.count("KABO_FINAL_REPLY_BEGIN") == text.count("KABO_FINAL_REPLY_END") == 1, text
     assert text.split("KABO_FINAL_REPLY_BEGIN\n",1)[1].split("\nKABO_FINAL_REPLY_END",1)[0] == body.rstrip()
-    assert text.rstrip().endswith("creator_report: " + str(Path("report/ACCOUNT_REVIEW.md").resolve()))
+    assert "creator_report: " + str(Path("report/ACCOUNT_REVIEW.md").resolve()) in text
+    assert "validate_delivery.py" in text and "--reply-file reply.md" in text
 capture(lambda: drive.stage_report(SimpleNamespace(output_dir="report",allow_authoring_correction=True)))
 assert checks == ["validate_artifacts.py","validate_creator_report.py"]
 capture(lambda: drive.stage_verify_report(SimpleNamespace(output_dir="report")))

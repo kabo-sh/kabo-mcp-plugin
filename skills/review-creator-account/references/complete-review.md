@@ -136,6 +136,10 @@ insufficient.
   `KABO_FINAL_REPLY_END`, including an idempotent verification of an already finalized report.
   Relay that body in full; a report link or a rewritten diagnosis is not delivery. Preserve the
   cited evidence, adjacent limits and success criteria as well as the headings.
+  The printed delivery-check command compares the final draft with the report's rendered semantic
+  strings, citations and numbers, allowing translation of fixed labels. It does not judge new
+  claims or replace either report validator. Correct only the reply draft when content is missing;
+  the validated research artifacts remain unchanged.
 
 ## Corrections and closed runs
 

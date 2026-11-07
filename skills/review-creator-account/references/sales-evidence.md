@@ -24,7 +24,7 @@ Calculate every displayed derived rate and change with a local arithmetic tool b
 including optional totals. Copy the verified values; check percentage scaling and consistency
 between linked transition rates and the overall rate. Keep undefined or unknown results explicit.
 Check counts and differences in prose too: the number that did not convert in one period is not
-the number of additional losses compared with the other period. State the denominator and unit.
+the number of additional losses compared with the other period. State the denominator and unit. When describing non-converters, distinguish the original cohort size from its non-converting subset; do not make that subset the denominator again.
 An aggregate difference does not identify particular customers or unpaid orders. Request the
 actual inquiry/order records for investigation; do not invent a list of missing transactions.
 

@@ -692,12 +692,17 @@ def emit_final_report(report: Path) -> None:
     say("KABO_FINAL_REPLY_BEGIN")
     say(report.read_text(encoding="utf-8").rstrip())
     say("KABO_FINAL_REPLY_END")
-    say("Delivery: the entire body between these markers is your final answer, not material for a summary. "
+    say("Delivery: the entire body between these markers is your reply draft, not material for a summary. "
         "Preserve every paragraph, section, cited example, metric and adjacent limitation, and every "
         "recommendation's success criterion. Translate only the fixed labels/metric descriptions "
         "that are not in the creator's language; do not rewrite the authored prose. "
-        "Check each section and citation is present before sending. Omit the markers, then end with:")
+        "Omit the markers, then end with:")
     say(f"creator_report: {report}")
+    say("Before sending, write the complete reply draft to reply.md and run: "
+        f"python3 '{Path(__file__).with_name('validate_delivery.py')}' "
+        f"--report-dir '{report.parent}' --reply-file reply.md")
+    say("If it reports omissions, restore them in reply.md only. Once ready_to_send, "
+        "send that entire checked draft unchanged; do not write another summary.")
 
 
 def stage_report(args: argparse.Namespace) -> None:
