@@ -27,6 +27,7 @@ with tempfile.TemporaryDirectory() as temp:
     cmd=[sys.executable,str(Path(sys.argv[1])/'validate_delivery.py'),'--report-dir',temp,'--reply-file','-']
     good=subprocess.run(cmd,input=localized,text=True,capture_output=True)
     assert good.returncode == 0 and json.loads(good.stdout)['status']=='ready_to_send',good.stdout
+    assert json.loads(good.stdout)['final_reply'] == localized, 'the last step must hand back the full text, not only a status/path'
     bad=subprocess.run(cmd,input=report['diagnosis'],text=True,capture_output=True)
     assert bad.returncode == 1 and json.loads(bad.stdout)['status']=='needs_revision',bad.stdout
     assert before == (md.read_bytes(),js.read_bytes()), 'checking replies must not edit sources'

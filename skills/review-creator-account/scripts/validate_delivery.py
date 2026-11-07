@@ -83,7 +83,8 @@ def main() -> int:
                           "next_action": "Restore the omitted report content in this reply draft only and check again. Do not edit the validated report or run another review."}, ensure_ascii=False))
         return 1
     print(json.dumps({"status": "ready_to_send", "reply_sha256": hashlib.sha256(reply.encode()).hexdigest(),
-                      "next_action": "Send this entire checked draft unchanged now. Do not compose a shorter answer. This checks delivery completeness, not the truth of new claims."}, ensure_ascii=False))
+                      "next_action": "The final_reply below is the complete reply to send now. Copy every section and paragraph, not a summary or report link. Do not re-synthesize. This checks delivery completeness, not the truth of new claims.",
+                      "final_reply": reply}, ensure_ascii=False))
     return 0
 
 

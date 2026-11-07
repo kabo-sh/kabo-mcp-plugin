@@ -32,12 +32,12 @@ Different period lengths, cohort ages or attribution windows require alignment b
 raw totals a decline. Dividing by days alone does not repair different attribution. Explain what
 must be matched and what remains descriptive. Even aligned funnel changes identify where a loss
 appears, not whether price, customer service, creative or an algorithm caused it. Give testable
-hypotheses and the observation that would distinguish them.
+hypotheses and the observation that would distinguish them. Recovery after changing several factors at once does not establish which caused the original drop; never turn that test into a definitive if/then diagnosis.
 Check observation duration and attribution duration as two separate dimensions before calculating
 cross-period changes. If either differs, state each period's supplied duration for both dimensions
 in the answer, identify every mismatch, and request matched windows before judging the change.
-Do not stop after noticing the first mismatch. Unknown durations remain unknown; do not assume
-alignment. Equal declared windows need no extra confirmation. For posts, also check elapsed time
+Do not stop after noticing the first mismatch. While either window is unmatched, do not use equal raw totals to rule out an upstream problem or unequal rates to locate the loss; show those as descriptive values only until both windows are aligned. Unknown durations remain unknown; do not assume
+alignment. Accept an explicit supplied assumption of the same measurement and attribution basis for linked cohorts; do not re-label it unknown just because a separate duration in days was not repeated. Clarify only a missing or contradictory comparison basis. Equal declared windows need no extra confirmation. For posts, also check elapsed time
 since publication: a recent post's cumulative count cannot rank its quality against an older post.
 
 A supplied narrow funnel question can be answered from that table without fetching public history
