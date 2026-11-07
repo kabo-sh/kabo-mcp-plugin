@@ -2,6 +2,10 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.25（2026-11-07；GitHub Release）
+
+- `analyze-content-video`：`collect_media.py` 的交接改成和其他 Skill 的 `connector_driver.py` 同一种写法：槽位行带编号（`result 01  (fallback file…)`），续跑命令不带 `KABO_STATIC_RUN_DIR=…` 前缀（run 从当前目录找到）。Web 宿主按这种写法认出交接，自己调用 `collect_video_media`、把结果写进槽位并续跑，模型不再经手暂存。以前宿主认不出，交接落到模型手里：pre M3b、M4c、M5a 的 Instagram Reel 诊断都在暂存这一步失手，M5a 失败一次后直接放弃、没交正式报告。
+
 ## 1.0.24（2026-11-06；GitHub Release）
 
 - `analyze-content-video`：最终数字核对把带小数秒的时间点（`0:07.866`、`0:08.366–0:09.366`）整体当时间。以前只剥掉 `0:07`，剩下的 `.866` 被当成证据里找不到的数字，整份报告被拒。Web pre 复测（M4c）和插件复测的 Instagram Reel 诊断都停在这一步；同一份运行目录换上修复后，完整通过最终检查。
