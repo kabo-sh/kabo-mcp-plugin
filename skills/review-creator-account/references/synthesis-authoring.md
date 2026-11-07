@@ -45,6 +45,8 @@ the report or profile schemas once the compact input exists. `scope.user_questio
 
 ## Evidence boundary
 
+Read [observation-windows.md](observation-windows.md) before assigning claim types.
+
 - Write the cited patterns first, and the headline and diagnosis last. Build each summary claim
   about post patterns only from those checked patterns: preserve the same content examples,
   maturity limits and claim type. Do not add another post category while shortening the answer,
@@ -62,12 +64,13 @@ the report or profile schemas once the compact input exists. `scope.user_questio
   cumulative count cannot establish weak content; a young high outlier does not prove effectiveness
   either. The cutoff gives minimum-age eligibility, not identical exposure ages or causal evidence.
 - Declare each pattern's `claim_type`: `public_observation` for bounded wording/count descriptions,
-  `performance_association` for mature same-format baseline comparisons, or `hypothesis` for a
+  `performance_association` only for supported comparable measurements (unavailable from the public
+  cumulative snapshot), or `hypothesis` for a
   clearly labelled proposed explanation to test. Young posts may support wording observations and
   tests, but not established performance patterns. The composer checks the declared comparisons;
   it does not understand free-text claims, so check the title and explanations before delivery.
-  Check every cited post's maturity before choosing a performance association. If one is too young,
-  remove the performance conclusion or choose eligible evidence; changing only `claim_type` while
+  Check observation windows as well as every cited post's maturity before choosing a performance association. If one is too young,
+  remove the performance conclusion or use supported measurements; changing only `claim_type` while
   keeping the same unsupported conclusion is not a correction.
   Do not compare an ineligible post's cumulative views with the mature median even inside a
   hypothesis: a hypothesis label does not make exposure ages comparable. Describe its wording,
@@ -108,17 +111,19 @@ the report or profile schemas once the compact input exists. `scope.user_questio
 - Describe baseline eligibility with `scope.baseline_maturity`: its anchor, per-format cutoff and
   inclusive convention. `maturity_days: 14` means day 14 counting the publication day as day one,
   so the cutoff is 13 elapsed days before the anchor, not 14 full days. Use the supplied cutoff or
-  say "comparable mature posts" in the delivery language; never change the sample or recompute a
+  say "posts meeting the minimum age" in the delivery language; never change the sample or recompute a
   stricter baseline to fit the wording.
 - When `scope.highest_view_multiple` is present, name that in-window post and say whether to adopt
-  it — topic, presentation, distribution or one-off event; adopt or not, and why. Do not treat the
+  it as a wording/content test, with its limitation: the snapshot multiple does not establish
+  effectiveness. Never justify adoption by that multiple. Do not treat the
   highest multiple as a post that must be copied. Tests return to the most valuable current
   hypothesis, not automatically to that post. Do not hard-code a format such as interviews.
-  Check its maturity and the format baseline's `metrics.views.available_n` first. If its age is
+  Check `scope.metric_comparison`, its maturity and the format baseline's `metrics.views.available_n` first. If its age is
   too recent or unknown, or fewer than three measured views support that baseline, name it only
   as a current observation, omit the multiple and withhold performance-based adoption; propose a
   wording test only on its own merits. The highest-multiple pointer does not override comparison
-  eligibility.
+  eligibility. Even a mature high-count post supports only a snapshot observation without measured
+  equal windows, not a stronger-content conclusion.
 - Growth figures, when present, are only those `drive.py growth` printed for this run.
 
 ## Recommendations

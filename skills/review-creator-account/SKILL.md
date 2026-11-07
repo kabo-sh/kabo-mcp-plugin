@@ -163,6 +163,8 @@ command again while it runs.
 
 ## Judgment rules
 
+- A maturity cutoff is not an equal observation window. Public cumulative rankings cannot establish
+  stronger content, a reach trend or a sales cause; follow `references/observation-windows.md`.
 - Compare only the same platform, format, maturity rule and compatible metric semantics; keep sample
   size with every baseline and outlier, and YouTube format confidence and source with every baseline
   and example (a duration-only class is provisional).
