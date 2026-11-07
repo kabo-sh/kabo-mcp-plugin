@@ -699,12 +699,6 @@ def emit_final_report(report: Path) -> None:
         "recommendation's success criterion. Translate only the fixed labels/metric descriptions "
         "that are not in the creator's language; do not rewrite the authored prose. "
         "Check each section and citation is present before sending. Omit the markers, then end with:")
-    say("Final-reply checklist: " + json.dumps({
-        "sections": [line for line in body.splitlines() if re.match(r"^#{1,6}\s+\S", line)],
-        "cited_examples": len(re.findall(r"\]\(https?://[^\s)]+\)", body)),
-        "retain": "Account identity, sample/window, metric snapshot and adjacent limits; every pattern and cited example; every action and success criterion. All are required in the actual final message, not only in the saved file.",
-        "last_step": "Relay every section of the marked body now. Keep the full report even when it is longer than a typical chat reply. Do not replace it with selected highlights or a summary."
-    }, ensure_ascii=False))
     say(f"creator_report: {report}")
 
 
