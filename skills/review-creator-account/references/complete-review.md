@@ -132,6 +132,10 @@ insufficient.
   must pass before the result is presented. When no `needs_revision` came back earlier in this
   run, `report` says the report is final and is the final step; after a correction,
   `verify-report` reruns both on the existing bytes as the final step. Do not run them by hand.
+- The final step prints the complete validated body between `KABO_FINAL_REPLY_BEGIN` and
+  `KABO_FINAL_REPLY_END`, including an idempotent verification of an already finalized report.
+  Relay that body in full; a report link or a rewritten diagnosis is not delivery. Preserve the
+  cited evidence, adjacent limits and success criteria as well as the headings.
 
 ## Corrections and closed runs
 

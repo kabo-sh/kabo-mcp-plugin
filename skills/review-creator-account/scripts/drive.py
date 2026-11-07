@@ -687,6 +687,19 @@ def preflight_report_sources(analysis: dict[str, Any], snapshot: dict[str, Any],
                           Path(QUESTION).read_text(encoding="utf-8"))
 
 
+def emit_final_report(report: Path) -> None:
+    # 最后一步交付完整已校验正文，避免模型把文件路径或开头诊断当作完整答案。
+    say("KABO_FINAL_REPLY_BEGIN")
+    say(report.read_text(encoding="utf-8").rstrip())
+    say("KABO_FINAL_REPLY_END")
+    say("Delivery: the entire body between these markers is your final answer, not material for a summary. "
+        "Preserve every paragraph, section, cited example, metric and adjacent limitation, and every "
+        "recommendation's success criterion. Translate only the fixed labels/metric descriptions "
+        "that are not in the creator's language; do not rewrite the authored prose. "
+        "Check each section and citation is present before sending. Omit the markers, then end with:")
+    say(f"creator_report: {report}")
+
+
 def stage_report(args: argparse.Namespace) -> None:
     require_open_reservation(Path.cwd())
     current = cd.state()
@@ -777,10 +790,10 @@ def stage_report(args: argparse.Namespace) -> None:
         # 不含 needs_revision 字样：这里报告已通过校验，只是还差最终复核。
         say("[drive] an earlier report in this run asked for author corrections, so this one is "
             "non-final: run drive.py verify-report as the final step.")
-    say(report.read_text(encoding="utf-8").rstrip())
-    if final:
-        # 交付方式紧跟报告打印：实测里短问题的回复常被模型改写成摘要。
-        say('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says), then this creator_report line.')
+    if final or getattr(args, "verify_existing", False) is True:
+        emit_final_report(report)
+    else:
+        say(report.read_text(encoding="utf-8").rstrip())
 
 
 def close_unwrapped_reservation() -> None:
@@ -855,6 +868,7 @@ def stage_verify_report(args: argparse.Namespace) -> None:
         say(f"creator_report: {report}")
         say("[drive] report already finalized this run; nothing was re-run. "
             "Deliver ACCOUNT_REVIEW.md as printed by report.")
+        emit_final_report(report)
         return
     stage_report(args)
     close_unwrapped_reservation()
