@@ -6,6 +6,17 @@ or desired audience action required by the native direct-selection builder.
 Reuse established conversation facts first. An account handle or a request to
 write about an unspecified product is not a concrete topic.
 
+A request to propose one specific next video from an account and reference post can use this
+route when their actual content is available. Propose an angle grounded in that evidence and
+deliver the requested title, opening, screen text and beat plan; do not require a prior topic
+selection or pretend the proposed angle was already approved. Without usable source content,
+ask for the missing transcript, script or content summary rather than guessing from the handle
+or view count, then end this Skill invocation. If analysis for that URL is already pending or
+terminal retrieval failure is recorded, state that status without suggesting a duplicate run.
+Otherwise, a closing suggestion may name `analyze-content-video` to analyze the supplied URL;
+do not invoke it or include a return-here step.
+Read [personal-facts.md](personal-facts.md) for facts and names on every copy surface.
+
 A sequel needs the actual previous episode, not just its topic. Apply
 [source-adaptation.md](source-adaptation.md) first when the user requests a
 continuation; the creative-draft permission here does not authorize inventing
