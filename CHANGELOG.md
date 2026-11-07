@@ -2,6 +2,13 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.26（2026-11-07；GitHub Release）
+
+- `develop-content-ideas`：沿用对话里可见的上下文（已选机制、同款变体、续集源），不改写用户原始请求；保留诊断信息（#89）。
+- `create-script-and-packaging`：续写/续集先确认已发布源再写，保留引用与媒体交付要求，交付前核对连续性（#94）。
+- `review-creator-account`：报告带证据时间与样本口径，销售/转化结论按实测样本收敛，观测窗口对齐（#110）。
+- Reel 分流与个人事实：原片口播类请求走脚本包装；未经确认的姓名、年限等个人事实不再写进脚本（#129）。
+
 ## 1.0.25（2026-11-07；GitHub Release）
 
 - `analyze-content-video`：`collect_media.py` 的交接改成和其他 Skill 的 `connector_driver.py` 同一种写法：槽位行带编号（`result 01  (fallback file…)`），续跑命令不带 `KABO_STATIC_RUN_DIR=…` 前缀（run 从当前目录找到）。Web 宿主按这种写法认出交接，自己调用 `collect_video_media`、把结果写进槽位并续跑，模型不再经手暂存。以前宿主认不出，交接落到模型手里：pre M3b、M4c、M5a 的 Instagram Reel 诊断都在暂存这一步失手，M5a 失败一次后直接放弃、没交正式报告。
