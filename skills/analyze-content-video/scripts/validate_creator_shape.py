@@ -186,7 +186,10 @@ FIGURE = re.compile(
 # A clock is not a figure the creator stands behind, and splitting one produces two that nobody
 # wrote: `14:00` yields `14` and `00`. Hours are governed by the block rules above, which already
 # know a time range from a UTC offset, so times are lifted out before figures are read.
-CLOCK = re.compile(r"\d{1,2}:\d{2}(?::\d{2})?")
+# A timestamp may carry fractional seconds (0:07.866, or 0:07,866 as subtitles write it): the whole
+# clock is a position, not a figure. A comma takes at most three digits, so "0:07,8661" stays a
+# list; after a dot every digit belongs to the seconds.
+CLOCK = re.compile(r"\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+|,\d{1,3}(?!\d))?")
 # A scaled figure in the source must stand on its own: nothing alphanumeric right before the
 # number or right after the unit. Without that, "5 billionaires" reads as five billion and an
 # identifier fragment such as "-5b2e" in a UUID or "c5b3" in a hash reads as 5B, and either would

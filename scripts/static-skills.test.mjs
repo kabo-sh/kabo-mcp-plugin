@@ -263,6 +263,26 @@ print(json.dumps({
   assert.deepEqual(out.dotted_ref, []);
 });
 
+// 带小数秒的时间点（0:07.866、0:08.366–0:09.366）是位置，不是数字；以前只把 0:07 当时间剥掉，剩下 .866 被判成编造。
+// 2026-11-06 Web pre 与插件复测的 Instagram Reel 诊断都停在这一步。
+test("ACV 数字核对把带小数秒的时间点整体当时间，不拆出小数", () => {
+  const probe = `
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from validate_creator_shape import figure_errors, source_values
+values = source_values({"frames": [{"t_seconds": 7.866}]})
+print(json.dumps({
+    "fraction": figure_errors({"cards": [{"why_for_you": "0:07.866: a back pose; 0:08.366–0:09.366: the approach; 00:00:07,866 in subtitles; 0:07.8667 from a frame"}]}, values),
+    "figure_after": figure_errors({"cards": [{"why_for_you": "0:07.8667: 3.5x more likes"}]}, values),
+}))
+`;
+  const scripts = path.join(import.meta.dirname, "..", "skills", "analyze-content-video", "scripts");
+  const out = JSON.parse(execFileSync("python3", ["-I", "-B", "-c", probe, scripts], { encoding: "utf8" }));
+  assert.deepEqual(out.fraction, []);
+  assert.equal(out.figure_after.length, 1);
+  assert.match(out.figure_after[0], /states 3\.5/);
+});
+
 // 播放量按有效数字取整（"1800 万"、"1.8千万"）或截断（"2.6M+"）是正常写法，不能判成编造；
 // 小数字、只剩一位有效数字的整数和取整方向错的写法仍要拦。2026-11-06 生产 Web 视频分析在最终校验被拒的就是这种缩写。
 test("ACV 数字核对接受按有效数字取整或截断的大计数，小数字仍按原规则", () => {
