@@ -9,11 +9,12 @@ test("account review preserves age evidence and rejects unsupported declared com
   const result = spawnSync("python3", ["-c", String.raw`
 import copy, sys, unittest
 sys.path.insert(0, sys.argv[1])
-from evidence_context import baseline_maturity_context, content_maturity
+from evidence_context import baseline_maturity_context, content_maturity, maturity_by_format
 from build_synthesis_input import build
 from compose_review import compose, evidence_line, TEXT
-from synthesis_authoring import validate_authoring, AuthoringError
+from synthesis_authoring import validate_authoring, AuthoringError, pattern_evidence_issues
 from validate_artifacts import validate
+from account_analyzers import adapt_snapshot
 
 def fixture():
     rows = [dict(content_id=cid, title=cid, url='https://example.com/'+cid,
@@ -54,6 +55,8 @@ class EvidenceTests(unittest.TestCase):
         for source, projected in zip(a['rankings'],result['content']):
             for key in ['content_id','metrics','rank_by_views','view_multiple_vs_format_median']:
                 self.assertEqual(source[key],projected[key])
+        self.assertFalse(result['scope']['metric_comparison']['equal_observation_windows_verified'])
+        self.assertEqual(result['scope']['metric_comparison']['basis'],'cumulative_public_snapshot')
         self.assertEqual(result['content'][0]['baseline_maturity'],'too_recent')
         self.assertEqual(result['content'][0]['duration_seconds'],20)
         self.assertEqual(result['scope']['highest_view_multiple']['published_at'],'2026-10-01T00:00:00Z')
@@ -67,10 +70,12 @@ class EvidenceTests(unittest.TestCase):
             self.assertEqual(report['what_hurts'][0]['examples'][0]['baseline_maturity'],'too_recent')
             example=report['what_hurts'][0]['examples'][0]
             self.assertNotIn(TEXT['multiple'].format(value=example['view_multiple_vs_format_median']),evidence_line(example,view_sample_size=5))
-    def test_young_comparison_rejected_and_mature_allowed(self):
+    def test_public_maturity_does_not_establish_equal_windows(self):
         a=fixture()
         with self.assertRaises(AuthoringError): validate_authoring(a,synthesis(['young'],'performance_association'))
-        validate_authoring(a,synthesis(['mature'],'performance_association'))
+        with self.assertRaisesRegex(AuthoringError,'equal observation windows'):
+            validate_authoring(a,synthesis(['mature'],'performance_association'))
+        validate_authoring(a,synthesis(['mature'],'public_observation'))
         with self.assertRaises(AuthoringError): validate_authoring(a,synthesis(['mature','other'],'performance_association'))
     def test_no_format_baseline_is_unknown(self):
         a=fixture();a['baselines']=[]
@@ -91,9 +96,50 @@ class EvidenceTests(unittest.TestCase):
         self.assertNotIn(TEXT['multiple'].format(value=2),markdown)
         self.assertEqual(report['what_hurts'][0]['examples'][0]['view_multiple_vs_format_median'],2)
         a['baselines'][0]['metrics']['views']['available_n']=3
-        validate_authoring(a,synthesis(['mature'],'performance_association'))
-        _,_,markdown=compose(a,synthesis(['mature'],'performance_association'))
+        with self.assertRaisesRegex(AuthoringError,'equal observation windows'):
+            validate_authoring(a,synthesis(['mature'],'performance_association'))
+        validate_authoring(a,synthesis(['mature'],'public_observation'))
+        _,_,markdown=compose(a,synthesis(['mature'],'public_observation'))
         self.assertIn(TEXT['multiple'].format(value=2),markdown)
+    def test_limits_cannot_be_overridden_by_authored_scope(self):
+        a=fixture();a['scope']['metric_comparison']={'equal_observation_windows_verified':True}
+        self.assertFalse(build(a)['scope']['metric_comparison']['equal_observation_windows_verified'])
+        with self.assertRaisesRegex(AuthoringError,'equal observation windows'):
+            validate_authoring(a,synthesis(['mature'],'performance_association'))
+    def test_mature_snapshot_still_delivers_with_adjacent_limit(self):
+        a=fixture();s=synthesis(['mature']);r,p,markdown=compose(a,s)
+        validate(a,s,r,p)
+        self.assertIn('not an equal-age performance comparison',markdown)
+        self.assertIn('## Questions to test',markdown)
+        self.assertNotIn('## What is holding the account back',markdown)
+        self.assertEqual(r['what_hurts'][0]['examples'][0]['metrics']['views'],200)
+        self.assertEqual(r['what_hurts'][0]['examples'][0]['view_multiple_vs_format_median'],2)
+        s['output_language']='zh-CN'
+        _,_,localized=compose(a,s)
+        self.assertIn('不是同发布时长',localized)
+    def test_original_age_format_and_sample_guards_are_preserved(self):
+        a=fixture();policies=maturity_by_format(a)
+        check=lambda ids:pattern_evidence_issues(a['rankings'],policies,synthesis(ids,'performance_association'),a['baselines'])
+        self.assertTrue(check(['young']))
+        self.assertTrue(check(['mature','other']))
+        self.assertEqual(check(['mature']),[])
+        a['baselines'][0]['metrics']['views']['available_n']=2
+        self.assertTrue(check(['mature']))
+    def test_public_snapshot_cannot_masquerade_as_owner_evidence(self):
+        a=fixture()
+        snapshot=dict(schema_version='public-content-snapshot.v1',snapshot_id='s',platform='tiktok',
+            observed_at=a['scope']['observed_at'],scope={'window':a['scope']['window']},
+            creators=[{'creator_id':'c','handle':'test'}],source={},
+            items=[{**r,'creator_id':'c'} for r in a['rankings']])
+        meta,_=adapt_snapshot(snapshot)
+        self.assertEqual(meta['source_mode'],'public')
+        for mode in ['owner_export','owner_oauth',None,3]:
+            snapshot['source']['source_mode']=mode
+            with self.assertRaisesRegex(ValueError,'requires a public source_mode'):
+                adapt_snapshot(snapshot)
+        snapshot['source']['source_mode']='public_only'
+        meta,_=adapt_snapshot(snapshot)
+        self.assertEqual(meta['source_mode'],'public_only')
     def test_unknown_ids_or_missing_claim_type_fail(self):
         a=fixture()
         with self.assertRaises(AuthoringError):validate_authoring(a,synthesis(['missing']))
@@ -104,7 +150,7 @@ class EvidenceTests(unittest.TestCase):
         r['what_hurts'][0]['examples'][0]['baseline_maturity']='mature'
         with self.assertRaisesRegex(ValueError,'altered evidence age'):validate(a,s,r,p)
     def test_valid_source_row_cannot_replace_authored_citation(self):
-        a=fixture();s=synthesis(['mature'],'performance_association');r,p,_=compose(a,s)
+        a=fixture();s=synthesis(['mature'],'public_observation');r,p,_=compose(a,s)
         young,_,_=compose(a,synthesis(['young']))
         r['what_hurts'][0]['examples']=young['what_hurts'][0]['examples']
         with self.assertRaisesRegex(ValueError,'examples differ from synthesis citations'):validate(a,s,r,p)

@@ -30,20 +30,43 @@ the report or profile schemas once the compact input exists. `scope.user_questio
   rewrite it as a new positioning.
 - The ruler follows the question. If they asked about conversion or whether the audience is right,
   a high view multiple is not "what works". If they asked whether to post as-is or change first and
-  every post is low-view, you may place relative interaction next to views; do not change the global
-  winner formula. If they named a handle and asked why followers dropped or where the funnel
-  breaks, rank from the public recent window first; never deliver a generic checklist.
+  the snapshot counts are small, you may describe interaction alongside views without inferring
+  performance. If they named a handle and asked why followers dropped or where the funnel breaks,
+  use the public recent window for concrete observations and proposed tests, not a ranking of causes.
 - An own-account search or category wording audit compares the intended niche with the real
   biography, caption phrases and hashtags of this run. Obtain missing history with the retrieval
   rules; trends cannot replace it. Separate **observed account wording** from **heuristic
   descriptor tests**: test one wording variable without claiming search volume, ranking benefit or
   internal platform classification. Final copy for a post requires its topic or draft.
-- If the user only asked to review the account, use the default shape: what the public sample
-  shows is working, what is dragging, and one next-cycle plan. Still use biography and follower
+- If the user only asked to review the account, use the default shape: observed content assets,
+  questions to test, and one next-cycle plan. Still use biography and follower
   count from `scope` when present; do not invent a second profile paragraph — the Composer already
   attaches the public bio and follower line.
 
 ## Evidence boundary
+
+When `scope.metric_comparison.basis` is `cumulative_public_snapshot`, complete the review with
+**observations and proposed tests, not winners and losers**. All post counts in that input are
+cumulative snapshots. Maturity does not establish equal measurement windows. In every pattern,
+heading and recommendation:
+
+- Do not call a post/style stronger, weaker, effective or ineffective from its rank, count or
+  multiple, including mature posts. "The cause of its weak performance is unknown" still asserts
+  weak performance and is unsupported. A caveat beside or after that claim does not repair it.
+- Do not select a style to keep/copy/stop because its count is above/below the snapshot median.
+  Select useful wording assets and specific wording gaps from the actual captions; frame proposed
+  mechanisms as hypotheses. In this mode, `what_works` holds observed assets and `what_hurts` holds
+  questions to test, not established performance conclusions. Use neutral pattern headings.
+- If mentioning counts or ranks, label them current snapshot facts with unequal/unknown exposure
+  windows. They cannot establish a reach trend, eliminate reach as a problem or locate sales loss.
+  Different cumulative counts across posts are not evidence of fluctuating reach or attention.
+  State the unknown central outcome in the headline/diagnosis, then give useful content observations.
+- Use `public_observation` or `hypothesis`. Changing the claim type without removing the performance
+  conclusion is not a correction. Before delivery, read every heading and recommendation without
+  its caveats: remove any performance judgment unsupported by equal-window measurements.
+
+For separately supplied matched measurements, apply [observation-windows.md](observation-windows.md)
+and [sales-evidence.md](sales-evidence.md); do not insert them into the public snapshot.
 
 - Write the cited patterns first, and the headline and diagnosis last. Build each summary claim
   about post patterns only from those checked patterns: preserve the same content examples,
@@ -53,7 +76,7 @@ the report or profile schemas once the compact input exists. `scope.user_questio
   Separately supplied owner figures may support measured sales or funnel outcomes; identify their
   source and scope, and apply [sales-evidence.md](sales-evidence.md) to those claims.
 - For sales or conversion questions, apply [sales-evidence.md](sales-evidence.md). Public content
-  can reveal wording and observed reach, not which content sells. Put the unresolved sales premise
+  can reveal wording and current counts, not reach changes or which content sells. Put the unresolved sales premise
   in the headline/diagnosis themselves when it is central to the question; do not title the report
   with a sales conclusion and retract it below.
 - `scope.baseline_maturity` gives the actual anchor and per-format cutoff. Publication day counts
@@ -62,19 +85,20 @@ the report or profile schemas once the compact input exists. `scope.user_questio
   cumulative count cannot establish weak content; a young high outlier does not prove effectiveness
   either. The cutoff gives minimum-age eligibility, not identical exposure ages or causal evidence.
 - Declare each pattern's `claim_type`: `public_observation` for bounded wording/count descriptions,
-  `performance_association` for mature same-format baseline comparisons, or `hypothesis` for a
+  `performance_association` only for supported comparable measurements (unavailable from the public
+  cumulative snapshot), or `hypothesis` for a
   clearly labelled proposed explanation to test. Young posts may support wording observations and
-  tests, but not established performance patterns. The composer checks the declared comparisons;
+  tests, but public cumulative counts never establish performance patterns, even for mature posts. The composer checks the declared comparisons;
   it does not understand free-text claims, so check the title and explanations before delivery.
-  Check every cited post's maturity before choosing a performance association. If one is too young,
-  remove the performance conclusion or choose eligible evidence; changing only `claim_type` while
+  Check observation windows as well as every cited post's maturity before choosing a performance association. If one is too young,
+  remove the performance conclusion or use supported measurements; changing only `claim_type` while
   keeping the same unsupported conclusion is not a correction.
   Do not compare an ineligible post's cumulative views with the mature median even inside a
   hypothesis: a hypothesis label does not make exposure ages comparable. Describe its wording,
   current count and insufficient age together, without using the count as support for weakness.
   Summaries must inherit these limits; do not compress mixed evidence into a claim that a whole
   content style underperforms. Each example mentioned in an explanation must appear in its cited IDs.
-  Select eligible same-format examples before drafting performance sections. Keep any young or
+  Select same-format examples for descriptive sections; maturity alone never permits performance judgments. Keep any young or
   age-unknown example in a separate current-observation statement: publication date, current count
   and the missing comparable exposure window. Do not place it beside an older post's count or the
   mature median as evidence for a stronger/weaker style, even in an optional recommendation.
@@ -102,23 +126,25 @@ the report or profile schemas once the compact input exists. `scope.user_questio
   character from this run's `synthesis_input.content` after checking the associated title. Never
   reconstruct an ID from a title, URL, memory or a previous run; omit an uncertain reference rather
   than guess. Do not copy or recalculate metrics.
-- A `what_hurts` claim about weak performance must use below-baseline or bottom-ranked evidence.
-  Above-baseline content may support a positioning-dilution observation only when the text labels it
-  as strategic inconsistency rather than performance drag.
+- In a public snapshot, a `what_hurts` entry is a question to test from observed wording. A bottom
+  rank cannot establish weak performance; an above-baseline count cannot disprove a wording concern.
+  For separately supplied comparable measurements, keep any performance claim within their scope.
 - Describe baseline eligibility with `scope.baseline_maturity`: its anchor, per-format cutoff and
   inclusive convention. `maturity_days: 14` means day 14 counting the publication day as day one,
   so the cutoff is 13 elapsed days before the anchor, not 14 full days. Use the supplied cutoff or
-  say "comparable mature posts" in the delivery language; never change the sample or recompute a
+  say "posts meeting the minimum age" in the delivery language; never change the sample or recompute a
   stricter baseline to fit the wording.
 - When `scope.highest_view_multiple` is present, name that in-window post and say whether to adopt
-  it — topic, presentation, distribution or one-off event; adopt or not, and why. Do not treat the
+  it as a wording/content test, with its limitation: the snapshot multiple does not establish
+  effectiveness. Never justify adoption by that multiple. Do not treat the
   highest multiple as a post that must be copied. Tests return to the most valuable current
   hypothesis, not automatically to that post. Do not hard-code a format such as interviews.
-  Check its maturity and the format baseline's `metrics.views.available_n` first. If its age is
+  Check `scope.metric_comparison`, its maturity and the format baseline's `metrics.views.available_n` first. If its age is
   too recent or unknown, or fewer than three measured views support that baseline, name it only
   as a current observation, omit the multiple and withhold performance-based adoption; propose a
   wording test only on its own merits. The highest-multiple pointer does not override comparison
-  eligibility.
+  eligibility. Even a mature high-count post supports only a snapshot observation without measured
+  equal windows, not a stronger-content conclusion.
 - Growth figures, when present, are only those `drive.py growth` printed for this run.
 
 ## Recommendations

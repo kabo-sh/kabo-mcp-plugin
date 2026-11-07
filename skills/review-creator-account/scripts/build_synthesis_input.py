@@ -18,7 +18,7 @@ from json_io import load_complete_envelope, load_complete_object
 from public_identity import apply_identity, identity_from_envelope
 from prepare_hook_context import build_research_context_ref
 from account_analyzers import parse_time
-from evidence_context import baseline_maturity_context, maturity_by_format, evidence_age
+from evidence_context import baseline_maturity_context, maturity_by_format, evidence_age, public_snapshot_comparison
 
 
 SCHEMA_VERSION = "account-review-synthesis-input.v1"
@@ -232,6 +232,9 @@ def build(
         "claim_boundary": compact(analysis["claim_boundary"]),
     }
     scope = dict(result.get("scope") or {})
+    comparison = public_snapshot_comparison(analysis)
+    if comparison:
+        scope["metric_comparison"] = comparison
     maturity = baseline_maturity_context(analysis)
     if maturity:
         scope["baseline_maturity"] = maturity

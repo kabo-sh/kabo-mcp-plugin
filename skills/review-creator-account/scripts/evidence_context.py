@@ -53,3 +53,16 @@ def evidence_age(row: dict[str, Any], policies: dict[str, dict[str, Any]]) -> di
         "baseline_maturity": content_maturity(row["published_at"], policy),
         **({"baseline_cutoff_at": policy["cutoff_at"]} if policy else {}),
     }
+
+
+def public_snapshot_comparison(analysis: dict[str, Any]) -> dict[str, Any] | None:
+    """区分公开累计快照与等长观测，不从成熟门槛推定可比性。"""
+    if not analysis["source_mode"].startswith("public"):
+        return None
+    return {
+        "basis": "cumulative_public_snapshot",
+        "equal_observation_windows_verified": False,
+        "allowed": ["current_counts", "snapshot_ranks", "wording_observations", "testable_hypotheses"],
+        "not_supported": ["age_matched_performance", "content_quality_from_counts", "reach_trend", "sales_attribution"],
+        "reason": "Publication dates and minimum-age eligibility do not supply counts measured over equal post-publication windows.",
+    }

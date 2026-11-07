@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 sys.dont_write_bytecode = True
 from profile_contract import synthesis_schema
-from evidence_context import maturity_by_format, content_maturity
+from evidence_context import maturity_by_format, content_maturity, public_snapshot_comparison
 from account_analyzers import MIN_COMPARABLE_SAMPLES
 
 class AuthoringError(ValueError):
@@ -107,7 +107,12 @@ def validate_authoring(analysis: dict[str, Any], synthesis: Any) -> None:
             raise ValueError(f'synthesis {field} does not match analysis')
     issues=shape_issues(synthesis,synthesis_schema(),'synthesis')
     if issues:raise AuthoringError(issues)
-    issues = pattern_evidence_issues(analysis['rankings'], maturity_by_format(analysis), synthesis, analysis['baselines'])
+    if public_snapshot_comparison(analysis):
+        for kind in ('what_works', 'what_hurts'):
+            for n, row in enumerate(synthesis[kind]):
+                if row['claim_type'] == 'performance_association':
+                    issues.append({'path': f'synthesis.{kind}[{n}]', 'message': 'Public cumulative counts have no verified equal observation windows, even for mature posts. Remove the performance conclusion; use a bounded snapshot/wording observation or a testable hypothesis. Changing only claim_type does not repair unsupported prose.'})
+    issues += pattern_evidence_issues(analysis['rankings'], maturity_by_format(analysis), synthesis, analysis['baselines'])
     if issues:raise AuthoringError(issues)
 
 

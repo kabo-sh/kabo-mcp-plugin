@@ -45,7 +45,7 @@ TEXT = {
     "evidence_likes": ("{value} like", "{value} likes"),
     "evidence_comments": ("{value} comment", "{value} comments"),
     "evidence_interact": "{value:.2f}% interactions/view",
-    "multiple": "{value:.2f}x the creator's same-format median",
+    "multiple": "{value:.2f}x the creator's same-format snapshot median; cumulative-count ratio, not an equal-age performance comparison",
     "provisional_format": "short/long format inferred from duration, not a platform label",
     "published_at": "published {value}",
     "too_recent": "younger than the baseline cutoff {value}; cumulative counts are not an equal-age performance comparison",
@@ -67,7 +67,7 @@ ZH_TEXT = {
     "evidence_likes": ("{value} 个赞", "{value} 个赞"),
     "evidence_comments": ("{value} 条评论", "{value} 条评论"),
     "evidence_interact": "互动数 / 播放量 {value:.2f}%",
-    "multiple": "本人同格式中位数的 {value:.2f} 倍",
+    "multiple": "本人同格式快照中位数的 {value:.2f} 倍；累计量比例，不是同发布时长的表现比较",
     "provisional_format": "短/长视频格式按时长推断，并非平台标记",
     "published_at": TEXT["published_at"],
     "too_recent": TEXT["too_recent"],
@@ -489,7 +489,12 @@ def render_markdown(report: dict[str, Any], output_language: str = "en") -> str:
         lines += [f"## {status_text['title']}", "", status_text[platform], ""]
     view_counts = {row["format"]: row.get("metrics", {}).get("views", {}).get("available_n", 0)
                    for row in report["baselines"]}
-    for title, key in ((text["works"], "what_works"), (text["hurts"], "what_hurts")):
+    # 公开累计快照不证明内容优劣；固定章节标题也必须遵守相同边界。
+    if report["scope"].get("source_mode", "").startswith("public"):
+        headings = (("Public content observations", "what_works"), ("Questions to test", "what_hurts"))
+    else:
+        headings = ((text["works"], "what_works"), (text["hurts"], "what_hurts"))
+    for title, key in headings:
         rows = report[key]
         if not rows:
             continue

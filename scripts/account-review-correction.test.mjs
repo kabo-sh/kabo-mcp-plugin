@@ -70,4 +70,102 @@ test("改稿后同一条 report 命令能出报告：未过校验的报告被删
   assert.match(out, /creator_report: /);
   assert.match(out, /run drive\.py verify-report as the final step/);
   assert.match(out, /FINAL: False/);
+  assert.doesNotMatch(out, /KABO_FINAL_REPLY_BEGIN/);
+});
+
+test("初次最终交付、幂等复核与改稿后复核都交出完整正文，验证失败不能生成交付标记", async (t) => {
+  const run = await mkdtemp(path.join(os.tmpdir(), "kabo-acct-delivery-"));
+  t.after(() => rm(run, { recursive: true, force: true }));
+  const source = String.raw`
+import contextlib, hashlib, io, json, sys
+from pathlib import Path
+from types import SimpleNamespace
+sys.path.insert(0, sys.argv[1])
+import drive, connector_driver as cd
+Path(drive.ANALYSIS).write_text(json.dumps({"snapshot_id":"s", "rankings":[{"content_id":"c"}]}))
+Path(drive.SNAPSHOT).write_text(json.dumps({"schema_version":"public-content-snapshot.v1", "snapshot_id":"s", "items":[{"content_id":"c"}]}))
+Path(drive.SYNTHESIS).write_text("{}")
+drive.require_open_reservation = lambda directory: None
+drive.preflight_report_sources = lambda *a: None
+drive.validate_authoring = lambda *a: None
+drive.close_unwrapped_reservation = lambda: None
+cd.state = lambda: {"envelopes":[{"file":"snapshot/envelope-01.json"}]}
+checks=[]
+body="# Observations / 观察\n\nScope: cumulative counts, not equal-age performance.\n\n## Evidence\n\n[Example](https://example.com/post) (200 views; unequal windows)\n\n## Next step\n\nCompare matched periods. Success criterion: paid orders / inquiries.\n"
+fail=False
+def script(name, *args, show=False):
+    if name == "compose_review.py":
+        out=Path(args[args.index("--output-dir")+1]);out.mkdir(exist_ok=True)
+        for file in ("account_review.json","creator_profile.json"):(out/file).write_text("{}")
+        (out/"ACCOUNT_REVIEW.md").write_text(body)
+    else:
+        checks.append(name)
+        if fail:raise cd.StageError("validator rejected source binding")
+    return ""
+cd.script=script
+def capture(call):
+    out=io.StringIO()
+    with contextlib.redirect_stdout(out):call()
+    text=out.getvalue()
+    assert text.count("KABO_FINAL_REPLY_BEGIN") == text.count("KABO_FINAL_REPLY_END") == 1, text
+    assert text.split("KABO_FINAL_REPLY_BEGIN\n",1)[1].split("\nKABO_FINAL_REPLY_END",1)[0] == body.rstrip()
+    assert text.rstrip().endswith("creator_report: " + str(Path("report/ACCOUNT_REVIEW.md").resolve()))
+    assert "Final-reply checklist:" not in text, "do not leak an internal checklist into creator replies"
+    assert "validate_delivery.py" not in text, "delivery must not add a step after the existing final command"
+capture(lambda: drive.stage_report(SimpleNamespace(output_dir="report",allow_authoring_correction=True)))
+assert checks == ["validate_artifacts.py","validate_creator_report.py"]
+capture(lambda: drive.stage_verify_report(SimpleNamespace(output_dir="report")))
+assert len(checks) == 2, "cached verification must not rerun validators"
+drive.REPORT_FINAL_MARKER.unlink()
+drive.AUTHORING_CORRECTION_MARKER.write_text("needs_revision\n")
+capture(lambda: drive.stage_verify_report(SimpleNamespace(output_dir="report")))
+assert len(checks) == 4
+# 已结束运行的恢复只读已验证摘要对应字节，逐段拼回正文，不重跑校验或改状态。
+report = Path("report/ACCOUNT_REVIEW.md")
+before = (report.read_bytes(), drive.REPORT_FINAL_MARKER.read_bytes())
+parts=[];offset=0
+while True:
+    out=io.StringIO()
+    with contextlib.redirect_stdout(out):drive.read_final_report(SimpleNamespace(output_dir="report",offset=offset,limit=17))
+    chunk=json.loads(out.getvalue());parts.append(chunk["text"])
+    assert len(chunk["text"]) <= 17
+    offset=chunk["next_offset"]
+    if offset is None:break
+assert "".join(parts) == body
+assert before == (report.read_bytes(), drive.REPORT_FINAL_MARKER.read_bytes())
+assert len(checks) == 4
+for offset, limit in [(-1,17),(0,2049),(len(body)+1,17)]:
+    try:drive.read_final_report(SimpleNamespace(output_dir="report",offset=offset,limit=limit))
+    except cd.StageError:pass
+    else:raise AssertionError("invalid readback range accepted")
+report.write_text(body + "changed")
+try:drive.read_final_report(SimpleNamespace(output_dir="report",offset=0,limit=17))
+except cd.StageError:pass
+else:raise AssertionError("changed report accepted")
+report.write_text(body)
+# 改稿后关闭保留失败时，不得先发最终交付标记或路径。
+drive.REPORT_FINAL_MARKER.unlink()
+def fail_close():raise cd.StageError("manifest write failed")
+drive.close_unwrapped_reservation=fail_close
+out=io.StringIO()
+with contextlib.redirect_stdout(out):
+    try:drive.stage_verify_report(SimpleNamespace(output_dir="report"))
+    except cd.StageError:pass
+    else:raise AssertionError("reservation closure failure swallowed")
+assert "KABO_FINAL_REPLY_BEGIN" not in out.getvalue()
+assert "creator_report:" not in out.getvalue()
+assert not drive.REPORT_FINAL_MARKER.exists()
+drive.close_unwrapped_reservation=lambda: None
+fail=True
+out=io.StringIO()
+with contextlib.redirect_stdout(out):
+    try:drive.stage_verify_report(SimpleNamespace(output_dir="report"))
+    except cd.StageError:pass
+    else:raise AssertionError("failed validation must stop")
+assert "KABO_FINAL_REPLY_BEGIN" not in out.getvalue()
+`;
+  const result = spawnSync("python3", ["-c", source, scripts], {
+    cwd: run, encoding: "utf8", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1", KABO_STATIC_RUN_DIR: run },
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
 });
