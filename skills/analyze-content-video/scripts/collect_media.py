@@ -90,7 +90,10 @@ def resume_command(args: argparse.Namespace) -> str:
     run_directory = quote(str(static_host.run_dir()))
     argv = [str(SCRIPTS / "collect_media.py"), "--url", args.url, "--operations", ",".join(args.operations),
             "--max-frames", str(args.max_frames), "--placed"]
-    return (f"cd {run_directory} && KABO_STATIC_RUN_DIR={run_directory} python3 "
+    # 不带 KABO_STATIC_RUN_DIR=… 前缀：run 从当前目录找到（static_host.run_dir）。这一行和下面的槽位行与
+    # connector_driver.py 的交接同一种写法，Web 宿主（kabo-agent-service plugin-handover.ts）才认得出来、
+    # 自己调用并续跑；认不出时整段交接落到模型手里，模型常在暂存这一步失手（pre M3b/M4c/M5a）。
+    return (f"cd {run_directory} && python3 "
             + " ".join(quote(part) for part in argv) + " --id <id>")
 
 
@@ -110,7 +113,7 @@ def hand_over_media(args: argparse.Namespace, note: str = "") -> None:
         f"0 or you have made it {MAX_ROUNDS} times; only the last result counts. The media is not ready until this "
         f"script says so: the run is not over while jobs are running. " + SAVE_RULE)
     say("call: " + json.dumps({"tool": TOOL, "arguments": call_arguments(args)}, ensure_ascii=False))
-    say(f"  result  (fallback file, only if the result has no download url: {file})")
+    say(f"  result {file.name.split('-', 1)[0]}  (fallback file, only if the result has no download url: {file})")
     say("Then run this one command right away, <id> replaced by the last result's id (ids expire in 10 "
         "minutes): " + resume_command(args))
 
