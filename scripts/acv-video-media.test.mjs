@@ -125,3 +125,59 @@ test("collect_media.py：续跑时既没有结果编号、也没有暂存记录�
   assert.match(resumed.out, /no result for this hand-over/);
   assert.match(resumed.out, /static_host\.py stage --tool collect_video_media/);
 });
+
+// Web 宿主读交接的规则（kabo-agent-service src/tools/plugin-handover.ts 的 parsePluginHandover），照抄到这里：
+// 读得懂，宿主就自己调用、把原样结果写进槽位文件、按续跑命令接着跑，模型不用经手暂存。
+function hostHandover(stdout) {
+  const lines = stdout.split("\n");
+  const start = lines.findIndex((line) => line.startsWith("Hand-over: "));
+  if (start < 0) return null;
+  const words = (text) => {
+    const out = []; let i = 0;
+    while (i < text.length) {
+      if (text[i] === " ") { i += 1; continue; }
+      if (text[i] === "'") { const end = text.indexOf("'", i + 1); if (end < 0) return null; out.push(text.slice(i + 1, end)); i = end + 1; if (i < text.length && text[i] !== " ") return null; continue; }
+      let end = text.indexOf(" ", i); if (end < 0) end = text.length;
+      const word = text.slice(i, end); if (/["`\\]/.test(word)) return null; out.push(word); i = end;
+    }
+    return out;
+  };
+  const calls = [], files = []; let resume = null;
+  for (const line of lines.slice(start + 1)) {
+    const call = /^call: (\{.*\})\s*$/.exec(line);
+    if (call) { calls.push(JSON.parse(call[1])); continue; }
+    const slot = /^\s+result (\d+)\s+\(fallback file[^:]*: (\/\S+)\)\s*$/.exec(line);
+    if (slot) { if (files.length !== calls.length - 1) return null; files.push(slot[2]); continue; }
+    const tail = /^Then run this one command right away[^:]*\(ids expire[^)]*\): (.+)$/.exec(line);
+    if (tail) {
+      const w = words(tail[1].trim());
+      if (!w || w[0] !== "cd" || w[2] !== "&&" || w[3] !== "python3") return null;
+      const args = []; const rest = w.slice(5);
+      for (let k = 0; k < rest.length; k += 1) { if (rest[k] === "--id") { k += 1; continue; } args.push(rest[k]); }
+      resume = { cwd: w[1], script: w[4], args }; break;
+    }
+  }
+  return resume && calls.length && files.length === calls.length ? { calls, files, resume } : null;
+}
+
+test("collect_media.py 的交接是 Web 宿主读得懂的写法：宿主写入原样结果、不带编号续跑，就能拿到媒体", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
+  t.after(() => rm(workspace, { recursive: true, force: true }));
+  const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  const first = python("collect_media.py", ["--url", URL_, "--operations", "transcript,keyframes,measure"], { cwd: run, run });
+  assert.equal(first.code, 0, first.out);
+  const handover = hostHandover(first.out);
+  assert.ok(handover, first.out);
+  assert.equal(handover.calls.length, 1);
+  assert.equal(handover.resume.cwd, run);
+  assert.equal(path.basename(handover.resume.script), "collect_media.py");
+  assert.ok(!handover.resume.args.includes("<id>"));
+  // 宿主写的是研究工具的原样出参（没有 MCP 包装），续跑不带环境变量。
+  await writeFile(handover.files[0], JSON.stringify(composite(handover.calls[0].arguments)));
+  const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1" };
+  delete env.KABO_STATIC_RUN_DIR;
+  const resumed = spawnSync("python3", [handover.resume.script, ...handover.resume.args], { cwd: handover.resume.cwd, encoding: "utf8", env });
+  assert.equal(resumed.status, 0, resumed.stdout + resumed.stderr);
+  assert.match(resumed.stdout, /"status": "collected"/);
+  assert.equal(reads(resumed.stdout).length, 1);
+});
