@@ -109,8 +109,11 @@ def capture(call):
     text=out.getvalue()
     assert text.count("KABO_FINAL_REPLY_BEGIN") == text.count("KABO_FINAL_REPLY_END") == 1, text
     assert text.split("KABO_FINAL_REPLY_BEGIN\n",1)[1].split("\nKABO_FINAL_REPLY_END",1)[0] == body.rstrip()
-    assert "creator_report: " + str(Path("report/ACCOUNT_REVIEW.md").resolve()) in text
-    assert "validate_delivery.py" in text and "--reply-file reply.md" in text
+    assert text.rstrip().endswith("creator_report: " + str(Path("report/ACCOUNT_REVIEW.md").resolve()))
+    checklist = json.loads(next(line.removeprefix("Final-reply checklist: ") for line in text.splitlines() if line.startswith("Final-reply checklist: ")))
+    assert checklist["sections"] == ["# Observations / 观察", "## Evidence", "## Next step"]
+    assert checklist["cited_examples"] == 1
+    assert "validate_delivery.py" not in text, "delivery must not add a step after the existing final command"
 capture(lambda: drive.stage_report(SimpleNamespace(output_dir="report",allow_authoring_correction=True)))
 assert checks == ["validate_artifacts.py","validate_creator_report.py"]
 capture(lambda: drive.stage_verify_report(SimpleNamespace(output_dir="report")))

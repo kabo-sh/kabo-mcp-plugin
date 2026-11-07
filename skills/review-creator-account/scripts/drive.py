@@ -688,22 +688,24 @@ def preflight_report_sources(analysis: dict[str, Any], snapshot: dict[str, Any],
 
 
 def emit_final_report(report: Path) -> None:
-    """Hand off the validated full report and its read-only delivery check."""
+    """Hand the whole validated report to the host at the existing final step."""
     # 最后一步交付完整已校验正文，避免模型把文件路径或开头诊断当作完整答案。
+    body = report.read_text(encoding="utf-8").rstrip()
     say("KABO_FINAL_REPLY_BEGIN")
-    say(report.read_text(encoding="utf-8").rstrip())
+    say(body)
     say("KABO_FINAL_REPLY_END")
-    say("Delivery: the entire body between these markers is your reply draft, not material for a summary. "
+    say("Delivery: the entire body between these markers is your final answer, not material for a summary. "
         "Preserve every paragraph, section, cited example, metric and adjacent limitation, and every "
         "recommendation's success criterion. Translate only the fixed labels/metric descriptions "
         "that are not in the creator's language; do not rewrite the authored prose. "
-        "Omit the markers, then end with:")
+        "Check each section and citation is present before sending. Omit the markers, then end with:")
+    say("Final-reply checklist: " + json.dumps({
+        "sections": [line for line in body.splitlines() if re.match(r"^#{1,6}\s+\S", line)],
+        "cited_examples": len(re.findall(r"\]\(https?://[^\s)]+\)", body)),
+        "retain": "Account identity, sample/window, metric snapshot and adjacent limits; every pattern and cited example; every action and success criterion. All are required in the actual final message, not only in the saved file.",
+        "last_step": "Relay every section of the marked body now. Keep the full report even when it is longer than a typical chat reply. Do not replace it with selected highlights or a summary."
+    }, ensure_ascii=False))
     say(f"creator_report: {report}")
-    say("Before sending, write the complete reply draft to reply.md and run: "
-        f"python3 '{Path(__file__).with_name('validate_delivery.py')}' "
-        f"--report-dir '{report.parent}' --reply-file reply.md")
-    say("If it reports omissions, restore them in reply.md only. Once ready_to_send, "
-        "send that entire checked draft unchanged; do not write another summary.")
 
 
 def stage_report(args: argparse.Namespace) -> None:
