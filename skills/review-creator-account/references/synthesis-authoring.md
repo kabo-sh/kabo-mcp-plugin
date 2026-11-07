@@ -30,16 +30,16 @@ the report or profile schemas once the compact input exists. `scope.user_questio
   rewrite it as a new positioning.
 - The ruler follows the question. If they asked about conversion or whether the audience is right,
   a high view multiple is not "what works". If they asked whether to post as-is or change first and
-  every post is low-view, you may place relative interaction next to views; do not change the global
-  winner formula. If they named a handle and asked why followers dropped or where the funnel
-  breaks, rank from the public recent window first; never deliver a generic checklist.
+  the snapshot counts are small, you may describe interaction alongside views without inferring
+  performance. If they named a handle and asked why followers dropped or where the funnel breaks,
+  use the public recent window for concrete observations and proposed tests, not a ranking of causes.
 - An own-account search or category wording audit compares the intended niche with the real
   biography, caption phrases and hashtags of this run. Obtain missing history with the retrieval
   rules; trends cannot replace it. Separate **observed account wording** from **heuristic
   descriptor tests**: test one wording variable without claiming search volume, ranking benefit or
   internal platform classification. Final copy for a post requires its topic or draft.
-- If the user only asked to review the account, use the default shape: what the public sample
-  shows is working, what is dragging, and one next-cycle plan. Still use biography and follower
+- If the user only asked to review the account, use the default shape: observed content assets,
+  questions to test, and one next-cycle plan. Still use biography and follower
   count from `scope` when present; do not invent a second profile paragraph — the Composer already
   attaches the public bio and follower line.
 
@@ -59,6 +59,7 @@ heading and recommendation:
   questions to test, not established performance conclusions. Use neutral pattern headings.
 - If mentioning counts or ranks, label them current snapshot facts with unequal/unknown exposure
   windows. They cannot establish a reach trend, eliminate reach as a problem or locate sales loss.
+  Different cumulative counts across posts are not evidence of fluctuating reach or attention.
   State the unknown central outcome in the headline/diagnosis, then give useful content observations.
 - Use `public_observation` or `hypothesis`. Changing the claim type without removing the performance
   conclusion is not a correction. Before delivery, read every heading and recommendation without
@@ -75,7 +76,7 @@ and [sales-evidence.md](sales-evidence.md); do not insert them into the public s
   Separately supplied owner figures may support measured sales or funnel outcomes; identify their
   source and scope, and apply [sales-evidence.md](sales-evidence.md) to those claims.
 - For sales or conversion questions, apply [sales-evidence.md](sales-evidence.md). Public content
-  can reveal wording and observed reach, not which content sells. Put the unresolved sales premise
+  can reveal wording and current counts, not reach changes or which content sells. Put the unresolved sales premise
   in the headline/diagnosis themselves when it is central to the question; do not title the report
   with a sales conclusion and retract it below.
 - `scope.baseline_maturity` gives the actual anchor and per-format cutoff. Publication day counts
@@ -125,9 +126,9 @@ and [sales-evidence.md](sales-evidence.md); do not insert them into the public s
   character from this run's `synthesis_input.content` after checking the associated title. Never
   reconstruct an ID from a title, URL, memory or a previous run; omit an uncertain reference rather
   than guess. Do not copy or recalculate metrics.
-- A `what_hurts` claim about weak performance must use below-baseline or bottom-ranked evidence.
-  Above-baseline content may support a positioning-dilution observation only when the text labels it
-  as strategic inconsistency rather than performance drag.
+- In a public snapshot, a `what_hurts` entry is a question to test from observed wording. A bottom
+  rank cannot establish weak performance; an above-baseline count cannot disprove a wording concern.
+  For separately supplied comparable measurements, keep any performance claim within their scope.
 - Describe baseline eligibility with `scope.baseline_maturity`: its anchor, per-format cutoff and
   inclusive convention. `maturity_days: 14` means day 14 counting the publication day as day one,
   so the cutoff is 13 elapsed days before the anchor, not 14 full days. Use the supplied cutoff or
