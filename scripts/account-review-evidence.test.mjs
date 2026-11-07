@@ -14,6 +14,7 @@ from build_synthesis_input import build
 from compose_review import compose, evidence_line, TEXT
 from synthesis_authoring import validate_authoring, AuthoringError, pattern_evidence_issues
 from validate_artifacts import validate
+from account_analyzers import adapt_snapshot
 
 def fixture():
     rows = [dict(content_id=cid, title=cid, url='https://example.com/'+cid,
@@ -124,6 +125,21 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(check(['mature']),[])
         a['baselines'][0]['metrics']['views']['available_n']=2
         self.assertTrue(check(['mature']))
+    def test_public_snapshot_cannot_masquerade_as_owner_evidence(self):
+        a=fixture()
+        snapshot=dict(schema_version='public-content-snapshot.v1',snapshot_id='s',platform='tiktok',
+            observed_at=a['scope']['observed_at'],scope={'window':a['scope']['window']},
+            creators=[{'creator_id':'c','handle':'test'}],source={},
+            items=[{**r,'creator_id':'c'} for r in a['rankings']])
+        meta,_=adapt_snapshot(snapshot)
+        self.assertEqual(meta['source_mode'],'public')
+        for mode in ['owner_export','owner_oauth',None,3]:
+            snapshot['source']['source_mode']=mode
+            with self.assertRaisesRegex(ValueError,'requires a public source_mode'):
+                adapt_snapshot(snapshot)
+        snapshot['source']['source_mode']='public_only'
+        meta,_=adapt_snapshot(snapshot)
+        self.assertEqual(meta['source_mode'],'public_only')
     def test_unknown_ids_or_missing_claim_type_fail(self):
         a=fixture()
         with self.assertRaises(AuthoringError):validate_authoring(a,synthesis(['missing']))

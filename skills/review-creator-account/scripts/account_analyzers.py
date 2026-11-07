@@ -265,6 +265,10 @@ def adapt_snapshot(
             records.append(record)
         window = snapshot.get("scope", {}).get("window", {})
         source = snapshot.get("source", {})
+        # 公共快照不能用来源标签冒充私有测量，避免绕过公开证据边界。
+        source_mode = source.get("source_mode", "public")
+        if not isinstance(source_mode, str) or not source_mode.startswith("public"):
+            raise ValueError("public-content-snapshot requires a public source_mode")
         source_coverage = {
             "catalog_items": len(records),
             "coverage_complete": bool(source.get("coverage_complete")),
@@ -288,7 +292,7 @@ def adapt_snapshot(
             scope["followers"] = followers
         meta = {
             "snapshot_id": snapshot["snapshot_id"], "platform": snapshot.get("platform", "unknown"),
-            "source_mode": source.get("source_mode", "public"),
+            "source_mode": source_mode,
             "scope": scope,
             "source_coverage": source_coverage,
             "account_metrics": {},
