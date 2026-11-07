@@ -120,6 +120,42 @@ drive.REPORT_FINAL_MARKER.unlink()
 drive.AUTHORING_CORRECTION_MARKER.write_text("needs_revision\n")
 capture(lambda: drive.stage_verify_report(SimpleNamespace(output_dir="report")))
 assert len(checks) == 4
+# 已结束运行的恢复只读已验证摘要对应字节，逐段拼回正文，不重跑校验或改状态。
+report = Path("report/ACCOUNT_REVIEW.md")
+before = (report.read_bytes(), drive.REPORT_FINAL_MARKER.read_bytes())
+parts=[];offset=0
+while True:
+    out=io.StringIO()
+    with contextlib.redirect_stdout(out):drive.read_final_report(SimpleNamespace(output_dir="report",offset=offset,limit=17))
+    chunk=json.loads(out.getvalue());parts.append(chunk["text"])
+    assert len(chunk["text"]) <= 17
+    offset=chunk["next_offset"]
+    if offset is None:break
+assert "".join(parts) == body
+assert before == (report.read_bytes(), drive.REPORT_FINAL_MARKER.read_bytes())
+assert len(checks) == 4
+for offset, limit in [(-1,17),(0,2049),(len(body)+1,17)]:
+    try:drive.read_final_report(SimpleNamespace(output_dir="report",offset=offset,limit=limit))
+    except cd.StageError:pass
+    else:raise AssertionError("invalid readback range accepted")
+report.write_text(body + "changed")
+try:drive.read_final_report(SimpleNamespace(output_dir="report",offset=0,limit=17))
+except cd.StageError:pass
+else:raise AssertionError("changed report accepted")
+report.write_text(body)
+# 改稿后关闭保留失败时，不得先发最终交付标记或路径。
+drive.REPORT_FINAL_MARKER.unlink()
+def fail_close():raise cd.StageError("manifest write failed")
+drive.close_unwrapped_reservation=fail_close
+out=io.StringIO()
+with contextlib.redirect_stdout(out):
+    try:drive.stage_verify_report(SimpleNamespace(output_dir="report"))
+    except cd.StageError:pass
+    else:raise AssertionError("reservation closure failure swallowed")
+assert "KABO_FINAL_REPLY_BEGIN" not in out.getvalue()
+assert "creator_report:" not in out.getvalue()
+assert not drive.REPORT_FINAL_MARKER.exists()
+drive.close_unwrapped_reservation=lambda: None
 fail=True
 out=io.StringIO()
 with contextlib.redirect_stdout(out):

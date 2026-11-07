@@ -689,6 +689,9 @@ def preflight_report_sources(analysis: dict[str, Any], snapshot: dict[str, Any],
 
 def emit_final_report(report: Path) -> None:
     """Hand the whole validated report to the host at the existing final step."""
+    # 截断恢复放在正文之前，避免输出尾部被宿主截断时连恢复入口也丢失。
+    say(f"[drive] If output is truncated, read the finalized report in bounded chunks: "
+        f"python3 '{Path(__file__).resolve()}' read-report --output-dir '{report.parent}' --offset 0")
     # 最后一步交付完整已校验正文，避免模型把文件路径或开头诊断当作完整答案。
     body = report.read_text(encoding="utf-8").rstrip()
     say("KABO_FINAL_REPLY_BEGIN")
@@ -703,6 +706,7 @@ def emit_final_report(report: Path) -> None:
 
 
 def stage_report(args: argparse.Namespace) -> None:
+    """Compose and validate a report, deferring corrected delivery until closure."""
     require_open_reservation(Path.cwd())
     current = cd.state()
     if not current.get("envelopes") or not Path(ANALYSIS).exists():
@@ -784,6 +788,8 @@ def stage_report(args: argparse.Namespace) -> None:
     if final:
         REPORT_FINAL_MARKER.write_text(json.dumps({"report": str(report), "sha256": hashlib.sha256(
             report.read_bytes()).hexdigest()}) + "\n", encoding="utf-8")
+    if getattr(args, "verify_existing", False) is True:
+        return  # 改稿复核的交付由调用方在收尾成功后统一发出。
     say(f"creator_report: {report}")
     if final:
         say("[drive] this report is final: both validators passed. "
@@ -874,6 +880,36 @@ def stage_verify_report(args: argparse.Namespace) -> None:
         return
     stage_report(args)
     close_unwrapped_reservation()
+    REPORT_FINAL_MARKER.write_text(json.dumps({"report": str(report), "sha256": hashlib.sha256(
+        report.read_bytes()).hexdigest()}) + "\n", encoding="utf-8")
+    emit_final_report(report)
+
+
+def read_final_report(args: argparse.Namespace) -> None:
+    """Read a bounded chunk of the same finalized report without reopening its run."""
+    if not 1 <= args.limit <= 2048 or args.offset < 0:
+        raise cd.StageError("read-report requires offset >= 0 and limit between 1 and 2048 characters")
+    supplied = Path(args.output_dir) / "ACCOUNT_REVIEW.md"
+    report = supplied.resolve()
+    if supplied.is_symlink() or not report.is_relative_to(Path.cwd().resolve()):
+        raise cd.StageError("read-report requires a regular report inside this run")
+    if not REPORT_FINAL_MARKER.is_file() or REPORT_FINAL_MARKER.is_symlink():
+        raise cd.StageError("read-report requires this run's successful final verification")
+    try:
+        record = json.loads(REPORT_FINAL_MARKER.read_text(encoding="utf-8"))
+        raw = report.read_bytes()
+        digest = hashlib.sha256(raw).hexdigest()
+        if not isinstance(record, dict) or record.get("report") != str(report) or record.get("sha256") != digest:
+            raise cd.StageError("read-report refused a report different from the finalized bytes")
+        body = raw.decode("utf-8")
+    except (OSError, UnicodeError, ValueError) as error:
+        raise cd.StageError(f"read-report could not read the finalized report: {error}") from None
+    if args.offset > len(body):
+        raise cd.StageError("read-report offset exceeds the finalized report length")
+    end = min(args.offset + args.limit, len(body))
+    say(json.dumps({"status": "report_chunk", "sha256": digest, "offset": args.offset,
+                    "next_offset": end if end < len(body) else None, "total_characters": len(body),
+                    "text": body[args.offset:end]}, ensure_ascii=False))
 
 
 STAGES = {"fetch": stage_fetch, "growth": stage_growth, "report": stage_report,
@@ -881,6 +917,7 @@ STAGES = {"fetch": stage_fetch, "growth": stage_growth, "report": stage_report,
 
 
 def main() -> int:
+    """Dispatch stateful stages or read-only recovery of a finalized report."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     sub = parser.add_subparsers(dest="stage", required=True)
     fetch = sub.add_parser("fetch")
@@ -905,10 +942,22 @@ def main() -> int:
     verify = sub.add_parser("verify-report")
     verify.add_argument("--output-dir", type=Path, default=OUTPUT_DIR,
                         help="read-only verification of the existing validated report directory")
+    readback = sub.add_parser("read-report", help="read-only recovery of finalized output truncated by a host")
+    readback.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
+    readback.add_argument("--offset", type=int, default=0, help="zero-based Unicode character offset")
+    readback.add_argument("--limit", type=int, default=2048, help="at most 2048 Unicode characters")
     for command in (fetch, growth, report, verify):
         command.add_argument("--placed", action="store_true",
                              help="the connector calls were already made by hand; place their responses")
-    return cd.run_stage(STAGES, parser.parse_args(), first=("fetch",), model_files=(SYNTHESIS, GROWTH_INPUT, "question.txt"))
+    args = parser.parse_args()
+    if args.stage == "read-report":
+        try:
+            read_final_report(args)
+            return 0
+        except cd.StageError as error:
+            say(json.dumps({"status": "failed", "error": str(error)}, ensure_ascii=False))
+            return 2
+    return cd.run_stage(STAGES, args, first=("fetch",), model_files=(SYNTHESIS, GROWTH_INPUT, "question.txt"))
 
 
 if __name__ == "__main__":

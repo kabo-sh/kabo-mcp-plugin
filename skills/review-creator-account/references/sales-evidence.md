@@ -44,6 +44,11 @@ A supplied narrow funnel question can be answered from that table without fetchi
 as a substitute for private metrics. Do not insert supplied private totals into a public snapshot
 or claim the public account report validated them. In a full public review, keep observations and
 proposed tests separate from any owner-provided figures and their scope.
+For a supplied funnel comparison, the actual final reply must include one compact table with
+clicks/views, inquiries/clicks and paid orders/inquiries for both periods, showing numerator,
+denominator and rate when known. Include unchanged transitions too; mark a missing outcome as
+unknown and a zero denominator as undefined. A saved calculation file or a summary of the changed
+stage does not replace this table. Keep the provided comparison basis and its limits beside it.
 When the supplied table answers the requested funnel comparison, finish that comparison directly;
 do not append a public-content review unless the user also requested one. Unrelated public
 captions cannot resolve a missing private outcome or repair incompatible observation windows.
