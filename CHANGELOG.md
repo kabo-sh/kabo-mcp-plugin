@@ -2,6 +2,12 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.27（2026-11-08；GitHub Release）
+
+- `review-creator-account`：比较时对齐等长观测窗口，成交率与缺订单数据按实测样本给结论（#132）。
+- `develop-content-ideas`：支持一次 15–20 条选题，补齐数量、续接和日历接收（#133，迁自 creator-skills#165）。
+- `review-creator-account`：账号增长预测校准，概率与区间基于计算输入、不足时说明缺口（#134，自 #106 拆出）。
+
 ## 1.0.26（2026-11-07；GitHub Release）
 
 - `develop-content-ideas`：沿用对话里可见的上下文（已选机制、同款变体、续集源），不改写用户原始请求；保留诊断信息（#89）。
