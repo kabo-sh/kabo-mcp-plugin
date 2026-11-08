@@ -13,75 +13,38 @@ takes many steps, and wait for its final result before replying; never run it in
 tell the user the report will come later. Without a foreground sub-agent, follow the same steps in
 the main thread.
 
-**Forecast-only final delivery:** the reply is the complete text between
-`KABO_FORECAST_REPLY_BEGIN` and `KABO_FORECAST_REPLY_END` from `compose_forecast_reply.py`.
-Relay it once (translate fixed labels if needed); never append a model-written forecast,
-reference table or promise. This applies to missing-input answers too. Prepare the inputs and
-resolved scope below, then run the composition command in `growth-estimation.md`. A preliminary
-calculator output is not permission to improvise a final reply. Complete reviews retain their
-own delivery path and all supported review findings.
-
-For a forecast request or continuation, first identify the **most recent user turn selecting the
-target**, resolving any pronoun through its corresponding reply. An earlier account review does
-not override a later user request about a post. A continuation changing only the horizon keeps
-that last target; it does not reopen every earlier forecast. Quote that target-setting user turn
-in `forecast_scope.json` before drafting, then name the resolved target in the reply's first sentence.
-Ask about genuine ambiguity rather than combining targets or broadening the data request.
-With no supported inputs, the forecast portion contains only that target, a correction if needed,
-the missing fields and an explicit statement that occurrence probabilities are unavailable.
-No illustrative forecast table or invented dated rows. With supported inputs, deliver the
-calculator's actual results and limits. A "conditional" label never permits invented rates or
-ranges. These limits never suppress the rest of a requested account review or funnel answer.
-
 Deterministic analyzers produce the facts; a complete review makes exactly one semantic synthesis.
 Do not call a separate profile model. The schemas, analyzers, composer and validators ship in this
 Skill's `references/` and `scripts/`.
 
-**Forecast branch — before starting a review or answering a continuation:**
-1. Read [growth-estimation.md](references/growth-estimation.md). Keep the immediately preceding
-   target and metrics unless the user changes them: a named post stays that post, not a new
-   account forecast. For "same/what you just gave me", work backwards to the latest user turn
-   that selected the target, including a pronoun resolved through the corresponding assistant
-   reply. Do not jump past a recent post request to an older account request or merge their scopes.
-   Name that target first and ask only for its missing metrics. Use the new requested endpoint;
-   stock horizons run from the latest observation, as the reference explains. If ambiguous, ask
-   which target or date before collecting inputs. Earlier assistant forecasts
-   are claims to check, not observations or user assumptions.
-   Before drafting, save `forecast_scope.json` with `platform`, `target`, `request_quote`
-   (the latest target-setting user sentence verbatim) and `reference` (the resolved post/account). An old
-   assistant table is not a request to add another target. Use this scope for every input and
-   missing-data question; do not collect for additional targets without a user request.
-2. Read [growth-calculation-inputs.md](references/growth-calculation-inputs.md) before preparing
-   a calculator input. For each metric, find the actual dated rows or explicit user assumption it
-   requires. A sampling-window endpoint or "days ago" field is not an observation
-   timestamp; keep unknown dates missing instead of inventing dated rows to make a calculator run.
-   Run `estimate_growth.py` on supported inputs; a summary's median, cadence or range cannot
-   replace missing rows. Never use mental/ad-hoc arithmetic to bypass it.
-3. Use the calculator for missing-input results too, as the reference specifies; do not skip
-   the handoff just because the numeric answer is unavailable. Deliver only its computed
-   conditional results, formula and limits. If a metric lacks inputs,
-   identify that gap and ask for the minimum records; do not fill its cell with a plausible range,
-   "typical" future value or historical statistic relabelled as a forecast. With no supported
-   metric, end the forecast portion after correcting any earlier overstatement, explaining the
-   odds limit and asking for the minimum data for that target. Keep any supported review/funnel
-   results. No forecast/unknowns table, invented example values,
-   different-target data request or promise of a numeric table before checking the supplied rows.
-   Request missing columns in prose; do not illustrate them with made-up dated rows or attach an
-   example date to an undated real count. A date-format example must remain a placeholder.
-   Before sending any future number or table, match it to this turn's successful calculator
-   output. Remove it if there was no such computation; do not replace it with an imagined
-   low/base/breakout scenario. Historical counts may only be identified as observations.
-   For a forecast-only request, finish with `compose_forecast_reply.py` and relay its complete
-   handoff. It recomputes each input and rejects accidentally combined targets; do not author
-   or edit its result JSON or Markdown.
-A batch at historical post ages is not an account's calendar-month total or an existing post's
-trajectory. No result here supplies calibrated odds, now or after adding more history; extra
-records can enable conditional arithmetic, not percentage probabilities. When odds are requested,
-state explicitly that their percentage is unavailable; do not offer "conditional percentages"
-or promise probabilities in a later turn. Label any computed percent change as a change in the
-metric, never as the chance of reaching it. Check the whole reply, including next-step promises.
-Keep supported sales/funnel findings and
-complete-review results available; forecast gaps block only the unsupported forecast.
+## Forecast-only requests and continuations
+
+Use the complete rendered reply, including when inputs are missing. Do not write a forecast from
+memory or from a previous assistant's table.
+
+1. Resolve the **most recent user turn selecting the target**, including a pronoun through its
+   corresponding reply. A later post request overrides an earlier account forecast; a change of
+   horizon does not reopen both. Ask if genuinely ambiguous. Save `forecast_scope.json` with
+   `platform`, `target`, `request_quote` (that user turn verbatim) and `reference` (the resolved
+   post/account). The target must stay the same in every input and missing-data question.
+2. Read [growth-estimation.md](references/growth-estimation.md) and
+   [growth-calculation-inputs.md](references/growth-calculation-inputs.md). Prepare the requested
+   metric/horizon inputs for that target. Use actual source rows or explicit user assumptions;
+   old assistant predictions, summary statistics and invented observation dates cannot replace
+   missing data. Keep unknown dates absent. Stock horizons start at the latest observation.
+3. Run `compose_forecast_reply.py` with that scope and all supported-contract input files, using
+   the command in `growth-estimation.md`. Empty stock observations produce a missing-input reply;
+   never fabricate rows to force a number. Keep independently supported metrics. A metric with
+   no calculator contract gets an honest limitation, not a relabelled input.
+4. **Final reply = the complete text between `KABO_FORECAST_REPLY_BEGIN` and
+   `KABO_FORECAST_REPLY_END`.** Relay it once; translate fixed labels if needed. Do not append
+   or substitute a model-written table, historical reference table, numeric scenario or promise.
+   More records permit conditional arithmetic, not occurrence probabilities. Use `--correct-prior`
+   only when an earlier unsupported forecast actually exists.
+
+For a complete review or supplied-funnel request that also asks for growth, apply the reference's
+evidence rules to its forecast portion while retaining all supported review/funnel findings.
+Use the complete-review delivery path below, with separate computed handoffs where specified.
 
 **Complete-review delivery only.** Supplied-funnel answers and narrow operations return their
 own supported result directly; they do not compose `ACCOUNT_REVIEW.md` or require a complete-review delivery step.
