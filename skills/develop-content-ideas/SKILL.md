@@ -161,6 +161,9 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    ```
 
    This is the final step; its deliverable is `RESULT.md` at the run root, not under `report/`.
+   Read the whole file and send it unchanged. Before sending, check that the reply retains every
+   requested candidate's title, opening line, making direction and pending production conditions;
+   a larger batch must not become a title-only list or lose the later candidates' hooks and steps.
    There is no final step for `needs_revision`, `not_met` or a failed/unreadable stage result. A
    zero exit with `needs_revision` never permits emitting the draft as a validated report.
 
