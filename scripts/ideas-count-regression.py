@@ -154,6 +154,32 @@ class IdeaCounts(unittest.TestCase):
         self.assertEqual("ready_for_generation", prep["decision"]["status"], prep)
         self.assertEqual(20, json.loads((self.root / "request.json").read_text())["idea_count"])
 
+    def test_previous_large_set_keeps_all_candidates_in_followup(self):
+        """15/20条已验收候选可继续引用，不能在前文投影时截断。"""
+        for count in (15, 20):
+            with self.subTest(count=count):
+                previous = self.root / f"previous-{count}"
+                self.prepare(previous, count)
+                output = self.output(count)
+                source = self.write(previous, "idea_set.json", output)
+                self.assertEqual("ok", self.stage(previous, "core")[1]["status"])
+                followup = self.root / f"followup-{count}"
+                intent = self.intent(3)
+                intent["request_id"] = f"followup-after-{count}"
+                intent["user_brief"]["text"] = "Give me three more in that style."
+                intent["generation_basis"].update(direct_topic=None, continuation_quote="more in that style")
+                path = self.write(followup, "intent.json", intent)
+                code, prep = self.stage(followup, "prep", "--intent", path, "--previous-ideas", source)
+                self.assertEqual((0, "ok", "ready_for_generation"),
+                                 (code, prep["status"], prep.get("decision", {}).get("status")), prep)
+                request = json.loads((followup / "request.json").read_text())
+                self.assertEqual(3, request["idea_count"])
+                context = request["continuation_context"]
+                self.assertEqual([idea["idea_id"] for idea in output["ideas"]],
+                                 [idea["idea_id"] for idea in context["ideas"]])
+                self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), context["sha256"])
+                self.assertEqual(source.read_bytes(), (followup / context["path"]).read_bytes())
+
     def test_calendar_accepts_large_set_only_as_unselected_backlog(self):
         """日历接收真实生成的20条候选，但不把候选擅自排成已选内容。"""
         self.prepare(self.root, 20)
