@@ -33,10 +33,12 @@ also a completed script handoff, not permission to skip the steps and answer fro
    Resolve one account or post through the latest target-setting user turn and its answer, not an
    older account table. If a file cannot be read, state that access gap rather than re-asking as
    though the user never supplied the fact. After reading, ask one focused question if the target or horizon is genuinely absent or
-   conflicting. Do not ask again when the latest relevant user turn resolves it.
+   conflicting. Do not ask again when the latest relevant user turn resolves it. The historical
+   observation window is not a requested future horizon; do not silently reuse it as one.
 2. **Bind the last completed deliverable, not every entity in the conversation.** A follow-up
    that changes only duration or presentation keeps exactly that deliverable's target. Write one
-   scope and one handoff for it; do not add a separate forecast for an earlier target. Multiple
+   scope and one handoff for it, preserving its full metric list even when some metrics lack data;
+   do not add a separate forecast for an earlier target. Multiple
    targets need an explicit request in the current turn. Read
    [growth-estimation.md](references/growth-estimation.md) and
    [growth-calculation-inputs.md](references/growth-calculation-inputs.md). Save
