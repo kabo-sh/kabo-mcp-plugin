@@ -36,12 +36,19 @@ the main thread.
    stock horizons run from the latest observation, as the reference explains. If ambiguous, ask
    which target or date before collecting inputs. Earlier assistant forecasts
    are claims to check, not observations or user assumptions.
-2. For each metric, find the actual dated source rows or the explicit user assumption the
-   calculator requires. A sampling-window endpoint or "days ago" field is not an observation
+   Before drafting the reply, save `forecast_scope.txt`: the latest user sentence selecting the
+   target, the reference it resolves to, that target's name/type and the current horizon. An old
+   assistant table is not a request to add another target. Use this scope for every input and
+   missing-data question; do not collect for additional targets without a user request.
+2. Read [growth-calculation-inputs.md](references/growth-calculation-inputs.md) before preparing
+   a calculator input. For each metric, find the actual dated rows or explicit user assumption it
+   requires. A sampling-window endpoint or "days ago" field is not an observation
    timestamp; keep unknown dates missing instead of inventing dated rows to make a calculator run.
    Run `estimate_growth.py` on supported inputs; a summary's median, cadence or range cannot
    replace missing rows. Never use mental/ad-hoc arithmetic to bypass it.
-3. Deliver only its computed conditional results, formula and limits. If a metric lacks inputs,
+3. Use the calculator for missing-input results too, as the reference specifies; do not skip
+   the handoff just because the numeric answer is unavailable. Deliver only its computed
+   conditional results, formula and limits. If a metric lacks inputs,
    identify that gap and ask for the minimum records; do not fill its cell with a plausible range,
    "typical" future value or historical statistic relabelled as a forecast. With no supported
    metric, end the forecast portion after correcting any earlier overstatement, explaining the

@@ -65,6 +65,19 @@ class GrowthHandoff(unittest.TestCase):
         self.assertIsNone(result["estimate"])
         self.assertIn("No numeric estimate or probability", report)
 
+    def test_undated_snapshot_is_not_reconstructed_for_a_forecast(self):
+        self.scope.update(account="creator/named-post", metric="views")
+        data = dict(schema_version="growth-input.v1", mode="observed_pace", scope=self.scope,
+                    horizon_days=365, observations=[])
+        result, report, stdout = self.run_estimate("missing", data)
+        self.assertEqual(result["status"], "needs_input")
+        self.assertEqual(result["observations"], [])
+        self.assertIsNone(result["estimate"])
+        self.assertIn("creator/named-post / views", report)
+        self.assertIn("Two dated observations", report)
+        self.assertIn("No numeric estimate or probability", report)
+        self.assertIn(report.strip(), stdout)
+
     def test_extra_content_metrics_keep_separate_handoffs(self):
         outputs = {}
         for metric, values in [("views", [1000, 2000, 3000]), ("likes", [10, 20, 30])]:
