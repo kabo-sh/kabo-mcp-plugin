@@ -13,6 +13,8 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
+from account_analyzers import normalize_format
+
 
 def number(value, label, *, signed=False):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -120,6 +122,7 @@ def legacy_stock_rate(record, question):
 
 
 def estimate(data, question=None):
+    """按实际观测或用户绑定假设计算，缺少输入时保留缺失状态。"""
     if data.get("schema_version") != "growth-input.v1":
         raise ValueError("expected growth-input.v1")
     scope = data.get("scope", {})
@@ -184,7 +187,11 @@ def estimate(data, question=None):
         assumption = data.get("assumption")
         verified = user_quantity(assumption, question, "rate")
         if not known or verified is None:
-            result["required_inputs"] = ["A dated baseline and an explicit net-change amount and day/week period in the original user request (--question-file)."]
+            result["required_inputs"] = []
+            if not known:
+                result["required_inputs"].append("A dated baseline for the requested cumulative metric.")
+            if verified is None:
+                result["required_inputs"].append("An explicit net-change amount and day/week period in the original user request (--question-file).")
             return result
         rate = verified["value"]
         baseline = known[-1][1]
@@ -205,11 +212,13 @@ def estimate(data, question=None):
 
 
 def content_scenario(data, scope, days, question=None):
+    """按归一化格式与同龄样本计算内容批次，保留缺失和来源。"""
     if scope["semantics"] != "per_content_cumulative" or scope["metric"] not in ("views", "likes", "comments"):
         raise ValueError("content_scenario supports cumulative views/likes/comments per content, not followers")
     cohort = data.get("cohort", {})
     if not isinstance(cohort.get("format"), str) or not cohort["format"].strip():
         raise ValueError("cohort.format is required")
+    cohort = dict(cohort, format=normalize_format(cohort["format"]))
     low = number(cohort.get("age_min_days"), "age_min_days")
     high = number(cohort.get("age_max_days"), "age_max_days")
     if high < low:
@@ -230,7 +239,7 @@ def content_scenario(data, scope, days, question=None):
         age = (time(row["observed_at"]) - time(row["published_at"])).total_seconds() / 86400
         if age < 0:
             raise ValueError("content observation precedes publication")
-        if row.get("format") != cohort["format"] or not low <= age <= high:
+        if normalize_format(row.get("format")) != cohort["format"] or not low <= age <= high:
             outside += 1
             continue
         if row.get("value") is None:
@@ -331,7 +340,7 @@ def with_snapshot(data, snapshot, source):
                                   "source": f"{source}#items/{item['content_id']}"})
     if data.get("plan", {}).get("origin") == "observed_cadence":
         stamps = sorted(time(row["published_at"]) for row in result["samples"]
-                        if row["format"] == data.get("cohort", {}).get("format"))
+                        if normalize_format(row["format"]) == normalize_format(data.get("cohort", {}).get("format")))
         if len(stamps) >= 2 and stamps[-1] > stamps[0]:
             elapsed = (stamps[-1] - stamps[0]).total_seconds() / 86400
             result["_snapshot_cadence"] = {"per_day": (len(stamps) - 1) / elapsed,
@@ -349,6 +358,7 @@ def deadline_sentence(timing):
 
 
 def render_report(result):
+    """把计算依据、日期、来源与边界完整渲染为交付文本。"""
     scope = result["scope"]
     title = f"Conditional estimate: {scope['account']} / {scope['metric']}"
     if result["status"] == "needs_input":
@@ -364,6 +374,12 @@ def render_report(result):
         lines.append(f"Conditional value: {estimate['value']:,.2f}")
     lines.append(f"Formula: {estimate['formula']}")
     if result["mode"] == "content_scenario":
+        cohort, coverage = result["cohort"], result["coverage"]
+        lines.append(f"Cohort: {cohort['format']}; selection age {cohort['age_min_days']:g}–{cohort['age_max_days']:g} days.")
+        lines.append(f"Sample coverage: {coverage['available']} available, {coverage['missing']} missing values, {coverage['outside_cohort']} outside this cohort.")
+        lines.append("Content evidence:")
+        for row in result["samples"]:
+            lines.append(f"- {row['content_id']}: {row['value']:g}; published {row['published_at']}, observed {row['observed_at']}; source: {row['source']}")
         plan = result["basis"]["plan"]
         label = "equivalent new items" if "period" in plan else "new items"
         lines.append(f"Inputs: median {result['basis']['median_per_content']:g} per item × {plan['posts']:g} {label}.")
@@ -376,6 +392,15 @@ def render_report(result):
             lines.append(f"- If each new item matches the observed {name}: {levels[name]:g} per item × {result['basis']['plan']['posts']:g} = {totals[name]:,.2f}.")
     else:
         lines.append(f"Inputs: baseline {estimate['baseline']:g} + daily net change {result['basis']['per_day']:g} × {result['horizon_days']:g} days.")
+        observations = result["observations"]
+        lines.append(f"Baseline observed at: {observations[-1]['observed_at']}; the projection runs {result['horizon_days']:g} days after this observation, not after today.")
+        if result["mode"] == "observed_pace":
+            lines.append(f"Observed window: {observations[0]['observed_at']} to {observations[-1]['observed_at']} ({result['basis']['elapsed_days']:g} days).")
+        lines.append("Dated source observations:")
+        for row in observations:
+            lines.append(f"- {row['observed_at']}: {row['value']:g}; source: {row['source']}")
+        if result["mode"] == "assumed_pace":
+            lines.append(f"User-supplied rate quote: {result['basis']['request_binding']['quote']}")
     lines += ["", "Assumptions:"] + [f"- {text}" for text in result["assumptions"]]
     lines += ["", "Limits:"] + [f"- {text}" for text in result["limitations"]]
     return "\n".join(lines) + "\n"
