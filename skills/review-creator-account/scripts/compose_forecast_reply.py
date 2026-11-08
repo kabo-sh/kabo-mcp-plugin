@@ -11,10 +11,24 @@ def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_sourc
             missing_metrics=(), horizon_days=None):
     """重算独立指标并检查目标一致，保留可算结果与缺失输入。"""
     required = {"platform", "target", "request_quote", "reference"}
-    if not isinstance(resolved_scope, dict) or set(resolved_scope) != required or any(
-        not isinstance(resolved_scope[key], str) or not resolved_scope[key].strip() for key in required
-    ):
-        raise ValueError("Scope needs platform, target, verbatim target-setting request_quote and resolved reference")
+    if not isinstance(resolved_scope, dict):
+        raise ValueError("forecast_scope.json must be an object with platform, target, request_quote and reference")
+    # 明确指出缺失、额外及类型错误字段，避免模型反复重写本来正确的值。
+    missing = sorted(required - set(resolved_scope))
+    extra = sorted(set(resolved_scope) - required)
+    invalid = sorted(key for key in required & set(resolved_scope)
+                     if not isinstance(resolved_scope[key], str) or not resolved_scope[key].strip())
+    problems = []
+    if missing:
+        problems.append("missing fields: " + ", ".join(missing))
+    if extra:
+        problems.append("unexpected fields: " + ", ".join(extra))
+    if invalid:
+        problems.append("must be nonempty strings: " + ", ".join(invalid))
+    if problems:
+        raise ValueError("forecast_scope.json: " + "; ".join(problems)
+                         + ". Keep exactly platform, target, request_quote and reference. "
+                         "Pass horizon_days in calculation inputs or --horizon-days, not in the scope file.")
     if missing_metrics and (len(set(missing_metrics)) != len(missing_metrics) or any(
         metric not in ("subscribers", "followers", "views", "likes", "comments") for metric in missing_metrics
     )):

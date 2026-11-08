@@ -170,6 +170,33 @@ class GrowthHandoff(unittest.TestCase):
             command += ["--input", str(path)]
         return subprocess.run([*command, *flags], text=True, capture_output=True)
 
+    def test_scope_errors_name_all_problems_and_allow_one_targeted_repair(self):
+        """真实失败形态：范围文件误放时长；诊断指明多余字段而不放宽校验。"""
+        source = self.root / "scope.json"
+        output = self.root / "reply.md"
+        scope = dict(platform="youtube", target="creator/post-1", request_quote="continue this post",
+                     reference="Selected post", horizon_days=365)
+        command = [sys.executable, "-B", str(COMPOSER), "--scope-file", str(source),
+                   "--missing-metric", "views", "--horizon-days", "365", "--output", str(output)]
+        for bad, message in [(scope, "unexpected fields: horizon_days"),
+                             ({**scope, "reference": []}, "must be nonempty strings: reference"),
+                             ({key: value for key, value in scope.items() if key != "request_quote"},
+                              "missing fields: request_quote")]:
+            source.write_text(json.dumps(bad))
+            run = subprocess.run(command, text=True, capture_output=True)
+            self.assertNotEqual(0, run.returncode)
+            self.assertIn(message, run.stderr)
+            self.assertIn("not in the scope file", run.stderr)
+            self.assertFalse(output.exists())
+        del scope["horizon_days"]
+        source.write_text(json.dumps(scope))
+        run = subprocess.run(command, text=True, capture_output=True)
+        self.assertEqual(0, run.returncode, run.stderr)
+        self.assertTrue(output.exists())
+        result = json.loads(output.with_suffix(".json").read_text())["results"][0]
+        self.assertEqual("needs_input", result["status"])
+        self.assertIsNone(result["estimate"])
+
     def test_missing_metrics_build_valid_inputs_for_one_post(self):
         """缺数据快捷入口生成同一目标的合法合同，不需要模型填模式/schema。"""
         self.scope['account'] = 'creator/post-1'

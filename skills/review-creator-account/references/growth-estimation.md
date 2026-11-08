@@ -65,8 +65,10 @@ Chinese/English day/week binding, without rewriting the user's quote or metric t
 
 ## 4. Compute and deliver one complete reply
 
-Save `forecast_scope.json` with `platform`, the selected `target`, the verbatim target-setting
-`request_quote`, and its resolved `reference`. Every input must use that same target. This checks
+Save `forecast_scope.json` with exactly four nonempty string fields: `platform`, the selected
+`target`, the verbatim target-setting `request_quote`, and its resolved `reference`. Do not put
+`horizon_days`, metrics or schema metadata in this file; they belong to the calculation inputs
+or the missing-input command flags. Every input must use that same target. This checks
 consistency, not the correctness of the model's interpretation.
 
 When a cumulative metric has no usable dated observations and no valid explicit user rate, use
