@@ -35,6 +35,13 @@ snapshot are missing, request them. Do not reconstruct a fictional sample from a
 replace `estimate_growth.py` with mental arithmetic or a short custom calculator to bypass its
 input requirements. A summary is not a validated calculation result either.
 
+Preserve the source's date meanings. A sampling window describes selection, not necessarily when
+metrics were observed. Relative post ages without an explicit observation timestamp do not supply
+publication or measurement timestamps. Never assign the window endpoint as `observed_at`, subtract
+relative ages to invent `published_at`, or add dates inferred from a previous assistant to make an
+incomplete export pass. Ask for actual dated rows or the original snapshot instead. A source that
+explicitly supplies the required timestamp can be used with its stated precision and limits.
+
 Resolve the continuation's referent before selecting a calculation. If "the same" could mean an
 account, new posts or a named existing post, ask which one instead of filling all three with
 numbers. A content batch at historical observation ages answers a different question from a

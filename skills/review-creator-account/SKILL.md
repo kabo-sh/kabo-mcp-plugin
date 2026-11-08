@@ -26,8 +26,10 @@ the main thread.
    If genuinely ambiguous, ask which target before collecting inputs. Earlier assistant forecasts
    are claims to check, not observations or user assumptions.
 2. For each metric, find the actual dated source rows or the explicit user assumption the
-   calculator requires. Run `estimate_growth.py` on supported inputs; a prior summary's median,
-   cadence or range cannot replace missing rows. Never use mental/ad-hoc arithmetic to bypass it.
+   calculator requires. A sampling-window endpoint or "days ago" field is not an observation
+   timestamp; keep unknown dates missing instead of inventing dated rows to make a calculator run.
+   Run `estimate_growth.py` on supported inputs; a summary's median, cadence or range cannot
+   replace missing rows. Never use mental/ad-hoc arithmetic to bypass it.
 3. Deliver only its computed conditional results, formula and limits. If a metric lacks inputs,
    identify that gap and ask for the minimum records; do not fill its cell with a plausible range,
    "typical" future value or historical statistic relabelled as a forecast. With no supported
