@@ -1,13 +1,17 @@
 # Conditional growth calculations
 
-Use `<skill directory>/scripts/estimate_growth.py` for a growth estimate, including a follow-up to a complete review. It has no network dependencies. Read actual persisted evidence or a user export; never manufacture observations. JSON retains the evidence rows; a Markdown handoff is saved beside it and printed. `computed` means arithmetic succeeded, not that future performance is known.
+Use `<skill directory>/scripts/estimate_growth.py` with actual evidence or a user export, never
+manufactured rows. It saves evidence JSON and a Markdown handoff, also printed. `computed` means
+arithmetic succeeded, not that future performance is known.
 
 ## Decide whether the requested forecast is identifiable
 
 Resolve the target from context, honoring any user change. Use the current horizon, inheriting
 the previous one only when unchanged. A post's single lifetime observation cannot define its
-future trajectory: correct earlier invented odds, ask for that post's dated observations and
-stop the numeric forecast. Do not substitute a channel-content scenario to fill its monthly table.
+future trajectory. Without a valid user rate, correct earlier invented odds, ask for that post's
+dated observations and stop its numeric forecast. A dated baseline plus an explicit rate that
+passes `assumed_pace` can support conditional arithmetic. Do not substitute a channel-content
+scenario to fill a post's monthly table.
 
 A historical per-post median times a posting cadence estimates a batch at the sampled posts'
 observed ages. It is not a monthly deadline series, and adding it repeatedly to today's account
@@ -45,6 +49,14 @@ Resolve the account versus a particular post, the platform, metric definition (n
 cumulative stock, period total or new-content performance), baseline date and currently requested horizon.
 Use clear prior context; clarify only unresolved scope. Do not silently switch between a top
 post and the whole account when a follow-up asks for the same calculation over more months.
+Resolve a clear pronoun through the intervening reply before falling back to an older explicit
+request. Historical account and post sections do not by themselves request both targets.
+
+Stock `horizon_days` starts at the latest dated observation, not today. For an explicit deadline
+or a request relative to today, calculate the elapsed days from that baseline to the requested
+endpoint; do not pass only the number of days from today. If the reference date is unclear, ask
+or label the result explicitly as baseline-relative, never as a forecast from today. An old
+baseline needs a stated unchanged-pace assumption over the entire interval, or a current record.
 
 Audit each input's source. A previous assistant's outcome range, multiplier, conversion rate or
 "most likely" number is not an observation or a user-supplied assumption, even if the user asks
@@ -52,25 +64,18 @@ to extend it. Correct that earlier overstatement explicitly before reusing the g
 A single public snapshot cannot supply a post's growth trajectory, subscriber conversion or
 monthly account-wide totals. Keep missing subscriber history separate from available content data.
 
-This Skill computes conditional scenarios, not calibrated probabilities. Neither subjective
-labels nor a disclaimer make invented percentages reliable. When asked for odds without an
-appropriate validated predictive model, explain that no defensible percentage is available here;
-offer supported conditional calculations or ask for the minimum missing dated records instead.
-Do not label a scenario "most likely", assign scenario weights or create confidence intervals
-from a median, quartiles, a single snapshot or intuition. Do not promise that a few more snapshots will make percentage odds available: two dated points
-can enable unchanged-pace arithmetic, not a calibrated predictive model. When requesting data,
-say what conditional calculation it enables and what will remain unknown.
-Calibration would require a defined
-outcome and horizon plus evaluation of predicted probabilities against held-out comparable
-outcomes; these calculations do not provide that evidence.
+This Skill computes conditional amounts, not occurrence probabilities. More dated records can
+enable unchanged-pace arithmetic, not calibrated odds. Do not give scenario weights, confidence
+intervals or "most likely" labels from snapshots, medians or intuition. Neither a subjective
+label nor a disclaimer validates them. Calibration needs a defined outcome/horizon and evaluated
+probabilities against held-out comparable outcomes; this calculator supplies none of that.
 
-Before delivering, check each forecast claim and the promised next step. An odds request needs
-an explicit answer: its occurrence probability is unavailable from this calculation, including
-after the requested records arrive. Do not substitute "conditional percentages", scenario
-weights, or a later probability table. An arithmetic percent change must name the metric and
-baseline; it is not the chance of the result happening. For supported amounts, present the
-assumption, computed amount and its uncertainty together; for unsupported amounts, ask only for
-the missing inputs. A caveat at the start does not license a contradictory promise at the end.
+Check the whole reply and its next-step promises. Answer odds requests explicitly: occurrence
+probability is unavailable here, even after the requested records arrive. Never offer
+"conditional percentages" or a later probability table. Arithmetic percent changes must name
+the metric and baseline, not imply a chance of success. Deliver supported amounts with their
+assumptions and limits; ask only for missing inputs to the others. An opening caveat cannot
+excuse a contradictory closing promise.
 
 For multi-month requests, keep every month on the same explicit measurement and assumptions.
 Show monthly values only when the supported calculation can produce them; never invent a decay,
@@ -100,17 +105,17 @@ A rate is a
 conditional assumption, not a measured trajectory or probability.
 
 Inside a complete public review, `drive.py growth` and the composed `ACCOUNT_REVIEW.md` currently
-support only `content_scenario`. Do not pass stock-pace inputs into that report contract or claim
-they are included. For a complete review that also requests a supported stock estimate, calculate it in the same
-run with the standalone interface, retaining its input JSON, result JSON and printed Markdown.
-Compose and validate the account review normally without stock figures in its synthesis; then
-relay the full report plus the calculator's Markdown as a separate conditional-calculation
-section, before the final `creator_report:` line. Preserve its numbers, formula, evidence,
-assumptions and limitations; translate fixed labels if needed, without a new model-written
-forecast. This section is not part of the validated `ACCOUNT_REVIEW.md`: name the calculator's
-separate Markdown artifact when the user requests files. Missing inputs leave that calculation
-unavailable but never hold back the supported review. This path does not extend the public-review
-schema or force the user to repeat a supported request in another turn.
+support one `content_scenario` in one growth slot. Once `review_growth_input.json` exists,
+another `drive.py growth --metric ...` reads it rather than switching metrics. Do not overwrite it
+or place stock figures in that schema. For each additional supported metric or stock estimate,
+use the standalone interface in the same run with distinct input/output filenames. Extra content
+calculations use the same saved snapshot, question and validated `content_scenario` contract;
+never substitute one metric's rows for another's. Keep all requested metrics independently gated.
+Compose the review with only its selected growth-slot result, then append each other calculator's
+Markdown handoff before `creator_report:`. Preserve its values, dates, sources, formula, assumptions
+and limits; translate labels only, without a new forecast. These separate Markdown artifacts are
+not part of validated `ACCOUNT_REVIEW.md`; identify them when files are requested. No schema
+extension or repeated user request is needed, and missing inputs never block supported work.
 
 ## Evidence → choice → answer
 

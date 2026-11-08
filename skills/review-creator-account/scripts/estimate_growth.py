@@ -376,6 +376,15 @@ def render_report(result):
             lines.append(f"- If each new item matches the observed {name}: {levels[name]:g} per item × {result['basis']['plan']['posts']:g} = {totals[name]:,.2f}.")
     else:
         lines.append(f"Inputs: baseline {estimate['baseline']:g} + daily net change {result['basis']['per_day']:g} × {result['horizon_days']:g} days.")
+        observations = result["observations"]
+        lines.append(f"Baseline observed at: {observations[-1]['observed_at']}; the projection runs {result['horizon_days']:g} days after this observation, not after today.")
+        if result["mode"] == "observed_pace":
+            lines.append(f"Observed window: {observations[0]['observed_at']} to {observations[-1]['observed_at']} ({result['basis']['elapsed_days']:g} days).")
+        lines.append("Dated source observations:")
+        for row in observations:
+            lines.append(f"- {row['observed_at']}: {row['value']:g}; source: {row['source']}")
+        if result["mode"] == "assumed_pace":
+            lines.append(f"User-supplied rate quote: {result['basis']['request_binding']['quote']}")
     lines += ["", "Assumptions:"] + [f"- {text}" for text in result["assumptions"]]
     lines += ["", "Limits:"] + [f"- {text}" for text in result["limitations"]]
     return "\n".join(lines) + "\n"

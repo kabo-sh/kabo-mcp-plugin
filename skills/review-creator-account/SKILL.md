@@ -1,6 +1,6 @@
 ---
 name: review-creator-account
-description: "Review Instagram, TikTok or YouTube accounts: why sales, orders, inquiries or conversions changed; supplied funnels; content patterns, followers, engagement, growth forecasts and odds. A handle's sales question belongs here even without private figures or with views/clicks in its table. Also handles account/post subscriber, view or like forecasts and continuations changing only the period. Not primary reach diagnoses, deep video reviews, drafts, trends, schedules, single-video edits or platform monetization eligibility."
+description: "Review Instagram, TikTok or YouTube accounts: why sales, orders, inquiries or conversions changed; supplied funnels; content patterns, followers, engagement, growth forecasts and odds. A handle's sales question belongs here even without private figures or with views/clicks in its table. Forecast account/post subscribers, views or likes, including follow-ups changing the period. Not primary reach diagnoses, deep video reviews, drafts, trends, schedules, edits or platform monetization eligibility."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to kabo.sh and to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permissions: data; optional workspace:read for saved account context and workspace:write only to connect a public account or save the user's profile edits on request."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download collect_account_history instagram_resolve_profile instagram_list_posts instagram_list_reels get_kabo_info list_connected_accounts get_creator_profile get_social_connection connect_public_account update_content_preferences start_skill_run
@@ -8,11 +8,15 @@ allowed-tools: get_research_capabilities get_research_data_job get_research_data
 
 # Review Creator Account
 
-For a forecast request or continuation, choose the reply from the evidence, not the requested
-table format. With no supported inputs, give only the target, a correction if needed, the missing
-fields and an explicit statement that occurrence probabilities are unavailable. No illustrative
-forecast table or invented dated rows. With supported inputs, deliver the calculator's actual
-results and limits for those metrics. A "conditional" label never permits invented rates or ranges.
+For a forecast request or continuation, name the resolved target in the first sentence. A follow-up
+keeps the most recent requested focus: do not combine an earlier account forecast with a later
+post forecast unless the user requests both. Resolve clear references in intervening replies;
+ask about ambiguity rather than broadening the target or its data request.
+With no supported inputs, the forecast portion contains only that target, a correction if needed,
+the missing fields and an explicit statement that occurrence probabilities are unavailable.
+No illustrative forecast table or invented dated rows. With supported inputs, deliver the
+calculator's actual results and limits. A "conditional" label never permits invented rates or
+ranges. These limits never suppress the rest of a requested account review or funnel answer.
 
 Deterministic analyzers produce the facts; a complete review makes exactly one semantic synthesis.
 Do not call a separate profile model. The schemas, analyzers, composer and validators ship in this
@@ -26,10 +30,11 @@ the main thread.
 **Forecast branch — before starting a review or answering a continuation:**
 1. Read [growth-estimation.md](references/growth-estimation.md). Keep the immediately preceding
    target and metrics unless the user changes them: a named post stays that post, not a new
-   account forecast. For "same/what you just gave me", use the nearest preceding user request
-   with an explicit target, not the union of topics mentioned earlier. Name that target in the
-   reply's first sentence and ask only for its missing metrics. Use the newly requested horizon.
-   If genuinely ambiguous, ask which target before collecting inputs. Earlier assistant forecasts
+   account forecast. Resolve "same/what you just gave me" through the recent exchange, including
+   a clearly referenced post introduced in an assistant reply, not the union of historical topics.
+   Name that target first and ask only for its missing metrics. Use the new requested endpoint;
+   stock horizons run from the latest observation, as the reference explains. If ambiguous, ask
+   which target or date before collecting inputs. Earlier assistant forecasts
    are claims to check, not observations or user assumptions.
 2. For each metric, find the actual dated source rows or the explicit user assumption the
    calculator requires. A sampling-window endpoint or "days ago" field is not an observation
@@ -39,8 +44,9 @@ the main thread.
 3. Deliver only its computed conditional results, formula and limits. If a metric lacks inputs,
    identify that gap and ask for the minimum records; do not fill its cell with a plausible range,
    "typical" future value or historical statistic relabelled as a forecast. With no supported
-   metric, the reply is only a correction of any earlier overstatement and the minimum data
-   question for that same target. Stop there: no forecast/unknowns table, invented example values,
+   metric, end the forecast portion after correcting any earlier overstatement, explaining the
+   odds limit and asking for the minimum data for that target. Keep any supported review/funnel
+   results. No forecast/unknowns table, invented example values,
    different-target data request or promise of a numeric table before checking the supplied rows.
    Request missing columns in prose; do not illustrate them with made-up dated rows or attach an
    example date to an undated real count. A date-format example must remain a placeholder.
@@ -66,8 +72,9 @@ deterministic identity and metric descriptions, keeping every semantic string, q
 link, order and structure. Close with one short sentence and end with the `creator_report:` line.
 Keep every section, paragraph, example link, adjacent evidence limit and action's success criterion.
 Do not replace the body with an opening diagnosis or a link.
-For a review that also requests a supported stock calculation, append only its script-produced
-Markdown handoff as specified in `growth-estimation.md`, before the final `creator_report:` line.
+For supported stock calculations or additional content metrics outside the report's single
+growth slot, append only their script-produced Markdown handoffs as specified in
+`growth-estimation.md`, before the final `creator_report:` line.
 Otherwise never summarize, re-synthesize, expand or append a second report, findings, caveats, status text,
 tool call counts or providers. If a step fails, say which deliverable is unavailable; never present
 a draft, a partial artifact or an unvalidated file as the result.
@@ -184,8 +191,10 @@ command again while it runs.
    `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' growth --language <synthesis language> --metric <requested content metric> --horizon-days <requested days>`
    Use defaults views/30 days only when omitted by the user. For subscribers/followers, skip this
    content command: use the standalone stock calculator and delivery path in the reference.
-   Any growth figure in the synthesis must be one `drive.py growth` printed; keep the standalone
-   stock result out of that schema. Missing forecast inputs do not stop the supported review.
+   The report has one growth slot. For additional requested metrics, use distinct standalone
+   inputs/results and the extra handoff path in the reference; changing `--metric` does not
+   replace an existing growth input. Only the selected report-slot result belongs in the
+   synthesis. Missing forecast inputs do not stop the supported review or other valid metrics.
 
 3. **Synthesis.** Read `references/synthesis-authoring.md` whole. Apply its public-snapshot
    branch even to mature posts: observations and proposed tests, not performance winners/losers. Write one
