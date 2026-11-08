@@ -2,6 +2,10 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.28（2026-11-08；GitHub Release）
+
+- 内容同 1.0.27；`plan-content-calendar` 的 `metadata.version` 升到 0.1.26（#133 改了该 Skill 内容，Web 发布要求声明版本高于线上，1.0.27 因此未上 Web）。
+
 ## 1.0.27（2026-11-08；GitHub Release）
 
 - `review-creator-account`：比较时对齐等长观测窗口，成交率与缺订单数据按实测样本给结论（#132）。
