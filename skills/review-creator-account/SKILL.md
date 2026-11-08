@@ -23,8 +23,9 @@ Forecasting is a new evidence check even when an earlier answer already contains
 If only undated summaries exist, or one snapshot without an explicit user rate, **ask for the
 missing dated records; give no future numbers, ranges or odds**. A dated baseline plus a valid
 user-supplied rate still supports conditional arithmetic. Calling invented values “conditional”, “planning” or “not a
-guarantee” does not make them supported. Do not offer to produce probabilities after more records:
-the calculators below do conditional arithmetic only. Keep independently supported calculations.
+guarantee” does not make them supported. Missing dates and missing probability calibration are separate gaps. More dated records can
+enable conditional arithmetic; they do not make percentage chances available. Never say that
+a larger history alone will enable probabilities. Keep independently supported calculations.
 
 
 1. Read the **last user request and its answer before this follow-up**, then work backward only

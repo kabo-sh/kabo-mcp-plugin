@@ -16,11 +16,9 @@ Choose one method:
   rate-language interpretation. Same observation fields, at least one dated baseline, plus `assumption: {amount, period: "day" | "week", origin: "user", quote}`. Use only an assumption explicitly supplied by the user. A cadence or scenario name is not a rate. Negative net change is allowed; linear values crossing zero are flagged.
 - `content_scenario`: for views/likes/comments, with semantics `per_content_cumulative`. `samples` contain `content_id`, `published_at`, `observed_at`, `format`, `value`, `source`, `scope`. Supply `cohort: {format, age_min_days, age_max_days}` appropriate to the user's comparison; use the same account and keep the chosen age band visible. The script filters format and observation age, preserves missingness and multiplies the available sample median by a publication plan: `plan: {posts, origin: "user", quote, binding}` for an explicit total count; add `period: "day" | "week"` when `posts` is the user's count per period. Interpret the user's language into the source-bound contract below: the script derives the equivalent item count as `posts × horizon_days / period_days`. Keep a fractional equivalent count as a rate scenario, not a rounded calendar schedule. Or use `plan: {origin: "observed_cadence"}` with `--snapshot` to continue the captured pace. The latter derives `(captured same-format posts - 1) / elapsed publication days` from at least two dated posts; do not supply `_snapshot_cadence`. Report the actual observed ages returned by the script, not the broader selection band. This is a conditional total for new content at that observation age, not account-wide growth, a confidence interval or a guaranteed total by the plan's end. Do not use it for subscribers. A tiny or selective sample can be computed but needs that limitation in the interpretation.
 
-Example dated input:
-
-```json
-{"schema_version":"growth-input.v1","mode":"observed_pace","scope":{"platform":"youtube","account":"creator","metric":"subscribers","semantics":"cumulative_stock"},"horizon_days":14,"observations":[{"scope":{"platform":"youtube","account":"creator","metric":"subscribers","semantics":"cumulative_stock"},"observed_at":"2026-10-01T00:00:00Z","value":37,"source":"user export row 1"},{"scope":{"platform":"youtube","account":"creator","metric":"subscribers","semantics":"cumulative_stock"},"observed_at":"2026-10-08T00:00:00Z","value":51,"source":"user export row 2"}]}
-```
+Build each observation only from a real source row. The contract above supplies field names,
+not example measurements to copy. When requesting a missing export, use placeholders such as
+`[measurement date, cumulative count]`; do not attach illustrative dates or counts to this account.
 
 ```bash
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/estimate_growth.py' growth_input.json --output growth_estimate.json
