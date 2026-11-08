@@ -15,8 +15,8 @@ Keep a short scope note with the exact source excerpts for:
 
 Reuse these facts in `forecast_scope.json` and the calculator inputs. `target` is one canonical
 account/post identifier used consistently; `reference` can hold the human-readable resolved name.
-Do not add channel subscribers to a follow-up about one post. If genuinely conflicting targets
-remain after reading the relevant history, ask one focused question. If a file is inaccessible,
+Do not add channel subscribers to a follow-up about one post. If the target or horizon is genuinely absent or conflicting
+after reading the relevant history, ask one focused question before invoking the composer. If a file is inaccessible,
 say which source could not be read and request only the missing passage.
 
 A known horizon with missing measurements is not an ambiguous horizon. Keep the requested period

@@ -32,7 +32,8 @@ also a completed script handoff, not permission to skip the steps and answer fro
    unless this turn changes it. A request for different certainty or presentation preserves it.
    Resolve one account or post through the latest target-setting user turn and its answer, not an
    older account table. If a file cannot be read, state that access gap rather than re-asking as
-   though the user never supplied the fact. Clarify only a genuinely unresolved conflict after reading.
+   though the user never supplied the fact. After reading, ask one focused question if the target or horizon is genuinely absent or
+   conflicting. Do not ask again when the latest relevant user turn resolves it.
 2. **Bind one scope and choose the evidence path.** Read
    [growth-estimation.md](references/growth-estimation.md) and
    [growth-calculation-inputs.md](references/growth-calculation-inputs.md). Save
