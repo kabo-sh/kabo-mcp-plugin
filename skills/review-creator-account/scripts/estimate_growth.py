@@ -122,6 +122,7 @@ def legacy_stock_rate(record, question):
 
 
 def estimate(data, question=None):
+    """按实际观测或用户绑定假设计算，缺少输入时保留缺失状态。"""
     if data.get("schema_version") != "growth-input.v1":
         raise ValueError("expected growth-input.v1")
     scope = data.get("scope", {})
@@ -211,6 +212,7 @@ def estimate(data, question=None):
 
 
 def content_scenario(data, scope, days, question=None):
+    """按归一化格式与同龄样本计算内容批次，保留缺失和来源。"""
     if scope["semantics"] != "per_content_cumulative" or scope["metric"] not in ("views", "likes", "comments"):
         raise ValueError("content_scenario supports cumulative views/likes/comments per content, not followers")
     cohort = data.get("cohort", {})
@@ -356,6 +358,7 @@ def deadline_sentence(timing):
 
 
 def render_report(result):
+    """把计算依据、日期、来源与边界完整渲染为交付文本。"""
     scope = result["scope"]
     title = f"Conditional estimate: {scope['account']} / {scope['metric']}"
     if result["status"] == "needs_input":

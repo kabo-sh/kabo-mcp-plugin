@@ -30,7 +30,10 @@ the calculators below do conditional arithmetic only. Keep independently support
    if their target is unresolved. Do not jump to an older account table just because the current
    request changes its period. A post-focused exchange stays about that post. Copy the earlier
    target-setting user request, not the current time-change request, into `request_quote`.
-   Resolve pronouns through the corresponding answer. Ask if genuinely ambiguous. Save `forecast_scope.json` with
+   Resolve pronouns through the corresponding answer. **Start the answer by naming that one
+   resolved target.** When the last forecast concerns one post, neither account subscribers nor
+   channel-wide totals belong in the follow-up; do not request exports for both. Only an explicit
+   user change can expand the target. Ask if genuinely ambiguous. Save `forecast_scope.json` with
    `platform`, `target`, `request_quote` (that user turn verbatim) and `reference` (the resolved
    post/account). The target must stay the same in every input and missing-data question.
 2. Check whether the source actually includes dated observations, before considering numbers.
@@ -40,7 +43,7 @@ the calculators below do conditional arithmetic only. Keep independently support
    [growth-calculation-inputs.md](references/growth-calculation-inputs.md). Prepare the requested
    metric/horizon inputs for that target. Use actual source rows or explicit user assumptions;
    old assistant predictions, summary statistics and invented observation dates cannot replace
-   missing data. Keep unknown dates absent. Stock horizons start at the latest observation.
+   missing data. Ask for `[date, count]` records without attaching illustrative dates to real counts. Keep unknown dates absent. Stock horizons start at the latest observation.
 3. Run `compose_forecast_reply.py` with that scope and all supported-contract input files, using
    the command in `growth-estimation.md`. Empty stock observations produce a missing-input reply;
    never fabricate rows to force a number. Keep independently supported metrics. A metric with
