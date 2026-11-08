@@ -20,8 +20,9 @@ Skill's `references/` and `scripts/`.
 ## Forecast-only requests and continuations
 
 Forecasting is a new evidence check even when an earlier answer already contains numbers.
-If only undated summaries or one snapshot exist, **ask for the missing dated records; give no
-future numbers, ranges or odds**. Calling invented values “conditional”, “planning” or “not a
+If only undated summaries exist, or one snapshot without an explicit user rate, **ask for the
+missing dated records; give no future numbers, ranges or odds**. A dated baseline plus a valid
+user-supplied rate still supports conditional arithmetic. Calling invented values “conditional”, “planning” or “not a
 guarantee” does not make them supported. Do not offer to produce probabilities after more records:
 the calculators below do conditional arithmetic only. Keep independently supported calculations.
 
