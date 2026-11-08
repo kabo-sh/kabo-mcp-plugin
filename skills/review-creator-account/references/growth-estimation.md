@@ -4,6 +4,26 @@ Use `<skill directory>/scripts/estimate_growth.py` with actual evidence or a use
 manufactured rows. It saves evidence JSON and a Markdown handoff, also printed. `computed` means
 arithmetic succeeded, not that future performance is known.
 
+## Final forecast-only reply
+
+After resolving the scope and preparing one valid input per requested metric/horizon, compose
+the final reply in one command. Include supported and missing-input results for that same target:
+
+```sh
+python3 '<skill directory>/scripts/compose_forecast_reply.py' --scope-file '<run directory>/forecast_scope.json' --input '<first-input.json>' --input '<next-input.json>' --question-file '<original-question.txt>' --output '<run directory>/FORECAST_REPLY.md'
+```
+
+The scope file records `platform`, `target`, `request_quote` and `reference` from the scope-resolution
+step. Each input must match that same platform/target. This checks consistency, not whether the
+model interpreted the conversation correctly: resolve the most recent user focus first.
+Use one `--input` when only one is requested; add others as needed. Add `--snapshot` only for
+content inputs bound to that original saved snapshot. Add `--correct-prior` only when the history
+actually contains an unsupported forecast. The command recomputes the inputs; it never trusts
+model-written result JSON. Relay the text between its reply markers, with fixed-label translation
+when needed. Do not append another table, numeric scenario, historical substitute or promise.
+An invalid input is a correction to make, not permission to bypass this final handoff. When the
+scope has no calculator contract, explain that limitation directly rather than mislabelling it.
+
 Missing-input path: run the matching supported calculator contract on the evidence actually
 available, retaining missingness. For a stock with no dated observations, `observed_pace` with
 `observations: []` returns `needs_input`; it does not justify inventing rows. Relay that handoff

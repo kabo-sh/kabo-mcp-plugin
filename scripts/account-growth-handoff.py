@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "skills/review-creator-account/scripts/estimate_growth.py"
+COMPOSER = SCRIPT.with_name("compose_forecast_reply.py")
 
 
 class GrowthHandoff(unittest.TestCase):
@@ -93,6 +94,50 @@ class GrowthHandoff(unittest.TestCase):
         self.assertEqual(json.loads((self.root / "likes.json").read_text())["scope"]["metric"], "likes")
         self.assertIn("/ views", outputs["views"][1])
         self.assertIn("/ likes", outputs["likes"][1])
+
+    def compose_reply(self, inputs, output_name="reply.md"):
+        scope_file = self.root / "scope.json"
+        scope_file.write_text(json.dumps(dict(platform=self.scope["platform"], target=self.scope["account"],
+                                              request_quote="Forecast the selected account.", reference="The account selected by the user.")))
+        command = [sys.executable, "-B", str(COMPOSER), "--scope-file", str(scope_file), "--output", str(self.root / output_name)]
+        for n, data in enumerate(inputs):
+            path = self.root / f"compose-{n}.json"
+            path.write_text(json.dumps(data))
+            command += ["--input", str(path)]
+        return subprocess.run(command, text=True, capture_output=True)
+
+    def test_composed_reply_delivers_supported_and_missing_metrics_together(self):
+        supported = dict(schema_version="growth-input.v1", mode="observed_pace", scope=self.scope, horizon_days=14,
+                         observations=[self.row("2026-10-01T00:00:00Z", 120, "owner row 1"),
+                                       self.row("2026-10-08T00:00:00Z", 148, "owner row 2")])
+        missing = dict(schema_version="growth-input.v1", mode="observed_pace",
+                       scope={**self.scope, "metric": "views"}, horizon_days=14, observations=[])
+        run = self.compose_reply([supported, missing])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        result = json.loads((self.root / "reply.json").read_text())["results"]
+        self.assertEqual(result[0]["estimate"]["value"], 204)
+        self.assertEqual(result[1]["status"], "needs_input")
+        report = (self.root / "reply.md").read_text()
+        self.assertIn("204.00", report)
+        self.assertIn("## views", report)
+        self.assertIn("No numeric estimate or probability", report)
+        self.assertEqual(run.stdout, "KABO_FORECAST_REPLY_BEGIN\n" + report + "KABO_FORECAST_REPLY_END\n")
+
+    def test_composer_rejects_a_different_target_and_writes_no_report(self):
+        a = dict(schema_version="growth-input.v1", mode="observed_pace", scope=self.scope, horizon_days=30, observations=[])
+        b = {**a, "scope": {**self.scope, "account": "creator/post-1"}}
+        run = self.compose_reply([a, b])
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("one resolved target", run.stderr)
+        self.assertFalse((self.root / "reply.md").exists())
+        self.assertFalse((self.root / "reply.json").exists())
+
+    def test_composer_does_not_overwrite_input_evidence(self):
+        data = dict(schema_version="growth-input.v1", mode="observed_pace", scope=self.scope, horizon_days=30, observations=[])
+        run = self.compose_reply([data], "compose-0.md")
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("must not overwrite", run.stderr)
+        self.assertEqual(json.loads((self.root / "compose-0.json").read_text()), data)
 
 
 if __name__ == "__main__":

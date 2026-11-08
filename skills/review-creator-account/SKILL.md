@@ -8,11 +8,19 @@ allowed-tools: get_research_capabilities get_research_data_job get_research_data
 
 # Review Creator Account
 
+**Forecast-only final delivery:** the reply is the complete text between
+`KABO_FORECAST_REPLY_BEGIN` and `KABO_FORECAST_REPLY_END` from `compose_forecast_reply.py`.
+Relay it once (translate fixed labels if needed); never append a model-written forecast,
+reference table or promise. This applies to missing-input answers too. Prepare the inputs and
+resolved scope below, then run the composition command in `growth-estimation.md`. A preliminary
+calculator output is not permission to improvise a final reply. Complete reviews retain their
+own delivery path and all supported review findings.
+
 For a forecast request or continuation, first identify the **most recent user turn selecting the
 target**, resolving any pronoun through its corresponding reply. An earlier account review does
 not override a later user request about a post. A continuation changing only the horizon keeps
 that last target; it does not reopen every earlier forecast. Quote that target-setting user turn
-in `forecast_scope.txt` before drafting, then name the resolved target in the reply's first sentence.
+in `forecast_scope.json` before drafting, then name the resolved target in the reply's first sentence.
 Ask about genuine ambiguity rather than combining targets or broadening the data request.
 With no supported inputs, the forecast portion contains only that target, a correction if needed,
 the missing fields and an explicit statement that occurrence probabilities are unavailable.
@@ -39,8 +47,8 @@ the main thread.
    stock horizons run from the latest observation, as the reference explains. If ambiguous, ask
    which target or date before collecting inputs. Earlier assistant forecasts
    are claims to check, not observations or user assumptions.
-   Before drafting the reply, save `forecast_scope.txt`: the latest user sentence selecting the
-   target, the reference it resolves to, that target's name/type and the current horizon. An old
+   Before drafting, save `forecast_scope.json` with `platform`, `target`, `request_quote`
+   (the latest target-setting user sentence verbatim) and `reference` (the resolved post/account). An old
    assistant table is not a request to add another target. Use this scope for every input and
    missing-data question; do not collect for additional targets without a user request.
 2. Read [growth-calculation-inputs.md](references/growth-calculation-inputs.md) before preparing
@@ -63,6 +71,9 @@ the main thread.
    Before sending any future number or table, match it to this turn's successful calculator
    output. Remove it if there was no such computation; do not replace it with an imagined
    low/base/breakout scenario. Historical counts may only be identified as observations.
+   For a forecast-only request, finish with `compose_forecast_reply.py` and relay its complete
+   handoff. It recomputes each input and rejects accidentally combined targets; do not author
+   or edit its result JSON or Markdown.
 A batch at historical post ages is not an account's calendar-month total or an existing post's
 trajectory. No result here supplies calibrated odds, now or after adding more history; extra
 records can enable conditional arithmetic, not percentage probabilities. When odds are requested,
