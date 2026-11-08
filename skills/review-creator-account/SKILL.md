@@ -1,6 +1,6 @@
 ---
 name: review-creator-account
-description: "Review Instagram, TikTok or YouTube accounts: why sales, orders, inquiries or conversions changed; supplied funnels; content patterns, followers, engagement, growth forecasts and odds. A handle's sales question belongs here even without private figures or with views/clicks in its table. Forecast account/post subscribers, views or likes, including follow-ups changing the period. Not primary reach diagnoses, deep video reviews, drafts, trends, schedules, edits or platform monetization eligibility."
+description: "Review Instagram, TikTok or YouTube accounts: why sales, orders, inquiries or conversions changed; supplied funnels. A handle’s sales question belongs here without private figures or with views/clicks. Also use for estimated subscriber/follower, view or like counts, their % chance, and month-by-month follow-ups to a prior audit or forecast—even when no new lookup is needed. Review content patterns and engagement. Excludes primary reach diagnoses, drafts and platform monetization eligibility."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to kabo.sh and to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permissions: data; optional workspace:read for saved account context and workspace:write only to connect a public account or save the user's profile edits on request."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download collect_account_history instagram_resolve_profile instagram_list_posts instagram_list_reels get_kabo_info list_connected_accounts get_creator_profile get_social_connection connect_public_account update_content_preferences start_skill_run
@@ -19,8 +19,12 @@ Skill's `references/` and `scripts/`.
 
 ## Forecast-only requests and continuations
 
-Use the complete rendered reply, including when inputs are missing. Do not write a forecast from
-memory or from a previous assistant's table.
+Forecasting is a new evidence check even when an earlier answer already contains numbers.
+If only undated summaries or one snapshot exist, **ask for the missing dated records; give no
+future numbers, ranges or odds**. Calling invented values “conditional”, “planning” or “not a
+guarantee” does not make them supported. Do not offer to produce probabilities after more records:
+the calculators below do conditional arithmetic only. Keep independently supported calculations.
+
 
 1. Read the **last user request and its answer before this follow-up**, then work backward only
    if their target is unresolved. Do not jump to an older account table just because the current
