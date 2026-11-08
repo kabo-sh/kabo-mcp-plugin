@@ -22,12 +22,17 @@ Skill's `references/` and `scripts/`.
 Use the complete rendered reply, including when inputs are missing. Do not write a forecast from
 memory or from a previous assistant's table.
 
-1. Resolve the **most recent user turn selecting the target**, including a pronoun through its
-   corresponding reply. A later post request overrides an earlier account forecast; a change of
-   horizon does not reopen both. Ask if genuinely ambiguous. Save `forecast_scope.json` with
+1. Read the **last user request and its answer before this follow-up**, then work backward only
+   if their target is unresolved. Do not jump to an older account table just because the current
+   request changes its period. A post-focused exchange stays about that post. Copy the earlier
+   target-setting user request, not the current time-change request, into `request_quote`.
+   Resolve pronouns through the corresponding answer. Ask if genuinely ambiguous. Save `forecast_scope.json` with
    `platform`, `target`, `request_quote` (that user turn verbatim) and `reference` (the resolved
    post/account). The target must stay the same in every input and missing-data question.
-2. Read [growth-estimation.md](references/growth-estimation.md) and
+2. Check whether the source actually includes dated observations, before considering numbers.
+   No measurement dates means no future numeric table, even a table labelled conditional or
+   low/middle/high. A posting rate or historical median alone cannot repair missing dates.
+   Read [growth-estimation.md](references/growth-estimation.md) and
    [growth-calculation-inputs.md](references/growth-calculation-inputs.md). Prepare the requested
    metric/horizon inputs for that target. Use actual source rows or explicit user assumptions;
    old assistant predictions, summary statistics and invented observation dates cannot replace
@@ -56,8 +61,9 @@ deterministic identity and metric descriptions, keeping every semantic string, q
 link, order and structure. Close with one short sentence and end with the `creator_report:` line.
 Keep every section, paragraph, example link, adjacent evidence limit and action's success criterion.
 Do not replace the body with an opening diagnosis or a link.
-For supported stock calculations or additional content metrics outside the report's single
-growth slot, append only their script-produced Markdown handoffs as specified in
+For stock calculations or additional content metrics outside the report's single content-only
+growth slot, append their script-produced Markdown handoffs, including `needs_input` for an
+unsupported subscriber forecast, as specified in
 `growth-estimation.md`, before the final `creator_report:` line.
 Otherwise never summarize, re-synthesize, expand or append a second report, findings, caveats, status text,
 tool call counts or providers. If a step fails, say which deliverable is unavailable; never present

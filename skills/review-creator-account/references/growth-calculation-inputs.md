@@ -5,6 +5,10 @@ The calculator accepts these existing contracts; missingness is not permission t
 
 Direct calculation inputs use top-level `schema_version: growth-input.v1`, positive `horizon_days`, and `scope: {platform, account, metric, semantics}`. Each row carries the same scope and a `source` pointing to its persisted evidence or the supplied record. Timestamps include a timezone. Missing values are null, observed zero remains zero. Never mix accounts or metric definitions; window totals are not cumulative stock observations. Public totals do not measure private conversion.
 
+For a named-post stock calculation, put the resolved post identifier in `scope.account` (for
+example `creator/post-1`, or its canonical URL), and use that exact scope for every observation.
+An account handle alone would mislabel a post calculation as an account-wide result.
+
 Choose one method:
 
 - `observed_pace`: for dated follower/subscriber or other cumulative stock observations. `scope.semantics` is `cumulative_stock`; `observations` contain `observed_at`, `value`, `source`, `scope`. The script uses first-to-last net change divided by actual elapsed days and exposes intermediate interval rates. Explain reversals or short/old windows before interpreting the unchanged-pace scenario; missing dates are not zero. Mock records are not real observations.
@@ -26,7 +30,7 @@ Use this skill's absolute script path from the run directory. A narrow estimate 
 
 For `content_scenario` from the review's `public-content-snapshot.v1`, omit `samples` and add `--snapshot snapshot.json` to the command. The script binds the matching creator and metric directly, preserves unavailable values, and retains snapshot item references; do not retype those facts into samples. Keep the snapshot's coverage and source limitations in the interpretation. The native result is described by `references/growth_estimate.schema.json`.
 
-For user inputs, pass `--question-file` pointing to the original request as plain text. Public review fetch retains it as `question.txt` in the printed run directory; use `--snapshot snapshot.json --question-file question.txt` there. For a publication plan, interpret the request's meaning first, then supply `quote` as the complete original request (excluding surrounding whitespace) and `binding`:
+For user inputs, pass `--question-file` pointing to the original request as plain text. Public review fetch retains it as `question.txt` in the printed run directory; use `--question-file question.txt` there. Add `--snapshot snapshot.json` only for `content_scenario`; stock modes must not receive `--snapshot`. For a publication plan, interpret the request's meaning first, then supply `quote` as the complete original request (excluding surrounding whitespace) and `binding`:
 
 - Explicit total: `{"posts": 4, "origin": "user", "quote": "If I post 4 long videos in total next month, how many views will I get?", "binding": {"quantity_kind": "total", "quantity_quote": "4"}}`.
 - Frequency: `{"posts": 3, "period": "week", "origin": "user", "quote": "3 videos per week", "binding": {"quantity_kind": "cadence", "quantity_quote": "3", "period": "week", "period_quote": "per week"}}`.

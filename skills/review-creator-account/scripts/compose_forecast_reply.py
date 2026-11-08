@@ -8,6 +8,7 @@ from estimate_growth import estimate, render_report, with_snapshot
 
 
 def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_source=None, correct_prior=False):
+    """重算独立指标并检查目标一致，保留可算结果与缺失输入。"""
     required = {"platform", "target", "request_quote", "reference"}
     if not isinstance(resolved_scope, dict) or set(resolved_scope) != required or any(
         not isinstance(resolved_scope[key], str) or not resolved_scope[key].strip() for key in required
@@ -44,6 +45,7 @@ def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_sourc
 
 
 def main():
+    """校验命令输入和输出路径，写出可直接交付的完整预测回复。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", action="append", type=Path, required=True)
     parser.add_argument("--scope-file", type=Path, required=True)

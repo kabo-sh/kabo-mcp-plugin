@@ -25,9 +25,10 @@ An invalid input is a correction to make, not permission to bypass this final ha
 scope has no calculator contract, explain that limitation directly rather than mislabelling it.
 
 Missing-input path: run the matching supported calculator contract on the evidence actually
-available, retaining missingness. For a stock with no dated observations, `observed_pace` with
-`observations: []` returns `needs_input`; it does not justify inventing rows. Relay that handoff
-for the resolved target, with any needed correction of prior claims, then stop the forecast.
+available, retaining missingness. For a stock with no dated observations, use `assumed_pace`
+with `observations: []` when the explicit user rate passes its quote binding; ask only for the
+missing dated baseline. Otherwise use `observed_pace` with `observations: []`. Both return
+`needs_input`; never invent rows. Relay that handoff for the resolved target and stop the forecast.
 Do not append offers of unsupported ranges or probabilities. If the metric/scope has no supported
 contract, explain that gap directly; never relabel it merely to run a script.
 
@@ -125,8 +126,8 @@ formula, ages and limits in `ACCOUNT_REVIEW.md`. Use the standalone path below f
 
 ## Choose the supported output path
 
-A growth-only request or follow-up uses the standalone `estimate_growth.py` interface and its
-printed Markdown handoff. It can calculate `observed_pace` or `assumed_pace` from their dated
+A growth-only request or follow-up uses `compose_forecast_reply.py` above, which recomputes
+each input through `estimate_growth.py` and returns the complete reply. It can calculate `observed_pace` or `assumed_pace` from their dated
 inputs, including one dated baseline plus an explicit user-supplied rate that passes the existing
 Chinese/English day/week quote binding. Do not promise arbitrary rate-language support: named
 English view/like rates and monthly-rate phrases are not recognized by that legacy reader.
@@ -138,7 +139,7 @@ conditional assumption, not a measured trajectory or probability.
 Inside a complete public review, `drive.py growth` and the composed `ACCOUNT_REVIEW.md` currently
 support one `content_scenario` in one growth slot. Once `review_growth_input.json` exists,
 another `drive.py growth --metric ...` reads it rather than switching metrics. Do not overwrite it
-or place stock figures in that schema. For each additional supported metric or stock estimate,
+or place stock figures in that schema. For each additional metric or stock estimate (including a `needs_input` result),
 use the standalone interface in the same run with distinct input/output filenames. Extra content
 calculations use the same saved snapshot, question and validated `content_scenario` contract;
 never substitute one metric's rows for another's. Keep all requested metrics independently gated.

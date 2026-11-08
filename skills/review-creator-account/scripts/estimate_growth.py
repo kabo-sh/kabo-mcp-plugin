@@ -13,6 +13,8 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
+from account_analyzers import normalize_format
+
 
 def number(value, label, *, signed=False):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -184,7 +186,11 @@ def estimate(data, question=None):
         assumption = data.get("assumption")
         verified = user_quantity(assumption, question, "rate")
         if not known or verified is None:
-            result["required_inputs"] = ["A dated baseline and an explicit net-change amount and day/week period in the original user request (--question-file)."]
+            result["required_inputs"] = []
+            if not known:
+                result["required_inputs"].append("A dated baseline for the requested cumulative metric.")
+            if verified is None:
+                result["required_inputs"].append("An explicit net-change amount and day/week period in the original user request (--question-file).")
             return result
         rate = verified["value"]
         baseline = known[-1][1]
@@ -210,6 +216,7 @@ def content_scenario(data, scope, days, question=None):
     cohort = data.get("cohort", {})
     if not isinstance(cohort.get("format"), str) or not cohort["format"].strip():
         raise ValueError("cohort.format is required")
+    cohort = dict(cohort, format=normalize_format(cohort["format"]))
     low = number(cohort.get("age_min_days"), "age_min_days")
     high = number(cohort.get("age_max_days"), "age_max_days")
     if high < low:
@@ -230,7 +237,7 @@ def content_scenario(data, scope, days, question=None):
         age = (time(row["observed_at"]) - time(row["published_at"])).total_seconds() / 86400
         if age < 0:
             raise ValueError("content observation precedes publication")
-        if row.get("format") != cohort["format"] or not low <= age <= high:
+        if normalize_format(row.get("format")) != cohort["format"] or not low <= age <= high:
             outside += 1
             continue
         if row.get("value") is None:
@@ -331,7 +338,7 @@ def with_snapshot(data, snapshot, source):
                                   "source": f"{source}#items/{item['content_id']}"})
     if data.get("plan", {}).get("origin") == "observed_cadence":
         stamps = sorted(time(row["published_at"]) for row in result["samples"]
-                        if row["format"] == data.get("cohort", {}).get("format"))
+                        if normalize_format(row["format"]) == normalize_format(data.get("cohort", {}).get("format")))
         if len(stamps) >= 2 and stamps[-1] > stamps[0]:
             elapsed = (stamps[-1] - stamps[0]).total_seconds() / 86400
             result["_snapshot_cadence"] = {"per_day": (len(stamps) - 1) / elapsed,
@@ -364,6 +371,12 @@ def render_report(result):
         lines.append(f"Conditional value: {estimate['value']:,.2f}")
     lines.append(f"Formula: {estimate['formula']}")
     if result["mode"] == "content_scenario":
+        cohort, coverage = result["cohort"], result["coverage"]
+        lines.append(f"Cohort: {cohort['format']}; selection age {cohort['age_min_days']:g}–{cohort['age_max_days']:g} days.")
+        lines.append(f"Sample coverage: {coverage['available']} available, {coverage['missing']} missing values, {coverage['outside_cohort']} outside this cohort.")
+        lines.append("Content evidence:")
+        for row in result["samples"]:
+            lines.append(f"- {row['content_id']}: {row['value']:g}; published {row['published_at']}, observed {row['observed_at']}; source: {row['source']}")
         plan = result["basis"]["plan"]
         label = "equivalent new items" if "period" in plan else "new items"
         lines.append(f"Inputs: median {result['basis']['median_per_content']:g} per item × {plan['posts']:g} {label}.")
