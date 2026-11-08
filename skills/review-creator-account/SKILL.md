@@ -28,6 +28,17 @@ enable conditional arithmetic; they do not make percentage chances available. Ne
 a larger history alone will enable probabilities. Keep independently supported calculations.
 
 
+Use this order for every forecast-only reply (including when all inputs are missing):
+
+- **Target:** the one selected account or post, metric and horizon.
+- **Conditional calculation:** only script-computed amounts with their assumptions; otherwise
+  state that no numerical projection is supported. Do not replace it with a guessed range.
+- **Missing measurements:** ask only for records needed for those conditional calculations.
+- **Probability:** close explicitly with “Occurrence probabilities are unavailable from this
+  Skill. More history can enable conditional calculations, not calibrated chances.” Translate
+  this meaning into the user's language. End there; do not offer odds in any other section.
+
+
 1. Read the **last user request and its answer before this follow-up**, then work backward only
    if their target is unresolved. Do not jump to an older account table just because the current
    request changes its period. A post-focused exchange stays about that post. Copy the earlier
