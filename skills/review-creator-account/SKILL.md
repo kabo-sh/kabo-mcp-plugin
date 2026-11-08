@@ -1,6 +1,6 @@
 ---
 name: review-creator-account
-description: "Review Instagram, TikTok or YouTube accounts: why sales, orders, inquiries or conversions changed; supplied funnels; content patterns, followers, engagement, growth forecasts and odds. A handle's sales question belongs here even without private figures or with views/clicks in its table. Reach diagnosis is for a primary distribution question; deep review is for explicit video-watching requests. Not for drafts, trends, schedules, single-video edits or platform monetization eligibility."
+description: "Review Instagram, TikTok or YouTube accounts: sales, orders, inquiries, conversion funnels and content performance. Estimate future subscribers, views or likes, including odds and follow-ups extending an earlier forecast. Sales questions belong here even without private figures or with views/clicks in the table. Reach diagnosis handles distribution; deep review handles explicit video watching. Excludes drafts, trends, schedules, single-video edits and platform monetization eligibility."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to kabo.sh and to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permissions: data; optional workspace:read for saved account context and workspace:write only to connect a public account or save the user's profile edits on request."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download collect_account_history instagram_resolve_profile instagram_list_posts instagram_list_reels get_kabo_info list_connected_accounts get_creator_profile get_social_connection connect_public_account update_content_preferences start_skill_run
@@ -17,20 +17,20 @@ takes many steps, and wait for its final result before replying; never run it in
 tell the user the report will come later. Without a foreground sub-agent, follow the same steps in
 the main thread.
 
-For a forecast or longer-horizon follow-up, read
-[growth-estimation.md](references/growth-estimation.md) and resolve its target **before arithmetic**.
-Keep the preceding account or post and metric unless the user changes them; use their newly
-requested horizon. Prior assistant estimates are not observations. Raw dated inputs must support
-`estimate_growth.py`; a report summary's median and cadence cannot replace its missing source rows.
-Never bypass the script with mental or ad-hoc arithmetic. Calculate independently supported
-metrics, and ask for the missing records or supported user assumptions for unsupported metrics.
-If no metric in a growth-only request can be calculated, correct earlier unsupported estimates
-only if they exist, ask for the missing inputs and end: no forecast table or invented example rates.
-Do not substitute a new-content batch for an existing post or calendar-month outcome. Additional
-snapshots enable conditional arithmetic, not calibrated odds; never promise percentage predictions
-in exchange for more history. Forecast gaps must not block supported sales/funnel answers or the
-rest of a complete account review. Supported stock and content scenarios remain available as the
-reference specifies.
+**Forecast branch — before starting a review or answering a continuation:**
+1. Read [growth-estimation.md](references/growth-estimation.md). Resolve the account/post and
+   metric from the conversation, with the user's current horizon. Earlier assistant forecasts
+   are claims to check, not observations or user assumptions.
+2. For each metric, find the actual dated source rows or the explicit user assumption the
+   calculator requires. Run `estimate_growth.py` on supported inputs; a prior summary's median,
+   cadence or range cannot replace missing rows. Never use mental/ad-hoc arithmetic to bypass it.
+3. Deliver only its computed conditional results, formula and limits. If a metric lacks inputs,
+   identify that gap and ask for the minimum records; do not fill its cell with a plausible range,
+   "typical" future value or historical statistic relabelled as a forecast. With no supported
+   metric, correct any earlier unsupported estimates, ask and stop. No numeric forecast follows.
+A batch at historical post ages is not an account's calendar-month total or an existing post's
+trajectory. No result here supplies calibrated odds. Keep supported sales/funnel findings and
+complete-review results available; forecast gaps block only the unsupported forecast.
 
 **Complete-review delivery only.** Supplied-funnel answers and narrow operations return their
 own supported result directly; they do not compose `ACCOUNT_REVIEW.md` or require a complete-review delivery step.
@@ -42,7 +42,9 @@ deterministic identity and metric descriptions, keeping every semantic string, q
 link, order and structure. Close with one short sentence and end with the `creator_report:` line.
 Keep every section, paragraph, example link, adjacent evidence limit and action's success criterion.
 Do not replace the body with an opening diagnosis or a link.
-Never summarize, re-synthesize, expand or append a second report, findings, caveats, status text,
+For a review that also requests a supported stock calculation, append only its script-produced
+Markdown handoff as specified in `growth-estimation.md`, before the final `creator_report:` line.
+Otherwise never summarize, re-synthesize, expand or append a second report, findings, caveats, status text,
 tool call counts or providers. If a step fails, say which deliverable is unavailable; never present
 a draft, a partial artifact or an unvalidated file as the result.
 
@@ -153,12 +155,13 @@ command again while it runs.
    **Never review a different account in the requested one's place.** When `fetch` finishes, it
    prints the synthesis schema, then the compact synthesis input.
 
-2. **Growth (only when asked).** For a growth or future-number question, run
+2. **Growth (only when asked).** Read `references/growth-estimation.md` and check the requested
+   metric before choosing a command. For a supported content scenario (views, likes or comments):
    `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' growth --language <synthesis language> --metric <requested content metric> --horizon-days <requested days>`
-   before the synthesis, as `references/growth-estimation.md` says. Use the requested content
-   metric (views, likes or comments) and horizon; defaults are views and 30 days only when omitted
-   by the user. Any growth figure in the
-   synthesis is one that command printed.
+   Use defaults views/30 days only when omitted by the user. For subscribers/followers, skip this
+   content command: use the standalone stock calculator and delivery path in the reference.
+   Any growth figure in the synthesis must be one `drive.py growth` printed; keep the standalone
+   stock result out of that schema. Missing forecast inputs do not stop the supported review.
 
 3. **Synthesis.** Read `references/synthesis-authoring.md` whole. Apply its public-snapshot
    branch even to mature posts: observations and proposed tests, not performance winners/losers. Write one

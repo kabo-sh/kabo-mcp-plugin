@@ -95,8 +95,16 @@ conditional assumption, not a measured trajectory or probability.
 
 Inside a complete public review, `drive.py growth` and the composed `ACCOUNT_REVIEW.md` currently
 support only `content_scenario`. Do not pass stock-pace inputs into that report contract or claim
-they are included. Use the separate standalone calculation for a growth-only follow-up instead.
-This clarification does not extend the public-review schema or hide unsupported coverage.
+they are included. For a complete review that also requests a supported stock estimate, calculate it in the same
+run with the standalone interface, retaining its input JSON, result JSON and printed Markdown.
+Compose and validate the account review normally without stock figures in its synthesis; then
+relay the full report plus the calculator's Markdown as a separate conditional-calculation
+section, before the final `creator_report:` line. Preserve its numbers, formula, evidence,
+assumptions and limitations; translate fixed labels if needed, without a new model-written
+forecast. This section is not part of the validated `ACCOUNT_REVIEW.md`: name the calculator's
+separate Markdown artifact when the user requests files. Missing inputs leave that calculation
+unavailable but never hold back the supported review. This path does not extend the public-review
+schema or force the user to repeat a supported request in another turn.
 
 ## Evidence → choice → answer
 
