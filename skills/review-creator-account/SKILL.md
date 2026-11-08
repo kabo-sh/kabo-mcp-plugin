@@ -8,6 +8,11 @@ allowed-tools: get_research_capabilities get_research_data_job get_research_data
 
 # Review Creator Account
 
+When the host supports one, run this Skill in a foreground sub-agent, because a complete review
+takes many steps, and wait for its final result before replying; never run it in the background and
+tell the user the report will come later. Without a foreground sub-agent, follow the same steps in
+the main thread.
+
 **Forecast-only final delivery:** the reply is the complete text between
 `KABO_FORECAST_REPLY_BEGIN` and `KABO_FORECAST_REPLY_END` from `compose_forecast_reply.py`.
 Relay it once (translate fixed labels if needed); never append a model-written forecast,
@@ -31,11 +36,6 @@ ranges. These limits never suppress the rest of a requested account review or fu
 Deterministic analyzers produce the facts; a complete review makes exactly one semantic synthesis.
 Do not call a separate profile model. The schemas, analyzers, composer and validators ship in this
 Skill's `references/` and `scripts/`.
-
-When the host supports one, run this Skill in a foreground sub-agent, because a complete review
-takes many steps, and wait for its final result before replying; never run it in the background and
-tell the user the report will come later. Without a foreground sub-agent, follow the same steps in
-the main thread.
 
 **Forecast branch — before starting a review or answering a continuation:**
 1. Read [growth-estimation.md](references/growth-estimation.md). Keep the immediately preceding
