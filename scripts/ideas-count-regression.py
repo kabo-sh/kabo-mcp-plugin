@@ -216,6 +216,30 @@ class IdeaCounts(unittest.TestCase):
             self.assertIn(idea["working_title"], report)
         self.assertIn("Confirm a consenting guest before filming.", report)
 
+    def test_translation_repair_targets_display_values_not_nested_statuses(self):
+        """首次反馈区分顶层展示与素材状态；按缺项修订一次即可交付全部20条。"""
+        self.prepare(self.root, 20)
+        output = self.output(20)
+        output["evidence_gap_translations"] = []
+        self.write(self.root, "idea_set.json", output)
+        _, first = self.stage(self.root, "core")
+        message = "; ".join(first["errors"])
+        self.assertIn("Add exactly these missing source_text entries", message)
+        self.assertIn("top-level IdeaSet.status", message)
+        self.assertIn("production_feasibility.status are not display values", message)
+        output["evidence_gap_translations"] = self.output(20)["evidence_gap_translations"]
+        self.write(self.root, "idea_set.json", output)
+        code, revised = self.stage(self.root, "core")
+        self.assertEqual((0, "ok", 2), (code, revised["status"], revised["generation_attempts"]), revised)
+        for idea in output["ideas"]:
+            self.assertIn(idea["working_title"], (self.root / "RESULT.md").read_text())
+        request = json.loads((self.root / "request.json").read_text())
+        for nested in ("hypothesis", "requires_user_confirmation"):
+            invalid = copy.deepcopy(output)
+            invalid["evidence_gap_translations"].append({"source_text": nested, "report_text": "unused nested status"})
+            errors = validator.validate_idea_set(invalid, request, self.root / "idea_set.json")
+            self.assertTrue(any(nested in error and "remove it" in error for error in errors), errors)
+
     def test_pending_asset_diagnostics_do_not_raise_on_invalid_shapes(self):
         """独立诊断只检查类型正确的依赖；错误容器仍由schema拒绝。"""
         request = self.prepare(self.root, 3)

@@ -32,15 +32,20 @@ project these entries natively. These projections never alter user-supplied crea
 canonical evidence identifiers.
 
 In that same `evidence_gap_translations` array, also supply one entry for each distinct canonical
-value actually displayed: `status`, `task_intent`, `source_mode`, non-`unknown` effort when no
-minute estimate is present, and each nonempty `primary_evidence_ref`. Translate these values for
-presentation only; never edit the canonical enums, evidence IDs or lineage.
+value actually displayed: top-level `IdeaSet.status`, `IdeaSet.task_intent`, `IdeaSet.source_mode`,
+each idea's non-`unknown` `production_feasibility.effort` when no minute estimate is present, and
+each nonempty `primary_evidence_ref`. This is not a request to translate every enum or `status`
+field: nested `creator_fit.status` and `production_feasibility.status` are not display values.
+Translate the listed values for presentation only; never edit canonical enums, evidence IDs or lineage.
 
 For a language without a built-in catalog, the same array also carries the required UI labels
 above. Extra translations of schema-defined display enums are allowed but remain unused unless
 that value is actually displayed. They never add evidence, gaps or creative copy. Arbitrary
 unreferenced text or evidence IDs, duplicate sources, empty translations and missing required
 mappings still fail validation. A source present in multiple sets has exactly one entry.
+When validation lists missing translations, add exactly those missing `source_text` entries to
+the existing array; do not add nested status enums as precautionary translations. Preserve real
+gap mappings even when a gap happens to use the same text as a status.
 Do not add a new output field or turn a display value into a source gap. When source text already
 matches the report language, repeat it explicitly. The renderer projects only real source gaps into
 the gap section and only the finite canonical values into their display positions, never into
