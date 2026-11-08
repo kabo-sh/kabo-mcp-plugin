@@ -157,11 +157,12 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    running core again or consuming another generation attempt:
 
    ```sh
-   cd '<run directory>' && python3 '<skill directory>/scripts/validate_ideas.py' idea-set idea_set.json request.json && test -s RESULT.md
+   cd '<run directory>' && python3 '<skill directory>/scripts/validate_ideas.py' idea-set idea_set.json request.json --report RESULT.md
    ```
 
    This is the final step; its deliverable is `RESULT.md` at the run root, not under `report/`.
-   Read the whole file and send it unchanged. Before sending, check that the reply retains every
+   The command verifies and returns the complete Creator-facing reply. Send that output unchanged
+   (read every chunk if the host pages it). Before sending, check that the reply retains every
    requested candidate's title, opening line, making direction and pending production conditions;
    a larger batch must not become a title-only list or lose the later candidates' hooks and steps.
    There is no final step for `needs_revision`, `not_met` or a failed/unreadable stage result. A

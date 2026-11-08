@@ -1475,6 +1475,7 @@ def main() -> int:
     idea_set_parser = commands.add_parser("idea-set")
     idea_set_parser.add_argument("idea_set", type=Path)
     idea_set_parser.add_argument("request", type=Path)
+    idea_set_parser.add_argument("--report", type=Path, help="Return the unchanged rendered Creator report after validation")
     args = parser.parse_args()
 
     try:
@@ -1484,7 +1485,9 @@ def main() -> int:
             errors = validate_request(request, request_path)
         else:
             request_path = args.request.resolve()
-            errors = validate_idea_set(load(args.idea_set), load(request_path), request_path)
+            request = load(request_path)
+            idea_set = load(args.idea_set)
+            errors = validate_idea_set(idea_set, request, request_path)
     except (OSError, json.JSONDecodeError) as error:
         print(f"ERROR: {type(error).__name__}: {error}", file=sys.stderr)
         return 1
@@ -1495,6 +1498,19 @@ def main() -> int:
         return 1
     if args.command == "decision":
         print(json.dumps(generation_decision(request), ensure_ascii=False, sort_keys=True))
+        return 0
+    if args.command == "idea-set" and args.report:
+        # 一次返回已核验的完整交付，不写文件，也不消耗新的生成机会。
+        from render_idea_report import concise
+        try:
+            report = args.report.read_text(encoding="utf-8")
+            if report != concise(idea_set, request):
+                print("ERROR: report differs from the validated IdeaSet projection; do not deliver a shortened or stale report", file=sys.stderr)
+                return 1
+        except (OSError, UnicodeError, ValueError) as error:
+            print(f"ERROR: cannot deliver validated report: {error}", file=sys.stderr)
+            return 1
+        print(report, end="")
         return 0
     print(f"VALID {args.command}")
     return 0

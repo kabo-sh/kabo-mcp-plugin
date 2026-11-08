@@ -240,6 +240,35 @@ class IdeaCounts(unittest.TestCase):
             errors = validator.validate_idea_set(invalid, request, self.root / "idea_set.json")
             self.assertTrue(any(nested in error and "remove it" in error for error in errors), errors)
 
+    def test_final_delivery_returns_complete_report_and_rejects_truncation(self):
+        """最后一次校验直接返回全部候选；拒绝缩写、过期投影及无效IdeaSet。"""
+        self.prepare(self.root, 20)
+        output = self.output(20)
+        self.write(self.root, "idea_set.json", output)
+        self.assertEqual("ok", self.stage(self.root, "core")[1]["status"])
+        report = self.root / "RESULT.md"
+        expected = report.read_text()
+        command = [sys.executable, "-B", str(SKILL / "scripts/validate_ideas.py"), "idea-set",
+                   str(self.root / "idea_set.json"), str(self.root / "request.json"), "--report", str(report)]
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(expected, result.stdout)
+        for idea in output["ideas"]:
+            self.assertIn(idea["working_title"], result.stdout)
+            self.assertIn(idea["hook_preview"]["opening_line"], result.stdout)
+            self.assertIn(idea["making_direction"], result.stdout)
+        report.write_text(expected[:len(expected) // 2])
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual("", result.stdout)
+        self.assertIn("shortened or stale report", result.stderr)
+        report.write_text(expected)
+        output["ideas"] = output["ideas"][:10]
+        self.write(self.root, "idea_set.json", output)
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertNotIn(output["ideas"][0]["working_title"], result.stdout)
+
     def test_pending_asset_diagnostics_do_not_raise_on_invalid_shapes(self):
         """独立诊断只检查类型正确的依赖；错误容器仍由schema拒绝。"""
         request = self.prepare(self.root, 3)
