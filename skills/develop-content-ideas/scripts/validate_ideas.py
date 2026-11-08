@@ -1123,6 +1123,63 @@ def shortlist_hook_errors(idea_set: Any, request: Any) -> list[str]:
 
 
 
+def production_asset_errors(idea_set: Any, request: Any) -> list[str]:
+    """类型安全地汇总素材条件，让无关 schema 错误不耗掉唯一修订机会。"""
+    errors: list[str] = []
+    if not isinstance(idea_set, dict) or not isinstance(request, dict):
+        return errors
+    constraints = request.get("production_constraints")
+    intent = request.get("task_intent")
+    if not isinstance(constraints, dict) or not isinstance(intent, str):
+        return errors
+    available = constraints.get("available_assets")
+    if not isinstance(available, list) or not all(isinstance(value, str) for value in available):
+        return errors
+    ideas = idea_set.get("ideas")
+    if not isinstance(ideas, list):
+        return errors
+    available_assets = set(available)
+    gates = idea_set.get("gates")
+    for item in ideas:
+        if not isinstance(item, dict) or not isinstance(item.get("production_feasibility"), dict):
+            continue
+        prefix = item.get("idea_id") if has_text(item.get("idea_id")) else "<unknown>"
+        feasibility = item["production_feasibility"]
+        used = feasibility.get("assets_used")
+        if isinstance(used, list) and all(isinstance(value, str) for value in used):
+            require(set(used) <= available_assets,
+                    f"{prefix}: assets_used must be a subset of request available_assets; "
+                    "copy only evidenced available asset names, or use [] when none are known. "
+                    "Do not add assumed resources to the request to pass validation.", errors)
+        required = feasibility.get("required_assets")
+        if not isinstance(required, list) or not all(isinstance(value, str) for value in required):
+            continue
+        if not (set(required) - available_assets):
+            continue
+        # 提案可以列出未来资源，不能冒充已拥有；产能和改写请求的门槛保持不变。
+        require(intent in {"open_shortlist", "brief_only"},
+                f"{prefix}: {intent} required_assets must be declared available_assets; "
+                "only shortlist intents allow pending resources", errors)
+        require(feasibility.get("status") == "requires_user_confirmation",
+                f"{prefix}: undeclared required_assets require "
+                'production_feasibility.status="requires_user_confirmation" (not a separate boolean); '
+                "keep the future requirements and do not mark them assessed or already used.", errors)
+        assumptions = feasibility.get("assumptions")
+        if isinstance(assumptions, list):
+            require(bool(assumptions),
+                    f"{prefix}: undeclared required_assets require explicit production assumptions "
+                    "in production_feasibility.assumptions, describing what must be confirmed.", errors)
+        if isinstance(gates, dict):
+            production_missing = gates.get("production_missing")
+            if isinstance(production_missing, list):
+                require(bool(production_missing),
+                        f"{prefix}: undeclared required_assets require a production_missing gate; "
+                        "list the pending resources in gates.production_missing and include "
+                        "answer_production_question in interaction.next_actions. "
+                        "This does not block shortlist selection.", errors)
+    return errors
+
+
 def validate_idea_set(
     idea_set: dict[str, Any], request: dict[str, Any], request_path: Path
 ) -> list[str]:
@@ -1130,6 +1187,7 @@ def validate_idea_set(
     errors = validate_request(request, request_path)
     validate_json_schema(idea_set, IDEA_SET_SCHEMA, "idea_set", errors)
     if errors:
+        errors.extend(production_asset_errors(idea_set, request))
         errors.extend(shortlist_hook_errors(idea_set, request))
         if presentation_inputs_are_safe(idea_set):
             try:
@@ -1139,6 +1197,7 @@ def validate_idea_set(
             except ValueError as exc:
                 errors.append(str(exc))
         return errors
+    errors.extend(production_asset_errors(idea_set, request))
     errors.extend(shortlist_hook_errors(idea_set, request))
     decision = generation_decision(request)
 
@@ -1269,7 +1328,6 @@ def validate_idea_set(
     adopted_context_refs: set[str] = set()
     adopted_videos: set[str] = set()
     max_total_minutes = 0
-    available_assets = set((request.get("production_constraints") or {}).get("available_assets") or [])
     target_platforms = set(request.get("platform_targets") or [])
     excluded_formats = {normalized(value) for value in ((request.get("exclusions") or {}).get("formats") or [])}
     excluded_assets = {normalized(value) for value in ((request.get("exclusions") or {}).get("assets") or [])}
@@ -1356,27 +1414,13 @@ def validate_idea_set(
         elif intent == "capacity_plan":
             errors.append(f"{prefix}: capacity_plan requires estimated_minutes")
 
-        assets_used = set(feasibility.get("assets_used") or [])
         required_assets = set(feasibility.get("required_assets") or [])
         item_platforms = set(item.get("platforms") or [])
         require(item_platforms <= target_platforms, f"{prefix}: platforms must be within request platform_targets", errors)
         require(not ({normalized(value) for value in (item.get("formats") or [])} & excluded_formats), f"{prefix}: format is excluded by request", errors)
         require(not ({normalized(value) for value in (feasibility.get("assets_used") or [])} & excluded_assets), f"{prefix}: asset is excluded by request", errors)
-        undeclared_requirements = required_assets - available_assets
-        if undeclared_requirements:
-            # 提案可以依赖尚未确认的未来资源，但不能冒充已拥有、已使用或可执行承诺。
-            # 渲染器逐项保留这些待确认条件。
-            require(intent in {"open_shortlist", "brief_only"},
-                    f"{prefix}: {intent} required_assets must be declared available_assets; only shortlist intents allow pending resources", errors)
-            require(feasibility.get("status") == "requires_user_confirmation",
-                    f"{prefix}: undeclared required_assets require requires_user_confirmation", errors)
-            require(bool(feasibility.get("assumptions")),
-                    f"{prefix}: undeclared required_assets require explicit production assumptions", errors)
-            require(bool((idea_set.get("gates") or {}).get("production_missing")),
-                    f"{prefix}: undeclared required_assets require a production_missing gate", errors)
         require(not ({normalized(value) for value in required_assets} & excluded_assets),
                 f"{prefix}: required asset is excluded by request", errors)
-        require(assets_used <= available_assets, f"{prefix}: assets_used must be a subset of request available_assets", errors)
 
         if request.get("source_mode") == "brief_only":
             require(not source_context_refs and not video_refs, f"{prefix}: brief-only idea must not adopt source refs", errors)

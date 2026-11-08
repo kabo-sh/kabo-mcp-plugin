@@ -180,6 +180,81 @@ class IdeaCounts(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), context["sha256"])
                 self.assertEqual(source.read_bytes(), (followup / context["path"]).read_bytes())
 
+    def test_schema_errors_do_not_hide_pending_assets_from_the_only_revision(self):
+        """20条的格式、翻译和素材状态同轮报全，一次修订后完整交付。"""
+        self.prepare(self.root, 20)
+        output = self.output(20)
+        output["evidence_gap_translations"] = []
+        for idea in output["ideas"]:
+            idea["hook_options"] = [{"option_id": "unused", "opening_line": "A second opening",
+                                     "progressive_line": None, "mechanism": "contrast", "rationale": "example"}]
+            idea["production_feasibility"].update(status="assessed", required_assets=["A consenting guest"],
+                                                  assets_used=[], assumptions=[])
+        self.write(self.root, "idea_set.json", output)
+        code, first = self.stage(self.root, "core")
+        self.assertEqual((0, "needs_revision", 1), (code, first["status"], first["revision_remaining"]))
+        messages = "\n".join(first["errors"])
+        self.assertIn("hook_options", messages)
+        self.assertIn("evidence_gap_translations", messages)
+        for idea in output["ideas"]:
+            prefix = idea["idea_id"]
+            self.assertIn(f'{prefix}: undeclared required_assets require production_feasibility.status="requires_user_confirmation"', messages)
+            self.assertIn(f"{prefix}: undeclared required_assets require explicit production assumptions", messages)
+            self.assertIn(f"{prefix}: undeclared required_assets require a production_missing gate", messages)
+            idea["hook_options"] = []
+            idea["production_feasibility"].update(status="requires_user_confirmation",
+                                                  assumptions=["Confirm a consenting guest before filming."])
+        self.assertFalse((self.root / "RESULT.md").exists())
+        output["evidence_gap_translations"] = self.output(20)["evidence_gap_translations"]
+        output["gates"]["production_missing"] = ["Confirm a consenting guest before filming."]
+        output["interaction"]["next_actions"].append("answer_production_question")
+        self.write(self.root, "idea_set.json", output)
+        code, revised = self.stage(self.root, "core")
+        self.assertEqual((0, "ok", 2), (code, revised["status"], revised["generation_attempts"]), revised)
+        report = (self.root / "RESULT.md").read_text()
+        for idea in output["ideas"]:
+            self.assertIn(idea["working_title"], report)
+        self.assertIn("Confirm a consenting guest before filming.", report)
+
+    def test_pending_asset_diagnostics_do_not_raise_on_invalid_shapes(self):
+        """独立诊断只检查类型正确的依赖；错误容器仍由schema拒绝。"""
+        request = self.prepare(self.root, 3)
+        for field in ("required_assets", "assets_used", "assumptions"):
+            for broken in (None, 7, "not an array", {}, [{}], [[]]):
+                with self.subTest(field=field, broken=broken):
+                    output = self.output(3)
+                    output["ideas"][0]["production_feasibility"][field] = broken
+                    errors = validator.validate_idea_set(output, request, self.root / "request.json")
+                    self.assertTrue(any("schema" in error and field in error for error in errors), errors)
+        output = self.output(3)
+        output["gates"] = None
+        self.assertTrue(validator.validate_idea_set(output, request, self.root / "request.json"))
+        for broken in (None, {}, [{}]):
+            malformed = copy.deepcopy(request)
+            malformed["production_constraints"]["available_assets"] = broken
+            self.assertEqual([], validator.production_asset_errors(output, malformed))
+
+    def test_pending_assets_do_not_mask_other_production_rejections(self):
+        """未来资源仍不能进入产能/改写，也不能遮住预算、排除项及假装使用错误。"""
+        request = self.prepare(self.root, 3)
+        request["exclusions"]["assets"] = ["A consenting guest"]
+        request["production_constraints"]["total_time_minutes"] = 1
+        for intent in ("capacity_plan", "rework_content"):
+            with self.subTest(intent=intent):
+                request["task_intent"] = intent
+                output = self.output(3)
+                output["task_intent"] = intent
+                output["evidence_gap_translations"].append({"source_text": intent, "report_text": "production plan"})
+                output["ideas"][0]["production_feasibility"].update(
+                    required_assets=["A consenting guest"], assets_used=["A consenting guest"])
+                errors = validator.production_asset_errors(output, request)
+                self.assertTrue(any("only shortlist intents" in e for e in errors), errors)
+                self.assertTrue(any("assets_used must be a subset" in e for e in errors), errors)
+                if intent == "capacity_plan":
+                    errors = validator.validate_idea_set(output, request, self.root / "request.json")
+                    for marker in ("required asset is excluded", "asset is excluded", "exceed budget"):
+                        self.assertTrue(any(marker in e for e in errors), errors)
+
     def test_calendar_accepts_large_set_only_as_unselected_backlog(self):
         """日历接收真实生成的20条候选，但不把候选擅自排成已选内容。"""
         self.prepare(self.root, 20)

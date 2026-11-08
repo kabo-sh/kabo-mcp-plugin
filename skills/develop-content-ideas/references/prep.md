@@ -123,7 +123,11 @@ lineage validation still apply. Collection failure does not authorize brief fall
    `schema_version="idea-request.v3-candidate2"`, a run-local unique `request_id`, ISO-8601
    `created_at`, `task_intent`, counts, goal, audience, desired action, platforms, languages,
    `report_language`, `user_brief`, `generation_basis`, production constraints and exclusions; the
-   builder does not invent missing metadata. Then run one prep command that builds, validates, and
+   builder does not invent missing metadata. Unknown production resources stay `available_assets=[]`;
+   a profession or a proposed filming method does not establish equipment, footage or permission.
+   With no supplied production constraints, use `status="absent"` and null scalar fields. Future
+   needs go in each idea's `production_feasibility`, not back into this request as owned resources.
+   Then run one prep command that builds, validates, and
    decides without further model branching:
 
    ```sh

@@ -73,7 +73,7 @@
         "total_time_minutes": {"type": ["integer", "null"], "minimum": 1},
         "time_per_item": {"type": ["string", "null"]},
         "budget": {"type": ["string", "null"]},
-        "available_assets": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "available_assets": {"description": "Only resources explicitly supplied by the user or evidenced upstream. A profession, topic or plausible filming method does not prove ownership or permission. Use [] when unknown; proposals can declare future required_assets without inventing availability.", "type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
         "filming_mode": {"type": ["string", "null"]},
         "editing_capacity": {"type": ["string", "null"]},
         "publishing_cadence": {"type": ["string", "null"]}

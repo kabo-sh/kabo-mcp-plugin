@@ -485,7 +485,7 @@
           "additionalProperties": false,
           "required": ["status", "effort", "estimated_minutes", "required_assets", "assets_used", "assumptions"],
           "properties": {
-            "status": {"enum": ["requires_user_confirmation", "assessed"]},
+            "status": {"enum": ["requires_user_confirmation", "assessed"], "description": "Use requires_user_confirmation when any required asset is not in request.production_constraints.available_assets. This is the status value, not an extra boolean. List assumptions and pending resources in gates.production_missing; keep assets_used limited to known available assets."},
             "effort": {"enum": ["low", "medium", "high", "unknown"]},
             "estimated_minutes": {
               "oneOf": [
@@ -494,11 +494,13 @@
               ]
             },
             "required_assets": {
+              "description": "Resources the proposal would need, including future resources awaiting confirmation. Reuse exact available_assets names for resources already evidenced; never reclassify a future requirement as owned just to pass validation.",
               "type": "array",
               "uniqueItems": true,
               "items": {"type": "string", "minLength": 1}
             },
             "assets_used": {
+              "description": "Only names copied from request.production_constraints.available_assets. Use [] when none are evidenced; unknown future resources belong in required_assets with status requires_user_confirmation.",
               "type": "array",
               "uniqueItems": true,
               "items": {"type": "string", "minLength": 1}
