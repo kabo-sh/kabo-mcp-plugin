@@ -751,7 +751,7 @@ def validate_authored_fields(request: dict[str, Any], errors: list[str], *,
             require(isinstance(hook_count, int) and 3 <= hook_count <= 5, "rework_content requires 3..5 Hook options", errors)
     elif intent in {"open_shortlist", "capacity_plan", "brief_only"}:
         if ready("idea_count"):
-            require(isinstance(idea_count, int) and 3 <= idea_count <= 10, f"{intent} requires idea_count=3..10", errors)
+            require(isinstance(idea_count, int) and 3 <= idea_count <= 20, f"{intent} requires idea_count=3..20", errors)
         if ready("hook_option_count"):
             require(hook_count in {1, 2}, f"{intent} requires hook_option_count=1 or 2", errors)
 
