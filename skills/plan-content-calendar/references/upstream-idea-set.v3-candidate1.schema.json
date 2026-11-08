@@ -60,7 +60,7 @@
     },
     "ideas": {
       "type": "array",
-      "maxItems": 10,
+      "maxItems": 20,
       "items": {"$ref": "#/$defs/ideaCandidate"}
     },
     "gates": {

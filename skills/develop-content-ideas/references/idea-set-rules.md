@@ -24,7 +24,9 @@ assets rather than silently downgrading that deliverable.
   first-batch content plan without requiring account history, production assets or
   posting-frequency decisions before choosing topics. Do not replace this plan with an
   unprioritized list or invent an algorithmic cadence. The concise renderer carries this field.
-- `open_shortlist`: generate the requested number of distinct ideas.
+- `open_shortlist`, `brief_only`, and `capacity_plan` support 3–20 ideas. Preserve the explicit
+  requested count in the request, IdeaSet and report; never truncate it to a smaller default.
+  Larger supported batches use the same two-pass generation budget and evidence/production gates.
 - For reusable sentence patterns, keep the fill-in slots in `working_title` and include each
   requested fully filled example in that candidate's `making_direction`, clearly labelled as an
   illustration. This field reaches the Creator-facing report; an example only in audit fields or
@@ -49,10 +51,16 @@ assets rather than silently downgrading that deliverable.
   information rather than repeating the opening. Keep `hook_options=[]` for these intents. For
   `rework_content`, preserve the requested options and make `hook_preview` mirror the first option.
 - `primary_evidence_ref`, when present, must belong to that idea's `evidence_refs`.
-  `assets_used` must be a subset of the request's declared available assets. A shortlist may name
-  additional future `required_assets` only with `requires_user_confirmation`, explicit
-  assumptions and a `production_missing` gate. The report must show these pending requirements.
-  This does not allow assessed feasibility, unavailable resources in a capacity plan, or excluded assets.
+- For each idea, `production_feasibility.assets_used` contains only exact names from the request's
+  `available_assets`; unknown resources mean `assets_used=[]`. A shortlist can still offer concrete
+  filming directions by naming future needs in `required_assets`, setting
+  **`production_feasibility.status="requires_user_confirmation"`**, and writing the conditions in
+  `production_feasibility.assumptions` and `gates.production_missing`. Include
+  `answer_production_question` in `interaction.next_actions`, alongside `choose`. The status is an
+  enum value, not a separate flag; an assumption alone does not set it. Reuse exact available-asset
+  names when already evidenced. Do not claim equipment, footage or permission from a job title,
+  erase real requirements or invent availability to make validation pass. Pending needs do not
+  block selecting topics, and the report must retain them. Capacity/rework and exclusions stay strict.
 - Keep `platforms` within `platform_targets`, reject excluded formats/assets, and use `why_now` as
   an evidence-backed claim only when a dated source supports it; otherwise say that timeliness is
   unverified.

@@ -141,7 +141,10 @@ def presentation_translations(data):
             missing = [value for value in gaps if value not in mapped]
             errors.append(f'Explicit report languages require evidence_gap_translations for every original gap; missing: {missing}')
         if values - mapped.keys():
-            errors.append(f'Explicit report languages require evidence_gap_translations for every rendered canonical value; missing: {sorted(values - mapped.keys(), key=repr)}')
+            errors.append(f'Explicit report languages require evidence_gap_translations for every rendered canonical value; missing: {sorted(values - mapped.keys(), key=repr)}. '
+                          'Add exactly these missing source_text entries with translated report_text, preserving existing valid mappings. '
+                          'Status means top-level IdeaSet.status; nested creator_fit.status and production_feasibility.status are not display values. '
+                          'Do not add other enum translations to repair this error.')
         if labels - mapped.keys():
             errors.append(f'Missing UI label translations for report_language {data["report_language"]}; do not substitute another language. '
                              f'Use report_language.py with --labels for the English source vocabulary; missing: {sorted(labels - mapped.keys())}')

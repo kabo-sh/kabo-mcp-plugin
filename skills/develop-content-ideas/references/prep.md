@@ -59,8 +59,9 @@ cd '<run directory>' && python3 '<skill directory>/scripts/prepare_conversation_
 ```
 
 `--hook-count` defaults to one opening; pass `2` only when requested. Repeat `--platform` when
-needed. The per-run idea count is 1–10; preserve larger requests under the existing batching rules,
-never silently reduce their count. The helper returns `intent.json` and `conversation-source.json` plus the retained message
+needed. Shortlists support 3–20 ideas in one run, including an explicit request for 15 or 20;
+never silently reduce the count or split a supported request to bypass the generation budget.
+The helper returns `intent.json` and `conversation-source.json` plus the retained message
 count and reference index. Check those against the selected source. It preserves message text,
 rejects a quote absent from that message, and refuses to overwrite either output. Unknown goal,
 audience and desired action remain missing; production constraints default to absent. If the
@@ -122,7 +123,11 @@ lineage validation still apply. Collection failure does not authorize brief fall
    `schema_version="idea-request.v3-candidate2"`, a run-local unique `request_id`, ISO-8601
    `created_at`, `task_intent`, counts, goal, audience, desired action, platforms, languages,
    `report_language`, `user_brief`, `generation_basis`, production constraints and exclusions; the
-   builder does not invent missing metadata. Then run one prep command that builds, validates, and
+   builder does not invent missing metadata. Unknown production resources stay `available_assets=[]`;
+   a profession or a proposed filming method does not establish equipment, footage or permission.
+   With no supplied production constraints, use `status="absent"` and null scalar fields. Future
+   needs go in each idea's `production_feasibility`, not back into this request as owned resources.
+   Then run one prep command that builds, validates, and
    decides without further model branching:
 
    ```sh

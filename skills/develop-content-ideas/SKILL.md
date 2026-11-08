@@ -126,7 +126,7 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    relationship and substitute only its open slots, keeping their kind and number. State this in
    `overview.portfolio_logic`; map every item's concrete input, progression and goal in
    `making_direction`. Follow *Continuations* for source binding and the per-item semantic check.
-2. In **one** generation pass, write the complete `idea_set.json`: distinct titles the Creator could publish, hooks, making direction, evidence basis, ranking, gates, and limitations. For an open batch, remove near-duplicates and rank by Creator fit, evidence strength, differentiation, timeliness, and realistic production cost. For variants of one selected example, preserve the shared scaffold and assess distinctness only in its variable slots, as above. A plain question or statement is sufficient for a title; keep teaching method detail in `making_direction`. Never invent loss amounts, customer outcomes, efficiency gains, market facts, policy facts, numbers, or URLs. Preserve artifact-level lineage in `upstream_sources`, context-level refs in `source_context_refs`, `must_avoid` as `must_differ`, and risk language. `assets_used` must stay within declared `available_assets`. For shortlist intents only, unconfirmed future `required_assets` are allowed with `requires_user_confirmation`, explicit `assumptions` and a `production_missing` gate; never treat them as owned or used. Capacity plans require all resources to be available; exclusions still apply. Do not edit, patch, or replace the skill scripts, schemas, or validators; fix a rejected IdeaSet by revising only `idea_set.json` once.
+2. In **one** generation pass, write the complete `idea_set.json`: distinct titles the Creator could publish, hooks, making direction, evidence basis, ranking, gates, and limitations. For an open batch, remove near-duplicates and rank by Creator fit, evidence strength, differentiation, timeliness, and realistic production cost. For variants of one selected example, preserve the shared scaffold and assess distinctness only in its variable slots, as above. A plain question or statement is sufficient for a title; keep teaching method detail in `making_direction`. Never invent loss amounts, customer outcomes, efficiency gains, market facts, policy facts, numbers, or URLs. Preserve artifact-level lineage in `upstream_sources`, context-level refs in `source_context_refs`, `must_avoid` as `must_differ`, and risk language. `assets_used` must stay within declared `available_assets`. For shortlist intents only, unconfirmed future `required_assets` are allowed with `production_feasibility.status="requires_user_confirmation"`, explicit `assumptions` and a `production_missing` gate; never treat them as owned or used. Capacity plans require all resources to be available; exclusions still apply. Do not edit, patch, or replace the skill scripts, schemas, or validators; fix a rejected IdeaSet by revising only `idea_set.json` once.
 3. Put missing information into `gates.selection_missing` only when it prevents a valid choice.
    Put filming, editing, CTA, cadence, or other later details into `gates.production_missing`;
    these may coexist with `ready_for_selection`. If `production_missing` is nonempty, include
@@ -157,10 +157,14 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    running core again or consuming another generation attempt:
 
    ```sh
-   cd '<run directory>' && python3 '<skill directory>/scripts/validate_ideas.py' idea-set idea_set.json request.json && test -s RESULT.md
+   cd '<run directory>' && python3 '<skill directory>/scripts/validate_ideas.py' idea-set idea_set.json request.json --report RESULT.md
    ```
 
    This is the final step; its deliverable is `RESULT.md` at the run root, not under `report/`.
+   The command verifies and returns the complete Creator-facing reply. Send that output unchanged
+   (read every chunk if the host pages it). Before sending, check that the reply retains every
+   requested candidate's title, opening line, making direction and pending production conditions;
+   a larger batch must not become a title-only list or lose the later candidates' hooks and steps.
    There is no final step for `needs_revision`, `not_met` or a failed/unreadable stage result. A
    zero exit with `needs_revision` never permits emitting the draft as a validated report.
 

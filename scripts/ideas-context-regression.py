@@ -717,7 +717,7 @@ class ConversationInputPreparation(unittest.TestCase):
         """参数错误不得创建文件，显式引用形式只能选一种。"""
         quote_path = self.root / "quote.txt"
         quote_path.write_text(self.quote)
-        for flags in (("--reference-quote-file", quote_path), ("--idea-count", "11"),
+        for flags in (("--reference-quote-file", quote_path), ("--idea-count", "21"),
                       ("--hook-count", "0"), ("--hook-count", "3")):
             with self.subTest(flags=flags):
                 result, output = self.helper(*flags)

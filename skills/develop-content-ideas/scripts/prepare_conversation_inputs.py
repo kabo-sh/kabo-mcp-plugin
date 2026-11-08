@@ -89,7 +89,7 @@ def main() -> int:
     quote.add_argument("--reference-quote")
     quote.add_argument("--reference-quote-file", type=Path)
     parser.add_argument("--brief-file", type=Path, required=True)
-    parser.add_argument("--idea-count", type=int, choices=range(1, 11), required=True)
+    parser.add_argument("--idea-count", type=int, choices=range(1, 21), required=True)
     parser.add_argument("--hook-count", type=int, choices=(1, 2), default=1)
     parser.add_argument("--platform", action="append", required=True)
     parser.add_argument("--language", required=True)
