@@ -21,3 +21,7 @@ say which source could not be read and request only the missing passage.
 
 A known horizon with missing measurements is not an ambiguous horizon. Keep the requested period
 and produce the missing-input handoff in `growth-estimation.md`, without new numerical guesses.
+
+When all requested periods lack the same required measurements, one missing-input handoff for
+the requested overall horizon covers that limitation. Do not invoke the composer once per empty
+month. When only some periods or metrics have supported inputs, preserve those calculations.

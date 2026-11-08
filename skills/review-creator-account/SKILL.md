@@ -50,6 +50,10 @@ also a completed script handoff, not permission to skip the steps and answer fro
    include only computed conditional amounts, or its specific missing measurements. If execution
    cannot finish, disclose that step's failure without presenting a completed calculation. Do not
    substitute historical medians, low/base/high guesses or promises to calculate chances later.
+   **The final sentence must explicitly say: “Occurrence probabilities are unavailable from
+   this Skill. More history can enable conditional calculations, not calibrated chances.”**
+   Translate that meaning when needed and end there. Never ask for more data “to produce
+   probability scenarios”; the missing records enable amounts under assumptions, not odds.
 
 A dated baseline with a valid user-supplied rate supports conditional arithmetic; undated summaries
 or one snapshot without that rate do not. More dated records can enable conditional calculations,

@@ -521,7 +521,9 @@ def run_core(args: argparse.Namespace) -> int:
                 # needs_revision and neither report is rendered.
                 "next_action": (
                     "Revise idea_set.json once using the listed errors, then run core "
-                    "again in the same run directory. Do not restart prep or reset "
+                    "again in the same run directory. Update parsed JSON fields for every listed index "
+                    "and read back the changed fields before core; a text replacement matching nothing is not a correction. "
+                    "Do not restart prep or reset "
                     "the attempt counter. Deliver RESULT.md only after core succeeds; "
                     "if execution cannot continue, report the draft as unvalidated."
                 ),

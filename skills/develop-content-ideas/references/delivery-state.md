@@ -14,9 +14,13 @@ making direction: read the `ideaCandidate` required fields and definitions befor
 If a field error repeats across candidates, stdout groups it with every affected zero-based index;
 fix every listed candidate. `revision_brief.json` retains the full original error list. Grouping
 does not waive a field, shorten the requested batch or grant extra generation attempts.
+Use JSON-aware updates at the named paths, then read back the changed fields before rerunning core.
+Do not use blind text substitutions that silently match no fields or alter unrelated statuses.
 
 Preserve the original input, evidence and attempt count. A runnable `needs_revision` is an action
 to complete now, not a reason to skip the correction and provide a shorter unvalidated answer.
 If execution truly cannot continue, disclose the incomplete validation and stop; do not call it
 the completed Skill result. The final reply must keep every candidate's opening and filming
 direction, including those later in a larger batch.
+Do not shorten away the opening lines after successful validation. The title, opening line and
+making direction are separate fields: all three must remain visible for every candidate.
