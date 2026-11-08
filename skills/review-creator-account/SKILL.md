@@ -17,12 +17,20 @@ takes many steps, and wait for its final result before replying; never run it in
 tell the user the report will come later. Without a foreground sub-agent, follow the same steps in
 the main thread.
 
-For forecasts and longer-horizon follow-ups, read
-[growth-estimation.md](references/growth-estimation.md) before calculating. Keep the preceding
-account or post and metric; earlier assistant estimates are not observations. Missing forecast
-inputs mean asking for those inputs, not inventing a trajectory or calibrated odds. Supported
-calculations still use `estimate_growth.py`. A forecast gap must not block supported sales/funnel
-answers or the rest of a complete review.
+For a forecast or longer-horizon follow-up, read
+[growth-estimation.md](references/growth-estimation.md) and resolve its target **before arithmetic**.
+Keep the preceding account or post and metric unless the user changes them; use their newly
+requested horizon. Prior assistant estimates are not observations. Raw dated inputs must support
+`estimate_growth.py`; a report summary's median and cadence cannot replace its missing source rows.
+Never bypass the script with mental or ad-hoc arithmetic. Calculate independently supported
+metrics, and ask for the missing records or supported user assumptions for unsupported metrics.
+If no metric in a growth-only request can be calculated, correct earlier unsupported estimates
+only if they exist, ask for the missing inputs and end: no forecast table or invented example rates.
+Do not substitute a new-content batch for an existing post or calendar-month outcome. Additional
+snapshots enable conditional arithmetic, not calibrated odds; never promise percentage predictions
+in exchange for more history. Forecast gaps must not block supported sales/funnel answers or the
+rest of a complete account review. Supported stock and content scenarios remain available as the
+reference specifies.
 
 **Complete-review delivery only.** Supplied-funnel answers and narrow operations return their
 own supported result directly; they do not compose `ACCOUNT_REVIEW.md` or require a complete-review delivery step.
@@ -146,8 +154,10 @@ command again while it runs.
    prints the synthesis schema, then the compact synthesis input.
 
 2. **Growth (only when asked).** For a growth or future-number question, run
-   `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' growth --language <synthesis language>`
-   before the synthesis, as `references/growth-estimation.md` says. Any growth figure in the
+   `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' growth --language <synthesis language> --metric <requested content metric> --horizon-days <requested days>`
+   before the synthesis, as `references/growth-estimation.md` says. Use the requested content
+   metric (views, likes or comments) and horizon; defaults are views and 30 days only when omitted
+   by the user. Any growth figure in the
    synthesis is one that command printed.
 
 3. **Synthesis.** Read `references/synthesis-authoring.md` whole. Apply its public-snapshot
