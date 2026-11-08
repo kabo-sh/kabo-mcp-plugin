@@ -7,18 +7,31 @@ from pathlib import Path
 from estimate_growth import estimate, render_report, with_snapshot
 
 
-def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_source=None, correct_prior=False):
+def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_source=None, correct_prior=False,
+            missing_metrics=(), horizon_days=None):
     """重算独立指标并检查目标一致，保留可算结果与缺失输入。"""
     required = {"platform", "target", "request_quote", "reference"}
     if not isinstance(resolved_scope, dict) or set(resolved_scope) != required or any(
         not isinstance(resolved_scope[key], str) or not resolved_scope[key].strip() for key in required
     ):
         raise ValueError("Scope needs platform, target, verbatim target-setting request_quote and resolved reference")
+    if missing_metrics and (len(set(missing_metrics)) != len(missing_metrics) or any(
+        metric not in ("subscribers", "followers", "views", "likes", "comments") for metric in missing_metrics
+    )):
+        raise ValueError("Missing metrics must be unique cumulative subscribers, followers, views, likes or comments")
+    if horizon_days is not None and not missing_metrics:
+        raise ValueError("--horizon-days is only used with --missing-metric; actual inputs carry their own horizon")
+    documents = [json.loads(source.read_text(encoding="utf-8")) for source in inputs]
+    # 缺测量时由同一已解析范围构造合法合同；不补造日期、观测或增长假设。
+    documents.extend({
+        "schema_version": "growth-input.v1", "mode": "observed_pace", "horizon_days": horizon_days,
+        "scope": {"platform": resolved_scope["platform"], "account": resolved_scope["target"],
+                  "metric": metric, "semantics": "cumulative_stock"}, "observations": [],
+    } for metric in missing_metrics)
     results = []
     target = (resolved_scope["platform"], resolved_scope["target"])
     seen = set()
-    for source in inputs:
-        data = json.loads(source.read_text(encoding="utf-8"))
+    for data in documents:
         if "_snapshot_cadence" in data:
             raise ValueError("_snapshot_cadence must come from the original snapshot")
         if snapshot is not None and data.get("mode") == "content_scenario":
@@ -47,7 +60,10 @@ def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_sourc
 def main():
     """校验命令输入和输出路径，写出可直接交付的完整预测回复。"""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", action="append", type=Path, required=True)
+    parser.add_argument("--input", action="append", type=Path, default=[])
+    parser.add_argument("--missing-metric", action="append", default=[],
+                        help="Cumulative metric with no usable dated observations or user rate; repeat for each missing metric")
+    parser.add_argument("--horizon-days", type=float, help="Resolved requested horizon for missing metrics only")
     parser.add_argument("--scope-file", type=Path, required=True)
     parser.add_argument("--question-file", type=Path)
     parser.add_argument("--snapshot", type=Path)
@@ -67,6 +83,8 @@ def main():
             json.loads(args.snapshot.read_text(encoding="utf-8")) if args.snapshot else None,
             str(args.snapshot) if args.snapshot else None,
             args.correct_prior,
+            args.missing_metric,
+            args.horizon_days,
         )
     except (OSError, ValueError, TypeError, KeyError) as error:
         parser.error(str(error))

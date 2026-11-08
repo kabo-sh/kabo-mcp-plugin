@@ -10,6 +10,9 @@ For a continuation, inspect the last completed user request and its answer. Exte
 account or post; a change of time horizon does not request both. Resolve a pronoun through that
 answer, not an older account table. Name the selected target first. Clarify only genuinely
 ambiguous scope. Earlier assistant forecasts are claims to correct, never source observations.
+Read relevant attached history beyond previews as [forecast-context.md](forecast-context.md)
+specifies. Preserve the last user-specified horizon when this turn changes only the requested
+confidence or presentation; do not re-ask a period already present in that history.
 
 Identify each requested metric as cumulative stock, period total or new-content performance.
 A post's lifetime count is not its future growth; an account snapshot is not monthly growth.
@@ -65,6 +68,22 @@ Chinese/English day/week binding, without rewriting the user's quote or metric t
 Save `forecast_scope.json` with `platform`, the selected `target`, the verbatim target-setting
 `request_quote`, and its resolved `reference`. Every input must use that same target. This checks
 consistency, not the correctness of the model's interpretation.
+
+When a cumulative metric has no usable dated observations and no valid explicit user rate, use
+this direct missing-input command. It builds `growth-input.v1`, `observed_pace` and the matching
+scope internally; do not invent a mode such as `missing_data` or hand-author another empty input.
+
+```sh
+python3 '<skill directory>/scripts/compose_forecast_reply.py' --scope-file '<run directory>/forecast_scope.json' --missing-metric <subscribers|followers|views|likes|comments> --horizon-days <resolved days> --output '<run directory>/FORECAST_REPLY.md'
+```
+
+Repeat `--missing-metric` for each missing cumulative metric, and add `--correct-prior` if earlier
+unsupported forecasts exist. Use the resolved horizon, not a default. This path gives no numeric
+estimate and requests actual dated counts; it does not label an undated snapshot as dated.
+It is not a substitute for existing usable observations or an explicit user rate: those still
+use the full inputs below. An independently supported metric can be included with `--input` in
+the same command; never discard it to make every metric missing. Do not use this shortcut for
+period totals or new-content batch scenarios.
 
 For a missing stock baseline, use `assumed_pace` with `observations: []` if a valid user rate exists;
 otherwise use `observed_pace` with `observations: []`. The calculator returns `needs_input` and asks

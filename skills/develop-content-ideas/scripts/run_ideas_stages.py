@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -324,18 +325,35 @@ def run_prep(args: argparse.Namespace) -> int:
     print(json.dumps({
         "status": "ok",
         "stage": "prep",
+        "delivery_ready": False,
+        "next_action": ("Preparation is complete, not idea delivery. Author the complete idea_set.json using the ideaCandidate schema, then run core in this same run directory. Do not send ideas before core succeeds and the final report check passes."
+                        if decision.get("status") == "ready_for_generation" else "Follow decision.status; preparation alone never authorizes an idea report."),
+        "next_core_command": [sys.executable, str(Path(__file__).resolve()), "core", "--run-dir", str(run_dir)],
         "decision": decision,
         "request": "request.json",
         "decision_file": "decision.json",
         "stage_timing": "stage_timing.json",
         "duration_ms": duration_ms,
-    }, ensure_ascii=False, sort_keys=True))
+    }, ensure_ascii=False))
     return 0
 
 
 def collect_validation_errors(idea_set: dict[str, Any], request: dict[str, Any], request_path: Path) -> list[str]:
     """Deduplicate idea-set validation errors for revision briefs."""
     return list(dict.fromkeys(validate_idea_set(idea_set, request, request_path)))
+
+
+def compact_revision_errors(errors: list[str]) -> list[str]:
+    """相同候选字段错误合并索引；完整原错误仍保存在修订文件中。"""
+    groups = {}
+    for error in errors:
+        match = re.match(r"(idea_set schema \$\.ideas)\[(\d+)\](.*)", error)
+        key = (match[1] + "[*]" + match[3]) if match else error
+        group = groups.setdefault(key, [])
+        group.append((int(match[2]) if match else None, error))
+    return [items[0][1] if len(items) == 1 or items[0][0] is None
+            else key + " (idea indexes: " + ", ".join(str(index) for index, _ in items) + ")"
+            for key, items in groups.items()]
 
 
 def finish_core(core: dict[str, Any], *, status: str, not_met_reason: str | None = None,
@@ -495,6 +513,7 @@ def run_core(args: argparse.Namespace) -> int:
             print(json.dumps({
                 "status": "needs_revision",
                 "stage": "core",
+                "delivery_ready": False,
                 "generation_attempts": attempts,
                 "revision_remaining": MAX_GENERATION_ATTEMPTS - attempts,
                 # A non-final wrapper must stay open for the one permitted
@@ -506,9 +525,11 @@ def run_core(args: argparse.Namespace) -> int:
                     "the attempt counter. Deliver RESULT.md only after core succeeds; "
                     "if execution cannot continue, report the draft as unvalidated."
                 ),
-                "errors": errors,
+                "next_core_command": [sys.executable, str(Path(__file__).resolve()), "core", "--run-dir", str(run_dir)],
+                "errors": compact_revision_errors(errors),
+                "full_error_count": len(errors),
                 "revision_brief": "revision_brief.json",
-            }, ensure_ascii=False, sort_keys=True))
+            }, ensure_ascii=False))
             return 0
 
         concise_text = concise(idea_set, request)

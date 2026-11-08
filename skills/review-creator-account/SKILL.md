@@ -19,6 +19,12 @@ Skill's `references/` and `scripts/`.
 
 ## Forecast-only requests and continuations
 
+Before asking again for a target, metric or period, recover it from the supplied conversation.
+An attachment preview is not the whole history: read the relevant history files/pages through
+their last exchange, using the host's file-reading capability. Preserve a previously specified
+horizon unless the user changes it. If the source cannot be read, name that access gap; do not
+claim the creator never supplied it. See [forecast-context.md](references/forecast-context.md).
+
 Forecasting is a new evidence check even when an earlier answer already contains numbers.
 If only undated summaries exist, or one snapshot without an explicit user rate, **ask for the
 missing dated records; give no future numbers, ranges or odds**. A dated baseline plus a valid
@@ -60,7 +66,9 @@ Use this order for every forecast-only reply (including when all inputs are miss
    baseline; a previous projected endpoint is not a new observation to add another period to.
    Ask for `[date, count]` records without attaching illustrative dates to real counts. Keep unknown dates absent. Stock horizons start at the latest observation.
 3. Run `compose_forecast_reply.py` with that scope and all supported-contract input files, using
-   the command in `growth-estimation.md`. Empty stock observations produce a missing-input reply;
+   the command in `growth-estimation.md`. For missing dated observations with no valid user rate,
+   use its `--missing-metric` shortcut instead of hand-writing empty input JSON or probing a calculator.
+   Empty stock observations produce a missing-input reply;
    never fabricate rows to force a number. Keep independently supported metrics. A metric with
    no calculator contract gets an honest limitation, not a relabelled input.
 4. **Final reply = the complete text between `KABO_FORECAST_REPLY_BEGIN` and

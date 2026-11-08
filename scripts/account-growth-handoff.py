@@ -158,7 +158,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertEqual(result["basis"]["input_binding"]["captured_posts"], 2)
         self.assertIn("snapshot.json#items/post-1", output.with_suffix(".md").read_text())
 
-    def compose_reply(self, inputs, output_name="reply.md"):
+    def compose_reply(self, inputs, output_name="reply.md", flags=()):
         """执行完整回复组合器，不以模拟结果替代实际计算。"""
         scope_file = self.root / "scope.json"
         scope_file.write_text(json.dumps(dict(platform=self.scope["platform"], target=self.scope["account"],
@@ -168,7 +168,45 @@ class GrowthHandoff(unittest.TestCase):
             path = self.root / f"compose-{n}.json"
             path.write_text(json.dumps(data))
             command += ["--input", str(path)]
-        return subprocess.run(command, text=True, capture_output=True)
+        return subprocess.run([*command, *flags], text=True, capture_output=True)
+
+    def test_missing_metrics_build_valid_inputs_for_one_post(self):
+        """缺数据快捷入口生成同一目标的合法合同，不需要模型填模式/schema。"""
+        self.scope['account'] = 'creator/post-1'
+        run = self.compose_reply([], flags=['--missing-metric', 'views', '--missing-metric', 'likes',
+                                           '--horizon-days', '365', '--correct-prior'])
+        self.assertEqual(0, run.returncode, run.stderr)
+        results = json.loads((self.root / 'reply.json').read_text())['results']
+        self.assertEqual(['views', 'likes'], [r['scope']['metric'] for r in results])
+        for result in results:
+            self.assertEqual(('creator/post-1', 'needs_input', 365),
+                             (result['scope']['account'], result['status'], result['horizon_days']))
+            self.assertEqual([], result['observations'])
+            self.assertIsNone(result['estimate'])
+        self.assertIn('Earlier unsupported', run.stdout)
+        self.assertIn('Two dated observations', run.stdout)
+
+    def test_missing_shortcut_preserves_independently_supported_metric(self):
+        """快捷缺测量指标不得压掉已有可算指标。"""
+        supported = dict(schema_version='growth-input.v1', mode='observed_pace', scope=self.scope, horizon_days=14,
+                         observations=[self.row('2026-10-01T00:00:00Z', 120, 'owner row 1'),
+                                       self.row('2026-10-08T00:00:00Z', 148, 'owner row 2')])
+        run = self.compose_reply([supported], flags=['--missing-metric', 'views', '--horizon-days', '14'])
+        self.assertEqual(0, run.returncode, run.stderr)
+        results = json.loads((self.root / 'reply.json').read_text())['results']
+        self.assertEqual(204, results[0]['estimate']['value'])
+        self.assertEqual('needs_input', results[1]['status'])
+
+    def test_missing_shortcut_rejects_invalid_metric_horizon_and_duplicates(self):
+        """无效名称/时长/重复仍拒收，不能借缺数据绕过合同。"""
+        for flags in [[], ['--missing-metric', 'sales', '--horizon-days', '30'],
+                      ['--missing-metric', 'views'], ['--missing-metric', 'views', '--horizon-days', 'nan'],
+                      ['--missing-metric', 'views', '--horizon-days', '0'],
+                      ['--missing-metric', 'views', '--missing-metric', 'views', '--horizon-days', '30']]:
+            with self.subTest(flags=flags):
+                run = self.compose_reply([], flags=flags)
+                self.assertNotEqual(0, run.returncode)
+                self.assertFalse((self.root / 'reply.md').exists())
 
     def test_composed_reply_delivers_supported_and_missing_metrics_together(self):
         """验证可算指标和缺数据指标在同一回复中独立交付。"""

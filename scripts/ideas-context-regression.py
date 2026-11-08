@@ -81,6 +81,36 @@ class ConversationContract(unittest.TestCase):
             output["ideas"].append(idea)
         return output
 
+    def test_preparation_is_explicitly_not_delivery(self):
+        """准备完成必须返回待创作/校验指令，不能只给ok。"""
+        code, result = self.prep()
+        self.assertEqual((0, 'ok', 'prep'), (code, result['status'], result['stage']))
+        self.assertFalse(result['delivery_ready'])
+        self.assertIn('idea_set.json', result['next_action'])
+        self.assertEqual(['core', '--run-dir', str(self.root)], result['next_core_command'][-3:])
+        self.assertFalse((self.root / 'RESULT.md').exists())
+
+    def test_repeated_schema_errors_keep_all_indexes_and_repair_budget(self):
+        """批量缺字段合并展示但保留完整错误和一次修订预算。"""
+        self.prep()
+        output = self.output()
+        for idea in output['ideas']:
+            del idea['creator_fit']
+            del idea['evidence_basis']
+        path = self.write('idea_set.json', output)
+        code, first = self.run_stage('core', '--idea-set', path)
+        self.assertEqual((0, 'needs_revision'), (code, first['status']))
+        self.assertFalse(first['delivery_ready'])
+        self.assertEqual(1, first['revision_remaining'])
+        self.assertEqual(12, first['full_error_count'])
+        self.assertEqual(4, len(first['errors']))
+        self.assertTrue(all('idea indexes: 0, 1, 2' in e for e in first['errors']))
+        self.assertEqual(12, len(json.loads((self.root / 'revision_brief.json').read_text())['errors']))
+        self.assertFalse((self.root / 'RESULT.md').exists())
+        self.write(path.name, self.output())
+        code, second = self.run_stage('core', '--idea-set', path)
+        self.assertEqual((0, 'ok'), (code, second['status']))
+
     def test_exact_chat_and_current_request_are_separate_through_core(self):
         """Keep the current query and historical bytes separate through report delivery."""
         code, prep = self.prep()
