@@ -1,12 +1,18 @@
 ---
 name: review-creator-account
-description: "Review Instagram, TikTok or YouTube accounts: sales, orders, inquiries, conversions, funnels, content and engagement. A handle's sales question belongs here without private figures or with views/clicks in its table. Also handles account/post growth, subscribers/views/likes, odds, and follow-ups extending a prediction to a new period. Reach diagnosis is for primary distribution; deep review is for video watching. Not drafts, trends, schedules, edits or platform monetization eligibility."
+description: "Review Instagram, TikTok or YouTube accounts: why sales, orders, inquiries or conversions changed; supplied funnels; content patterns, followers, engagement, growth forecasts and odds. A handle's sales question belongs here even without private figures or with views/clicks in its table. Also handles account/post subscriber, view or like forecasts and continuations changing only the period. Not primary reach diagnoses, deep video reviews, drafts, trends, schedules, single-video edits or platform monetization eligibility."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to kabo.sh and to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permissions: data; optional workspace:read for saved account context and workspace:write only to connect a public account or save the user's profile edits on request."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download collect_account_history instagram_resolve_profile instagram_list_posts instagram_list_reels get_kabo_info list_connected_accounts get_creator_profile get_social_connection connect_public_account update_content_preferences start_skill_run
 ---
 
 # Review Creator Account
+
+For a forecast request or continuation, choose the reply from the evidence, not the requested
+table format. With no supported inputs, give only the target, a correction if needed, the missing
+fields and an explicit statement that occurrence probabilities are unavailable. No illustrative
+forecast table or invented dated rows. With supported inputs, deliver the calculator's actual
+results and limits for those metrics. A "conditional" label never permits invented rates or ranges.
 
 Deterministic analyzers produce the facts; a complete review makes exactly one semantic synthesis.
 Do not call a separate profile model. The schemas, analyzers, composer and validators ship in this
@@ -36,6 +42,11 @@ the main thread.
    metric, the reply is only a correction of any earlier overstatement and the minimum data
    question for that same target. Stop there: no forecast/unknowns table, invented example values,
    different-target data request or promise of a numeric table before checking the supplied rows.
+   Request missing columns in prose; do not illustrate them with made-up dated rows or attach an
+   example date to an undated real count. A date-format example must remain a placeholder.
+   Before sending any future number or table, match it to this turn's successful calculator
+   output. Remove it if there was no such computation; do not replace it with an imagined
+   low/base/breakout scenario. Historical counts may only be identified as observations.
 A batch at historical post ages is not an account's calendar-month total or an existing post's
 trajectory. No result here supplies calibrated odds, now or after adding more history; extra
 records can enable conditional arithmetic, not percentage probabilities. When odds are requested,
