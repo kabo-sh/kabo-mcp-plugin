@@ -185,8 +185,8 @@ command again while it runs.
    **Never review a different account in the requested one's place.** When `fetch` finishes, it
    prints the synthesis schema, then the compact synthesis input.
 
-2. **Growth (only when asked).** Read `references/growth-estimation.md` and check the requested
-   metric before choosing a command. For a supported content scenario (views, likes or comments):
+2. **Growth (only when asked).** Read `references/growth-estimation.md` and
+   `references/growth-review-workflow.md`; check the requested metric before choosing a command. For a supported content scenario (views, likes or comments):
    `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' growth --language <synthesis language> --metric <requested content metric> --horizon-days <requested days>`
    Use defaults views/30 days only when omitted by the user. For subscribers/followers, skip this
    content command: use the standalone stock calculator and delivery path in the reference.
