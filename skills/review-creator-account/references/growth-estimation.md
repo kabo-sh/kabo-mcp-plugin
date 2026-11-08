@@ -2,6 +2,48 @@
 
 Use `<skill directory>/scripts/estimate_growth.py` for a growth estimate, including a follow-up to a complete review. It has no network dependencies. Read actual persisted evidence or a user export; never manufacture observations. JSON retains the evidence rows; a Markdown handoff is saved beside it and printed. `computed` means arithmetic succeeded, not that future performance is known.
 
+## Resolve the forecast before calculating
+
+Use the preceding request and reply to keep the same account or existing post, platform, metric,
+baseline date and horizon. Clarify only unresolved scope. A follow-up asking for more months does
+not authorize switching from a top post to the whole account or to a batch of new content.
+Separate cumulative stock, period additions and per-content performance; likes are not a combined
+likes-and-comments engagement rate.
+
+Reuse or retrieve actual persisted source rows through the existing public review fetch path when
+available. A summary's median, quartiles or cadence does not supply its missing dated rows. Never
+reconstruct a fictional sample, adopt an earlier assistant's multiplier/rate as a user assumption,
+or bypass `estimate_growth.py` with mental arithmetic or an ad-hoc calculator. If an earlier
+unsupported estimate exists, correct it; a first forecast request does not imply a prior mistake.
+
+A single lifetime observation cannot identify an existing post's next-month or next-year trajectory.
+Historical per-post performance times cadence describes new content at the sampled observation
+ages, not a calendar-month series or a future account stock. Do not fill a monthly table by
+inventing acceleration, decay, conversion rates or a breakout. Offer a different-scope calculation
+only with that difference explicit and wait for the user to choose it before calculating.
+
+For a growth-only request still missing essential inputs, ask together for the minimum dated
+records or explicit user assumptions supported below, then end the reply without a numeric
+forecast, invented example rates or a table of unknowns. In a complete review, deliver the other
+supported findings and identify the forecast gap; do not block the whole review. Once inputs are
+sufficient, calculate the supported part with the script and preserve its assumptions and limits.
+
+## Conditional arithmetic is not calibrated probability
+
+This Skill has no validated probability model. Do not assign percentage odds, scenario weights,
+confidence intervals or a "most likely" value from intuition, a snapshot or historical quartiles.
+A disclaimer does not calibrate those numbers. Calibration would need a defined outcome and
+horizon, plus evaluation against held-out comparable outcomes; these calculations provide none.
+Do not promise percentage odds in return for more snapshots: dated observations enable conditional
+pace arithmetic, not calibrated predictions. State the observed window, requested horizon and
+assumptions beside the result, and explain why longer extrapolations remain uncertain.
+
+Growth-only requests use the standalone script and its printed Markdown handoff; dated
+`observed_pace` and user-supplied `assumed_pace` remain available. In a complete public review,
+`drive.py growth` and the composed report accept only `content_scenario`. Do not pass stock-pace
+inputs into that report schema or claim they were included. Keep the direct calculation separate
+when the user asks for it. This boundary does not extend the calculator's contracts.
+
 For a public review, `drive.py growth` replaces the two-step request below: run it in the review's run directory, choose one listed choice, save it as `review_growth_input.json` with the user's number and wording filled in, and run it again before writing the synthesis. `--metric` and `--horizon-days` follow the user's question (views, 30 days by default). Only `content_scenario` belongs in that file. `drive.py report` binds it to `snapshot.json`, `account_analysis.json` and the retained `question.txt`, recomputes the estimate, and includes the number, formula, observation ages, deadline comparison and sensitivity meaning in the validated `ACCOUNT_REVIEW.md`. The normal creator-report handoff carries the complete answer; no separate model-written growth summary is needed. Outside a review run, dated stock or standalone calculations keep the direct interface below.
 
 ## Evidence → choice → answer
@@ -52,8 +94,13 @@ For `content_scenario` from the review's `public-content-snapshot.v1`, omit `sam
 For user inputs, pass `--question-file` pointing to the original request as plain text. Public review fetch retains it as `question.txt` in the printed run directory; use `--snapshot snapshot.json --question-file question.txt` there. For a publication plan, interpret the request's meaning first, then supply `quote` as the complete original request (excluding surrounding whitespace) and `binding`:
 
 - Explicit total: `{"posts": 4, "origin": "user", "quote": "If I post 4 long videos in total next month, how many views will I get?", "binding": {"quantity_kind": "total", "quantity_quote": "4"}}`.
-- Frequency: `{"posts": 3, "period": "week", "origin": "user", "quote": "3 videos por semana", "binding": {"quantity_kind": "cadence", "quantity_quote": "3", "period": "week", "period_quote": "por semana"}}`.
+- Frequency: `{"posts": 3, "period": "week", "origin": "user", "quote": "3 videos per week", "binding": {"quantity_kind": "cadence", "quantity_quote": "3", "period": "week", "period_quote": "per week"}}`.
 
 The model interprets total versus frequency and maps the user's language to `day`/`week`; the script does not claim to understand arbitrary prose. It checks that the whole request is retained, the numeric source matches `posts`, the period evidence occurs separately in the source, and the normalized fields agree. It then calculates the equivalent publication count without rounding. Do not invent evidence or turn a frequency into a model-calculated monthly total. Missing interpretation, truncated quotes, absent evidence or unsupported periods return `needs_input`; clarify when the request cannot be interpreted confidently. Structural consistency cannot prove that the model's semantic interpretation is correct. Read compatibility remains only for a complete old explicit-total short form such as `6 videos` (or `publish 6 videos`), not a number excerpted from arbitrary prose.
 
 The new `binding` contract applies only to publication plans. `assumed_pace` retains its pre-existing stock-rate input reader for compatibility; it recognizes the existing Chinese/English forms rather than providing a new multilingual rate interface: `assumption.quote` is an exact source excerpt containing the signed net amount and day/week period, such as “20 subscribers per week” (a Chinese excerpt with a per-day or per-week net amount is read the same way). Never relabel an assistant suggestion as a user assumption. Relay computed values, formula, assumptions and missing inputs together; preserve the same limits under follow-up pressure.
+
+That legacy reader does not generally recognize named English view/like rates or monthly-rate
+phrases. Do not promise arbitrary rate-language support or rewrite a user's quote to pass it.
+Preserve the actual metric and scope of compatible forms; unsupported ones need clarification or
+dated observations, not a manufactured rate.
