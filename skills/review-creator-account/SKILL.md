@@ -1,6 +1,6 @@
 ---
 name: review-creator-account
-description: "Review Instagram, TikTok or YouTube accounts: why sales, orders, inquiries or conversions changed; supplied funnels; content patterns, followers, engagement, growth forecasts and odds. A handle's sales question belongs here even without private figures or with views/clicks in its table. Reach diagnosis is for a primary distribution question; deep review is for explicit video-watching requests. Not for drafts, trends, schedules, single-video edits or platform monetization eligibility."
+description: "Review Instagram, TikTok or YouTube accounts: sales, orders, inquiries, conversions, funnels, content and engagement. A handle's sales question belongs here without private figures or with views/clicks in its table. Also handles account/post growth, subscribers/views/likes, odds, and follow-ups extending a prediction to a new period. Reach diagnosis is for primary distribution; deep review is for video watching. Not drafts, trends, schedules, edits or platform monetization eligibility."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to kabo.sh and to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permissions: data; optional workspace:read for saved account context and workspace:write only to connect a public account or save the user's profile edits on request."
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download collect_account_history instagram_resolve_profile instagram_list_posts instagram_list_reels get_kabo_info list_connected_accounts get_creator_profile get_social_connection connect_public_account update_content_preferences start_skill_run
@@ -38,7 +38,11 @@ the main thread.
    different-target data request or promise of a numeric table before checking the supplied rows.
 A batch at historical post ages is not an account's calendar-month total or an existing post's
 trajectory. No result here supplies calibrated odds, now or after adding more history; extra
-records can enable conditional arithmetic, not percentage probabilities. Keep supported sales/funnel findings and
+records can enable conditional arithmetic, not percentage probabilities. When odds are requested,
+state explicitly that their percentage is unavailable; do not offer "conditional percentages"
+or promise probabilities in a later turn. Label any computed percent change as a change in the
+metric, never as the chance of reaching it. Check the whole reply, including next-step promises.
+Keep supported sales/funnel findings and
 complete-review results available; forecast gaps block only the unsupported forecast.
 
 **Complete-review delivery only.** Supplied-funnel answers and narrow operations return their

@@ -4,36 +4,27 @@ Use `<skill directory>/scripts/estimate_growth.py` for a growth estimate, includ
 
 ## Decide whether the requested forecast is identifiable
 
-First resolve the target from the immediately preceding request and reply. The current request sets
-the horizon; inherit the preceding horizon only when no new duration is specified. For an existing post,
-a single lifetime view/like observation alone does not define its next-month or next-year trajectory.
-If that is all the evidence, correct earlier invented odds, ask for dated observations of that
-post, and stop the numeric forecast. Do not substitute a channel-content scenario to fill the
-requested monthly table. If the user switches targets, assess the new target separately.
+Resolve the target from context, honoring any user change. Use the current horizon, inheriting
+the previous one only when unchanged. A post's single lifetime observation cannot define its
+future trajectory: correct earlier invented odds, ask for that post's dated observations and
+stop the numeric forecast. Do not substitute a channel-content scenario to fill its monthly table.
 
 A historical per-post median times a posting cadence estimates a batch at the sampled posts'
 observed ages. It is not a monthly deadline series, and adding it repeatedly to today's account
 stock does not make it one. Keep this distinction even under a "conditional" label. Engagement
 combining likes and comments is not a like rate; never use it to compute future likes.
 
-Check support separately for each requested metric. Calculate supported metrics with the script
-and ask for the minimum dated records or supported explicit assumptions for the others. A missing
-subscriber series must not suppress a valid view calculation, or vice versa. Correct an unsupported
-earlier estimate only when one actually exists; a first request does not imply a previous error.
-Ask for values from the user; do not suggest invented example rates or turn a combined engagement
-rate into a proposed like rate. Keep each calculation within the supported contracts below.
-If none of a growth-only request's metrics has the required inputs, end after the clarification:
-no numeric forecast, table of unknowns, different-target forecast or promise of percentage odds
-later. In a complete account review, deliver the other supported results and identify forecast
-gaps without invented predictions. Once inputs arrive, the supported calculation path is available.
+Check each metric independently. Calculate supported ones with the script; ask for the others'
+missing dated records or supported explicit assumptions, without suggesting invented rates.
+Correct an earlier estimate only if it actually exists. When no metric is supported, end after
+clarification: no forecast, table of unknowns, different-target forecast or promise of later odds.
+Missing forecast inputs never block supported calculations or the rest of a complete review.
 
 ## Require source rows, not reconstructed summaries
 
-A prior report's median, quartiles or posting pace is useful context, but does not provide the
-raw dated observations required by the calculation contracts below. If those rows or the saved
-snapshot are missing, request them. Do not reconstruct a fictional sample from aggregates, or
-replace `estimate_growth.py` with mental arithmetic or a short custom calculator to bypass its
-input requirements. A summary is not a validated calculation result either.
+A report's median, quartiles or cadence supplies context, not the required dated rows or a
+validated calculation. Request missing rows or the saved snapshot. Never reconstruct samples
+from aggregates or bypass `estimate_growth.py` with mental arithmetic or a custom calculator.
 
 Preserve the source's date meanings. A sampling window describes selection, not necessarily when
 metrics were observed. Relative post ages without an explicit observation timestamp do not supply
@@ -72,6 +63,14 @@ say what conditional calculation it enables and what will remain unknown.
 Calibration would require a defined
 outcome and horizon plus evaluation of predicted probabilities against held-out comparable
 outcomes; these calculations do not provide that evidence.
+
+Before delivering, check each forecast claim and the promised next step. An odds request needs
+an explicit answer: its occurrence probability is unavailable from this calculation, including
+after the requested records arrive. Do not substitute "conditional percentages", scenario
+weights, or a later probability table. An arithmetic percent change must name the metric and
+baseline; it is not the chance of the result happening. For supported amounts, present the
+assumption, computed amount and its uncertainty together; for unsupported amounts, ask only for
+the missing inputs. A caveat at the start does not license a contradictory promise at the end.
 
 For multi-month requests, keep every month on the same explicit measurement and assumptions.
 Show monthly values only when the supported calculation can produce them; never invent a decay,
