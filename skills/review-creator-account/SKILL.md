@@ -8,10 +8,12 @@ allowed-tools: get_research_capabilities get_research_data_job get_research_data
 
 # Review Creator Account
 
-For a forecast request or continuation, name the resolved target in the first sentence. A follow-up
-keeps the most recent requested focus: do not combine an earlier account forecast with a later
-post forecast unless the user requests both. Resolve clear references in intervening replies;
-ask about ambiguity rather than broadening the target or its data request.
+For a forecast request or continuation, first identify the **most recent user turn selecting the
+target**, resolving any pronoun through its corresponding reply. An earlier account review does
+not override a later user request about a post. A continuation changing only the horizon keeps
+that last target; it does not reopen every earlier forecast. Quote that target-setting user turn
+in `forecast_scope.txt` before drafting, then name the resolved target in the reply's first sentence.
+Ask about genuine ambiguity rather than combining targets or broadening the data request.
 With no supported inputs, the forecast portion contains only that target, a correction if needed,
 the missing fields and an explicit statement that occurrence probabilities are unavailable.
 No illustrative forecast table or invented dated rows. With supported inputs, deliver the
@@ -30,8 +32,9 @@ the main thread.
 **Forecast branch — before starting a review or answering a continuation:**
 1. Read [growth-estimation.md](references/growth-estimation.md). Keep the immediately preceding
    target and metrics unless the user changes them: a named post stays that post, not a new
-   account forecast. Resolve "same/what you just gave me" through the recent exchange, including
-   a clearly referenced post introduced in an assistant reply, not the union of historical topics.
+   account forecast. For "same/what you just gave me", work backwards to the latest user turn
+   that selected the target, including a pronoun resolved through the corresponding assistant
+   reply. Do not jump past a recent post request to an older account request or merge their scopes.
    Name that target first and ask only for its missing metrics. Use the new requested endpoint;
    stock horizons run from the latest observation, as the reference explains. If ambiguous, ask
    which target or date before collecting inputs. Earlier assistant forecasts
