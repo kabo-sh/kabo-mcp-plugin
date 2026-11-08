@@ -20,9 +20,11 @@ the main thread.
 **Forecast branch — before starting a review or answering a continuation:**
 1. Read [growth-estimation.md](references/growth-estimation.md). Keep the immediately preceding
    target and metrics unless the user changes them: a named post stays that post, not a new
-   account forecast. Use the newly requested horizon. If the target is ambiguous, ask which
-   one before collecting inputs. Earlier assistant forecasts are claims to check, not observations
-   or user assumptions.
+   account forecast. For "same/what you just gave me", use the nearest preceding user request
+   with an explicit target, not the union of topics mentioned earlier. Name that target in the
+   reply's first sentence and ask only for its missing metrics. Use the newly requested horizon.
+   If genuinely ambiguous, ask which target before collecting inputs. Earlier assistant forecasts
+   are claims to check, not observations or user assumptions.
 2. For each metric, find the actual dated source rows or the explicit user assumption the
    calculator requires. Run `estimate_growth.py` on supported inputs; a prior summary's median,
    cadence or range cannot replace missing rows. Never use mental/ad-hoc arithmetic to bypass it.
