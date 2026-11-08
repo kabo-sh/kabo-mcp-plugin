@@ -76,7 +76,7 @@ this direct missing-input command. It builds `growth-input.v1`, `observed_pace` 
 scope internally; do not invent a mode such as `missing_data` or hand-author another empty input.
 
 ```sh
-python3 '<skill directory>/scripts/compose_forecast_reply.py' --scope-file '<run directory>/forecast_scope.json' --missing-metric <subscribers|followers|views|likes|comments> --horizon-days <resolved days> --output '<run directory>/FORECAST_REPLY.md'
+python3 '<skill directory>/scripts/compose_forecast_reply.py' --scope-file '<run directory>/forecast_scope.json' --missing-metric <subscribers|followers|views|likes|comments> --horizon-days <resolved days> --report-language <requested-language-tag> --output '<run directory>/FORECAST_REPLY.md'
 ```
 
 Repeat `--missing-metric` for each missing cumulative metric, and add `--correct-prior` if earlier
@@ -93,7 +93,7 @@ only for missing inputs. Unsupported metric contracts get an honest limitation, 
 input. Do not fabricate rows to obtain a number. Keep supported metrics alongside these gaps.
 
 ```sh
-python3 '<skill directory>/scripts/compose_forecast_reply.py' --scope-file '<run directory>/forecast_scope.json' --input '<first-input.json>' --input '<next-input.json>' --question-file '<original-question.txt>' --output '<run directory>/FORECAST_REPLY.md'
+python3 '<skill directory>/scripts/compose_forecast_reply.py' --scope-file '<run directory>/forecast_scope.json' --input '<first-input.json>' --input '<next-input.json>' --question-file '<original-question.txt>' --report-language <requested-language-tag> --output '<run directory>/FORECAST_REPLY.md'
 ```
 
 Use one `--input` per requested metric/horizon, recomputed through `estimate_growth.py`. Add
@@ -102,10 +102,25 @@ standalone stock command. Add `--correct-prior` only for actual earlier unsuppor
 An invalid input is a correction to make, not permission to bypass the calculation.
 
 The final reply is the complete text between `KABO_FORECAST_REPLY_BEGIN` and
-`KABO_FORECAST_REPLY_END`; translate fixed labels if needed. Keep values, target, dates, sources,
+`KABO_FORECAST_REPLY_END`; copy it verbatim, without translating after validation. Keep values, target, dates, sources,
 formula, assumptions, missingness and limits. Do not replace it with another numeric scenario,
 historical reference table or promise. Missing-input results are a complete answer to what can
 be calculated now; no invented forecast is needed to fill a table.
 
 Inside a complete review, retain the review/funnel findings and use the separate handoff rules
 in [growth-review-workflow.md](growth-review-workflow.md), including `needs_input` stock results.
+
+## Output language is decided before the final command
+
+Use the current user's requested reply language, otherwise the language of their current question;
+do not inherit another language from historical attachments. Pass `--report-language en` for English.
+The composer, not a second model-written response, owns the final text.
+
+For another language, supply `--translations-file reply-translations.json` alongside that tag:
+`{"report_language":"<tag>","strings":{"<English template>":"<translated template>"}}`.
+Translate each fixed template named by the composer's combined diagnostic, preserving each numbered
+placeholder (such as `{0}`, `{1:g}`), occurrence count and numeric format exactly. The script inserts
+actual targets, values, dates, source quotes and formulae afterwards; never insert new facts into
+labels. This validates template structure, not translation meaning. Missing or malformed translations
+produce no deliverable. Correct the catalog before retrying the same composition, not by translating
+the output in the final reply. The calculation inputs and boundaries remain unchanged.

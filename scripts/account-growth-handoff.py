@@ -251,7 +251,55 @@ class GrowthHandoff(unittest.TestCase):
         self.assertIn("204.00", report)
         self.assertIn("## views", report)
         self.assertIn("No numeric estimate or probability", report)
-        self.assertEqual(run.stdout, "KABO_FORECAST_REPLY_BEGIN\n" + report + "KABO_FORECAST_REPLY_END\n")
+        self.assertEqual(run.stdout.split("KABO_FORECAST_REPLY_BEGIN\n", 1)[1], report + "KABO_FORECAST_REPLY_END\n")
+        metadata = json.loads(run.stdout.splitlines()[0])
+        self.assertEqual("en", metadata["report_language"])
+        self.assertTrue(metadata["delivery_ready"])
+        self.assertEqual("verbatim", metadata["response_mode"])
+
+    def translation_catalog(self):
+        """已知缺数据场景的真实中文模板，数字和对象由脚本绑定。"""
+        return {"report_language": "zh-CN", "strings": {
+            "# Requested outlook for {0} ({1})": "# {0}（{1}）的展望",
+            "views": "播放量", "## {0} / {1:g}-day horizon": "## {0} / 未来 {1:g} 天",
+            "Conditional estimate: {0} / {1}": "条件估算：{0} / {1}",
+            "Two dated observations of the same cumulative metric.": "需要同一累计指标的两次带日期观测。",
+            "\nNo numeric estimate or probability is available from these inputs.\n": "\n这些输入不能支持数值估算或发生概率。\n",
+            "Occurrence probabilities are unavailable from these calculations. More records may enable conditional arithmetic, not calibrated percentage chances.":
+                "本计算不能提供发生概率。更多记录可以支持条件计算，但不能提供校准过的百分比概率。"}}
+
+    def test_localized_forecast_is_complete_before_final_handoff(self):
+        """正文在脚本输出前完成本地化，目标、时长、缺测量边界不丢失。"""
+        catalog = self.root / "translations.json"
+        catalog.write_text(json.dumps(self.translation_catalog(), ensure_ascii=False))
+        run = self.compose_reply([], flags=["--missing-metric", "views", "--horizon-days", "365",
+                                           "--report-language", "zh-CN", "--translations-file", str(catalog)])
+        self.assertEqual(0, run.returncode, run.stderr)
+        body = (self.root / "reply.md").read_text()
+        self.assertIn("未来 365 天", body)
+        self.assertIn("creator", body)
+        self.assertIn("不能提供校准过的百分比概率", body)
+        self.assertNotIn("Conditional estimate", body)
+        self.assertEqual(body + "KABO_FORECAST_REPLY_END\n", run.stdout.split("KABO_FORECAST_REPLY_BEGIN\n")[1])
+
+    def test_failed_language_contract_emits_no_deliverable(self):
+        """缺翻译、错语言及丢失/重复/改格式占位符均不得输出已完成正文。"""
+        for changed in (None, {"report_language": "ar", "strings": {}},
+                        {"report_language": [], "strings": {}},
+                        *[{"report_language": "zh-CN", "strings": {**self.translation_catalog()["strings"],
+                            "## {0} / {1:g}-day horizon": value}}
+                          for value in ("未来 {1:g} 天", "{0} {1:g} {1:g}", "{0} {1:.0f}", "{0.__class__} {1:g}")]):
+            with self.subTest(catalog=changed):
+                catalog = self.root / "translations.json"
+                catalog.write_text(json.dumps(changed))
+                flags=["--missing-metric", "views", "--horizon-days", "365", "--report-language", "zh-CN"]
+                if changed is not None:
+                    flags += ["--translations-file", str(catalog)]
+                run=self.compose_reply([], flags=flags)
+                self.assertNotEqual(0, run.returncode)
+                self.assertNotIn("Traceback", run.stderr)
+                self.assertNotIn("REPLY_BEGIN", run.stdout)
+                self.assertFalse((self.root / "reply.md").exists())
 
     def test_composer_rejects_a_different_target_and_writes_no_report(self):
         """验证混入另一预测对象时拒绝生成报告。"""

@@ -692,17 +692,18 @@ def emit_final_report(report: Path) -> None:
     # 截断恢复放在正文之前，避免输出尾部被宿主截断时连恢复入口也丢失。
     say(f"[drive] If output is truncated, read the finalized report in bounded chunks: "
         f"python3 '{Path(__file__).resolve()}' read-report --output-dir '{report.parent}' --offset 0")
-    # 最后一步交付完整已校验正文，避免模型把文件路径或开头诊断当作完整答案。
-    body = report.read_text(encoding="utf-8").rstrip()
+    # 正文和结尾由脚本一次组成；不再要求模型补句子或翻译，避免重新写一份摘要。
+    body = report.read_text(encoding="utf-8").rstrip() + f"\n\ncreator_report: {report}\n"
+    language = cd.load(SYNTHESIS).get("output_language", "en")
+    say(json.dumps({"delivery_ready": True, "response_mode": "verbatim", "report_language": language,
+                    "characters": len(body), "sha256": hashlib.sha256(body.encode()).hexdigest()}, ensure_ascii=False))
+    say("The final answer is already written below. Copy the entire payload without the markers. "
+        "Do not introduce it, summarize, translate, change headings or append a closing sentence. "
+        "Every section, cited example, adjacent limitation and action success criterion belongs in the reply.")
     say("KABO_FINAL_REPLY_BEGIN")
-    say(body)
+    say(body.rstrip())
     say("KABO_FINAL_REPLY_END")
-    say("Delivery: the entire body between these markers is your final answer, not material for a summary. "
-        "Preserve every paragraph, section, cited example, metric and adjacent limitation, and every "
-        "recommendation's success criterion. Translate only the fixed labels/metric descriptions "
-        "that are not in the creator's language; do not rewrite the authored prose. "
-        "Check each section and citation is present before sending. Omit the markers, then end with:")
-    say(f"creator_report: {report}")
+
 
 
 def stage_report(args: argparse.Namespace) -> None:

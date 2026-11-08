@@ -2,13 +2,15 @@
 """Compose a complete forecast handoff by recomputing each supplied input."""
 import argparse
 import json
+import hashlib
 from pathlib import Path
 
 from estimate_growth import estimate, render_report, with_snapshot
+from delivery_language import DeliveryLanguage
 
 
 def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_source=None, correct_prior=False,
-            missing_metrics=(), horizon_days=None):
+            missing_metrics=(), horizon_days=None, report_language="en", translations=None):
     """重算独立指标并检查目标一致，保留可算结果与缺失输入。"""
     required = {"platform", "target", "request_quote", "reference"}
     if not isinstance(resolved_scope, dict):
@@ -62,12 +64,14 @@ def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_sourc
         results.append(result)
     if not results:
         raise ValueError("At least one calculation input is required")
-    lines = [f"# Requested outlook for {target[1]} ({target[0]})", ""]
+    t = DeliveryLanguage(report_language, translations)
+    lines = [t("# Requested outlook for {0} ({1})", target[1], target[0]), ""]
     if correct_prior:
-        lines += ["Earlier unsupported numeric forecasts or odds should not be treated as measured predictions.", ""]
+        lines += [t("Earlier unsupported numeric forecasts or odds should not be treated as measured predictions."), ""]
     for result in results:
-        lines += [f"## {result['scope']['metric']} / {result['horizon_days']:g}-day horizon", "", render_report(result).strip(), ""]
-    lines += ["Occurrence probabilities are unavailable from these calculations. More records may enable conditional arithmetic, not calibrated percentage chances.", ""]
+        lines += [t("## {0} / {1:g}-day horizon", t(result["scope"]["metric"]), result["horizon_days"]), "", render_report(result, t).strip(), ""]
+    lines += [t("Occurrence probabilities are unavailable from these calculations. More records may enable conditional arithmetic, not calibrated percentage chances."), ""]
+    t.validate()
     return results, "\n".join(lines)
 
 
@@ -83,10 +87,12 @@ def main():
     parser.add_argument("--snapshot", type=Path)
     parser.add_argument("--correct-prior", action="store_true")
     parser.add_argument("--output", type=Path, required=True, help="Complete Markdown handoff")
+    parser.add_argument("--report-language", default="en", help="Requested reply language, independent of history or host locale")
+    parser.add_argument("--translations-file", type=Path, help="Non-English template translations; all substitutions remain script-bound")
     args = parser.parse_args()
     if args.output.suffix.lower() != ".md":
         parser.error("--output must be a .md file")
-    sources = {p.resolve() for p in [*args.input, args.scope_file, args.question_file, args.snapshot] if p is not None}
+    sources = {p.resolve() for p in [*args.input, args.scope_file, args.question_file, args.snapshot, args.translations_file] if p is not None}
     if any(p.resolve() in sources for p in [args.output, args.output.with_suffix(".json")]):
         parser.error("Output artifacts must not overwrite input evidence")
     try:
@@ -99,11 +105,17 @@ def main():
             args.correct_prior,
             args.missing_metric,
             args.horizon_days,
+            args.report_language,
+            json.loads(args.translations_file.read_text(encoding="utf-8")) if args.translations_file else None,
         )
     except (OSError, ValueError, TypeError, KeyError) as error:
         parser.error(str(error))
     args.output.write_text(report, encoding="utf-8")
-    args.output.with_suffix(".json").write_text(json.dumps({"schema_version": "forecast-reply.v1", "results": results}, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    args.output.with_suffix(".json").write_text(json.dumps({"schema_version": "forecast-reply.v1", "report_language": args.report_language, "results": results}, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    print(json.dumps({"delivery_ready": True, "response_mode": "verbatim", "report_language": args.report_language,
+                      "characters": len(report), "sha256": hashlib.sha256(report.encode()).hexdigest()}, ensure_ascii=False))
+    print("The final answer is already written in the requested language. Copy the entire payload below, "
+          "without the markers. Do not introduce, translate, shorten, recalculate or append another answer.")
     print("KABO_FORECAST_REPLY_BEGIN")
     print(report, end="")
     print("KABO_FORECAST_REPLY_END")

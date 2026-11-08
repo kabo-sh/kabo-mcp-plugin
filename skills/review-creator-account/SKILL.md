@@ -53,20 +53,18 @@ also a completed script handoff, not permission to skip the steps and answer fro
    and the same composer. Preserve independently supported metrics and any sales-funnel findings.
    Correct named invalid inputs before repeating a command; do not replace a failed invocation
    with a freehand forecast or a generic request for data.
-4. **Deliver the complete text between `KABO_FORECAST_REPLY_BEGIN` and `KABO_FORECAST_REPLY_END`.**
-   Name the resolved target and retained horizon;
-   include only computed conditional amounts, or its specific missing measurements. If execution
-   cannot finish, disclose that step's failure without presenting a completed calculation. Do not
-   substitute historical medians, low/base/high guesses or promises to calculate chances later.
-   **The final sentence must explicitly say: “Occurrence probabilities are unavailable from
-   this Skill. More history can enable conditional calculations, not calibrated chances.”**
-   Translate that meaning when needed and end there. Never ask for more data “to produce
-   probability scenarios”; the missing records enable amounts under assumptions, not odds.
+4. **Copy the script's final-answer payload; do not write a new answer.** The composer emits
+   `KABO_FORECAST_REPLY_BEGIN` / `KABO_FORECAST_REPLY_END`. Your next response is the entire body
+   unchanged, without markers or an introduction. The script already includes target, horizon,
+   computed amounts or missing measurements, and the probability boundary. Do not translate,
+   shorten or add a closing promise. Set its output language from the current user's requested
+   language before composition, not from older attachments or the host's interface locale.
+   If execution cannot finish, disclose that failure instead of presenting a completed calculation.
 
 A dated baseline with a valid user-supplied rate supports conditional arithmetic; undated summaries
 or one snapshot without that rate do not. More dated records can enable conditional calculations,
 not calibrated occurrence probabilities. Close every forecast-only reply with that distinction,
-translated into the user's language. No disclaimer makes invented future values or odds supported.
+in the requested language before the final handoff. No disclaimer makes invented future values or odds supported.
 
 For a complete review or supplied-funnel request that also asks for growth, apply the reference's
 evidence rules to its forecast portion while retaining all supported review/funnel findings.
@@ -76,10 +74,10 @@ Use the complete-review delivery path below, with separate computed handoffs whe
 own supported result directly; they do not compose `ACCOUNT_REVIEW.md` or require a complete-review delivery step.
 For a complete review, the final step prints `ACCOUNT_REVIEW.md` between `KABO_FINAL_REPLY_BEGIN` and
 `KABO_FINAL_REPLY_END`. That entire body is the reply, not source material for another answer.
-Deliver it once, immediately, in full and in the user's requested language (`output_language`):
-if it already matches, relay it unchanged; otherwise translate only its fixed labels and the
-deterministic identity and metric descriptions, keeping every semantic string, quoted title, number,
-link, order and structure. Close with one short sentence and end with the `creator_report:` line.
+The script has already composed the final answer including its `creator_report:` line. Copy the
+entire payload unchanged, omitting only its markers; do not append a closing sentence. Author
+semantic text in the user's requested `output_language` before composition. Language corrections
+belong before validation, never in a second rewriting pass over the validated body.
 Keep every section, paragraph, example link, adjacent evidence limit and action's success criterion.
 Do not replace the body with an opening diagnosis or a link.
 For stock calculations or additional content metrics outside the report's single content-only
