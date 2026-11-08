@@ -22,11 +22,13 @@ Skill's `references/` and `scripts/`.
 Use this procedure even when the previous answer contained a forecast. A missing-data reply is
 also a completed script handoff, not permission to skip the steps and answer from a preview.
 
-1. **Recover context first, before any clarification or estimate.** If prior conversation is
-   attached or saved in files, read the latest relevant history file in full now using the host's
-   file-reading capability; read earlier parts as needed to resolve the exchange. A preview or
-   excerpt cannot establish that a target or period is absent. Read
-   [forecast-context.md](references/forecast-context.md). Keep the latest user-specified horizon
+1. **Read the conversation before reading forecast references.** When history arrives as
+   attachments, the next tool action after loading this Skill opens the latest relevant original
+   history file in full, then earlier parts as needed. Use the named file's full-read capability
+   (for a local text file, `cat '<history file>'`); follow pagination if the tool truncates output.
+   Listing filenames, counting bytes or re-reading previews does not read the missing passage.
+   Only after this read, consult [forecast-context.md](references/forecast-context.md).
+   Keep the latest user-specified horizon
    unless this turn changes it. A request for different certainty or presentation preserves it.
    Resolve one account or post through the latest target-setting user turn and its answer, not an
    older account table. If a file cannot be read, state that access gap rather than re-asking as
