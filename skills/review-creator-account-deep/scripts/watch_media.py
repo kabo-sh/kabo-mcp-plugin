@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 from datetime import datetime, timezone
 import sys
@@ -46,7 +47,7 @@ FRAMES_PER_VIDEO = 5
 # 存文件只是没有下载链接时的退路。
 SAVE_RULE = ("Do not save the result. Its download url holds its result id: the 22 characters between "
              "`research-export/v1/` and `.json`. Put the id of your last call's result into the resume command "
-             "below as `--id <id>`. Only if that result has no download url, save it whole, as returned, to the "
+             "below as `--id=<id>`. Only if that result has no download url, save it whole, as returned, to the "
              "fallback file named under the call (with the host's file-write tool, never as a command-line "
              "argument) and leave `--id` out. Never download anything yourself; call get_research_data_download "
              "only when the resume says the id expired.")
@@ -112,8 +113,22 @@ def resume_command(args: argparse.Namespace) -> str:
     argv = [script("watch_media.py"), str(args.analysis), "--cap", str(args.cap),
             "--output-language", args.output_language,
             *[part for content_id in args.named_content_id for part in ("--named-content-id", content_id)], "--placed"]
-    return (f"cd {run_directory} && KABO_STATIC_RUN_DIR={run_directory} python3 "
-            + " ".join(quote(part) for part in argv) + " --id <id>")
+    # 不带 KABO_STATIC_RUN_DIR=… 前缀：run 从当前目录找到（static_host.run_dir）。这一行、槽位行和开头的
+    # 「Hand-over: 」与 connector_driver.py 的交接同一种写法，Web 宿主（kabo-agent-service plugin-handover.ts）
+    # 才认得出来、自己调用并续跑；认不出时整段交接落到模型手里，模型常在暂存这一步失手（同 #130）。
+    return (f"cd {run_directory} && python3 "
+            # `--id=<id>` 而不是 `--id <id>`：结果编号可能以「-」开头（实测 `-lNCEjm2WwISAEzMxbDqAA`），
+            # 分开写时 argparse 把它当成另一个选项，续跑直接报错。Web 宿主照样跳过 `--id=` 这个词。
+            + " ".join(quote(part) for part in argv) + " --id=<id>")
+
+
+def bind_run_to_cwd() -> None:
+    """续跑命令只写 `cd '<run>' && python3 …`，不带环境变量；static_host.run_dir 却先读环境变量。shell 里
+    残留着别的 run 的 KABO_STATIC_RUN_DIR 时，媒体证据会写进那个 run。当前目录在某个 run 里，就以它为准。"""
+    here = Path.cwd().resolve()
+    run = next((path for path in (here, *here.parents) if (path / ".static-run.json").is_file()), None)
+    if run is not None:
+        os.environ["KABO_STATIC_RUN_DIR"] = str(run)
 
 
 def hand_over_media(plan: dict[str, Any], args: argparse.Namespace, note: str = "") -> None:
@@ -125,14 +140,16 @@ def hand_over_media(plan: dict[str, Any], args: argparse.Namespace, note: str = 
     current["handed_at"] = datetime.now(timezone.utc).isoformat()
     save_state(current)
     videos = len(plan.get("jobs") or [])
-    say((note + " " if note else "") +
-        f"Hand-over: make this one call now with the arguments verbatim; the backend queues the metadata, transcript "
+    if note:
+        # 说明单独一行：宿主只认以「Hand-over: 」开头的行，前面带别的字，再交一轮时就认不出了。
+        say(note)
+    say(f"Hand-over: make this one call now with the arguments verbatim; the backend queues the metadata, transcript "
         f"and keyframe jobs of all {videos} selected videos and waits for them. If its result still reports running "
         f"jobs (coverage.pending above 0), make the same call again right away with the same arguments (nothing is "
         f"queued or charged twice) until pending is 0 or you have made it {MAX_ROUNDS} times; only the last result "
         f"counts. " + SAVE_RULE)
     say("call: " + json.dumps({"tool": TOOL, "arguments": call_arguments(plan)}, ensure_ascii=False))
-    say(f"  result  (fallback file, only if the result has no download url: {file})")
+    say(f"  result {first:02d}  (fallback file, only if the result has no download url: {file})")
     say("Then run this one command right away, <id> replaced by the last result's id (ids expire in 10 "
         "minutes): " + resume_command(args))
 
@@ -168,7 +185,7 @@ def take_saved(result_id: str | None = None) -> None:
         if str(taken.get(name) or "").startswith("id:"):
             continue
         if not path.is_file():
-            raise ValueError(f"no result for this hand-over: run the same resume command again with --id <id>, the "
+            raise ValueError(f"no result for this hand-over: run the same resume command again with --id=<id>, the "
                              f"id from the last {TOOL} call's download url (only for a result with no download url, "
                              f"save it whole at {path} and leave --id out)")
         raw = path.read_bytes()
@@ -277,6 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--placed", action="store_true")
     parser.add_argument("--id", dest="result_id", help="the result id of the last collect_video_media call")
     args = parser.parse_args(argv)
+    bind_run_to_cwd()
     try:
         plan = prepare(args)
         if not plan.get("jobs"):

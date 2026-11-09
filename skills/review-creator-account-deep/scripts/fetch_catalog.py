@@ -6,7 +6,7 @@ the first Feed page + the first Reels page, YouTube `get_channel` + the latest 5
 `list_account_posts` request (at most `CATALOG_CALL_CAP` catalog calls; the backend retries a briefly
 failed page once). Each run prints one JSON object:
 
-- `needs_calls`: the one call to make and `rerun` (this command with `--placed --id <id>`), which
+- `needs_calls`: the one call to make and `rerun` (this command with `--placed --id=<id>`), which
   fetches the result by its result id (or, for a result with no download url, from the fallback
   file `save_as`), places each call as
   `catalog/NN-<operation>.json` in issue order, assembles the analysis and then runs `watch_media.py`
@@ -207,7 +207,7 @@ def take_saved(path: Path, result_id: str | None = None) -> None:
     if not path.is_file():
         if static_host.composite_records(COMPOSITE_TOOL):
             return
-        raise ValueError(f"no {COMPOSITE_TOOL} result: run rerun again with --id <id>, the id from that call's "
+        raise ValueError(f"no {COMPOSITE_TOOL} result: run rerun again with --id=<id>, the id from that call's "
                          f"download url (only for a result with no download url, save it whole at {path} and "
                          "leave --id out)")
     raw = path.read_bytes()
@@ -356,13 +356,13 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps({"status": "needs_calls", "run_directory": str(Path.cwd().resolve()),
                       "call": history_call(args.platform, handle, args.channel_id),
                       "save_as": str(saved),
-                      "rerun": " ".join([*rerun, "--placed", "--id", "<id>"]),
+                      "rerun": " ".join([*rerun, "--placed", "--id=<id>"]),
                       "if_the_call_failed": " ".join([*rerun, "--call-failed"]),
                       "next_action": "Make this one call with exactly its arguments. Do not save its result: its "
                                      "download url holds its result id, the 22 characters between "
                                      "`research-export/v1/` and `.json`; run rerun with <id> replaced by that id. "
                                      "Only if the result has no download url, save it whole as save_as (with your "
-                                     "file-write tool) and drop `--id <id>` from rerun. Never download anything "
+                                     "file-write tool) and drop `--id=<id>` from rerun. Never download anything "
                                      "yourself. "
                                      "If the call itself fails without returning a result, make it once more; if it "
                                      "fails again, run if_the_call_failed instead. Never write or edit catalog/ files. "

@@ -28,8 +28,8 @@ const calls = (out) => out.split("\n").filter((line) => line.startsWith("call: "
 const reads = (out) => out.split("\n").filter((line) => line.startsWith("read: ")).map((line) => JSON.parse(line.slice(6)));
 // 这几例走「没有下载链接」的退路：结果存进交接点名的文件，续跑去掉 --id。按编号取的那条路见文件末尾两例。
 const saveOf = (out) => out.split("\n").find((line) => line.startsWith("  result ")).split("has no download url: ")[1].slice(0, -1);
-const resumeOf = (out) => { const line = out.split("\n").find((l) => l.startsWith("Then run this one command")); return line.slice(line.indexOf("cd '")).replace(/ --id <id>$/, ""); };
-const withoutId = (command) => command.replace(/ --id <id>$/, "");
+const resumeOf = (out) => { const line = out.split("\n").find((l) => l.startsWith("Then run this one command")); return line.slice(line.indexOf("cd '")).replace(/ --id=<id>$/, ""); };
+const withoutId = (command) => command.replace(/ --id=<id>$/, "");
 
 const ids = ["DfixtureA01", "DfixtureB02", "DfixtureC03"];
 const analysis = {
@@ -202,6 +202,7 @@ test("目录组合调用：资料页不存在如实说；调用两次都失败�
 // 按结果编号取（kabo ADR-0084「2026-11-04」）：模型只把编号填进续跑命令，脚本向 Kabo 取同一份字节、按响应头的
 // sha256 与长度校验后落盘，不存任何文件。进程内替换 urllib 的 HTTPS 收发，不联网。
 const RESULT_ID = "Neutral_Result-Id01234";
+const DASH_ID = "-eutral_Result-Id01234";
 const BY_ID = `https://kabo.sh/v1/research-downloads/${RESULT_ID}`;
 const BY_ID_HARNESS = String.raw`
 import base64, contextlib, hashlib, http.client, io, json, os, sys, urllib.request, urllib.response
@@ -245,11 +246,12 @@ test("看片按结果编号续跑：交接只要编号，续跑自己取、不�
   const first = python("watch_media.py", ["account_analysis.json"], { cwd: run, run });
   assert.equal(first.code, 0, first.out);
   assert.match(first.out, /Do not save the result/);
-  assert.match(first.out, / --id <id>$/m);
+  assert.match(first.out, / --id=<id>$/m);
   const args = calls(first.out)[0].arguments;
-  const resumed = await byId(run, "watch_media", ["account_analysis.json", "--placed", "--id", `${RESULT_ID}.json`], composite(args));
+  // 编号以「-」开头时也要能续跑：交接打印的是 `--id=<id>`，照填即可（分开写会被当成另一个选项）。
+  const resumed = await byId(run, "watch_media", ["account_analysis.json", "--placed", `--id=${DASH_ID}.json`], composite(args));
   assert.equal(resumed.code, 0, resumed.out);
-  assert.deepEqual(resumed.requests, [BY_ID]);
+  assert.deepEqual(resumed.requests, [`https://kabo.sh/v1/research-downloads/${DASH_ID}`]);
   assert.deepEqual(resumed.host_results, []);
   assert.match(resumed.out, /"status": "watched", "pending_jobs": 0/);
 });
@@ -258,7 +260,7 @@ test("目录按结果编号续跑：rerun 填编号即可，不存文件，接�
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-deep-catalog-id-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const handed = JSON.parse(python("fetch_catalog.py", ["--workspace", workspace, "--platform", "instagram", "--account", "@neutral.creator"], { cwd: os.tmpdir() }).out);
-  assert.match(handed.rerun, / --placed --id <id>$/);
+  assert.match(handed.rerun, / --placed --id=<id>$/);
   assert.match(handed.next_action, /Do not save its result/);
   const list = [
     ["instagram_resolve_profile", igEnvelope("resolve_profile", { profile: { id: "u1", pk: "u1", username: "neutral.creator", follower_count: 12000, media_count: 9 } })],
@@ -277,4 +279,82 @@ test("目录按结果编号续跑：rerun 填编号即可，不存文件，接�
     const placed = JSON.parse(await readFile(path.join(handed.run_directory, `catalog/0${index + 1}-${envelope.operation}.json`), "utf8"));
     assert.deepEqual(placed, envelope);
   }
+});
+
+// Web 宿主读交接的规则（kabo-agent-service src/tools/plugin-handover.ts 的 parsePluginHandover），照抄到这里，
+// 与 acv-video-media.test.mjs 同一份：读得懂，宿主就自己调用、把原样结果写进槽位文件、按续跑命令接着跑。
+function hostHandover(stdout) {
+  const lines = stdout.split("\n");
+  const start = lines.findIndex((line) => line.startsWith("Hand-over: "));
+  if (start < 0) return null;
+  const words = (text) => {
+    const out = []; let i = 0;
+    while (i < text.length) {
+      if (text[i] === " ") { i += 1; continue; }
+      if (text[i] === "'") { const end = text.indexOf("'", i + 1); if (end < 0) return null; out.push(text.slice(i + 1, end)); i = end + 1; if (i < text.length && text[i] !== " ") return null; continue; }
+      let end = text.indexOf(" ", i); if (end < 0) end = text.length;
+      const word = text.slice(i, end); if (/["`\\]/.test(word)) return null; out.push(word); i = end;
+    }
+    return out;
+  };
+  const found = [], files = []; let resume = null;
+  for (const line of lines.slice(start + 1)) {
+    const call = /^call: (\{.*\})\s*$/.exec(line);
+    if (call) { found.push(JSON.parse(call[1])); continue; }
+    const slot = /^\s+result (\d+)\s+\(fallback file[^:]*: (\/\S+)\)\s*$/.exec(line);
+    if (slot) { if (files.length !== found.length - 1) return null; files.push(slot[2]); continue; }
+    const tail = /^Then run this one command right away[^:]*\(ids expire[^)]*\): (.+)$/.exec(line);
+    if (tail) {
+      const w = words(tail[1].trim());
+      if (!w || w[0] !== "cd" || w[2] !== "&&" || w[3] !== "python3") return null;
+      const args = []; const rest = w.slice(5);
+      for (let k = 0; k < rest.length; k += 1) { if (rest[k] === "--id") { k += 1; continue; } if (rest[k].startsWith("--id=")) continue; args.push(rest[k]); }
+      resume = { cwd: w[1], script: w[4], args }; break;
+    }
+  }
+  return resume && found.length && files.length === found.length ? { calls: found, files, resume } : null;
+}
+
+test("watch_media.py 的交接是 Web 宿主读得懂的写法：两轮都由宿主写入原样结果、不带编号续跑，走到终态", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-deep-host-"));
+  t.after(() => rm(workspace, { recursive: true, force: true }));
+  const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  await writeFile(path.join(run, "account_analysis.json"), JSON.stringify(analysis));
+  // shell 里残留着另一个 run 的 KABO_STATIC_RUN_DIR：续跑仍要落在 cd 进去的那个 run。
+  const stray = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  assert.notEqual(stray, run);
+  const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1", KABO_STATIC_RUN_DIR: stray };
+  const resume = (handover) => {
+    const result = spawnSync("python3", [handover.resume.script, ...handover.resume.args], { cwd: handover.resume.cwd, encoding: "utf8", env });
+    return { code: result.status, out: result.stdout + result.stderr };
+  };
+
+  const first = python("watch_media.py", ["account_analysis.json"], { cwd: run, run });
+  assert.equal(first.code, 0, first.out);
+  const handover = hostHandover(first.out);
+  assert.ok(handover, first.out);
+  assert.equal(handover.calls.length, 1);
+  assert.equal(handover.calls[0].tool, "collect_video_media");
+  assert.equal(await realpath(handover.resume.cwd), await realpath(run));
+  assert.equal(path.basename(handover.resume.script), "watch_media.py");
+  assert.ok(!handover.resume.args.includes("<id>"));
+  const args = handover.calls[0].arguments;
+
+  // 第一轮还有 job 在跑：再交一轮同样要让宿主认得（说明单独一行，槽位编号换成 02）。
+  await writeFile(handover.files[0], JSON.stringify(composite(args, new Set([`${ids[0]}/extract_keyframes`]))));
+  const second = resume(handover);
+  assert.equal(second.code, 0, second.out);
+  assert.match(second.out, /1 media job\(s\) are still running/);
+  const again = hostHandover(second.out);
+  assert.ok(again, second.out);
+  assert.deepEqual(again.calls[0].arguments, args);
+  assert.match(path.basename(again.files[0]), /^02-/);
+
+  await writeFile(again.files[0], JSON.stringify(composite(args)));
+  const third = resume(again);
+  assert.equal(third.code, 0, third.out);
+  assert.match(third.out, /"status": "watched", "pending_jobs": 0/);
+  assert.equal(reads(third.out).length, 3);
+  await readFile(path.join(run, "watch_outcomes.json"), "utf8");
+  await assert.rejects(readFile(path.join(stray, "watch_outcomes.json"), "utf8"));
 });
