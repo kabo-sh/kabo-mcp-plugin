@@ -15,6 +15,10 @@ Keep a short scope note with the exact source excerpts for:
 
 Reuse these facts in `forecast_scope.json` and the calculator inputs. `target` is one canonical
 account/post identifier used consistently; `reference` can hold the human-readable resolved name.
+Copy the complete public identity from that resolved answer. Preserve identity-bearing URL query
+parameters (for example a video ID); a generic watch page or platform homepage is not a post.
+If the composer rejects an incomplete identifier, reread that exact source and correct the scope;
+do not ask the user to repeat an identifier already present in the supplied history.
 Do not add channel subscribers to a follow-up about one post. If the target or horizon is genuinely absent or conflicting
 after reading the relevant history, ask one focused question before invoking the composer. If a file is inaccessible,
 say which source could not be read and request only the missing passage.

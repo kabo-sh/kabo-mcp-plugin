@@ -81,7 +81,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertEqual(result["status"], "needs_input")
         self.assertEqual(result["observations"], [])
         self.assertIsNone(result["estimate"])
-        self.assertIn("creator/named-post / views", report)
+        self.assertIn("Not enough evidence to estimate views for creator/named-post", report)
         self.assertIn("Two dated observations", report)
         self.assertIn("No numeric estimate or probability", report)
         self.assertIn(report.strip(), stdout)
@@ -213,6 +213,39 @@ class GrowthHandoff(unittest.TestCase):
         self.assertIn('Earlier unsupported', run.stdout)
         self.assertIn('Two dated observations', run.stdout)
 
+    def test_incomplete_public_target_cannot_be_a_validated_handoff(self):
+        """缺视频身份参数的链接不能生成成功回执；必须回原来源纠正。"""
+        for target in ['https://www.youtube.com/watch', 'https://www.youtube.com/watch?feature=share',
+                       'https://youtube.com/watch?v=', 'https://youtube.com/watch?v=abcdefghijk&v=lmnopqrstuv',
+                       'https://www.instagram.com/reel/', 'https://www.youtube.com/']:
+            with self.subTest(target=target):
+                self.scope['account'] = target
+                run = self.compose_reply([], flags=['--missing-metric', 'views', '--horizon-days', '365'])
+                self.assertNotEqual(0, run.returncode)
+                self.assertNotIn('delivery_ready', run.stdout)
+                self.assertFalse((self.root / 'reply.md').exists())
+                self.assertNotIn('Traceback', run.stderr)
+
+    def test_complete_video_identity_and_missing_input_answer_survive(self):
+        """完整查询身份逐字保留，缺数据明确索要观测，不输出估值占位或假数字。"""
+        target = 'https://www.youtube.com/watch?v=abcdefghijk'
+        self.scope['account'] = target
+        run = self.compose_reply([], flags=['--missing-metric', 'views', '--missing-metric', 'likes',
+                                           '--horizon-days', '365', '--correct-prior'])
+        self.assertEqual(0, run.returncode, run.stderr)
+        body = (self.root / 'reply.md').read_text()
+        self.assertIn(target, body)
+        self.assertNotIn('Conditional estimate:', body)
+        self.assertIn('Not enough evidence to estimate views', body)
+        self.assertIn('Not enough evidence to estimate likes', body)
+        self.assertIn('Please provide', body)
+        self.assertIn('month-by-month trajectory', body)
+        self.assertIn('365-day horizon', body)
+        metadata = json.loads(run.stdout.splitlines()[0])
+        import hashlib
+        self.assertEqual(hashlib.sha256(body.encode()).hexdigest(), metadata['sha256'])
+        self.assertEqual(body + 'KABO_FORECAST_REPLY_END\n', run.stdout.split('KABO_FORECAST_REPLY_BEGIN\n')[1])
+
     def test_missing_shortcut_preserves_independently_supported_metric(self):
         """快捷缺测量指标不得压掉已有可算指标。"""
         supported = dict(schema_version='growth-input.v1', mode='observed_pace', scope=self.scope, horizon_days=14,
@@ -263,6 +296,9 @@ class GrowthHandoff(unittest.TestCase):
             "# Requested outlook for {0} ({1})": "# {0}（{1}）的展望",
             "views": "播放量", "## {0} / {1:g}-day horizon": "## {0} / 未来 {1:g} 天",
             "Conditional estimate: {0} / {1}": "条件估算：{0} / {1}",
+            "Not enough evidence to estimate {0} for {1}.": "缺少估算{1}的{0}所需的证据。",
+            "Please provide the following for this same target:": "请提供同一对象的以下资料：",
+            "A single or undated snapshot, and earlier assistant predictions, do not establish a growth rate or a month-by-month trajectory.": "单次或无日期快照、助手先前的预测，都不能确定增长率或逐月变化。",
             "Two dated observations of the same cumulative metric.": "需要同一累计指标的两次带日期观测。",
             "\nNo numeric estimate or probability is available from these inputs.\n": "\n这些输入不能支持数值估算或发生概率。\n",
             "Occurrence probabilities are unavailable from these calculations. More records may enable conditional arithmetic, not calibrated percentage chances.":

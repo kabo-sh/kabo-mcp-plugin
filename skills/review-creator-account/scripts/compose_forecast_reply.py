@@ -4,9 +4,25 @@ import argparse
 import json
 import hashlib
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+import re
 
 from estimate_growth import estimate, render_report, with_snapshot
 from delivery_language import DeliveryLanguage
+
+
+def validate_target(target):
+    """链接必须标识具体账号/帖子，查询参数中的身份不可被当追踪参数删掉。"""
+    if not target.startswith(("https://", "http://")):
+        return
+    url = urlsplit(target)
+    parts = [part for part in url.path.split("/") if part]
+    if not url.hostname or not parts or parts in (["channel"], ["shorts"], ["reel"], ["p"], ["video"]):
+        raise ValueError("forecast_scope.target must identify a specific account or post; copy its complete URL or identifier from the resolved history")
+    if (url.hostname == "youtube.com" or url.hostname.endswith(".youtube.com")) and url.path.rstrip("/") == "/watch":
+        ids = parse_qs(url.query).get("v", [])
+        if len(ids) != 1 or not re.fullmatch(r"[A-Za-z0-9_-]{11}", ids[0]):
+            raise ValueError("forecast_scope.target is an incomplete YouTube watch URL: preserve ?v=<video_id> from the latest resolved post in the history; do not remove identity query parameters")
 
 
 def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_source=None, correct_prior=False,
@@ -31,6 +47,7 @@ def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_sourc
         raise ValueError("forecast_scope.json: " + "; ".join(problems)
                          + ". Keep exactly platform, target, request_quote and reference. "
                          "Pass horizon_days in calculation inputs or --horizon-days, not in the scope file.")
+    validate_target(resolved_scope["target"])
     if missing_metrics and (len(set(missing_metrics)) != len(missing_metrics) or any(
         metric not in ("subscribers", "followers", "views", "likes", "comments") for metric in missing_metrics
     )):

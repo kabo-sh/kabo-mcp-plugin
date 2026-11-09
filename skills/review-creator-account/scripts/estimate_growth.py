@@ -360,9 +360,14 @@ def deadline_sentence(timing, translate=None):
 def render_report(result, translate=None):
     t = translate or (lambda text, *values: text.format(*values))
     scope = result['scope']
-    title = t('Conditional estimate: {0} / {1}', scope['account'], t(scope['metric']))
     if result['status'] == 'needs_input':
-        return title + '\n\n' + '\n'.join(t(item) for item in result['required_inputs']) + t('\nNo numeric estimate or probability is available from these inputs.\n')
+        # 缺数据是需要用户补充证据的答复，不是已经算出的估值或待填模板。
+        return (t('Not enough evidence to estimate {0} for {1}.', t(scope['metric']), scope['account'])
+                + '\n\n' + t('Please provide the following for this same target:') + '\n'
+                + '\n'.join('- ' + t(item) for item in result['required_inputs'])
+                + '\n\n' + t('A single or undated snapshot, and earlier assistant predictions, do not establish a growth rate or a month-by-month trajectory.')
+                + t('\nNo numeric estimate or probability is available from these inputs.\n'))
+    title = t('Conditional estimate: {0} / {1}', scope['account'], t(scope['metric']))
     estimate = result['estimate']
     lines = [title, '']
     if result['mode'] == 'content_scenario':
