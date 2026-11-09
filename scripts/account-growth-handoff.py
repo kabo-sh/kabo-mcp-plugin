@@ -262,11 +262,16 @@ class GrowthHandoff(unittest.TestCase):
         for flags in [[], ['--missing-metric', 'sales', '--horizon-days', '30'],
                       ['--missing-metric', 'views'], ['--missing-metric', 'views', '--horizon-days', 'nan'],
                       ['--missing-metric', 'views', '--horizon-days', '0'],
+                      ['--missing-metric', 'views', '--horizon-days', 'inf'],
+                      ['--missing-metric', 'views', '--horizon-days', '-1'],
                       ['--missing-metric', 'views', '--missing-metric', 'views', '--horizon-days', '30']]:
             with self.subTest(flags=flags):
                 run = self.compose_reply([], flags=flags)
                 self.assertNotEqual(0, run.returncode)
                 self.assertFalse((self.root / 'reply.md').exists())
+                if flags[:2] == ['--missing-metric', 'views'] and flags.count('--missing-metric') == 1:
+                    self.assertIn('--horizon-days', run.stderr)
+                    self.assertNotIn('Traceback', run.stderr)
 
     def test_composed_reply_delivers_supported_and_missing_metrics_together(self):
         """验证可算指标和缺数据指标在同一回复中独立交付。"""

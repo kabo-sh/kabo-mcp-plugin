@@ -3,6 +3,7 @@
 import argparse
 import json
 import hashlib
+import math
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 import re
@@ -54,6 +55,9 @@ def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_sourc
         raise ValueError("Missing metrics must be unique cumulative subscribers, followers, views, likes or comments")
     if horizon_days is not None and not missing_metrics:
         raise ValueError("--horizon-days is only used with --missing-metric; actual inputs carry their own horizon")
+    if missing_metrics and (isinstance(horizon_days, bool) or not isinstance(horizon_days, (int, float))
+                            or not math.isfinite(horizon_days) or horizon_days <= 0):
+        raise ValueError("--missing-metric requires --horizon-days as a finite positive number of days")
     documents = [json.loads(source.read_text(encoding="utf-8")) for source in inputs]
     # 缺测量时由同一已解析范围构造合法合同；不补造日期、观测或增长假设。
     documents.extend({
