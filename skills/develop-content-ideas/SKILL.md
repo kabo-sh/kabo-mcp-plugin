@@ -13,8 +13,9 @@ ideas. The schemas, builders, validators and renderers ship in this Skill's `ref
 `scripts/`.
 
 **Choose delivery mode before prep.** When the user asks to pick or briefly explain entries
-from a previously delivered validated list, read that actual list and return the requested
-selection/summary with its original numbers. Stop there: do not rebuild an IdeaSet, rerank it,
+from a previously delivered validated list, read that actual list, choose entries and write brief
+summaries; use `scripts/render_selection.py` as described in `references/delivery.md` to preserve
+their original numbers/titles and display that file. Stop there: do not rebuild an IdeaSet, rerank it,
 or run the new-generation stages below. For a numbered selection, reuse that exact entry;
 for a scoped edit, preserve its identity and untouched content. Only requests for new ideas
 or a new batch enter prep. Read `references/delivery.md` for these follow-up boundaries.

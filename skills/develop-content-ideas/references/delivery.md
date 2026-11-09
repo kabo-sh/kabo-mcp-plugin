@@ -49,6 +49,16 @@ renumber selected #2, #5, #8 as #1, #2, #3. Summaries may shorten their descript
 invent entries, openings, facts or production conditions. State which original numbers you picked.
 If the request instead asks for three **new** ideas, generate and deliver three complete entries.
 
+Save the exact previous delivered Markdown list as `source-list.md` when recovering it from
+visible conversation. Author a JSON array such as `[{"number": 5, "summary": "..."}]`, using
+only original numbers and brief summaries faithful to those entries. Do not supply new titles.
+Run `python3 '<skill directory>/scripts/render_selection.py' --source source-list.md
+--selection selection.json --output selected-ideas.md`, then display its returned file using
+the same path-based capability above. The renderer preserves the original titles and writes
+unnumbered bullets headed by the original number; it never introduces a second 1/2/3 sequence.
+It checks source membership and numbering, not the semantic truth of a summary: check that
+your summary adds no unsupported facts. If the exact source cannot be recovered, ask for it.
+
 ## Follow-up identity
 
 Keep `idea_set.json`, `request.json`, the final report and `idea-delivery.json` together.

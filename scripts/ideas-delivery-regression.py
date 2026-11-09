@@ -141,5 +141,27 @@ class Delivery(unittest.TestCase):
         self.no_final()
 
 
+class CuratedSelection(unittest.TestCase):
+    def test_original_numbers_titles_and_order(self):
+        from render_selection import render
+        source = '### 1. First\n\n### 3. Third\n\n### 20. Last\n'
+        text = render(source, [{'number': 20, 'summary': 'Last summary'}, {'number': 3, 'summary': 'Third summary'}])
+        self.assertEqual('- **#20 Last** — Last summary\n\n- **#3 Third** — Third summary\n', text)
+
+    def test_unknown_duplicate_or_renamed_entries_rejected(self):
+        from render_selection import render
+        source = '### 5. Original title\n'
+        for items in [[{'number': 1, 'summary': 'Not in source'}],
+                      [{'number': 5, 'summary': 'A'}, {'number': 5, 'summary': 'B'}],
+                      [{'number': 5, 'summary': 'A', 'title': 'Invented'}],
+                      [{'number': True, 'summary': 'A'}]]:
+            with self.assertRaises(ValueError):render(source, items)
+
+    def test_multiple_lists_and_summary_headings_rejected(self):
+        from render_selection import render
+        with self.assertRaises(ValueError):render('### 5. First\n### 5. Second\n', [{'number': 5, 'summary': 'A'}])
+        with self.assertRaises(ValueError):render('### 5. First\n', [{'number': 5, 'summary': 'A\n### 6. Invented'}])
+
+
 if __name__ == '__main__':
     unittest.main()
