@@ -20,7 +20,8 @@ the host supplied no creator timezone, preserve `not_supplied` and the engine's 
 fallback; never substitute the operator's zone or claim that a local clock was established.
 When the recommendation's timezone source is `not_supplied` or `zone_unresolved` and the outcome is
 `recommended` or `no_clear_window`, write `creator_view.clock_note`: one sentence in the user's language
-saying the hours are not their local time and that telling you their city recomputes them. The
+saying the hours are not confirmed as their local time and that telling you their city recomputes
+them. The
 renderer prints it right under the answer, and `validate_creator_shape.py` rejects the result without
 it. Do not repeat it elsewhere in `creator_view`.
 The Creator-facing fields still omit zone identifiers/names as the existing gate requires. Do not

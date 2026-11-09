@@ -235,8 +235,9 @@ def creator_view(result: dict, rec: dict | None = None) -> str:
         out += ["", view["summary"]]
     # 备用钟点的说明紧跟在答案后面：模型用创作者的语言写进 clock_note，validate_creator_shape.py 在
     # 时区来源是 not_supplied / zone_unresolved 时要求它存在。
-    if str(view.get("clock_note") or "").strip():
-        out += ["", f"> {view['clock_note'].strip()}"]
+    note = view.get("clock_note")
+    if isinstance(note, str) and note.strip():
+        out += ["", f"> {note.strip()}"]
     # The basis goes between the answer and the argument for it, so it is read without deferring
     # the answer. Rendered from the engine object, never from `creator_view`: a sample size the
     # model retyped is a sample size that can be retyped wrong.

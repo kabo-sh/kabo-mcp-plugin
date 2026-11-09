@@ -91,10 +91,12 @@ test("备用钟点：有钟点的结果必须带 clock_note，不许写时区名
   assert.ok(clockErrors(missing).some((line) => /creator_view\.clock_note is missing/.test(line)), missing);
   const unresolved = await validate(t, recommendation({ source: "zone_unresolved", outcome: "no_clear_window" }), result({ headline: "Post now", summary: "No hour in your history stands out from the rest of the day." }));
   assert.ok(clockErrors(unresolved).some((line) => /clock_note is missing/.test(line)), unresolved);
-  const written = await validate(t, recommendation({ source: "not_supplied" }), result({ clockNote: "These hours are not your local time; tell me your city and I will recompute them." }));
+  const written = await validate(t, recommendation({ source: "not_supplied" }), result({ clockNote: "These hours are not confirmed as your local time; tell me your city and I will recompute them." }));
   assert.deepEqual(clockErrors(written), [], written);
   const zoned = await validate(t, recommendation({ source: "not_supplied" }), result({ clockNote: "These hours are UTC, not your local time." }));
   assert.match(zoned, /clock_note names a timezone/);
+  const typed = await validate(t, recommendation({ source: "not_supplied" }), { ...result(), creator_view: { ...result().creator_view, clock_note: true } });
+  assert.match(typed, /clock_note must be a string, not bool/);
   const known = await validate(t, recommendation(), result());
   assert.deepEqual(clockErrors(known), [], known);
   const abstain = await validate(t, recommendation({ source: "not_supplied", outcome: "abstain_no_history" }), result({ headline: "Not enough history yet", summary: "There are too few mature posts to compare any hour of the day." }));

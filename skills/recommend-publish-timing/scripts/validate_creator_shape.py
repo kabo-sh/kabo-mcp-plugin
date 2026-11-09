@@ -245,11 +245,15 @@ def clock_errors(view: dict, rec: dict) -> list[str]:
     errors: list[str] = []
     outcome = rec.get("outcome")
     source = ((rec.get("evidence_base") or {}).get("timezone") or {}).get("source")
-    if outcome in CLOCK_OUTCOMES and source in FALLBACK_SOURCES and not str(view.get(CLOCK_NOTE) or "").strip():
+    note = view.get(CLOCK_NOTE)
+    if note is not None and not isinstance(note, str):
+        errors.append(f"creator_view.{CLOCK_NOTE} must be a string, not {type(note).__name__}")
+    elif outcome in CLOCK_OUTCOMES and source in FALLBACK_SOURCES and not (note or "").strip():
         errors.append(
             f"creator_view.{CLOCK_NOTE} is missing. The timezone source is {source!r}, so the hours are a "
-            f"fallback clock: write one sentence in the creator's language saying these hours are not their "
-            f"local time and that telling you their city recomputes them, without naming a zone")
+            f"fallback clock: write one sentence in the creator's language saying these hours are not "
+            f"confirmed as their local time and that telling you their city recomputes them, without naming "
+            f"a zone")
 
     spans = window_spans(rec)
     if not spans:
