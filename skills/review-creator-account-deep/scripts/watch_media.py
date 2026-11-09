@@ -46,7 +46,7 @@ FRAMES_PER_VIDEO = 5
 # 存文件只是没有下载链接时的退路。
 SAVE_RULE = ("Do not save the result. Its download url holds its result id: the 22 characters between "
              "`research-export/v1/` and `.json`. Put the id of your last call's result into the resume command "
-             "below as `--id <id>`. Only if that result has no download url, save it whole, as returned, to the "
+             "below as `--id=<id>`. Only if that result has no download url, save it whole, as returned, to the "
              "fallback file named under the call (with the host's file-write tool, never as a command-line "
              "argument) and leave `--id` out. Never download anything yourself; call get_research_data_download "
              "only when the resume says the id expired.")
@@ -116,7 +116,9 @@ def resume_command(args: argparse.Namespace) -> str:
     # 「Hand-over: 」与 connector_driver.py 的交接同一种写法，Web 宿主（kabo-agent-service plugin-handover.ts）
     # 才认得出来、自己调用并续跑；认不出时整段交接落到模型手里，模型常在暂存这一步失手（同 #130）。
     return (f"cd {run_directory} && python3 "
-            + " ".join(quote(part) for part in argv) + " --id <id>")
+            # `--id=<id>` 而不是 `--id <id>`：结果编号可能以「-」开头（实测 `-lNCEjm2WwISAEzMxbDqAA`），
+            # 分开写时 argparse 把它当成另一个选项，续跑直接报错。Web 宿主照样跳过 `--id=` 这个词。
+            + " ".join(quote(part) for part in argv) + " --id=<id>")
 
 
 def hand_over_media(plan: dict[str, Any], args: argparse.Namespace, note: str = "") -> None:
@@ -173,7 +175,7 @@ def take_saved(result_id: str | None = None) -> None:
         if str(taken.get(name) or "").startswith("id:"):
             continue
         if not path.is_file():
-            raise ValueError(f"no result for this hand-over: run the same resume command again with --id <id>, the "
+            raise ValueError(f"no result for this hand-over: run the same resume command again with --id=<id>, the "
                              f"id from the last {TOOL} call's download url (only for a result with no download url, "
                              f"save it whole at {path} and leave --id out)")
         raw = path.read_bytes()

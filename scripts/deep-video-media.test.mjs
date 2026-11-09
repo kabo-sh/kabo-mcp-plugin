@@ -28,8 +28,8 @@ const calls = (out) => out.split("\n").filter((line) => line.startsWith("call: "
 const reads = (out) => out.split("\n").filter((line) => line.startsWith("read: ")).map((line) => JSON.parse(line.slice(6)));
 // 这几例走「没有下载链接」的退路：结果存进交接点名的文件，续跑去掉 --id。按编号取的那条路见文件末尾两例。
 const saveOf = (out) => out.split("\n").find((line) => line.startsWith("  result ")).split("has no download url: ")[1].slice(0, -1);
-const resumeOf = (out) => { const line = out.split("\n").find((l) => l.startsWith("Then run this one command")); return line.slice(line.indexOf("cd '")).replace(/ --id <id>$/, ""); };
-const withoutId = (command) => command.replace(/ --id <id>$/, "");
+const resumeOf = (out) => { const line = out.split("\n").find((l) => l.startsWith("Then run this one command")); return line.slice(line.indexOf("cd '")).replace(/ --id=<id>$/, ""); };
+const withoutId = (command) => command.replace(/ --id=<id>$/, "");
 
 const ids = ["DfixtureA01", "DfixtureB02", "DfixtureC03"];
 const analysis = {
@@ -202,6 +202,7 @@ test("目录组合调用：资料页不存在如实说；调用两次都失败�
 // 按结果编号取（kabo ADR-0084「2026-11-04」）：模型只把编号填进续跑命令，脚本向 Kabo 取同一份字节、按响应头的
 // sha256 与长度校验后落盘，不存任何文件。进程内替换 urllib 的 HTTPS 收发，不联网。
 const RESULT_ID = "Neutral_Result-Id01234";
+const DASH_ID = "-eutral_Result-Id01234";
 const BY_ID = `https://kabo.sh/v1/research-downloads/${RESULT_ID}`;
 const BY_ID_HARNESS = String.raw`
 import base64, contextlib, hashlib, http.client, io, json, os, sys, urllib.request, urllib.response
@@ -245,11 +246,12 @@ test("看片按结果编号续跑：交接只要编号，续跑自己取、不�
   const first = python("watch_media.py", ["account_analysis.json"], { cwd: run, run });
   assert.equal(first.code, 0, first.out);
   assert.match(first.out, /Do not save the result/);
-  assert.match(first.out, / --id <id>$/m);
+  assert.match(first.out, / --id=<id>$/m);
   const args = calls(first.out)[0].arguments;
-  const resumed = await byId(run, "watch_media", ["account_analysis.json", "--placed", "--id", `${RESULT_ID}.json`], composite(args));
+  // 编号以「-」开头时也要能续跑：交接打印的是 `--id=<id>`，照填即可（分开写会被当成另一个选项）。
+  const resumed = await byId(run, "watch_media", ["account_analysis.json", "--placed", `--id=${DASH_ID}.json`], composite(args));
   assert.equal(resumed.code, 0, resumed.out);
-  assert.deepEqual(resumed.requests, [BY_ID]);
+  assert.deepEqual(resumed.requests, [`https://kabo.sh/v1/research-downloads/${DASH_ID}`]);
   assert.deepEqual(resumed.host_results, []);
   assert.match(resumed.out, /"status": "watched", "pending_jobs": 0/);
 });
@@ -258,7 +260,7 @@ test("目录按结果编号续跑：rerun 填编号即可，不存文件，接�
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-deep-catalog-id-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const handed = JSON.parse(python("fetch_catalog.py", ["--workspace", workspace, "--platform", "instagram", "--account", "@neutral.creator"], { cwd: os.tmpdir() }).out);
-  assert.match(handed.rerun, / --placed --id <id>$/);
+  assert.match(handed.rerun, / --placed --id=<id>$/);
   assert.match(handed.next_action, /Do not save its result/);
   const list = [
     ["instagram_resolve_profile", igEnvelope("resolve_profile", { profile: { id: "u1", pk: "u1", username: "neutral.creator", follower_count: 12000, media_count: 9 } })],
@@ -306,7 +308,7 @@ function hostHandover(stdout) {
       const w = words(tail[1].trim());
       if (!w || w[0] !== "cd" || w[2] !== "&&" || w[3] !== "python3") return null;
       const args = []; const rest = w.slice(5);
-      for (let k = 0; k < rest.length; k += 1) { if (rest[k] === "--id") { k += 1; continue; } args.push(rest[k]); }
+      for (let k = 0; k < rest.length; k += 1) { if (rest[k] === "--id") { k += 1; continue; } if (rest[k].startsWith("--id=")) continue; args.push(rest[k]); }
       resume = { cwd: w[1], script: w[4], args }; break;
     }
   }

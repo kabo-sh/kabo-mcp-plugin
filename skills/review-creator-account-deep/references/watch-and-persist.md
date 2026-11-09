@@ -15,7 +15,7 @@ minutes), so:
 
 - while the result still reports running jobs (`coverage.pending` above 0), make the same call again
   right away with the same arguments; only the newest result counts;
-- then run the printed resume command with `--id <id>`, the newest result's id (see
+- then run the printed resume command with `--id=<id>`, the newest result's id (see
   `data-calls.md`). It fetches that result itself, and while jobs are still running it hands the
   same call over again; do as it says.
 - Never call the `public_video_*` tools, `get_research_data_job` or `get_research_data_download`
