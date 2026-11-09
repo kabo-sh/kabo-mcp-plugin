@@ -2,6 +2,10 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.31（2026-11-09；GitHub Release）
+
+- `remake-viral-video`：按 kabo#2136 重新钉目录契约；轮询 `get_remake_video` 时带 `words: true`，transcribe 结果带逐词时间，按词边界下刀、不把同一段原片放两次，trim / concat 的 step notes 会提示（#145）。
+
 ## 1.0.30（2026-11-09；GitHub Release）
 
 - `review-creator-account-deep`：`watch_media.py` 的看片交接改成 Web 宿主能自己完成的写法（同 1.0.25 的视频分析）：槽位行带编号，续跑命令不带 `KABO_STATIC_RUN_DIR=…` 前缀并以 `cd` 进去的 run 为准，「还有 N 个任务在跑」单独一行，第二轮交接宿主也认得；续跑参数改成 `--id=<id>`，结果编号以「-」开头时不再被当成选项报错（#140）。
