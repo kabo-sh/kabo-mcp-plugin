@@ -12,6 +12,13 @@ Turn validated upstream artifacts or an explicit topic into an IdeaSet of distin
 ideas. The schemas, builders, validators and renderers ship in this Skill's `references/` and
 `scripts/`.
 
+**Choose delivery mode before prep.** When the user asks to pick or briefly explain entries
+from a previously delivered validated list, read that actual list and return the requested
+selection/summary with its original numbers. Stop there: do not rebuild an IdeaSet, rerank it,
+or run the new-generation stages below. For a numbered selection, reuse that exact entry;
+for a scoped edit, preserve its identity and untouched content. Only requests for new ideas
+or a new batch enter prep. Read `references/delivery.md` for these follow-up boundaries.
+
 **Finish the procedure before answering.** Prep's `ok` means inputs are ready, not that ideas
 passed validation. Author every required candidate field, run core, use its one permitted revision,
 then export the final file. Read `references/delivery-state.md` before the first stage.
