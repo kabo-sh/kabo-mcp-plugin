@@ -86,28 +86,16 @@ def digest(value: Any) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-# 近似成熟时长：短内容 7 天，YouTube 长视频 28 天。这是经验假设，不是平台事实；报告按“近似”写明。
-MATURE_HOURS = {"short": 168, "long": 672}
 # 只有随时间累积的计数适用；平均值、比率可能涨也可能跌，退回原来的年龄受限结论。
 CUMULATIVE_METRICS = frozenset(("views", "view_count", "plays", "play_count", "likes", "comments", "shares", "saves",
                                 "reach", "impressions"))
 
 
-def maturity_hours(fmt: str) -> int | None:
-    """Only a format that says it is short or long gets a maturity age; a generic video may be either."""
-    name = fmt.lower()
-    if any(word in name for word in ("long", "长视频")):
-        return MATURE_HOURS["long"]
-    if any(word in name for word in ("short", "tiktok", "reel", "instagram", "短视频")):
-        return MATURE_HOURS["short"]
-    return None
-
-
 def age_reading(q: dict, fmt: str, limits: list, change: dict | None, summaries: list, pairs: list) -> dict | None:
     """One snapshot makes earlier posts older, so a cumulative comparison favours the earlier group.
 
-    Recent not lower despite being younger: no decline. Recent lower: compare only posts past an
-    approximate maturity age, or say the recent posts are all too young to compare.
+    Recent not lower despite being younger: no decline. Recent lower: report the age gap, not a
+    maturity threshold; the data cannot separate the two, so the written analysis weighs them.
     """
     if (q["kind"] != "recent_drop" or q["metric"] not in CUMULATIVE_METRICS
             or "different_observation_ages" not in limits or "minimum_age_hours" in q
@@ -117,17 +105,8 @@ def age_reading(q: dict, fmt: str, limits: list, change: dict | None, summaries:
         return None
     if change["ratio"] >= 1:
         return {"basis": "recent_younger_not_lower"}
-    hours = maturity_hours(fmt)
-    if hours is None:
-        return None
-    mature = [[v for a, v in p if a >= hours] for p in pairs]
-    if not all(mature):
-        return {"basis": "recent_too_young", "min_age_hours": hours}
-    medians = [statistics.median(m) for m in mature]
-    return {"basis": "matured_only", "min_age_hours": hours,
-            "groups": [{"label": s["label"], "n": len(m), "median": md}
-                       for s, m, md in zip(summaries, mature, medians)],
-            "change": delta(medians[0], medians[-1])}
+    gap = statistics.median(a for a, _ in pairs[0]) - statistics.median(a for a, _ in pairs[-1])
+    return {"basis": "recent_lower_younger", "median_age_gap_hours": gap} if gap > 0 else None
 
 
 def delta(before: float, after: float) -> dict:

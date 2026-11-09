@@ -21,7 +21,9 @@ Every field is optional; a question left out keeps only the code-written parts.
   stated by this question's evidence: a printed fact (rounded, scaled or as a percentage; a change
   keeps its direction, so a 0.15 ratio is a fall of 85%, never a rise), a date in
   it, a metric of one of its records, the user's own request, or a retrieved title or caption quoted
-  verbatim. A sentence typing any other number is left out.
+  verbatim. A sentence typing any other number is left out. When the conclusion says the recent
+  posts are lower but younger, weigh the size of the gap against the age gap for the user's question
+  and say the reading is an inference.
 - `hypotheses`: explanations to investigate, not findings. Public counts do not show penalties,
   private metrics or audience classification.
 - `need`: only what the next step cannot start without.

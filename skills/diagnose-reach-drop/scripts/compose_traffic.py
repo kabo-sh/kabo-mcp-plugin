@@ -54,31 +54,20 @@ def answer_text(finding, answer, zh=False):
             reading = fact.get("age_reading") or {}
             if age_limited and reading:
                 # 交付时模型不一定翻译脚本原句，所以和相邻结论一样给中英两版。
-                days = reading.get("min_age_hours", 0) // 24
                 if reading["basis"] == "recent_younger_not_lower":
                     return ("近期内容发布时间更短，当前累计中位数却不低于前期，所以没有下降迹象；这不能说明原因或平台状态。"
                             if zh else
                             "The recent posts are younger, yet their current cumulative median is not lower, so there "
                             "is no sign of a decline, though this does not establish the cause or platform status.")
-                if reading["basis"] == "recent_too_young":
-                    return (f"近期内容都还没满 {days} 天，尚未到比较时长、之后可能还会增加，现在还判断不了是否下降，也不能据此确认原因或平台限制。"
-                            if zh else
-                            f"The recent posts are all under {days} days old, short of the comparison age and possibly still "
-                            "accruing, so it is too early to tell whether they dropped, and this does not establish a cause "
-                            "or platform enforcement.")
-                if reading["change"]["after"] < reading["change"]["before"]:
-                    return (f"只比较发布满 {days} 天的内容（近似比较，假设大部分数值在此之前累积），近期中位数仍低于前期，"
-                            "构成下降信号；它不能确定原因或平台限制。"
-                            if zh else
-                            f"Comparing only posts at least {days} days old, an approximation that assumes most of the "
-                            "value accrues by then, the recent median is still lower, which is a decline signal, though it does "
-                            "not establish the cause or platform enforcement.")
-                return (f"只比较发布满 {days} 天的内容（近似比较，假设大部分数值在此之前累积），近期中位数不低于前期，"
-                        "整体偏低可能来自尚未累积完的新内容；这不能确认原因或平台限制。"
+                hours = reading["median_age_gap_hours"]
+                span = (f"{hours / 24:.1f}".rstrip("0").rstrip(".") + (" 天" if zh else " days") if hours >= 24
+                        else f"{hours:.0f}" + (" 小时" if zh else " hours"))
+                return (f"近期中位数低于前期，但近期内容的发布时长中位数比前期少约 {span}；这份快照分不开差距中有多少来自"
+                        "累积时间，也不能确认原因或平台限制。"
                         if zh else
-                        f"Comparing only posts at least {days} days old, an approximation that assumes most of the "
-                        "value accrues by then, the recent median is not lower, so the lower overall figure may reflect newer "
-                        "posts that have not finished accruing, and this does not establish a cause or platform enforcement.")
+                        f"The recent median is lower, but the recent posts are about {span} younger at the median; "
+                        "this snapshot cannot separate how much of the gap comes from that age difference, its cause, "
+                        "or platform enforcement.")
             if age_limited:
                 messages = (
                     ("所选近期队列的当前累计中位数较前期低，但观察年龄不一致；这只能描述当前快照，不能确认同龄下滑、原因或平台限制。",
