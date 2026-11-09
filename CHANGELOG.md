@@ -2,6 +2,10 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.29（2026-11-09；GitHub Release）
+
+- `remake-viral-video`：创作者不出镜的需求（动画、商品图、剪自己的视频、旁白）直接用单步做，不要正脸；需要声音而没录音时，开项目前一次问说话视频链接或 stock 声音并等回答，不替用户选；已确认脚本可做无人出镜旁白（tts 原词 + 画面 + mux）；素材明显不是本人说话时先问用户要哪种（#142，对应 creator-remake-web 0.1.48/0.1.49）。
+
 ## 1.0.28（2026-11-08；GitHub Release）
 
 - 内容同 1.0.27；`plan-content-calendar` 的 `metadata.version` 升到 0.1.26（#133 改了该 Skill 内容，Web 发布要求声明版本高于线上，1.0.27 因此未上 Web）。
