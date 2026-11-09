@@ -11,7 +11,7 @@
 // 每次写 overlay 前先把新内容存一份 history/<sha256>.json（只新建），`restore` 按摘要回到任一历史版本。
 //
 // 子命令：
-//   publish      --plugin-root <dir> --plugin-commit <sha> [--target index|test] [--skills a,b] [--hold a,b]
+//   publish      --plugin-root <dir> --plugin-commit <sha> [--target index|test] [--skills a,b] [--hold a,b] [--merge]
 //   restore      --sha <history 摘要> [--target index|test]
 //   clear        [--target index|test]          写一份空 overlay（Web 回到只读实时索引）
 //   show         [--target index|test]
@@ -144,7 +144,7 @@ export const RELEASE_OBJECT = `${OVERLAY_PREFIX}release.json`;
  * `bundleStore` 写 bundles/（CI 里是 Internal 发布身份，只有它能写 bundles/）；`store` 读频道、写
  * overlay（CI 里是 Production 发布身份，能写 channels/production/ 而不能写 bundles/）。本地两者同一个。
  */
-export async function publish({ store, bundleStore = store, pluginRoot, pluginCommit, pluginTag = null, targetName = 'index', skills, hold = [], now = new Date() }) {
+export async function publish({ store, bundleStore = store, pluginRoot, pluginCommit, pluginTag = null, targetName = 'index', skills, hold = [], merge = false, now = new Date() }) {
   if (!COMMIT.test(pluginCommit ?? '')) fail('plugin commit must be 40 lowercase hex characters');
   const object = target(targetName);
   const readChannel = async (channel) => {
@@ -206,6 +206,10 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
     })());
     if (!same) fail(`bundle object collision or readback mismatch: ${objectName}`);
   }
+  // merge：只发点名的 skill，overlay 里别的条目原样保留（test 目标多人共用时不冲掉别人在测的版本）
+  if (merge && current)
+    for (const [id, entry] of Object.entries(current.skills ?? {}))
+      if (!(id in kept) && !bundles.some((bundle) => bundle.id === id)) kept[id] = entry;
   const overlay = {
     format_version: 1,
     channel: 'production',
@@ -294,7 +298,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
         ? new GcsObjectStore({ bucket: store.bucket, accessToken: process.env.GCS_BUNDLE_ACCESS_TOKEN })
         : store;
       const hold = (option('--hold') ?? '').split(',').map((item) => item.trim()).filter(Boolean);
-      result = await publish({ store, bundleStore, pluginRoot: option('--plugin-root'), pluginCommit: option('--plugin-commit'), pluginTag: option('--plugin-tag') ?? null, targetName, skills, hold });
+      result = await publish({ store, bundleStore, pluginRoot: option('--plugin-root'), pluginCommit: option('--plugin-commit'), pluginTag: option('--plugin-tag') ?? null, targetName, skills, hold, merge: process.argv.includes('--merge') });
     } else if (command === 'released') {
       // 定时任务用：打印生产 overlay 当前对应的插件 commit（没有就空串）。
       const raw = await store.read(RELEASE_OBJECT);

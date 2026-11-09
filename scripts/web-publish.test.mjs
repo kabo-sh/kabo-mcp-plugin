@@ -128,3 +128,15 @@ test('复刻合一：test 目标以 Web 的 skill id 登记插件的 remake-vira
   assert.match(skill, /^name: creator-remake-web$/m);
   assert.match(skill, /# r/);
 });
+
+test('publish --merge：只发点名的 skill，overlay 里别人的条目原样保留', async () => {
+  const { store } = await liveStore();
+  const root = pluginRepo({ 'alpha-skill': '# a1', 'beta-skill': '# b1' });
+  await publish({ store, pluginRoot: root, pluginCommit: COMMIT, targetName: 'test' });
+  const before = JSON.parse((await store.read(TARGETS.test)).bytes).skills['beta-skill'];
+  fs.writeFileSync(path.join(root, 'skills', 'alpha-skill', 'SKILL.md'), '---\nname: alpha-skill\ndescription: "x"\n---\n# a2\n');
+  fs.writeFileSync(path.join(root, 'skills', 'beta-skill', 'SKILL.md'), '---\nname: beta-skill\ndescription: "x"\n---\n# b2\n');
+  const merged = await publish({ store, pluginRoot: root, pluginCommit: 'f'.repeat(40), targetName: 'test', skills: ['alpha-skill'], merge: true });
+  assert.deepEqual(merged.skills['beta-skill'], before);
+  assert.equal(merged.skills['alpha-skill'].version, '1.2.7');
+});
