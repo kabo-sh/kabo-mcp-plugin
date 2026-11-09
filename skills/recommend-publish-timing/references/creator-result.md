@@ -84,6 +84,13 @@ knows where the answer lives without hunting for it:
 | 3 | what the difference is worth | `practical_stakes` | 2 |
 | 4 | how far to trust it | `confidence_penalties`, one per line | 2–4 |
 
+**One answer, one time.** The clock in the headline and the summary is the recommended window in
+`recommendation.windows`; a suggested experiment at another hour belongs in `next_actions`. When the
+hour curve answered (`resolution: hour`), `evidence_base.ranking.winner` is a coarser block vote, not
+a second best time: say in block 2 whether it agrees, but do not quote its range. A report that
+headlined 18:00 and then wrote "06:00–09:00 performs best" read as a contradiction.
+`validate_creator_shape.py` rejects both.
+
 **The order is fixed; the headings are yours to write.** Give each block a heading in the
 creator's language that says what it answers, and do not give two blocks the same one. The
 sequence is what the reader navigates by, and it is checked by position and by what each block

@@ -51,6 +51,8 @@ SCOPE_STRINGS = {
         "caveat": "公开计数器不是留存数据{missing}；以下结论适合用来安排下一轮发布，不代表因果关系。",
         "missing": "，没有{names}",
         "recheck": "满 {maturity} 天后复看：{hour} 点这一小时的{metric}中位数当前是 {hour_median}，由 {n} 条内容支撑。",
+        "not_supplied": "> 这次没有拿到你所在的时区，上面的钟点是参考钟点，不是你的本地时间。告诉我你在哪个城市，可以按你的本地时间重算一次。",
+        "zone_unresolved": "> 你给的时区没能识别，上面的钟点是参考钟点，不是你的本地时间。告诉我你在哪个城市，可以按你的本地时间重算一次。",
         "join": " · ",
     },
     "en": {
@@ -62,6 +64,11 @@ SCOPE_STRINGS = {
         "missing": ", and no {names}",
         "recheck": ("Re-read after {maturity} days: the {hour}:00 hour's median {metric} is "
                     "{hour_median} today, carried by {n} posts."),
+        "not_supplied": ("> Your timezone was not provided, so the hours above are a reference clock, "
+                         "not your local time. Tell me your city to recompute them in your local time."),
+        "zone_unresolved": ("> The timezone you gave could not be read, so the hours above are a reference "
+                            "clock, not your local time. Tell me your city to recompute them in your "
+                            "local time."),
         "join": " · ",
     },
 }
@@ -215,6 +222,14 @@ def recheck_line(rec: dict, code: str) -> str | None:
         hour_median=f"{hour_median:g}")
 
 
+def fallback_clock_line(rec: dict, code: str) -> str | None:
+    """没拿到创作者时区时，引擎按备用钟点算（`evidence_base.timezone.source` 为 not_supplied /
+    zone_unresolved）。这句原本要模型自己写，没有东西检查，一次迁移实测的报告就没写，读的人把备用
+    钟点当成了本地时间。由渲染器按来源固定打印，紧跟在答案后面，模型不必也不要再写一遍。"""
+    source = ((rec.get("evidence_base") or {}).get("timezone") or {}).get("source")
+    return SCOPE_STRINGS[code].get(source) if source in ("not_supplied", "zone_unresolved") else None
+
+
 def creator_view(result: dict, rec: dict | None = None) -> str:
     """Render the Creator-facing document from `creator_view`, not from the engine object.
 
@@ -233,6 +248,9 @@ def creator_view(result: dict, rec: dict | None = None) -> str:
     out = [f"# {view.get('headline', '')}".rstrip()]
     if view.get("summary"):
         out += ["", view["summary"]]
+    fallback = fallback_clock_line(rec, code) if rec else None
+    if fallback:
+        out += ["", fallback]
     # The basis goes between the answer and the argument for it, so it is read without deferring
     # the answer. Rendered from the engine object, never from `creator_view`: a sample size the
     # model retyped is a sample size that can be retyped wrong.
