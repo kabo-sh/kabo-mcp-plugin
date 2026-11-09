@@ -12,6 +12,11 @@ Turn validated upstream artifacts or an explicit topic into an IdeaSet of distin
 ideas. The schemas, builders, validators and renderers ship in this Skill's `references/` and
 `scripts/`.
 
+When the host supports one, run this Skill in a foreground sub-agent, because a run has several
+stages, and wait for its final result before replying; never run it in the background and tell the
+user the report will come later. Without a foreground sub-agent, follow the same steps in the main
+thread.
+
 **Choose delivery mode before prep.** When the user asks to pick or briefly explain entries
 from a previously delivered validated list, read that actual list, choose entries and write brief
 summaries; use `scripts/render_selection.py` as described in `references/delivery.md` to preserve
@@ -31,10 +36,6 @@ summarize permits a selection from that validated list. Keep the original candid
 A failed/needs-revision result is not deliverable; repair within the existing budget or explain
 what could not be completed. If emission fails, retry once, then report the display failure.
 
-When the host supports one, run this Skill in a foreground sub-agent, because a run has several
-stages, and wait for its final result before replying; never run it in the background and tell the
-user the report will come later. Without a foreground sub-agent, follow the same steps in the main
-thread.
 
 Route by the requested deliverable: selectable topic directions stay here, including lists with
 candidate titles or hooks. A concrete next Reel draft or copy for an identified direction
