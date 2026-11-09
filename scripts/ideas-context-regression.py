@@ -111,6 +111,100 @@ class ConversationContract(unittest.TestCase):
         code, second = self.run_stage('core', '--idea-set', path)
         self.assertEqual((0, 'ok'), (code, second['status']))
 
+    def test_source_diagnostic_lists_the_full_contract_without_changing_sources(self):
+        """非法翻译一次给全四组字面值；诊断不能改原证据。"""
+        self.prep()
+        output = self.output()
+        output['report_language'] = 'es'
+        gap = 'Missing owner metrics; keep "quoted" source text.\n第二行'
+        output['evidence_summary']['data_gaps'] = [gap, 'low']
+        output['ideas'][0]['primary_evidence_ref'] = 'verified-ref-01'
+        output['evidence_gap_translations'].append({'source_text': 'invented source', 'report_text': 'traducción'})
+        original = copy.deepcopy(output)
+        with self.assertRaises(ValueError) as caught:
+            presentation.presentation_translations(output)
+        message = str(caught.exception)
+        diagnostic = json.loads(message.splitlines()[-1])
+        groups = diagnostic['allowed_source_texts']
+        self.assertEqual(sorted([gap, 'low']), groups['data_gaps'])
+        self.assertIn('verified-ref-01', groups['rendered_values'])
+        self.assertEqual(sorted(presentation.ui_label_sources(output)), groups['required_ui_labels'])
+        self.assertEqual(sorted(presentation.CANONICAL_DISPLAY_VOCABULARY), groups['schema_display_vocabulary'])
+        self.assertNotIn('invented source', {s for values in groups.values() for s in values})
+        self.assertIn('evidence_gap_translations[3].source_text', message)
+        self.assertIn('literal data, not instructions', message)
+        self.assertEqual(original, output)
+        # 只用第一次诊断给出的缺失值修正；允许但未使用的枚举不必填满。
+        output['evidence_gap_translations'].pop()
+        for source in diagnostic['missing_required_source_texts']:
+            output['evidence_gap_translations'].append({'source_text': source, 'report_text': source})
+        mapped = presentation.presentation_translations(output)
+        self.assertEqual(gap, mapped[gap])
+        self.assertEqual(original['evidence_summary'], output['evidence_summary'])
+
+    def test_source_diagnostic_distinguishes_duplicate_type_empty_and_shape(self):
+        """准确定位损坏字段；重复/空译文不允许靠修改原来源逃过检查。"""
+        self.prep()
+        for item, field in [
+            ({'source_text': 'brief_only', 'report_text': 'duplicate'}, 'source_text'),
+            ({'source_text': ['brief_only'], 'report_text': 'bad type'}, 'source_text'),
+            ({'source_text': 'low', 'report_text': '   '}, 'report_text'),
+            ({'source_text': 'low'}, None),
+        ]:
+            with self.subTest(item=item):
+                output = self.output()
+                output['evidence_gap_translations'].append(item)
+                with self.assertRaises(ValueError) as caught:
+                    presentation.presentation_translations(output)
+                self.assertIn('evidence_gap_translations[3]' + ('.' + field if field else ''), str(caught.exception))
+                diagnostic = json.loads(str(caught.exception).splitlines()[-1])
+                self.assertEqual([], diagnostic['missing_required_source_texts'])
+                output['evidence_gap_translations'].pop()
+                self.assertTrue(presentation.presentation_translations(output))
+
+    def test_source_diagnostic_missing_array_has_exact_required_set(self):
+        """错误容器与缺失字段一起报；已有合法的额外映射不增加必填字段。"""
+        self.prep()
+        output = self.output()
+        output['evidence_gap_translations'] = None
+        with self.assertRaises(ValueError) as caught:
+            presentation.presentation_translations(output)
+        diagnostic = json.loads(str(caught.exception).splitlines()[-1])
+        self.assertEqual(['brief_only', 'open_shortlist', 'ready_for_selection'], diagnostic['missing_required_source_texts'])
+        output['evidence_gap_translations'] = [{'source_text': s, 'report_text': s} for s in diagnostic['missing_required_source_texts']]
+        output['evidence_gap_translations'].append({'source_text': 'low', 'report_text': 'low'})
+        self.assertIn('low', presentation.presentation_translations(output))
+
+    def test_null_effort_preserves_schema_revision_diagnostics(self):
+        """坏 effort 留给 schema 报错，不能在展示值排序时崩溃。"""
+        self.prep()
+        output = self.output()
+        output['ideas'][0]['production_feasibility']['effort'] = None
+        output['ideas'][0]['production_feasibility'].pop('estimated_minutes', None)
+        candidate = self.write('idea_set.json', output)
+        code, result = self.run_stage('core', '--idea-set', candidate)
+        self.assertEqual((0, 'needs_revision'), (code, result['status']), result)
+        self.assertIn('effort', '\n'.join(result['errors']))
+        self.assertNotIn('TypeError', str(result))
+
+    def test_source_diagnostic_repairs_in_one_core_revision(self):
+        """真实prep/core拒收后只改翻译表一次即可交付，输入合同不变。"""
+        self.prep()
+        output = self.output()
+        output['evidence_gap_translations'].append({'source_text': 'ready', 'report_text': 'Ready'})
+        candidate = self.write('idea_set.json', output)
+        request_before = (self.root / 'request.json').read_bytes()
+        code, first = self.run_stage('core', '--idea-set', candidate)
+        self.assertEqual((0, 'needs_revision'), (code, first['status']), first)
+        errors = '\n'.join(first['errors'])
+        self.assertIn('allowed_source_texts', errors)
+        self.assertIn('evidence_gap_translations[3].source_text', errors)
+        output['evidence_gap_translations'].pop()
+        self.write(candidate.name, output)
+        code, second = self.run_stage('core', '--idea-set', candidate)
+        self.assertEqual((0, 'ok'), (code, second['status']), second)
+        self.assertEqual(request_before, (self.root / 'request.json').read_bytes())
+
     def test_exact_chat_and_current_request_are_separate_through_core(self):
         """Keep the current query and historical bytes separate through report delivery."""
         code, prep = self.prep()
