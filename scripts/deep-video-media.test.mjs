@@ -320,8 +320,10 @@ test("watch_media.py 的交接是 Web 宿主读得懂的写法：两轮都由宿
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
   await writeFile(path.join(run, "account_analysis.json"), JSON.stringify(analysis));
-  const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1" };
-  delete env.KABO_STATIC_RUN_DIR;
+  // shell 里残留着另一个 run 的 KABO_STATIC_RUN_DIR：续跑仍要落在 cd 进去的那个 run。
+  const stray = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  assert.notEqual(stray, run);
+  const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1", KABO_STATIC_RUN_DIR: stray };
   const resume = (handover) => {
     const result = spawnSync("python3", [handover.resume.script, ...handover.resume.args], { cwd: handover.resume.cwd, encoding: "utf8", env });
     return { code: result.status, out: result.stdout + result.stderr };
@@ -353,4 +355,6 @@ test("watch_media.py 的交接是 Web 宿主读得懂的写法：两轮都由宿
   assert.equal(third.code, 0, third.out);
   assert.match(third.out, /"status": "watched", "pending_jobs": 0/);
   assert.equal(reads(third.out).length, 3);
+  await readFile(path.join(run, "watch_outcomes.json"), "utf8");
+  await assert.rejects(readFile(path.join(stray, "watch_outcomes.json"), "utf8"));
 });

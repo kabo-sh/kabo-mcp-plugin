@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 from datetime import datetime, timezone
 import sys
@@ -119,6 +120,15 @@ def resume_command(args: argparse.Namespace) -> str:
             # `--id=<id>` 而不是 `--id <id>`：结果编号可能以「-」开头（实测 `-lNCEjm2WwISAEzMxbDqAA`），
             # 分开写时 argparse 把它当成另一个选项，续跑直接报错。Web 宿主照样跳过 `--id=` 这个词。
             + " ".join(quote(part) for part in argv) + " --id=<id>")
+
+
+def bind_run_to_cwd() -> None:
+    """续跑命令只写 `cd '<run>' && python3 …`，不带环境变量；static_host.run_dir 却先读环境变量。shell 里
+    残留着别的 run 的 KABO_STATIC_RUN_DIR 时，媒体证据会写进那个 run。当前目录在某个 run 里，就以它为准。"""
+    here = Path.cwd().resolve()
+    run = next((path for path in (here, *here.parents) if (path / ".static-run.json").is_file()), None)
+    if run is not None:
+        os.environ["KABO_STATIC_RUN_DIR"] = str(run)
 
 
 def hand_over_media(plan: dict[str, Any], args: argparse.Namespace, note: str = "") -> None:
@@ -284,6 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--placed", action="store_true")
     parser.add_argument("--id", dest="result_id", help="the result id of the last collect_video_media call")
     args = parser.parse_args(argv)
+    bind_run_to_cwd()
     try:
         plan = prepare(args)
         if not plan.get("jobs"):
