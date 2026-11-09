@@ -1,6 +1,6 @@
 ---
 name: remake-viral-video
-description: "Have Kabo produce a finished MP4 with the creator in it: remake a viral talking-head or voice-over video (10 min or less), make a talking video from an approved script, build a video from single steps (new words or language on the creator's own video, the creator in a reference's own shot, B-roll), or change a video Kabo already delivered. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
+description: "Have Kabo produce a finished MP4: remake a viral talking-head or voice-over video (up to 10 min) with the creator, make one from an approved script, build one from steps (new words on the creator's own video, the creator in a reference's shot, B-roll, or nobody on camera: animation, narration), or change a delivered one. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all seven tools: remakes, edits of delivered videos and step-by-step projects)."
 allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project
@@ -37,7 +37,7 @@ it. Decide by that, not by the request's wording ("remake" included):
    kinds below, or an approved script. It is not the fallback, and a reference plus the creator's
    footage does not make a request one. The creator's own video is footage to keep, not a reference. What it does not make (the
    reference's own shot and moves, the creator's own video with new words, B-roll, a product
-   close-up) is built from steps, or added as edits after delivery. A change to a delivered video
+   close-up, faceless videos) is built from steps, or added as edits after delivery. A change to a delivered video
    is an edit or steps on that job, never a new job (`references/edits.md`).
 
 | Keep | Change | Step | Redraws the face |
@@ -59,8 +59,8 @@ it. Decide by that, not by the request's wording ("remake" included):
 | -- | a picture without the creator; text to read; captions; music; sound | `still`, `animate`, `text_cards`, `captions`, `music`, `mux` | no |
 
 Before the first project step or edit, read `references/atoms.md` (what each step takes and
-costs) or `references/edits.md`, say in two or three lines what you will make and roughly what it
-costs, then go ahead. A `degraded` face check never blocks delivery: say which part looks less
+costs) or `references/edits.md`, say in 2-3 lines what you will make and its rough cost,
+then go ahead. A `degraded` face check never blocks delivery: say which part looks less
 like the creator. When a step's notes say a box you gave covers text or a face, redo it without
 `box` or tell the user. Cancel a job (`get_remake_video` with `"cancel": true`) only when the user asks;
 spend so far stays charged. Stopping takes a minute or two: keep calling `get_remake_video` (30 s apart)
