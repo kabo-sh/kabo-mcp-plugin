@@ -47,7 +47,7 @@ Judge variety only within the permitted slots; do not reward a different mechani
 "differentiation". Follow *Continuations* in `references/core-generation.md`.
 
 **Delivery.** Read `references/delivery.md`. Default to the complete validated list, exported by
-`scripts/deliver_ideas.py` and displayed unchanged through `emit_block` with its returned file path.
+`scripts/deliver_ideas.py` and displayed unchanged using the file delivery procedure in that reference.
 Never replace file emission with a model-written copy. Only an explicit request to pick or briefly
 summarize permits a selection from that validated list. Keep the original candidate numbers.
 A failed/needs-revision result is not deliverable; repair within the existing budget or explain
@@ -159,8 +159,8 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    python3 '<skill directory>/scripts/deliver_ideas.py' --run-dir '<run directory>'
    ```
 
-   Require `status="validated"`, then call `emit_block` with
-   `{"block":{"type":"markdown","path":"<returned report_path>"}}`.
+   Require `status="validated"`, then display the returned file using the exact path-based
+   call in `references/delivery.md`.
    Follow `references/delivery.md` for curated requests, one emission retry and numbered follow-ups.
    `needs_revision`, `not_met` and failures never permit a final list. A validated terminal gate
    with no ideas is only a missing-input clarification. `IDEA_REPORT_FULL.md` remains audit-only.
