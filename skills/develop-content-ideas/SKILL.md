@@ -12,6 +12,10 @@ Turn validated upstream artifacts or an explicit topic into an IdeaSet of distin
 ideas. The schemas, builders, validators and renderers ship in this Skill's `references/` and
 `scripts/`.
 
+**Finish the procedure before answering.** Prep's `ok` means inputs are ready, not that ideas
+passed validation. Author every required candidate field, run core, use its one permitted revision,
+then export the final file. Read `references/delivery-state.md` before the first stage.
+
 When the host supports one, run this Skill in a foreground sub-agent, because a run has several
 stages, and wait for its final result before replying; never run it in the background and tell the
 user the report will come later. Without a foreground sub-agent, follow the same steps in the main
