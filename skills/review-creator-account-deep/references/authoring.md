@@ -108,6 +108,10 @@ fetching or viewing is needed.
   suggest a demonstration direction" — rather than narrating what the creator shows or does. State
   proposed execution as a recommendation for the creator's next video. Public performance numbers do
   not establish why an opening worked; a transcript is not a listening observation.
+- A sound's title, author or "original audio" label is metadata: it names the track, never how it
+  sounds. Without heard or measured sound, do not judge a track's genre, mood, energy or fit with the
+  pictures, and do not credit shares or comments to the music. Say which sound evidence is missing;
+  for a per-video opinion on the music, name `analyze-content-video` for each video instead.
 - A mode is method context for the proposed next shoot only: it supplies no observed frame, spoken
   line, craft pin or viewing or listening evidence. Unconfirmed materials are preparation
   requirements, not assets the creator already owns. Mode IDs, internal labels and helper commands

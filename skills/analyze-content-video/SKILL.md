@@ -1,6 +1,6 @@
 ---
 name: analyze-content-video
-description: "Diagnose one video or still-image post from its own timestamped evidence and say what to keep, recut or replace next; or break down how a video was made into steps one person can follow. Also exports a video's transcript as TXT or SRT and reports its cover and tags. Use for why a video flopped or took off, hook and retention review, a re-edit plan, an unpublished cut on this machine, how was this edited, or getting a video's subtitles."
+description: "Diagnose one video or still-image post from its own timestamped evidence and say what to keep, recut or replace next; or break down how a video was made into steps one person can follow. Also exports a video's transcript as TXT or SRT and reports its cover and tags. Use for why a video flopped or took off, hook and retention review, a re-edit plan, an unpublished cut on this machine, how was this edited, whether its music or sound fits, or getting a video's subtitles."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to kabo.sh and to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Local video files also need ffmpeg and ffprobe. Kabo permission: data."
 allowed-tools: get_research_capabilities get_research_data_download read_research_data_artifacts collect_video_media youtube_get_video youtube_get_channel youtube_list_channel_uploads lookup_instagram_post instagram_get_transcript instagram_resolve_profile instagram_list_posts instagram_list_reels tiktok_search_get_video tiktok_search_get_transcript tiktok_search_list_profile_videos start_skill_run
@@ -99,7 +99,9 @@ If this Skill cannot produce the report, say so.
   while media jobs are running. When it prints `status: collected` it has persisted every media
   envelope in `snapshot/`, names the `--envelope` / `--deferred-incomplete` arguments for the
   evidence builder, and prints the one `read_research_data_artifacts` call that brings the frames
-  in. Make the other calls in the table (YouTube metadata, post row, baseline) in the same turn as
+  in. When that read shows you the images themselves, they are viewed: do not save or stage them
+  (the builder lists frames from the keyframe envelope, not from their bytes); go on to the evidence
+  builder. Save and fetch the read only when it returns a download link. Make the other calls in the table (YouTube metadata, post row, baseline) in the same turn as
   the media call: none waits on another.
 - **Save every complete result.** The displayed tool result may be abridged, so never retype or
   paste data. Call the data tools and `read_research_data_artifacts` (text
