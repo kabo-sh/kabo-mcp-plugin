@@ -20,11 +20,13 @@ delivery, the final review, failures) applies unchanged.
   or one to four YouTube, Instagram or TikTok links to videos where they talk to camera. A script
   may have come from someone else's video; that never makes that video the creator's footage.
 
-**Nobody on camera.** When the user wants no face, or the footage they point to is plainly not the
-creator talking (nobody on screen, gameplay, scenery), this is not a talking-video job: build it in
-a project (`references/atoms.md`) -- `tts` of the exact approved words (the creator's voice from a
-video of them speaking, or a stock voice they pick), pictures from their videos or images or made
-with `still` / `animate`, `captions` or `text_cards`, `music`, then finish. Keep every word.
+**Nobody on camera.** Route by the video the user asks for. When they want no face, this is not a
+talking-video job: build it in a project (`references/atoms.md`) -- `tts` of the exact approved
+words (the creator's voice from a video of them speaking, or a stock voice they pick), pictures
+from their videos or images or made with `still` / `animate`, `mux` the narration onto them, then
+`captions` or `text_cards`, `music`, and finish. Keep every word. When the footage they call theirs
+is plainly not them talking (nobody on screen, gameplay, scenery), say what it shows and ask: that
+narrated version with it as pictures, or footage of them talking.
 
 Save the text to a file in the run directory without changing a character (for example
 `script/approved.txt`), then build the call:

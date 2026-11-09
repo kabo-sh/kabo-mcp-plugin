@@ -37,7 +37,7 @@ it. Decide by that, not by the request's wording ("remake" included):
    kinds below, or an approved script. It is not the fallback, and a reference plus the creator's
    footage does not make a request one. The creator's own video is footage to keep, not a reference. What it does not make (the
    reference's own shot and moves, the creator's own video with new words, B-roll, a product
-   close-up, faceless videos) is built from steps, or added as edits after delivery. A change to a delivered video
+   close-up, other faceless videos) is built from steps, or added as edits after delivery. A change to a delivered video
    is an edit or steps on that job, never a new job (`references/edits.md`).
 
 | Keep | Change | Step | Redraws the face |
@@ -58,8 +58,7 @@ it. Decide by that, not by the request's wording ("remake" included):
 | a video or sound | -- (what is said, timed) | `transcribe` | no |
 | -- | a picture without the creator; text to read; captions; music; sound | `still`, `animate`, `text_cards`, `captions`, `music`, `mux` | no |
 
-Before the first project step or edit, read `references/atoms.md` (what each step takes and
-costs) or `references/edits.md`, say in 2-3 lines what you will make and its rough cost,
+Before the first project step or edit, read `references/atoms.md` (steps and costs) or `references/edits.md`, say in 2-3 lines what you will make and the rough cost,
 then go ahead. A `degraded` face check never blocks delivery: say which part looks less
 like the creator. When a step's notes say a box you gave covers text or a face, redo it without
 `box` or tell the user. Cancel a job (`get_remake_video` with `"cancel": true`) only when the user asks;

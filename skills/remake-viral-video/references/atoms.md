@@ -43,7 +43,7 @@ Video links are YouTube, Instagram or TikTok; picture links are public JPEG or P
 user's computer cannot be sent. More photos, reference videos or pictures can be
 added to a ready project later (`--job-id`, below).
 
-**Without the creator.** Faceless videos never need the creator's face; do not ask for it. A project with no creator footage or photos uses only steps that
+**Without the creator.** No face is needed; never ask for it. A project with no creator footage or photos uses only steps that
 draw no face (`still`, `animate`, `text_cards`, `music`, `tts` with a stock voice
 the user picks, and editing); a face step is refused with `no_creator`. Never present a generated person
 as the creator or as any real person.
@@ -70,9 +70,9 @@ person, never `creator/...`). The project then reports `persona: true`.
 - At delivery, say plainly that the person on screen is an AI-generated fictional presenter.
 
 **No voice to clone** (no creator material, or no speech in it). `tts` reads lines in the
-creator's cloned voice by default; with nothing to clone it is refused with `no_voice`. Before the
-first paid step, ask in one message for a link to them speaking (10-30 s) or one of these stock
-voices, and wait; never pick for them:
+creator's cloned voice by default; with nothing to clone it is refused with `no_voice`. Before starting
+the project (videos cannot be added later), ask once for a link to them
+speaking (10-30 s) or one of these stock voices, and wait; never pick for them:
 
 - `933563129e564b19a115bedd57b7406a`: female, young, soft and conversational
 - `b545c585f631496c914815291da4e893`: female, young, bright
