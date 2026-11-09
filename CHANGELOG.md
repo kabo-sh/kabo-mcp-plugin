@@ -2,6 +2,11 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.30（2026-11-09；GitHub Release）
+
+- `review-creator-account-deep`：`watch_media.py` 的看片交接改成 Web 宿主能自己完成的写法（同 1.0.25 的视频分析）：槽位行带编号，续跑命令不带 `KABO_STATIC_RUN_DIR=…` 前缀并以 `cd` 进去的 run 为准，「还有 N 个任务在跑」单独一行，第二轮交接宿主也认得；续跑参数改成 `--id=<id>`，结果编号以「-」开头时不再被当成选项报错（#140）。
+- `recommend-publish-timing`：标题或摘要要以 HH:MM 报出推荐时间，且不报推荐窗口以外的钟点；单小时答出时，正文不再报分块投票的胜出段（以前会出现「推荐 18:00」又写「06:00–09:00 表现最好」）；没拿到创作者时区时，模型用创作者的语言写 `creator_view.clock_note`（这些钟点未确认是本地时间），渲染在答案下面（#141）。
+
 ## 1.0.29（2026-11-09；GitHub Release）
 
 - `remake-viral-video`：创作者不出镜的需求（动画、商品图、剪自己的视频、旁白）直接用单步做，不要正脸；需要声音而没录音时，开项目前一次问说话视频链接或 stock 声音并等回答，不替用户选；已确认脚本可做无人出镜旁白（tts 原词 + 画面 + mux）；素材明显不是本人说话时先问用户要哪种（#142，对应 creator-remake-web 0.1.48/0.1.49）。
