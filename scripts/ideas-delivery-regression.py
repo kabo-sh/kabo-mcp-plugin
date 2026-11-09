@@ -51,8 +51,8 @@ class Delivery(unittest.TestCase):
                 self.assertEqual(count, receipt['count'])
                 self.assertEqual(list(range(1, count + 1)), [i['number'] for i in receipt['items']])
                 self.assertEqual([i['idea_id'] for i in ideas['ideas']], [i['idea_id'] for i in receipt['items']])
-                report = Path(receipt['report_path']).read_text()
-                self.assertEqual((self.root / 'RESULT.md').read_text(), report)
+                report = Path(receipt['report_path']).read_text(encoding='utf-8')
+                self.assertEqual((self.root / 'RESULT.md').read_text(encoding='utf-8'), report)
                 for idea in ideas['ideas']:
                     self.assertIn(idea['hook_preview']['opening_line'], report)
                     self.assertIn(idea['making_direction'], report)
@@ -68,7 +68,7 @@ class Delivery(unittest.TestCase):
 
     def test_render_without_core_is_not_validation(self):
         self.ready()
-        timing = json.loads((self.root / 'stage_timing.json').read_text())
+        timing = json.loads((self.root / 'stage_timing.json').read_text(encoding='utf-8'))
         timing['core']['status'] = 'needs_revision'
         self.write(self.root, 'stage_timing.json', timing)
         self.assertEqual(1, self.export()[0])
@@ -96,6 +96,27 @@ class Delivery(unittest.TestCase):
         self.assertEqual(1, self.export()[0])
         self.no_final()
 
+    def test_changed_data_and_regenerated_report_cannot_reuse_core(self):
+        ideas = self.ready()
+        self.assertEqual(0, self.export()[0])
+        ideas['ideas'][0]['hook_preview']['opening_line'] = 'A structurally valid but unchecked replacement'
+        self.write(self.root, 'idea_set.json', ideas)
+        from render_idea_report import concise
+        request = json.loads((self.root / 'request.json').read_text(encoding='utf-8'))
+        (self.root / 'RESULT.md').write_text(concise(ideas, request), encoding='utf-8')
+        code, result = self.export()
+        self.assertEqual(1, code)
+        self.assertIn('Inputs differ', result['error'])
+        self.no_final()
+
+    def test_missing_core_digest_cannot_export(self):
+        self.ready()
+        timing = json.loads((self.root / 'stage_timing.json').read_text(encoding='utf-8'))
+        del timing['core']['validated_input_sha256']
+        self.write(self.root, 'stage_timing.json', timing)
+        self.assertEqual(1, self.export()[0])
+        self.no_final()
+
     def test_recommendations_do_not_reorder_visible_numbers(self):
         self.prepare(self.root, 5)
         ideas = self.output(5)
@@ -105,7 +126,7 @@ class Delivery(unittest.TestCase):
         self.assertEqual('ok', self.stage(self.root, 'core')[1]['status'])
         code, receipt = self.export()
         self.assertEqual(0, code, receipt)
-        report = Path(receipt['report_path']).read_text()
+        report = Path(receipt['report_path']).read_text(encoding='utf-8')
         positions = [report.index(f'### {n}. ') for n in range(1, 6)]
         self.assertEqual(sorted(positions), positions)
         self.assertEqual('idea-003', receipt['items'][2]['idea_id'])
@@ -113,7 +134,7 @@ class Delivery(unittest.TestCase):
 
     def test_terminal_clarification_has_no_final_list(self):
         self.ready()
-        timing = json.loads((self.root / 'stage_timing.json').read_text())
+        timing = json.loads((self.root / 'stage_timing.json').read_text(encoding='utf-8'))
         timing['core']['status'] = 'delivered_terminal'
         self.write(self.root, 'stage_timing.json', timing)
         self.assertEqual(1, self.export()[0])

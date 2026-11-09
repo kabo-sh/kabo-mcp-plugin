@@ -21,6 +21,7 @@ Standard library only.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -409,8 +410,10 @@ def run_core(args: argparse.Namespace) -> int:
             raise ValueError("core requires prep and decision status ready_for_generation or a terminal selection gate")
         if not idea_set_path.exists():
             raise ValueError(f"{idea_set_path.name} missing; write the IdeaSet before core")
-        request = load_json(request_path)
-        idea_set = load_json(idea_set_path)
+        request_bytes = request_path.read_bytes()
+        idea_set_bytes = idea_set_path.read_bytes()
+        request = json.loads(request_bytes)
+        idea_set = json.loads(idea_set_bytes)
         request_errors = validate_request(request, request_path)
         if request_errors:
             raise ValueError("core request failed validation: " + "; ".join(dict.fromkeys(request_errors)))
@@ -549,6 +552,11 @@ def run_core(args: argparse.Namespace) -> int:
             rendered=True,
             validation_errors=[],
         )
+        # 绑定本次实际校验的输入；导出不能借用旧成功状态交付后来重写的内容。
+        core["validated_input_sha256"] = {
+            "request": hashlib.sha256(request_bytes).hexdigest(),
+            "idea_set": hashlib.sha256(idea_set_bytes).hexdigest(),
+        }
         timing["core"] = core
         write_json(timing_path, timing)
 

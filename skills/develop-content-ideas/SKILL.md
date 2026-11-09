@@ -23,6 +23,13 @@ or a new batch enter prep. Read `references/delivery.md` for these follow-up bou
 passed validation. Author every required candidate field, run core, use its one permitted revision,
 then export the final file. Read `references/delivery-state.md` before the first stage.
 
+**Delivery.** Read `references/delivery.md`. Default to the complete validated list, exported by
+`scripts/deliver_ideas.py` and displayed unchanged using the file delivery procedure in that reference.
+Never replace file emission with a model-written copy. Only an explicit request to pick or briefly
+summarize permits a selection from that validated list. Keep the original candidate numbers.
+A failed/needs-revision result is not deliverable; repair within the existing budget or explain
+what could not be completed. If emission fails, retry once, then report the display failure.
+
 When the host supports one, run this Skill in a foreground sub-agent, because a run has several
 stages, and wait for its final result before replying; never run it in the background and tell the
 user the report will come later. Without a foreground sub-agent, follow the same steps in the main
@@ -57,12 +64,6 @@ or objective. Repeating the fixed scaffold is required here, not a near-duplicat
 Judge variety only within the permitted slots; do not reward a different mechanism as
 "differentiation". Follow *Continuations* in `references/core-generation.md`.
 
-**Delivery.** Read `references/delivery.md`. Default to the complete validated list, exported by
-`scripts/deliver_ideas.py` and displayed unchanged using the file delivery procedure in that reference.
-Never replace file emission with a model-written copy. Only an explicit request to pick or briefly
-summarize permits a selection from that validated list. Keep the original candidate numbers.
-A failed/needs-revision result is not deliverable; repair within the existing budget or explain
-what could not be completed. If emission fails, retry once, then report the display failure.
 
 This Skill runs no research: it consumes validated research artifacts through `upstream_sources[]`
 and deterministic `idea_context`. `user_brief.text` preserves the user's request; it is not by

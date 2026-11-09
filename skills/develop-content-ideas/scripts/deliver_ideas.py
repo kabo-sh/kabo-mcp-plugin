@@ -44,9 +44,11 @@ def export(run: Path) -> dict:
     request_bytes = (run / "request.json").read_bytes()
     ideas_bytes = (run / "idea_set.json").read_bytes()
     request, ideas = json.loads(request_bytes), json.loads(ideas_bytes)
-    core = json.loads((run / "stage_timing.json").read_text())["core"]
+    core = json.loads((run / "stage_timing.json").read_text(encoding="utf-8"))["core"]
     if core.get("status") != "delivered" or core.get("rendered") is not True:
         raise ValueError("No completed core validation. Repair needs_revision in the same run; never reset its budget.")
+    if core.get("validated_input_sha256") != {"request": digest(request_bytes), "idea_set": digest(ideas_bytes)}:
+        raise ValueError("Inputs differ from the completed core validation, or its digest record is missing. Do not deliver changed content using an old success state.")
     errors = validate_request(request, run / "request.json")
     if not errors:
         errors = validate_idea_set(ideas, request, run / "request.json")
@@ -74,7 +76,7 @@ def export(run: Path) -> dict:
     }
     try:
         atomic_write(report_path, data)
-        atomic_write(receipt_path, (json.dumps(receipt, ensure_ascii=False, indent=2) + "\n").encode())
+        atomic_write(receipt_path, (json.dumps(receipt, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     except OSError:
         report_path.unlink(missing_ok=True)
         receipt_path.unlink(missing_ok=True)

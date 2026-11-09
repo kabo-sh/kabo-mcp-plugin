@@ -14,7 +14,8 @@ python3 '<skill directory>/scripts/deliver_ideas.py' --run-dir '<run directory>'
 ```
 
 Only this successful export creates `FINAL_IDEAS.md` and `idea-delivery.json`.
-It checks core state, the request, the IdeaSet, and the exact renderer projection again.
+It checks core state, the exact input digests recorded by core, the request, the IdeaSet,
+and the exact renderer projection again.
 A nonzero exit or `status="not_deliverable"` prohibits delivery; no final file remains.
 `needs_revision` uses the existing single revision in the same run, never a fresh budget.
 If repair cannot finish, explain that the requested list could not be validated. A terminal
@@ -30,7 +31,10 @@ Use `path`, not a retyped `text` payload. Wait for successful emission before cl
 At most one short guiding sentence may accompany the emitted report; no duplicate list follows.
 If emission was omitted, call it before ending. If it fails, retry the same unchanged path once;
 if it still fails or the capability is unavailable, explain that the complete list could not be
-displayed. Do not fall back to rewriting the full report. Scripts never call a host API.
+displayed inline. If the host already supports attaching or linking an existing local file,
+you may expose the unchanged final file that way and clearly identify it as a file delivery;
+never invent a download URL or claim inline display succeeded. Without a verified file-delivery
+capability, stop with that limitation. Do not rewrite the full report. Scripts never call a host API.
 An explicitly requested strict JSON response retains the JSON-only contract; do not append
 Markdown to it or claim that JSON is the rendered report.
 
