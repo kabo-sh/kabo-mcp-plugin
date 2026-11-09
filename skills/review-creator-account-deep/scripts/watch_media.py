@@ -112,7 +112,10 @@ def resume_command(args: argparse.Namespace) -> str:
     argv = [script("watch_media.py"), str(args.analysis), "--cap", str(args.cap),
             "--output-language", args.output_language,
             *[part for content_id in args.named_content_id for part in ("--named-content-id", content_id)], "--placed"]
-    return (f"cd {run_directory} && KABO_STATIC_RUN_DIR={run_directory} python3 "
+    # 不带 KABO_STATIC_RUN_DIR=… 前缀：run 从当前目录找到（static_host.run_dir）。这一行、槽位行和开头的
+    # 「Hand-over: 」与 connector_driver.py 的交接同一种写法，Web 宿主（kabo-agent-service plugin-handover.ts）
+    # 才认得出来、自己调用并续跑；认不出时整段交接落到模型手里，模型常在暂存这一步失手（同 #130）。
+    return (f"cd {run_directory} && python3 "
             + " ".join(quote(part) for part in argv) + " --id <id>")
 
 
@@ -125,14 +128,16 @@ def hand_over_media(plan: dict[str, Any], args: argparse.Namespace, note: str = 
     current["handed_at"] = datetime.now(timezone.utc).isoformat()
     save_state(current)
     videos = len(plan.get("jobs") or [])
-    say((note + " " if note else "") +
-        f"Hand-over: make this one call now with the arguments verbatim; the backend queues the metadata, transcript "
+    if note:
+        # 说明单独一行：宿主只认以「Hand-over: 」开头的行，前面带别的字，再交一轮时就认不出了。
+        say(note)
+    say(f"Hand-over: make this one call now with the arguments verbatim; the backend queues the metadata, transcript "
         f"and keyframe jobs of all {videos} selected videos and waits for them. If its result still reports running "
         f"jobs (coverage.pending above 0), make the same call again right away with the same arguments (nothing is "
         f"queued or charged twice) until pending is 0 or you have made it {MAX_ROUNDS} times; only the last result "
         f"counts. " + SAVE_RULE)
     say("call: " + json.dumps({"tool": TOOL, "arguments": call_arguments(plan)}, ensure_ascii=False))
-    say(f"  result  (fallback file, only if the result has no download url: {file})")
+    say(f"  result {first:02d}  (fallback file, only if the result has no download url: {file})")
     say("Then run this one command right away, <id> replaced by the last result's id (ids expire in 10 "
         "minutes): " + resume_command(args))
 
