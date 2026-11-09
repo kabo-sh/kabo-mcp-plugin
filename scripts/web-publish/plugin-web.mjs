@@ -18,6 +18,7 @@
 //   released                                   打印生产 overlay 当前对应的插件 commit
 //   test-accounts add <user_id> [--note text] | remove <user_id> | list
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -32,8 +33,13 @@ export const TEST_ACCOUNTS_OBJECT = `${OVERLAY_PREFIX}test-accounts.json`;
 // 只看「频道 + 当前 overlay」会把用过的版本号再发一次（内容却不同），/health 就分不出新旧。
 export const VERSIONS_OBJECT = `${OVERLAY_PREFIX}versions.json`;
 const historyObject = (sha) => `${OVERLAY_PREFIX}history/${sha}.json`;
-// 复刻在 Web 上由 creator-remake-web（production 频道）承担；插件的 remake-viral-video 走别的工具面，不进 Web。
+// 复刻在 Web 上由 creator-remake-web（production 频道）承担；插件的 remake-viral-video 走别的工具面，
+// 不进生产 Web overlay。
 export const EXCLUDED = new Set(['remake-viral-video']);
+// 复刻合一（kabo ADR-0094）：Web 与插件用同一套 /mcp-pub 工具后，Web 的复刻 skill 就是插件这一份
+// （正文里有 On Kabo Web 一节）。先只发到 test 目标（pre 测试账号），以 Web 现有的 skill id 登记，
+// 入口、chip 与策略不变；生产 overlay 仍排除，等复刻回归门过了再切。
+export const WEB_ALIASES = { test: { 'remake-viral-video': 'creator-remake-web' } };
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
 const COMMIT = /^[0-9a-f]{40}$/;
@@ -95,6 +101,22 @@ export function versionFor(id, checksum, liveIndexes, current, declared = null, 
   return `${major}.${minor}.${patch + 1}`;
 }
 
+/**
+ * 以 Web 的 skill id 打包插件 skill：复制到临时目录（目录名即 id），SKILL.md 的 name 改成别名，
+ * 其余字节不动，所以内容与插件这一份同源。
+ */
+function aliasDirectory(source, sourceId, alias) {
+  const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'web-alias-'));
+  const target = path.join(root, alias);
+  fs.cpSync(source, target, { recursive: true });
+  const skill = path.join(target, 'SKILL.md');
+  const text = fs.readFileSync(skill, 'utf8');
+  const renamed = text.replace(new RegExp(`^name: ${sourceId}$`, 'm'), `name: ${alias}`);
+  if (renamed === text) fail(`${sourceId}: SKILL.md has no name line to alias`);
+  fs.writeFileSync(skill, renamed);
+  return target;
+}
+
 async function writeOverlay(store, object, overlay) {
   const bytes = Buffer.from(stableJson(validateIndex(overlay, 'production')));
   const digest = sha256(bytes);
@@ -144,15 +166,19 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
   const available = fs.readdirSync(path.join(pluginRoot, 'skills'))
     .filter((id) => SKILL_ID.test(id) && fs.existsSync(path.join(pluginRoot, 'skills', id, 'SKILL.md')));
   // hold：本次不进 overlay 的 skill（Web 继续用 Registry 原版本），由工作流的 PLUGIN_WEB_HOLD 传入。
-  const wanted = (skills?.length ? skills : available.filter((id) => !EXCLUDED.has(id))).filter((id) => !hold.includes(id));
+  const aliases = WEB_ALIASES[targetName] ?? {};
+  const wanted = (skills?.length ? skills : available.filter((id) => !EXCLUDED.has(id) || aliases[id])).filter((id) => !hold.includes(id));
   const unknown = wanted.filter((id) => !available.includes(id));
   if (unknown.length) fail(`not in the plugin at ${pluginCommit}: ${unknown.join(', ')}`);
   // 先全部打包、算版本，任何一个不合格整批不写。
   const skipped = [];
   const bundles = [];
   const kept = {};
-  for (const id of wanted) {
-    const directory = path.join(pluginRoot, 'skills', id);
+  for (const sourceId of wanted) {
+    const id = aliases[sourceId] ?? sourceId;
+    const directory = aliases[sourceId]
+      ? aliasDirectory(path.join(pluginRoot, 'skills', sourceId), sourceId, id)
+      : path.join(pluginRoot, 'skills', sourceId);
     const probe = buildPluginBundle({ skillDirectory: directory, sourceCommit: pluginCommit, version: '0.0.1', probe: true });
     const existing = current?.skills?.[id];
     // 内容没变：原样沿用 overlay 里那一条（包已在桶里，source.commit 记的是首次发它的那个 commit）。
