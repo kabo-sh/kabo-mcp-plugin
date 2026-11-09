@@ -15170,7 +15170,7 @@
         "openWorldHint": false,
         "readOnlyHint": false
       },
-      "description": "Read a remake job. Top-level. Send job_id and wait_s. At waiting_script: brief.download is a JSON bundle {schema, job_id, files} to write the four files from, and talking_models lists the model choices with estimated cost (all_models: every model). At delivered: video.download is the final MP4; with include [\"review\"], review has Kabo's final-review verdict (qc, null when unknown) and the runner's notes on what it changed. Links are short-lived; call again to re-sign. out_of_scope, failed, timed_out and failure unsupported_type are final and come back as a normal result. No quota.",
+      "description": "Read a remake job. Top-level. Send job_id and wait_s. At waiting_script: brief.download is a JSON bundle {schema, job_id, files} to write the four files from, and talking_models lists the model choices with estimated cost (all_models: every model). At delivered: video.download is the final MP4; with include [\"review\"], review has Kabo's final-review verdict (qc, null when unknown) and the runner's notes on what it changed. Links expire; call again to re-sign. out_of_scope, failed, timed_out and failure unsupported_type are final and return normally. No quota.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -15214,6 +15214,10 @@
             "maximum": 30,
             "minimum": 0,
             "type": "integer"
+          },
+          "words": {
+            "const": true,
+            "type": "boolean"
           }
         },
         "required": [
@@ -15832,6 +15836,33 @@
                                     "text": {
                                       "maxLength": 600,
                                       "type": "string"
+                                    },
+                                    "words": {
+                                      "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "t0": {
+                                            "minimum": 0,
+                                            "type": "number"
+                                          },
+                                          "t1": {
+                                            "minimum": 0,
+                                            "type": "number"
+                                          },
+                                          "w": {
+                                            "maxLength": 64,
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "w",
+                                          "t0",
+                                          "t1"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "maxItems": 600,
+                                      "type": "array"
                                     }
                                   },
                                   "required": [
@@ -15849,6 +15880,9 @@
                                 "type": "string"
                               },
                               "truncated": {
+                                "type": "boolean"
+                              },
+                              "words_truncated": {
                                 "type": "boolean"
                               }
                             },
@@ -16898,7 +16932,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Start a video project (with job_id: add inputs to one) for videos a full remake does not make. Tell the user the plan first. Top-level. Fetching videos uses daily quota. On fetching_inputs repeat the call after retry_after_s. Next: make_video_step at ready.",
+      "description": "Start a video project (with job_id: add inputs to one) for videos a full remake does not make. Tell the user the plan first. Top-level. Fetching videos uses daily quota. On fetching_inputs, repeat after retry_after_s. Next: make_video_step at ready.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -16977,6 +17011,10 @@
             },
             "maxItems": 4,
             "type": "array"
+          },
+          "words": {
+            "const": true,
+            "type": "boolean"
           }
         },
         "required": [
@@ -17458,6 +17496,33 @@
                                 "text": {
                                   "maxLength": 600,
                                   "type": "string"
+                                },
+                                "words": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "t0": {
+                                        "minimum": 0,
+                                        "type": "number"
+                                      },
+                                      "t1": {
+                                        "minimum": 0,
+                                        "type": "number"
+                                      },
+                                      "w": {
+                                        "maxLength": 64,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "w",
+                                      "t0",
+                                      "t1"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 600,
+                                  "type": "array"
                                 }
                               },
                               "required": [
@@ -17475,6 +17540,9 @@
                             "type": "string"
                           },
                           "truncated": {
+                            "type": "boolean"
+                          },
+                          "words_truncated": {
                             "type": "boolean"
                           }
                         },
@@ -17868,6 +17936,10 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "words": {
+            "const": true,
+            "type": "boolean"
           }
         },
         "required": [
@@ -18352,6 +18424,33 @@
                                 "text": {
                                   "maxLength": 600,
                                   "type": "string"
+                                },
+                                "words": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "t0": {
+                                        "minimum": 0,
+                                        "type": "number"
+                                      },
+                                      "t1": {
+                                        "minimum": 0,
+                                        "type": "number"
+                                      },
+                                      "w": {
+                                        "maxLength": 64,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "w",
+                                      "t0",
+                                      "t1"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 600,
+                                  "type": "array"
                                 }
                               },
                               "required": [
@@ -18369,6 +18468,9 @@
                             "type": "string"
                           },
                           "truncated": {
+                            "type": "boolean"
+                          },
+                          "words_truncated": {
                             "type": "boolean"
                           }
                         },
@@ -18674,7 +18776,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Change a delivered video: rewrite lines, restyle captions, or lay media, a background or a clip over a time range. Each call makes a new revision; earlier ones stay downloadable. Top-level. Paid; tell the user the plan first. Poll get_remake_video with project true.",
+      "description": "Change a delivered video: rewrite lines, restyle captions, or lay media, a background or a clip over a time range. Each call makes a new revision; earlier ones stay. Top-level. Paid; tell the user the plan first. Poll get_remake_video with project true.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -18785,6 +18887,10 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
+          },
+          "words": {
+            "const": true,
+            "type": "boolean"
           }
         },
         "required": [
@@ -19268,6 +19374,33 @@
                                 "text": {
                                   "maxLength": 600,
                                   "type": "string"
+                                },
+                                "words": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "t0": {
+                                        "minimum": 0,
+                                        "type": "number"
+                                      },
+                                      "t1": {
+                                        "minimum": 0,
+                                        "type": "number"
+                                      },
+                                      "w": {
+                                        "maxLength": 64,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "w",
+                                      "t0",
+                                      "t1"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 600,
+                                  "type": "array"
                                 }
                               },
                               "required": [
@@ -19285,6 +19418,9 @@
                             "type": "string"
                           },
                           "truncated": {
+                            "type": "boolean"
+                          },
+                          "words_truncated": {
                             "type": "boolean"
                           }
                         },
@@ -19590,7 +19726,7 @@
         "openWorldHint": false,
         "readOnlyHint": false
       },
-      "description": "Deliver one .mp4 handle of a project as the finished video after a likeness check; it becomes a new revision with a download. Top-level. Poll get_remake_video with project true.",
+      "description": "Deliver one .mp4 handle of a project as the finished video after a likeness check; it becomes a downloadable revision. Top-level. Poll get_remake_video with project true.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -19615,6 +19751,10 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
+          },
+          "words": {
+            "const": true,
+            "type": "boolean"
           }
         },
         "required": [
@@ -20098,6 +20238,33 @@
                                 "text": {
                                   "maxLength": 600,
                                   "type": "string"
+                                },
+                                "words": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "t0": {
+                                        "minimum": 0,
+                                        "type": "number"
+                                      },
+                                      "t1": {
+                                        "minimum": 0,
+                                        "type": "number"
+                                      },
+                                      "w": {
+                                        "maxLength": 64,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "w",
+                                      "t0",
+                                      "t1"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 600,
+                                  "type": "array"
                                 }
                               },
                               "required": [
@@ -20115,6 +20282,9 @@
                             "type": "string"
                           },
                           "truncated": {
+                            "type": "boolean"
+                          },
+                          "words_truncated": {
                             "type": "boolean"
                           }
                         },

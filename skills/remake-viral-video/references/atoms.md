@@ -98,7 +98,7 @@ Pass the pick as `params.voice` of `tts`, and say at delivery that a stock voice
 | Captions in the creator's style | `captions` (optional `max_words` 1-8 per caption, `upper` for capitals) | |
 | Part of a video or audio | `trim` (`t0`, `t1`) | |
 | Another sound track on a video | `mux` (`mode` `replace` or `mix`), `extract_audio` to take a video's sound | |
-| What a video or sound says | `transcribe` (`media`, optional `language`) | timed segments, no file; free |
+| What a video or sound says | `transcribe` (`media`, optional `language`) | timed segments with word times, no file; free. Cut speech at word edges, never inside a word, and never put the same stretch of a source in twice; the step notes say when a cut does |
 | The same words in a different, non-creator voice (for example a reference speaker's track that must not keep their voice) | `voice_change` with `voice: "warm_female"` (the only stock voice it has) | it cannot make the creator's voice: for that, `tts` with the creator's voice, then `lipsync` or `mux` |
 | A picture over a range, a clip spliced in, clips joined | `overlay`, `splice`, `concat` | |
 | A still from a video (to use as a picture, or to look at a moment) | `frame` (`t` in seconds, or `at` `first` / `last`; any video handle) | cheap; also how you see a video |
@@ -224,8 +224,8 @@ written here as `static_host.py`.
    the step against the op's inputs and params and prints the `make_video_step` arguments; call the
    tool with exactly those. A refusal from the script is a mistake in the step file: fix it. Inputs
    are handles from `project.handles` only, never paths or links. One step runs at a time.
-3. **Wait and look.** The step returns `working`. Call `get_remake_video` with `wait_s` 30 and
-   `project` true until `project.last_step.status` is `done` or `failed`. Save the result to
+3. **Wait and look.** The step returns `working`. Call `get_remake_video` with `wait_s` 30,
+   `project` true and `words` true until `project.last_step.status` is `done` or `failed`. Save the result to
    `host-results/<NN>-get_remake_video.json` and run
    `static_host.py fetch-step --input 'host-results/<NN>-get_remake_video.json'`. It saves the
    step's file under `project/outputs/` and prints its `path`, handle, spend, model, fallback and
