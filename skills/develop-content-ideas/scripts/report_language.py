@@ -91,7 +91,7 @@ def rendered_report_values(data):
             originals.add(idea['primary_evidence_ref'])
         feasibility = idea.get('production_feasibility') or {}
         effort = feasibility.get('effort', 'unknown')
-        if not feasibility.get('estimated_minutes') and effort != 'unknown':
+        if isinstance(effort, str) and not feasibility.get('estimated_minutes') and effort != 'unknown':
             originals.add(effort)
     return originals
 

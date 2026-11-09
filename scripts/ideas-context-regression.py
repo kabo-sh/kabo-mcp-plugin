@@ -145,6 +145,18 @@ class ConversationContract(unittest.TestCase):
         output['evidence_gap_translations'].append({'source_text': 'low', 'report_text': 'low'})
         self.assertIn('low', presentation.presentation_translations(output))
 
+    def test_null_effort_preserves_schema_revision_diagnostics(self):
+        """坏 effort 留给 schema 报错，不能在展示值排序时崩溃。"""
+        self.prep()
+        output = self.output()
+        output['ideas'][0]['production_feasibility']['effort'] = None
+        output['ideas'][0]['production_feasibility'].pop('estimated_minutes', None)
+        candidate = self.write('idea_set.json', output)
+        code, result = self.run_stage('core', '--idea-set', candidate)
+        self.assertEqual((0, 'needs_revision'), (code, result['status']), result)
+        self.assertIn('effort', '\n'.join(result['errors']))
+        self.assertNotIn('TypeError', str(result))
+
     def test_source_diagnostic_repairs_in_one_core_revision(self):
         """真实prep/core拒收后只改翻译表一次即可交付，输入合同不变。"""
         self.prep()
