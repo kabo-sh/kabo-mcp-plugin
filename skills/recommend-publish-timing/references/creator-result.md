@@ -27,7 +27,8 @@ would say it.
 
 The delivered object is a `CreatorTaskResult`: declare `schema_version: creator-task-result.v2-final`
 and include `result_id`, `task`, `status`, `details`, `evidence_index`, `interaction` and `creator_view`.
-The view explicitly carries `language`, `headline`, `summary`, `cards`, `next_actions` and `data_note`.
+The view explicitly carries `language`, `headline`, `summary`, `cards`, `next_actions` and `data_note`,
+plus `clock_note` when the hours are a fallback clock (see `references/creator-view-authoring.md`).
 Every card carries `title`, `why_for_you`, `action` and `evidence_refs`; diagnosis without action is observation.
 Read `references/creator-view-authoring.md` before writing it: line encoding, missing-zone disclosure
 and partial-history scope clarify this existing contract; all final gates remain unchanged.
@@ -83,6 +84,14 @@ knows where the answer lives without hunting for it:
 | 2 | how the comparison was made | one line per signal that spoke | 2–4 |
 | 3 | what the difference is worth | `practical_stakes` | 2 |
 | 4 | how far to trust it | `confidence_penalties`, one per line | 2–4 |
+
+**One answer, one time.** For a `recommended` result, the headline or the summary states the
+recommended window from `recommendation.windows` as `HH:MM`, and no clock in either falls outside it; a
+suggested experiment at another hour belongs in `next_actions`. When the hour curve answered
+(`resolution: hour`), `evidence_base.ranking.winner` is a coarser block vote, not a second best time:
+say in block 2 whether it agrees, but never quote its range, even when it contains the recommended
+hour. A report that headlined 18:00 and then wrote "06:00–09:00 performs best" read as a contradiction.
+`validate_creator_shape.py` checks all three.
 
 **The order is fixed; the headings are yours to write.** Give each block a heading in the
 creator's language that says what it answers, and do not give two blocks the same one. The

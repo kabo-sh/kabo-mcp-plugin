@@ -17,7 +17,9 @@ What this decides:
   * that the block standing on `practical_stakes` survives — it is the one the V2.5 migration
     silently deleted, and the one thing here no competitor offers;
   * that peer accounts, when they contributed, are named;
-  * that the creator reads a clock and not a timezone.
+  * that the creator reads a clock and not a timezone;
+  * that the headline and summary state the recommended window, and that the block vote is not
+    quoted as a second best time when the hour curve answered.
 
 What this does not decide: whether the reading is any good, whether the right signal was picked, or
 whether the wording is natural. Those are read in benchmark review. A gate that returns a clean exit
@@ -168,6 +170,134 @@ MIN_SUMMARY_WIDTH = 40
 # words, which is a gate shaping the prose rather than checking it.
 ZONE_IN_TEXT = re.compile(
     r"\b(?:UTC|GMT|[A-Z][a-z]+/[A-Z][a-z_]+)\b|(?<![\d:])[+-]\d{2}:\d{2}\b|北京时间|格林威治")
+
+
+# 正文里报给创作者的钟点只有一个来源：`recommendation.windows`。引擎里有两套统计——单小时曲线
+# (`resolve_hour`) 和 3/6/12 小时分块投票 (`rank_windows`)——单小时答出时，分块胜出段照样留在
+# `evidence_base.ranking.winner`。一次迁移实测里报告标题推荐 18:00，「怎么比的」一块又写
+# 06:00–09:00 表现最好：两个都是真数，读的人只看到两个互相打架的「最佳时间」。数字检查在读数前先把
+# 钟点剥掉 (`CLOCK`)，所以从来没人核对过正文里的钟点。
+#
+# 只认 HH:MM，这是各语言通用的写法；不认任何语言的连接词或「点 / pm」这类字面量。两个钟点之间只隔
+# 几个非数字字符就算一个时间段，所以「06:00–09:00」「06:00 à 09:00」「06:00 至 09:00」读法相同。
+CLOCK_TIME = re.compile(r"(?<![\d:])(\d{1,2}):(\d{2})(?![\d:])")
+RANGE_GAP = 6
+# 没拿到创作者时区、引擎按备用钟点算时，正文必须告诉创作者这些钟点不是本地时间。说法由模型用创作者的
+# 语言写进这个字段，这里只查它在不在；渲染器把它放在答案下面。
+CLOCK_NOTE = "clock_note"
+FALLBACK_SOURCES = ("not_supplied", "zone_unresolved")
+CLOCK_OUTCOMES = ("recommended", "no_clear_window")
+
+
+def clocks_in(text: str) -> list[tuple[int, int, int, int]]:
+    """(小时, 分钟, 起点, 终点)，按出现顺序。"""
+    return [(int(m.group(1)), int(m.group(2)), m.start(), m.end()) for m in CLOCK_TIME.finditer(text)]
+
+
+def ranges_in(text: str) -> list[tuple[int, int]]:
+    """两个相邻钟点之间只隔不到 RANGE_GAP 个非数字字符，就是一个时间段（起止小时）。"""
+    found = clocks_in(text)
+    spans = []
+    for (h1, _, _, end1), (h2, _, start2, _) in zip(found, found[1:]):
+        gap = text[end1:start2]
+        if len(gap) <= RANGE_GAP and not re.search(r"\d", gap):
+            spans.append((h1, h2 if h2 > h1 else h2 + 24))
+    return spans
+
+
+def window_spans(rec: dict) -> list[tuple[int, int]]:
+    """推荐窗口的起止小时；跨午夜的结束小时加 24，`00:00` 收尾读作 24。"""
+    spans = []
+    for window in (rec.get("recommendation") or {}).get("windows") or []:
+        try:
+            start = int(str(window.get("start_local")).split(":")[0])
+            end = int(str(window.get("end_local")).split(":")[0])
+        except (TypeError, ValueError):
+            continue
+        spans.append((start, end if end > start else end + 24))
+    return spans
+
+
+def in_spans(hour: int, minute: int, spans: list[tuple[int, int]]) -> bool:
+    for start, end in spans:
+        for value in (hour, hour + 24):
+            if start <= value < end or (value == end and minute == 0):
+                return True
+    return False
+
+
+def window_text(spans: list[tuple[int, int]]) -> str:
+    return ", ".join(f"{start:02d}:00–{end % 24:02d}:00" for start, end in spans)
+
+
+def _strings_with_paths(node, path: str):
+    if isinstance(node, dict):
+        for key, child in node.items():
+            yield from _strings_with_paths(child, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, child in enumerate(node):
+            yield from _strings_with_paths(child, f"{path}[{index}]")
+    elif isinstance(node, str):
+        yield path, node
+
+
+def clock_errors(view: dict, rec: dict) -> list[str]:
+    errors: list[str] = []
+    outcome = rec.get("outcome")
+    source = ((rec.get("evidence_base") or {}).get("timezone") or {}).get("source")
+    note = view.get(CLOCK_NOTE)
+    if note is not None and not isinstance(note, str):
+        errors.append(f"creator_view.{CLOCK_NOTE} must be a string, not {type(note).__name__}")
+    elif outcome in CLOCK_OUTCOMES and source in FALLBACK_SOURCES and not (note or "").strip():
+        errors.append(
+            f"creator_view.{CLOCK_NOTE} is missing. The timezone source is {source!r}, so the hours are a "
+            f"fallback clock: write one sentence in the creator's language saying these hours are not "
+            f"confirmed as their local time and that telling you their city recomputes them, without naming "
+            f"a zone")
+
+    spans = window_spans(rec)
+    if not spans:
+        return errors
+    # 答案写在标题和摘要里：那里说出的钟点必须落在推荐时间里，推荐的答案至少要在其中一处出现。
+    # action / next_actions 不在此列：「顺手在 20 点试两条」是对照实验，不是第二个答案。
+    opening = [("headline", str(view.get("headline") or "")), ("summary", str(view.get("summary") or ""))]
+    stated_inside = False
+    for field, text in opening:
+        for hour, minute, _, _ in clocks_in(text):
+            if hour >= 24:
+                continue
+            if in_spans(hour, minute, spans):
+                stated_inside = True
+            else:
+                errors.append(
+                    f"{field} states {hour:02d}:{minute:02d}, outside the recommended "
+                    f"{window_text(spans)} (recommendation.windows). The answer the creator reads first is "
+                    f"the recommendation; write that window instead")
+    if outcome == "recommended" and not stated_inside:
+        errors.append(
+            f"neither the headline nor the summary states the recommended time as HH:MM "
+            f"({window_text(spans)}). Lead with the time the creator asked for")
+
+    # 单小时答出时，分块投票的胜出段不能再以时间段的样子出现在正文里，哪一块都不行，和推荐小时重叠也不行：
+    # 读起来就是第二个「最佳时间」。投票同意与否可以说，那一段不报。
+    first = ((rec.get("recommendation") or {}).get("windows") or [{}])[0]
+    ranking = (rec.get("evidence_base") or {}).get("ranking") or {}
+    winner = str(ranking.get("winner") or "")
+    if first.get("resolution") == "hour" and "-" in winner:
+        try:
+            w_start, w_end = (int(part) for part in winner.split("-"))
+        except ValueError:
+            return errors
+        w_end = w_end if w_end > w_start else w_end + 24
+        for path, text in _strings_with_paths(view, "creator_view"):
+            if (w_start, w_end) in ranges_in(text):
+                errors.append(
+                    f"{path} quotes {w_start:02d}:00–{w_end % 24:02d}:00, the "
+                    f"{ranking.get('granularity_hours') or '?'}-hour block vote "
+                    f"(evidence_base.ranking.winner), while the answer is {window_text(spans)} from the hour "
+                    f"curve. Two best times read as a contradiction: say whether the block vote agrees, "
+                    f"without quoting its range, or cite hour_curve")
+    return errors
 
 
 def load(path: Path) -> dict:
@@ -480,7 +610,7 @@ def check(result: dict, rec: dict) -> list[str]:
                 "peer data is allowed here is that the creator can open it and disagree")
 
     for field, value in (("headline", view.get("headline")), ("summary", view.get("summary")),
-                         ("data_note", view.get("data_note"))):
+                         ("data_note", view.get("data_note")), (CLOCK_NOTE, view.get(CLOCK_NOTE))):
         if ZONE_IN_TEXT.search(str(value or "")):
             errors.append(
                 f"{field} names a timezone. The creator is already in theirs — show the clock "
@@ -492,6 +622,7 @@ def check(result: dict, rec: dict) -> list[str]:
                 errors.append(f"block[{index}].{key} names a timezone ({found.group(0)!r}); "
                               "the zone belongs in the structured object, not the report")
     errors.extend(figure_errors(result.get("creator_view") or {}, source_values(rec)))
+    errors.extend(clock_errors(view, rec))
     return errors
 
 

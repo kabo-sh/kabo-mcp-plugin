@@ -18,7 +18,12 @@ Keep each card's evidence references resolvable in this recommendation.
 Keep the exact timezone source and analysis zone in the structured Request/Recommendation. When
 the host supplied no creator timezone, preserve `not_supplied` and the engine's UTC analysis
 fallback; never substitute the operator's zone or claim that a local clock was established.
-Disclose the missing zone and fallback in the user's language, for example "The creator's timezone was not provided, so the analysis uses a fallback clock; do not read these hours as local time."
+When the recommendation's timezone source is `not_supplied` or `zone_unresolved` and the outcome is
+`recommended` or `no_clear_window`, write `creator_view.clock_note`: one sentence in the user's language
+saying the hours are not confirmed as their local time and that telling you their city recomputes
+them. The
+renderer prints it right under the answer, and `validate_creator_shape.py` rejects the result without
+it. Do not repeat it elsewhere in `creator_view`.
 The Creator-facing fields still omit zone identifiers/names as the existing gate requires. Do not
 translate or rename one to evade that rule, and do not present a fallback-clock interval as a
 verified local posting time. The exact fallback remains available in the structured evidence.
