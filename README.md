@@ -18,6 +18,7 @@ review and production acceptance remain separate from this GitHub release.
 | --- | --- |
 | You already connected Kabo MCP in your AI host | [Skills only](#skills-only): use Git, ZIP or the optional skills CLI to add the twenty-one workflows and keep your existing connection. |
 | You want the MCP connection and workflows together | [Full plugin](#installation-and-authentication): use your host's plugin installer. |
+| You want your AI assistant to install Kabo for you (Grok Bot, Muse and other assistants without a plugin installer) | Paste this to the assistant: "Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable/INSTALL.md, then get me started." See [INSTALL.md](INSTALL.md). |
 
 [MCP setup and Skills guide](https://kabo.sh/docs/mcp#skills) ·
 [Latest release and ZIP download](https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest)
@@ -286,6 +287,7 @@ mcp.json                        # Production MCP connection
 skills/                         # Twenty-one complete Skills and their resources
 skills.lock.json                # Original Skill source and versions
 runtime-contract.json           # Fixed tool and Skill inventory
+INSTALL.md                      # Installation steps written for an AI assistant to follow
 CHANGELOG.md                    # Version history (Chinese)
 ```
 

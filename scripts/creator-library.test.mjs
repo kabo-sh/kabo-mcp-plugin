@@ -334,7 +334,7 @@ test("每日精选：只收样本够且至少 2 倍的爆款，按支柱各保�
     reel("a1", "breakdowns", 6, 0.99, { duration: 40 }), reel("a2", "breakdowns", 5, 0.98, { author: "a1" }), reel("a3", "breakdowns", 4, 0.97),
     reel("c1", "charisma", 3, 0.5), reel("weak", "charisma", 9, 0.96, { strength: "directional" }),
     reel("low", "breakdowns", 1.6, 0.95), reel("mine", "breakdowns", 8, 0.94, { author: "maker" }),
-    reel("long", "breakdowns", 3, 0.4, { duration: 120 })] }));
+    reel("long", "breakdowns", 3, 0.4, { duration: 720 })] }));
   const day1 = run("pick", "--library", library, "--enrichment", enrichment, "--date", "2026-10-21", "--write");
   assert.deepEqual(day1.picks.map(pick => pick.content_key), ["instagram:a1", "instagram:c1", "instagram:a3"]);
   assert.deepEqual(day1.rejected, { already_shown: 0, own_post: 1, below_multiple: 1, no_pillar: 0, weak_or_missing_baseline: 1 });
@@ -347,7 +347,7 @@ test("每日精选：只收样本够且至少 2 倍的爆款，按支柱各保�
   // 第二天：用过的全部排除，只剩作者重复的 a2 与超长的 long；不凑数。
   const day2 = run("pick", "--library", library, "--enrichment", enrichment, "--date", "2026-10-22", "--write");
   assert.deepEqual(day2.picks.map(pick => pick.content_key), ["instagram:a2", "instagram:long"]);
-  assert.match(day2.picks[1].remake, /longer than 90 seconds/);
+  assert.match(day2.picks[1].remake, /longer than 10 minutes/);
   assert.match(day2.note, /never pad/);
 
   // YouTube 结果用 account_breakout / channel / views，归一后同样可选，且 YouTube 不是复刻不支持的平台。

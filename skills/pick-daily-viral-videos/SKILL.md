@@ -154,7 +154,7 @@ One message in the creator's language. For each pick:
    - **Write my version:** ask for `create-script-and-packaging` to write the script and packaging
      for their platform.
    - **Remake it with me in it:** `remake-viral-video` can remake it with their face and voice, only
-     when the pick is a talking-head or voice-over video of 90 seconds or less. Use `remake`: when it
+     when the pick is a talking-head or voice-over video of 10 minutes or less. Use `remake`: when it
      says possible, add that the video is checked before any charge and generation starts only after
      they confirm; when it says not possible, say in a few words that this one cannot be remade (its
      length, or the platform) and offer the first two steps only.

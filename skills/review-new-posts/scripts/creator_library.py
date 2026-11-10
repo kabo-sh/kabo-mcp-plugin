@@ -44,8 +44,8 @@ MIN_SETTLED_POSTS = 6
 PILLAR_MIN_MULTIPLE = 0.8
 SECOND_PILLAR_MIN_SHARE = 0.2
 MAX_PILLARS = 4
-# 复刻只接 90 秒以内的口播或旁白视频。
-REMAKE_MAX_SECONDS = 90
+# 复刻只接 10 分钟以内的口播或旁白视频（与 remake-viral-video 自己的上限一致）。
+REMAKE_MAX_SECONDS = 600
 # 照片、图文不是视频，没有播放量，不进素材库。
 NON_VIDEO_FORMATS = {"instagram_feed", "tiktok_photo"}
 SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
@@ -1059,13 +1059,13 @@ def cmd_candidates(args):
 
 
 def remake_note(platform, duration):
-    # 复刻只接 90 秒以内的口播或旁白视频；是不是口播由复刻自己在收费前检查。
-    if platform not in ("instagram", "youtube"):
+    # 复刻只接 10 分钟以内的口播或旁白视频；是不是口播由复刻自己在收费前检查。
+    if platform not in ("instagram", "youtube", "tiktok"):
         return "not supported for this platform"
     if isinstance(duration, (int, float)) and duration > REMAKE_MAX_SECONDS:
-        return f"not possible: longer than {REMAKE_MAX_SECONDS} seconds"
+        return f"not possible: longer than {REMAKE_MAX_SECONDS // 60} minutes"
     if not isinstance(duration, (int, float)):
-        return f"unknown length: possible only if it is a talking-head or voice-over video of {REMAKE_MAX_SECONDS} seconds or less"
+        return f"unknown length: possible only if it is a talking-head or voice-over video of {REMAKE_MAX_SECONDS // 60} minutes or less"
     return f"possible only if it is a talking-head or voice-over video ({int(duration)} seconds long)"
 
 

@@ -37,24 +37,39 @@ the manual phrases at the end.
 
 ## Claude Code
 
-<!-- TO VERIFY -->
-Use the host's own recurring-task feature to create the two tasks, with the instructions above as
-the task text. This section has not been checked against the host; do not state how often, where
-the task runs or where results appear until the host's own answer says so.
+- In the desktop app, scheduled tasks are under the Code tab: Scheduled, then New task, with a Daily
+  preset in local time. Asking in a session also works: "set up a daily task that runs every morning
+  at 8am", followed by the instruction. Create the task in the project folder that holds
+  `kabo-library/`.
+- A desktop task runs only while the app is open and the computer is awake. A run missed while the
+  computer slept is caught up once on wake. Each task page lists its past runs.
+- Do not use cloud routines for these two jobs: a cloud run starts on a fresh machine that has
+  neither the creator's installed plugins nor `kabo-library/`.
+- A terminal-only setup has no lasting schedule: use the manual phrases at the end.
 
 ## ChatGPT and Codex
 
-<!-- TO VERIFY -->
-Use the host's own recurring-task feature to create the two tasks, with the instructions above as
-the task text. This section has not been checked against the host; do not state how often, where
-the task runs or where results appear until the host's own answer says so.
+- Ask in chat, or use Scheduled in the sidebar, with the instruction as the task text. Name the Skill
+  with `$` before its name in the desktop app and with `@` on the web.
+- A scheduled task created on the web runs in the cloud with the computer off and can use connected
+  plugins and Skills, but it keeps no local folder from one run to the next: the Skills rebuild a
+  smaller library on every run (see the main Skill's "Hosts without saved files"). Say so before
+  creating it.
+- A scheduled task created in the desktop app runs on the creator's computer, which must be on with
+  the app running. It keeps the workspace and the library.
+- Past runs are listed under Scheduled, which marks unread results.
 
 ## Muse
 
-<!-- TO VERIFY -->
-Use the host's own recurring-task feature to create the two tasks, with the instructions above as
-the task text. This section has not been checked against the host; do not state how often, where
-the task runs or where results appear until the host's own answer says so.
+- A recurring task is created by saying it in chat: "Every day at 8am, " followed by the
+  instruction. It runs until cancelled, its result arrives as a message in the Muse conversation,
+  and upcoming tasks are listed under the Assistant icon. Approvals for scheduled work are under
+  Settings, Permissions, Artifacts and scheduled tasks.
+- Muse reaches Kabo through a custom connector that it builds itself, so an unattended run is not
+  guaranteed to reach Kabo. After creating the task, run the same instruction once in chat, and tell
+  the creator the schedule works only if that run reached Kabo.
+- Muse Code, the command-line agent, loops only while its session stays open, and a loop expires
+  after seven days: treat it as having no scheduled tasks.
 
 ## When the host has no scheduled tasks
 
