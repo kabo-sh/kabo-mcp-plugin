@@ -173,7 +173,7 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
   // 否则每次发版顺手刷一遍 test 都会把别人正在测的版本冲掉。
   if (targetName === 'test')
     for (const [id, entry] of Object.entries(current?.skills ?? {}))
-      if (!available.includes(id) && !kept[id]) kept[id] = entry;
+      if (!available.includes(id) && !hold.includes(id) && !kept[id]) kept[id] = entry;
   for (const bundle of bundles) {
     const objectName = bundleObjectName(bundle);
     const bytes = Buffer.from(stableJson(bundle));
