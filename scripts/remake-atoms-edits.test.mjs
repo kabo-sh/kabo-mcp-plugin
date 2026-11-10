@@ -80,7 +80,7 @@ test("project-call / step-call / edit-call / finish-call 生成的入参通过�
     [["--creator-video", "https://www.youtube.com/shorts/abc123", "--creator-name", "amy", "--reference-video", "https://youtu.be/abc123"], /also a creator video/],
     [["--reference-image", "file:///etc/passwd"], /--reference-image must be a public http/],
     [["--creator-photo", "https://example.com/me.jpg"], /--creator-name is required/],
-    [["--creator-video", "https://www.youtube.com/shorts/abc123", "--creator-name", "amy", ...[1, 2, 3, 4].flatMap(n => ["--creator-photo", `https://example.com/${n}.jpg`])], /4 creator videos and photos in total/],
+    [["--creator-video", "https://www.youtube.com/shorts/abc123", "--creator-name", "amy", ...[1, 2, 3, 4, 5, 6, 7, 8, 9].flatMap(n => ["--creator-photo", `https://example.com/${n}.jpg`])], /8 creator photos/],
   ]) {
     const res = call(run, ["project-call", ...args]);
     assert.notEqual(res.status, 0, args.join(" "));

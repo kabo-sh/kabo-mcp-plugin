@@ -618,13 +618,14 @@ def _image_url(raw):
 
 def project_call(handle, video_urls, creator_name, attempt, photo_urls=(), reference_videos=(),
                  reference_images=(), job_id=None):
-    """start_video_project 的入参。创作者素材 0-4 段视频（或 Instagram 主页）加 0-8 张照片，别人的视频 0-4、
+    """start_video_project 的入参。创作者素材 0-4 段视频（或 Instagram 主页）加 0-8 张照片（kabo 113485987 起
+    服务端也按这条判；之前的服务端是视频与照片合计 4），别人的视频 0-4、
     参考图 0-8（契约 v1.1/v1.3/v1.4）。带 --job-id 时是往已有项目追加照片、参考视频或参考图。"""
     photos = [_photo_url(url) for url in photo_urls or []]
     refs = [_url(url, "Reference video") for url in reference_videos or []]
     images = [_image_url(url) for url in reference_images or []]
-    if len(photos) + len(video_urls or []) > 4 or len(images) > 8 or len(refs) > 4:
-        raise ValueError("At most 4 creator videos and photos in total, 4 reference videos and 8 reference images")
+    if len(video_urls or []) > 4 or len(photos) > 8 or len(images) > 8 or len(refs) > 4:
+        raise ValueError("At most 4 creator videos, 8 creator photos, 4 reference videos and 8 reference images")
     for label, items in (("creator photo", photos), ("reference image", images)):
         if len(set(items)) != len(items):
             raise ValueError(f"The same {label} is listed twice")
