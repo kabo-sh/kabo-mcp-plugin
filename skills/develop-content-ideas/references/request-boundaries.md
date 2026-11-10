@@ -38,8 +38,15 @@ A language change alone does not change the selected candidate, causal mechanism
 For a selected-example variation, compare **each completed candidate** against the source and the
 latest instruction. Identify the fixed relationship, the allowed change and that item's concrete
 substitution. Check its title, opening and filming direction, not just the batch introduction.
+Use a counterfactual check: remove the selected starting input. If the proposed earning or progress
+loop still works unchanged, the input has become a decorative starting balance, not the source's
+causal mechanism. When the source grows its initial input into a renewable supply, the replacement
+must itself establish that supply; independently acquiring a different producer or collecting new
+items elsewhere is not the same dependency. Necessary setup must support that same producer, not
+silently replace it. Check that every required multiplication step is feasible from the stated
+starting quantity. Reject the substitution before core if you cannot explain that dependency.
 Record a compact per-candidate comparison in the existing `overview.portfolio_logic` (candidate ID,
-replacement, progression and unchanged goal); no new schema field is needed. Fix a changed link or
+replacement, why the starting input is necessary, progression and unchanged goal); no new schema field is needed. Fix a changed link or
 missing concrete element within the same authoring pass. Explicitly requested changes belong in
 that comparison and must not be treated as accidental drift. Do not invent a fixed numerical cost
 or resource requirement absent from the source; mark proposed tuning as hypothetical.

@@ -132,6 +132,8 @@ cause the same progression? Judge the item's actual text, not the batch introduc
 A missing value, widened category or changed causal link requires replacing that item before
 writing the complete IdeaSet; a production note asking the creator to choose the input does not
 repair it. Distinct valid substitutions supply variety without changing the fixed mechanism.
+Apply the starting-input counterfactual in `request-boundaries.md`: an opening balance with an
+independent earning loop is not a causal substitution. Setup must not bypass that dependency.
 Record the compact per-item comparison specified in `request-boundaries.md` in the existing
 `overview.portfolio_logic`; do not add a schema field or treat an explicit user change as drift.
 This is the Agent's semantic check within the existing generation budget, not a new script
