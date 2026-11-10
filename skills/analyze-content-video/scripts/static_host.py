@@ -611,6 +611,20 @@ COMPOSITE_TOOLS = {"collect_account_history", "collect_tiktok_video_candidates",
                    "render_official_pages", "collect_video_media"}
 
 
+def failed_composite(value):
+    # 每一项都失败时组合结果整体 status: failed，/mcp-pub 照研究链路的口径同时标 isError，但带着完整的组合结果：
+    # 逐项失败是被取对象的终局（例如上游拒绝下载），照常落盘，交给驱动按缺口降级；不带组合结果的错误才原样报错。
+    structured = value.get("structuredContent")
+    if structured is None:
+        blocks = value.get("content") if isinstance(value.get("content"), list) else []
+        try:
+            structured = json.loads(blocks[0]["text"]) if blocks and isinstance(blocks[0], dict) else None
+        except (KeyError, TypeError, ValueError):
+            return False
+    return (isinstance(structured, dict) and structured.get("schema_version") == COMPOSITE_SCHEMA and
+            structured.get("status") == "failed" and isinstance(structured.get("calls"), list))
+
+
 def composite_result(tool, raw):
     # 整份组合结果的读取，与 complete_result 同一套规矩：大小、工具名、MCP 包装；组合工具只在领域函数抛异常时
     # 才是错误结果，失败与缺口收在 status / limitations 里，所以错误结果一律原样带出报错、不落盘。
@@ -621,7 +635,7 @@ def composite_result(tool, raw):
     value = json.loads(raw)
     if not isinstance(value, dict):
         raise ValueError("Complete MCP result must be an object")
-    if value.get("isError"):
+    if value.get("isError") and not failed_composite(value):
         blocks = value.get("content") if isinstance(value.get("content"), list) else []
         text = " ".join(block["text"] for block in blocks
                         if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)).strip()
