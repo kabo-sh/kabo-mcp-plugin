@@ -2,6 +2,10 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.34（2026-11-10；GitHub Release）
+
+- 内容与 1.0.33 相同，只把声明了 `metadata.version` 的三个 Skill 往上提一版：`optimize-creator-brand` 0.3.24、`plan-content-calendar` 0.1.27（含 schema 里的 `candidate_skill` 常量）、`price-creator-brand-deals` 0.4.14。#152 改了 15 个 Skill 共用的 `static_host.py`，这三个的内容校验和随之变化，而 Web 发布要求声明版本高于线上版本，1.0.33 因此没能发到 Web。
+
 ## 1.0.33（2026-11-10；GitHub Release）
 
 - `research-instagram-trends`：出 Gate 打分表前每条车道最多留 30 条，先收本周窗口内的、再收无发布时间的、窗口外的最后补；以前一条车道 90–100 多条要模型逐条打分，模型不打就收尾，还把没跑的步骤说成「指标补全没完成」（11-07 Web 巡检）。单条引用又没有异常值/前四分之一证据的 pattern 删掉，不换 stage 标签硬凑；没跑的步骤如实说没跑，不归咎上游（#153）。
