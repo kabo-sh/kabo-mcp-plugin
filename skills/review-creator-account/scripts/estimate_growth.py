@@ -350,60 +350,65 @@ def with_snapshot(data, snapshot, source):
     return result
 
 
-def deadline_sentence(timing):
-    if timing["deadline_comparison_to_scenario"] == "lower":
-        return (f"The deadline total is not identified, but it is usually lower than this scenario: most samples were observed "
-                f"older (median {timing['content_age_days']['median']:.1f} days) than any item published in the window can be by its end.")
-    return "Deadline total and whether it is higher or lower than this scenario: not identified by these inputs."
+def deadline_sentence(timing, translate=None):
+    t = translate or (lambda text, *values: text.format(*values))
+    if timing['deadline_comparison_to_scenario'] == 'lower':
+        return t('The deadline total is not identified, but it is usually lower than this scenario: most samples were observed older (median {0:.1f} days) than any item published in the window can be by its end.', timing['content_age_days']['median'])
+    return t('Deadline total and whether it is higher or lower than this scenario: not identified by these inputs.')
 
 
-def render_report(result):
-    """把计算依据、日期、来源与边界完整渲染为交付文本。"""
-    scope = result["scope"]
-    title = f"Conditional estimate: {scope['account']} / {scope['metric']}"
-    if result["status"] == "needs_input":
-        return title + "\n\n" + "\n".join(result["required_inputs"]) + "\nNo numeric estimate or probability is available from these inputs.\n"
-    estimate = result["estimate"]
-    lines = [title, ""]
-    if result["mode"] == "content_scenario":
-        lines.append(f"**{estimate['measurement']} Conditional batch total: {estimate['value']:,.2f}.**")
-        timing = estimate["time_basis"]
-        lines.append(f"Publication plan: {timing['publication_window_days']:g} days. " + deadline_sentence(timing))
-        lines.append("To estimate the deadline: " + " ".join(timing["required_evidence"]))
+def render_report(result, translate=None):
+    t = translate or (lambda text, *values: text.format(*values))
+    scope = result['scope']
+    if result['status'] == 'needs_input':
+        # 缺数据是需要用户补充证据的答复，不是已经算出的估值或待填模板。
+        return (t('Not enough evidence to estimate {0} for {1}.', t(scope['metric']), scope['account'])
+                + '\n\n' + t('Please provide the following for this same target:') + '\n'
+                + '\n'.join('- ' + t(item) for item in result['required_inputs'])
+                + '\n\n' + t('A single or undated snapshot, and earlier assistant predictions, do not establish a growth rate or a month-by-month trajectory.')
+                + t('\nNo numeric estimate or probability is available from these inputs.\n'))
+    title = t('Conditional estimate: {0} / {1}', scope['account'], t(scope['metric']))
+    estimate = result['estimate']
+    lines = [title, '']
+    if result['mode'] == 'content_scenario':
+        lines.append(t('**{0} Conditional batch total: {1:,.2f}.**', estimate['measurement'], estimate['value']))
+        timing = estimate['time_basis']
+        lines.append(t('Publication plan: {0:g} days. ', timing['publication_window_days']) + deadline_sentence(timing, t))
+        lines.append(t('To estimate the deadline: ') + ' '.join(t(item) for item in timing['required_evidence']))
     else:
-        lines.append(f"Conditional value: {estimate['value']:,.2f}")
-    lines.append(f"Formula: {estimate['formula']}")
-    if result["mode"] == "content_scenario":
-        cohort, coverage = result["cohort"], result["coverage"]
-        lines.append(f"Cohort: {cohort['format']}; selection age {cohort['age_min_days']:g}–{cohort['age_max_days']:g} days.")
-        lines.append(f"Sample coverage: {coverage['available']} available, {coverage['missing']} missing values, {coverage['outside_cohort']} outside this cohort.")
-        lines.append("Content evidence:")
-        for row in result["samples"]:
-            lines.append(f"- {row['content_id']}: {row['value']:g}; published {row['published_at']}, observed {row['observed_at']}; source: {row['source']}")
-        plan = result["basis"]["plan"]
-        label = "equivalent new items" if "period" in plan else "new items"
-        lines.append(f"Inputs: median {result['basis']['median_per_content']:g} per item × {plan['posts']:g} {label}.")
-        if "period" in plan:
-            lines.append(f"Publishing frequency: {plan['posts_per_period']:g} per {plan['period']} × {result['horizon_days']:g} days; fractional equivalent counts are not rounded to a calendar posting schedule.")
-        totals = estimate["sensitivity"]
-        levels = result["basis"]["reference_levels"]
-        lines.append("Sensitivity choices at the SAME sample observation ages (not achieved-by-date totals):")
-        for name in ("lower_quartile", "median", "upper_quartile"):
-            lines.append(f"- If each new item matches the observed {name}: {levels[name]:g} per item × {result['basis']['plan']['posts']:g} = {totals[name]:,.2f}.")
+        lines.append(t('Conditional value: {0:,.2f}', estimate['value']))
+    lines.append(t('Formula: {0}', estimate['formula']))
+    if result['mode'] == 'content_scenario':
+        cohort, coverage = (result['cohort'], result['coverage'])
+        lines.append(t('Cohort: {0}; selection age {1:g}–{2:g} days.', cohort['format'], cohort['age_min_days'], cohort['age_max_days']))
+        lines.append(t('Sample coverage: {0} available, {1} missing values, {2} outside this cohort.', coverage['available'], coverage['missing'], coverage['outside_cohort']))
+        lines.append(t('Content evidence:'))
+        for row in result['samples']:
+            lines.append(t('- {0}: {1:g}; published {2}, observed {3}; source: {4}', row['content_id'], row['value'], row['published_at'], row['observed_at'], row['source']))
+        plan = result['basis']['plan']
+        label = t('equivalent new items') if 'period' in plan else t('new items')
+        lines.append(t('Inputs: median {0:g} per item × {1:g} {2}.', result['basis']['median_per_content'], plan['posts'], label))
+        if 'period' in plan:
+            lines.append(t('Publishing frequency: {0:g} per {1} × {2:g} days; fractional equivalent counts are not rounded to a calendar posting schedule.', plan['posts_per_period'], plan['period'], result['horizon_days']))
+        totals = estimate['sensitivity']
+        levels = result['basis']['reference_levels']
+        lines.append(t('Sensitivity choices at the SAME sample observation ages (not achieved-by-date totals):'))
+        for name in ('lower_quartile', 'median', 'upper_quartile'):
+            lines.append(t('- If each new item matches the observed {0}: {1:g} per item × {2:g} = {3:,.2f}.', name, levels[name], result['basis']['plan']['posts'], totals[name]))
     else:
-        lines.append(f"Inputs: baseline {estimate['baseline']:g} + daily net change {result['basis']['per_day']:g} × {result['horizon_days']:g} days.")
-        observations = result["observations"]
-        lines.append(f"Baseline observed at: {observations[-1]['observed_at']}; the projection runs {result['horizon_days']:g} days after this observation, not after today.")
-        if result["mode"] == "observed_pace":
-            lines.append(f"Observed window: {observations[0]['observed_at']} to {observations[-1]['observed_at']} ({result['basis']['elapsed_days']:g} days).")
-        lines.append("Dated source observations:")
+        lines.append(t('Inputs: baseline {0:g} + daily net change {1:g} × {2:g} days.', estimate['baseline'], result['basis']['per_day'], result['horizon_days']))
+        observations = result['observations']
+        lines.append(t('Baseline observed at: {0}; the projection runs {1:g} days after this observation, not after today.', observations[-1]['observed_at'], result['horizon_days']))
+        if result['mode'] == 'observed_pace':
+            lines.append(t('Observed window: {0} to {1} ({2:g} days).', observations[0]['observed_at'], observations[-1]['observed_at'], result['basis']['elapsed_days']))
+        lines.append(t('Dated source observations:'))
         for row in observations:
-            lines.append(f"- {row['observed_at']}: {row['value']:g}; source: {row['source']}")
-        if result["mode"] == "assumed_pace":
-            lines.append(f"User-supplied rate quote: {result['basis']['request_binding']['quote']}")
-    lines += ["", "Assumptions:"] + [f"- {text}" for text in result["assumptions"]]
-    lines += ["", "Limits:"] + [f"- {text}" for text in result["limitations"]]
-    return "\n".join(lines) + "\n"
+            lines.append(t('- {0}: {1:g}; source: {2}', row['observed_at'], row['value'], row['source']))
+        if result['mode'] == 'assumed_pace':
+            lines.append(t('User-supplied rate quote: {0}', result['basis']['request_binding']['quote']))
+    lines += ['', t('Assumptions:')] + [t('- {0}', t(text)) for text in result['assumptions']]
+    lines += ['', t('Limits:')] + [t('- {0}', t(text)) for text in result['limitations']]
+    return '\n'.join(lines) + '\n'
 
 
 def review_evidence(data, snapshot, source):

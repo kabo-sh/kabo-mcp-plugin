@@ -1476,7 +1476,10 @@ def main() -> int:
     idea_set_parser.add_argument("idea_set", type=Path)
     idea_set_parser.add_argument("request", type=Path)
     idea_set_parser.add_argument("--report", type=Path, help="Return the unchanged rendered Creator report after validation")
+    idea_set_parser.add_argument("--deliver", action="store_true", help="Emit the checked report as the verbatim final-answer payload; requires --report")
     args = parser.parse_args()
+    if getattr(args, "deliver", False) and not args.report:
+        parser.error("--deliver requires --report")
 
     try:
         if args.command in {"request", "decision"}:
@@ -1510,7 +1513,28 @@ def main() -> int:
         except (OSError, UnicodeError, ValueError) as error:
             print(f"ERROR: cannot deliver validated report: {error}", file=sys.stderr)
             return 1
+        if args.deliver:
+            # 交付元数据先于正文；完整性信息只用于宿主转交，不替代内容校验。
+            import hashlib
+            from report_language import report_language
+            try:
+                language = report_language(request)
+            except ValueError as error:
+                print(f"ERROR: cannot deliver validated report: {error}", file=sys.stderr)
+                return 1
+            print(json.dumps({"delivery_ready": True, "response_mode": "verbatim", "report_language": language,
+                              "candidate_count": len(idea_set.get("ideas") or []),
+                              "characters": len(report), "sha256": hashlib.sha256(report.encode("utf-8")).hexdigest()}, ensure_ascii=False))
+            print("The final answer is already written below. Copy the entire payload, without these markers. "
+                  "Do not write an introduction, shorten, translate or append another answer. "
+                  "Every candidate retains its opening line and making direction. "
+                  "If truncated, read the same report file completely before replying.")
+            print("KABO_FINAL_REPLY_BEGIN")
         print(report, end="")
+        if args.deliver:
+            if not report.endswith("\n"):
+                print()
+            print("KABO_FINAL_REPLY_END")
         return 0
     print(f"VALID {args.command}")
     return 0

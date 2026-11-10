@@ -77,9 +77,30 @@ ZH_TEXT = {
 }
 
 
+# 固定标签在渲染时选择语言，交付后不再让模型翻译整篇报告。
+AR_TEXT = {
+    "scope_limits": "النطاق والقيود: ", "window": "الفترة: {start}–{end}",
+    "window_start": "بداية الفترة: {value}", "window_end": "نهاية الفترة: {value}",
+    "scope_separator": "؛ ", "works": "ما يعمل جيدًا", "hurts": "ما يعيق الحساب",
+    "next": "الخطوات التالية", "next_primary": "ابدأ بهذا", "next_tests": "ما يستحق الاختبار",
+    "next_stop": "ما ينبغي تأجيله", "criterion": "معيار النجاح",
+    "evidence_views": ("{value} مشاهدة", "{value} مشاهدة"),
+    "evidence_likes": ("{value} إعجاب", "{value} إعجاب"),
+    "evidence_comments": ("{value} تعليق", "{value} تعليق"),
+    "evidence_interact": "التفاعلات لكل مشاهدة {value:.2f}%",
+    "multiple": "{value:.2f} ضعف وسيط لقطة الحساب لنفس الصيغة؛ نسبة أعداد تراكمية وليست مقارنة أداء عند نفس العمر منذ النشر",
+    "provisional_format": "تصنيف قصير/طويل مستنتج من المدة وليس تصنيف المنصة",
+    "published_at": "نُشر في {value}",
+    "too_recent": "أحدث من حد العمر المرجعي {value}؛ الأعداد التراكمية ليست مقارنة عند نفس العمر منذ النشر",
+    "maturity_unavailable": "لا يوجد أساس مقارنة بعمر متكافئ؛ أعداد تراكمية فقط",
+    "identity_bio": "تقول النبذة العامة: «{bio}».", "identity_followers": "نحو {followers} متابع علني.",
+}
+
+
 def language_text(language: str) -> dict[str, Any]:
-    # Other valid BCP-47 tags retain English artifact labels; delivery may translate
-    # fixed descriptions only, preserving all analytical strings and evidence.
+    # 只本地化固定呈现；引用原题、数字、来源和模型已写的语义正文保持不变。
+    if language.lower().split("-")[0] == "ar":
+        return AR_TEXT
     return ZH_TEXT if language.lower() in {"zh", "zh-cn", "zh-sg", "zh-hans", "zh-hans-cn", "zh-hans-sg"} else TEXT
 
 
@@ -133,6 +154,14 @@ ZH_PLATFORM_STATUS_CHECK = {
     "youtube": "YouTube 按视频显示明确状态。先在 YouTube Studio → Content → Restrictions 中逐条检查表现较弱的视频是否有版权、年龄或变现限制；同频道其他视频表现较好，不能排除该条受限。",
     "tiktok": "TikTok 按视频显示明确的推荐状态。先在 Analytics → Performance 中逐条检查表现较弱的视频是否有不适合进入推荐页的提示及申诉入口；同账号其他视频表现较好，不能排除该条受限。",
     "instagram": "Instagram 的推荐资格在账号级「账号状态」中显示。先打开设置 → 账号 → 账号状态，检查推荐资格、功能限制及被移除内容，再解读帖子表现。",
+}
+
+
+AR_PLATFORM_STATUS_CHECK = {
+    "title": "استبعد قيود المنصة أولًا",
+    "youtube": "تعرض YouTube حالة صريحة لكل فيديو. افحص كل فيديو ضعيف الأداء في YouTube Studio → Content → Restrictions بحثًا عن قيود حقوق النشر أو العمر أو تحقيق الربح؛ أداء فيديوهات أخرى أفضل لا ينفي هذه القيود.",
+    "tiktok": "تعرض TikTok حالة التوصية لكل فيديو. افحص Analytics → Performance بحثًا عن إشعار عدم الأهلية لصفحة For You وخيار الاستئناف؛ أداء فيديوهات أخرى أفضل لا ينفي وجود قيد على هذا الفيديو.",
+    "instagram": "أهلية التوصية في Instagram تظهر على مستوى الحساب في Account Status. افتح Settings → Account → Account Status وافحص أهلية التوصية وقيود الميزات والمحتوى المحذوف قبل تفسير أداء المنشورات.",
 }
 
 
@@ -485,13 +514,17 @@ def render_markdown(report: dict[str, Any], output_language: str = "en") -> str:
         lines += [scope_limits, ""]
     if should_show_platform_status(report):
         platform = report["scope"]["platform"]
-        status_text = ZH_PLATFORM_STATUS_CHECK if text is ZH_TEXT else PLATFORM_STATUS_CHECK
+        status_text = (AR_PLATFORM_STATUS_CHECK if text is AR_TEXT else
+                       ZH_PLATFORM_STATUS_CHECK if text is ZH_TEXT else PLATFORM_STATUS_CHECK)
         lines += [f"## {status_text['title']}", "", status_text[platform], ""]
     view_counts = {row["format"]: row.get("metrics", {}).get("views", {}).get("available_n", 0)
                    for row in report["baselines"]}
     # 公开累计快照不证明内容优劣；固定章节标题也必须遵守相同边界。
     if report["scope"].get("source_mode", "").startswith("public"):
-        headings = (("Public content observations", "what_works"), ("Questions to test", "what_hurts"))
+        labels = (("ملاحظات من المحتوى العام", "أسئلة للاختبار") if text is AR_TEXT else
+                  ("公开内容观察", "待验证的问题") if text is ZH_TEXT else
+                  ("Public content observations", "Questions to test"))
+        headings = ((labels[0], "what_works"), (labels[1], "what_hurts"))
     else:
         headings = ((text["works"], "what_works"), (text["hurts"], "what_hurts"))
     for title, key in headings:

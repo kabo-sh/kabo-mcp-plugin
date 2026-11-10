@@ -12,6 +12,12 @@ Turn validated upstream artifacts or an explicit topic into an IdeaSet of distin
 ideas. The schemas, builders, validators and renderers ship in this Skill's `references/` and
 `scripts/`.
 
+**Finish the procedure before answering.** Prep's `ok` means inputs are ready, not that ideas
+passed validation. Author every required field of every candidate, run core, use its one permitted
+revision when requested, then run the final report check and deliver its complete `RESULT.md`.
+A list of titles/hooks written directly in chat is not a substitute, even for a brief-only request
+or a larger batch. Read [delivery-state.md](references/delivery-state.md) before the first stage.
+
 When the host supports one, run this Skill in a foreground sub-agent, because a run has several
 stages, and wait for its final result before replying; never run it in the background and tell the
 user the report will come later. Without a foreground sub-agent, follow the same steps in the main
@@ -46,7 +52,13 @@ or objective. Repeating the fixed scaffold is required here, not a near-duplicat
 Judge variety only within the permitted slots; do not reward a different mechanism as
 "differentiation". Follow *Continuations* in `references/core-generation.md`.
 
-**Delivery.** The deliverable is `RESULT.md` at the run root, and only after core reports
+**Delivery is a copy operation, not another writing step.** The final script emits a complete
+`KABO_FINAL_REPLY_BEGIN` / `KABO_FINAL_REPLY_END` payload in `report_language`. Your next response
+is that entire payload, unchanged, without the markers. Do not introduce it, translate it, select
+sections or write a shorter version. Set the user's requested language before generating the
+IdeaSet; language corrections belong before core validation, never after it.
+
+The deliverable is `RESULT.md` at the run root, and only after core reports
 `status="ok"` and the final check passes. Read it completely (every chunk when the host pages) and
 copy it exactly to the reply, once: never summarize, rewrite, reorder or retype its numbers, and
 never append a second paraphrased report. `IDEA_REPORT_FULL.md` is audit-only and never delivered.
@@ -157,7 +169,7 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    running core again or consuming another generation attempt:
 
    ```sh
-   cd '<run directory>' && python3 '<skill directory>/scripts/validate_ideas.py' idea-set idea_set.json request.json --report RESULT.md
+   cd '<run directory>' && python3 '<skill directory>/scripts/validate_ideas.py' idea-set idea_set.json request.json --report RESULT.md --deliver
    ```
 
    This is the final step; its deliverable is `RESULT.md` at the run root, not under `report/`.

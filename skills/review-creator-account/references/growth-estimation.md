@@ -10,6 +10,9 @@ For a continuation, inspect the last completed user request and its answer. Exte
 account or post; a change of time horizon does not request both. Resolve a pronoun through that
 answer, not an older account table. Name the selected target first. Clarify only genuinely
 ambiguous scope. Earlier assistant forecasts are claims to correct, never source observations.
+Read relevant attached history beyond previews as [forecast-context.md](forecast-context.md)
+specifies. Preserve the last user-specified horizon when this turn changes only the requested
+confidence or presentation; do not re-ask a period already present in that history.
 
 Identify each requested metric as cumulative stock, period total or new-content performance.
 A post's lifetime count is not its future growth; an account snapshot is not monthly growth.
@@ -62,9 +65,27 @@ Chinese/English day/week binding, without rewriting the user's quote or metric t
 
 ## 4. Compute and deliver one complete reply
 
-Save `forecast_scope.json` with `platform`, the selected `target`, the verbatim target-setting
-`request_quote`, and its resolved `reference`. Every input must use that same target. This checks
+Save `forecast_scope.json` with exactly four nonempty string fields: `platform`, the selected
+`target`, the verbatim target-setting `request_quote`, and its resolved `reference`. Do not put
+`horizon_days`, metrics or schema metadata in this file; they belong to the calculation inputs
+or the missing-input command flags. Every input must use that same target. This checks
 consistency, not the correctness of the model's interpretation.
+
+When a cumulative metric has no usable dated observations and no valid explicit user rate, use
+this direct missing-input command. It builds `growth-input.v1`, `observed_pace` and the matching
+scope internally; do not invent a mode such as `missing_data` or hand-author another empty input.
+
+```sh
+python3 '<skill directory>/scripts/compose_forecast_reply.py' --scope-file '<run directory>/forecast_scope.json' --missing-metric <subscribers|followers|views|likes|comments> --horizon-days <resolved days> --report-language <requested-language-tag> --output '<run directory>/FORECAST_REPLY.md'
+```
+
+Repeat `--missing-metric` for each missing cumulative metric, and add `--correct-prior` if earlier
+unsupported forecasts exist. Use the resolved horizon, not a default. This path gives no numeric
+estimate and requests actual dated counts; it does not label an undated snapshot as dated.
+It is not a substitute for existing usable observations or an explicit user rate: those still
+use the full inputs below. An independently supported metric can be included with `--input` in
+the same command; never discard it to make every metric missing. Do not use this shortcut for
+period totals or new-content batch scenarios.
 
 For a missing stock baseline, use `assumed_pace` with `observations: []` if a valid user rate exists;
 otherwise use `observed_pace` with `observations: []`. The calculator returns `needs_input` and asks
@@ -72,7 +93,7 @@ only for missing inputs. Unsupported metric contracts get an honest limitation, 
 input. Do not fabricate rows to obtain a number. Keep supported metrics alongside these gaps.
 
 ```sh
-python3 '<skill directory>/scripts/compose_forecast_reply.py' --scope-file '<run directory>/forecast_scope.json' --input '<first-input.json>' --input '<next-input.json>' --question-file '<original-question.txt>' --output '<run directory>/FORECAST_REPLY.md'
+python3 '<skill directory>/scripts/compose_forecast_reply.py' --scope-file '<run directory>/forecast_scope.json' --input '<first-input.json>' --input '<next-input.json>' --question-file '<original-question.txt>' --report-language <requested-language-tag> --output '<run directory>/FORECAST_REPLY.md'
 ```
 
 Use one `--input` per requested metric/horizon, recomputed through `estimate_growth.py`. Add
@@ -81,10 +102,25 @@ standalone stock command. Add `--correct-prior` only for actual earlier unsuppor
 An invalid input is a correction to make, not permission to bypass the calculation.
 
 The final reply is the complete text between `KABO_FORECAST_REPLY_BEGIN` and
-`KABO_FORECAST_REPLY_END`; translate fixed labels if needed. Keep values, target, dates, sources,
+`KABO_FORECAST_REPLY_END`; copy it verbatim, without translating after validation. Keep values, target, dates, sources,
 formula, assumptions, missingness and limits. Do not replace it with another numeric scenario,
 historical reference table or promise. Missing-input results are a complete answer to what can
 be calculated now; no invented forecast is needed to fill a table.
 
 Inside a complete review, retain the review/funnel findings and use the separate handoff rules
 in [growth-review-workflow.md](growth-review-workflow.md), including `needs_input` stock results.
+
+## Output language is decided before the final command
+
+Use the current user's requested reply language, otherwise the language of their current question;
+do not inherit another language from historical attachments. Pass `--report-language en` for English.
+The composer, not a second model-written response, owns the final text.
+
+For another language, supply `--translations-file reply-translations.json` alongside that tag:
+`{"report_language":"<tag>","strings":{"<English template>":"<translated template>"}}`.
+Translate each fixed template named by the composer's combined diagnostic, preserving each numbered
+placeholder (such as `{0}`, `{1:g}`), occurrence count and numeric format exactly. The script inserts
+actual targets, values, dates, source quotes and formulae afterwards; never insert new facts into
+labels. This validates template structure, not translation meaning. Missing or malformed translations
+produce no deliverable. Correct the catalog before retrying the same composition, not by translating
+the output in the final reply. The calculation inputs and boundaries remain unchanged.

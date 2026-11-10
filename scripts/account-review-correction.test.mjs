@@ -108,8 +108,8 @@ def capture(call):
     with contextlib.redirect_stdout(out):call()
     text=out.getvalue()
     assert text.count("KABO_FINAL_REPLY_BEGIN") == text.count("KABO_FINAL_REPLY_END") == 1, text
-    assert text.split("KABO_FINAL_REPLY_BEGIN\n",1)[1].split("\nKABO_FINAL_REPLY_END",1)[0] == body.rstrip()
-    assert text.rstrip().endswith("creator_report: " + str(Path("report/ACCOUNT_REVIEW.md").resolve()))
+    assert text.split("KABO_FINAL_REPLY_BEGIN\n",1)[1].split("\nKABO_FINAL_REPLY_END",1)[0] == body.rstrip()+"\n\ncreator_report: " + str(Path("report/ACCOUNT_REVIEW.md").resolve())
+    assert text.rstrip().endswith("KABO_FINAL_REPLY_END")
     assert "Final-reply checklist:" not in text, "do not leak an internal checklist into creator replies"
     assert "validate_delivery.py" not in text, "delivery must not add a step after the existing final command"
 capture(lambda: drive.stage_report(SimpleNamespace(output_dir="report",allow_authoring_correction=True)))

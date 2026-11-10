@@ -39,6 +39,21 @@ def synthesis(ids, kind='public_observation'):
         recommendations={'continue':[],'stop':[],'test':[{'action':'Measure linked inquiries and orders.'}]},profile={},data_gaps=['No orders supplied.'])
 
 class EvidenceTests(unittest.TestCase):
+    def test_arabic_report_labels_preserve_evidence_and_authored_text(self):
+        a=fixture();s=synthesis(['young','mature']);s['output_language']='ar'
+        s['headline']='مراجعة الحساب';s['diagnosis']='لا توجد بيانات طلبات.'
+        s['what_hurts'][0]['pattern']='صياغة تحتاج اختبارًا'
+        s['what_hurts'][0]['explanation']='هذه ملاحظة عن النص وليست سببًا مثبتًا لتغير المبيعات.'
+        report,profile,markdown=compose(a,s)
+        from validate_creator_report import validate as validate_markdown
+        validate(a,s,report,profile);validate_markdown(report,s,markdown)
+        for value in (s['headline'],s['diagnosis'],s['what_hurts'][0]['explanation'],
+                      'https://example.com/young','https://example.com/mature','20','200',
+                      '2026-10-31T12:00:00Z','أعداد تراكمية','أسئلة للاختبار','الخطوات التالية'):
+            self.assertIn(value,markdown)
+        self.assertNotIn('Questions to test',markdown)
+        self.assertNotIn('younger than the baseline cutoff',markdown)
+
     def test_cutoff_and_timezone(self):
         a=fixture();p=baseline_maturity_context(a)['by_format'][0]
         self.assertEqual(p['cutoff_at'],'2026-10-19T14:00:59+00:00')
