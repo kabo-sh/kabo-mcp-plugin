@@ -133,6 +133,10 @@ the schemas it printed, and do not re-run the scripts it ran. Allow each `drive.
 180 s when the shell tool lets you choose, let a long table print in full, and never start a stage a
 second time while it runs. A `needs_correction` answer (exit 0) is unfinished authoring: correct only
 what it names, once, and follow its `next_stage`. Once collection starts, the Request is immutable.
+A printed Gate table is your turn to score, never a stopping point. If a run ends before a stage ran,
+report exactly that (for example "the Gate scores were not written, so enrichment never ran"); never
+attribute an unexecuted stage to a tool or upstream service, or call a stage that printed its output
+incomplete.
 
 1. **Start.** Run `drive.py start --post '<the Reel URL as the user gave it>'` when the ask supplies
    a Reel or post URL, `drive.py start --profile '<the saved profile file>'` with a saved profile,
@@ -153,7 +157,8 @@ what it names, once, and follow its `next_stage`. Once collection starts, the Re
    `drive.py discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>] --question-file -`.
    It freezes the window once, validates the plan per lane, hands over one
    `collect_instagram_trend_candidates` call per lane, places and binds the results, and prints the
-   relevance Gate table. When the relevance lane returned no candidates at all, `discover` stops
+   relevance Gate table, at most 30 candidates per lane (in the request window first, then best search rank
+   and discovery heat; the collected total stays in coverage). When the relevance lane returned no candidates at all, `discover` stops
    with `gate input has no items to score` and this run cannot build a report: tell the user that
    no public Reels were found for these searches in this window, and suggest a broader or
    differently worded niche as a new request. Do not recollect in this run.
