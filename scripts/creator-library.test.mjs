@@ -323,12 +323,13 @@ test("每日精选：只收样本够且至少 2 倍的爆款，按支柱各保�
   await writeFile(confirmed, JSON.stringify({ confirmed: true, niche: "n", niche_source: "creator",
     pillars: [pillar("breakdowns", ["viral breakdown", "why it worked", "hook teardown"]), pillar("charisma", ["charisma tips", "camera confidence", "speak better"])] }));
   run("save-pillars", "--library", library, "--file", confirmed);
-  // 检索请求：每个支柱的第一条检索词优先，一共最多 6 条意图；YouTube 最多 2 条。
+  // 检索请求：一个支柱一条检索词、轻量预算（上游调用数等于意图数）；YouTube 最多 2 条。
   const request = run("pick-request", "--library", library, "--language", "en");
   assert.equal(request.platform, "instagram");
   assert.equal(request.window, "last-week");
   assert.equal(request.language, "en");
-  assert.deepEqual(request.intents.map(row => row.intent_id), ["breakdowns.1", "charisma.1", "breakdowns.2", "charisma.2", "breakdowns.3", "charisma.3"]);
+  assert.deepEqual(request.intents.map(row => row.intent_id), ["breakdowns.1", "charisma.1"]);
+  assert.deepEqual(request.budget, { search_pages_per_intent: 1, popular_pages_per_intent: 1, challenger_pages_per_intent: 0, max_provider_calls: 2, max_candidates: 100 });
   assert.equal(request.delivery, "download");
   const youtube = run("pick-request", "--library", library, "--platform", "youtube");
   assert.deepEqual(youtube.intents, [{ intent_id: "breakdowns.1", query: "viral breakdown" }, { intent_id: "charisma.1", query: "charisma tips" }]);
@@ -351,6 +352,8 @@ test("每日精选：只收样本够且至少 2 倍的爆款，按支柱各保�
   assert.match(day1.picks[0].remake, /talking-head or voice-over video \(40 seconds long\)/);
   assert.match(day1.picks[1].remake, /unknown length: possible only if/);
   assert.match(refuse("pick", "--library", library, "--enrichment", enrichment, "--date", "2026-10-21", "--write").stderr, /already recorded/);
+  // 推荐过一天之后，检索词轮到每个支柱的下一条。
+  assert.deepEqual(run("pick-request", "--library", library).intents.map(row => row.intent_id), ["breakdowns.2", "charisma.2"]);
   // 同一天再跑（定时任务重试）：直接取回已记录的精选，不再检索。
   assert.deepEqual(run("picks", "--library", library, "--date", "2026-10-21").picks.map(pick => pick.content_key), ["instagram:a1", "instagram:c1", "instagram:a3"]);
   assert.equal(run("picks", "--library", library, "--date", "2026-10-23").picks, null);

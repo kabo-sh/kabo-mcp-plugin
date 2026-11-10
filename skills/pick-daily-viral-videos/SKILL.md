@@ -71,8 +71,9 @@ Print the request for the library's platform and make one call with it, unchange
 cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' pick-request --library '<library directory>'
 ```
 
-It is `collect_instagram_trend_candidates` for Instagram (always the default, up to 6 searches taken
-from the pillars' queries), and `collect_youtube_trend_candidates` only when the library's
+It is `collect_instagram_trend_candidates` for Instagram (always the default: one search per pillar,
+two when there is a single pillar, rotating through each pillar's queries from day to day, with a
+small budget so the call returns quickly), and `collect_youtube_trend_candidates` only when the library's
 platform is YouTube (YouTube search has a small shared daily limit, so other creators get
 Instagram candidates only). Each `intent_id` is the pillar id, a dot and a number, so every pick can
 be traced back to its pillar. Then fetch the result by its id (the 22 characters between
@@ -86,7 +87,7 @@ When the result has no download url, save it whole to `host-results/01-<tool>.js
 (with the host's file-write tool) and use `--input` with that file; when `fetch` reports no ready
 download, run it with `stage`. A refused result ("MCP error contains no terminal connector
 evidence: …") is a failed call: an invalid input is never retried unchanged; a rate limit, server
-error or empty answer gets one retry. `status: partial` is usable: say the search was partial.
+error, timeout or empty answer gets one retry with the same arguments. `status: partial` is usable: say the search was partial.
 
 ```sh
 cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' evidence --dir snapshot/.host-evidence
@@ -95,7 +96,7 @@ cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' c
 
 ## 3. Score the candidates
 
-From the candidates, select up to 40 that plausibly match a pillar and score each 0 to 100 on three
+From the candidates, select up to 20 that plausibly match a pillar and score each 0 to 100 on three
 scales. Score in bands; do not fine-tune numbers inside a band.
 
 - `topic_relevance`: does it deliver the same subject and promise as one of the pillar definitions?

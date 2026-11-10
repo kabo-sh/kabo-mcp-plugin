@@ -1032,14 +1032,22 @@ def cmd_pick_request(args):
     language = (library.get("profile") or {}).get("language") or args.language
     platform = args.platform or library["platform"]
     if platform == "instagram":
-        # 每个支柱的第一条检索词优先，再轮流补第二、第三条，一共最多 6 条意图。
+        # 每天一次的轻量检索：一个支柱一条检索词（只有一个支柱时取两条），按已推荐过的天数轮换检索词。
+        # 六条意图加默认预算要 12 次上游调用，实测会超过宿主的工具超时；这里与短窗口检索同一档预算，
+        # 每条意图只取一页搜索结果，上游调用数等于意图数。
+        picks = read_json(Path(args.library) / "picks.json", {"days": {}})
+        turn = len(picks.get("days") or {})
         intents = []
-        for round_index in range(3):
-            for pillar in pillars:
-                queries = pillar["search_queries"]
-                if round_index < len(queries) and len(intents) < 6:
-                    intents.append({"intent_id": f"{pillar['id']}.{round_index + 1}", "search_query": queries[round_index]})
-        request = {"platform": "instagram", "window": "last-week", "intents": intents, "delivery": "download"}
+        per_pillar = 2 if len(pillars) == 1 else 1
+        for pillar in pillars[:MAX_PILLARS]:
+            queries = pillar["search_queries"]
+            for step in range(min(per_pillar, len(queries))):
+                index = (turn + step) % len(queries)
+                intents.append({"intent_id": f"{pillar['id']}.{index + 1}", "search_query": queries[index]})
+        request = {"platform": "instagram", "window": "last-week", "intents": intents,
+                   "budget": {"search_pages_per_intent": 1, "popular_pages_per_intent": 1, "challenger_pages_per_intent": 0,
+                              "max_provider_calls": len(intents), "max_candidates": 100},
+                   "delivery": "download"}
     elif platform == "youtube":
         # YouTube 检索有全站每日上限：最多 2 条意图，各取支柱的第一条检索词。
         until = now_utc().replace(microsecond=0)
