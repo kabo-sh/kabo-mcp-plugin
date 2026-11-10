@@ -62,11 +62,13 @@ Before any tool call, say this in the creator's language, in about five short li
 between sessions (the creator's project or home workspace), the one later runs will use.
 
 ```sh
+mkdir -p '<workspace>'
 python3 '<skill directory>/scripts/static_host.py' init --workspace '<workspace>'
 python3 '<skill directory>/scripts/creator_library.py' path --workspace '<workspace>' --platform <platform> --handle '<handle>'
 ```
 
-The first prints the run directory, the second the library directory. Many hosts keep neither
+The first creates the workspace when it is new (`init` fails on a folder that does not exist), the
+second prints the run directory, the third the library directory. Many hosts keep neither
 environment variables nor the working directory between commands, so every command that touches
 the run starts with `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>'`. Every command
 here is complete as written: do not run scripts with `--help` or read their source. Quote paths.

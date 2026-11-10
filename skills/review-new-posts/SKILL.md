@@ -37,12 +37,14 @@ replying; never run it in the background and promise the result later.
 holds the library.
 
 ```sh
+mkdir -p '<workspace>'
 python3 '<skill directory>/scripts/creator_library.py' path --workspace '<workspace>' --platform <platform> --handle '<handle>'
 python3 '<skill directory>/scripts/creator_library.py' show --library '<library directory>'
 python3 '<skill directory>/scripts/static_host.py' init --workspace '<workspace>'
 ```
 
-The first prints the library directory, the last the run directory. Start every command that
+The first creates the workspace when the host kept no files, the second prints the library
+directory, the last the run directory. Start every command that
 touches the run with `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>'`. Commands here
 are complete as written: do not run scripts with `--help` or read their source. Quote paths.
 
