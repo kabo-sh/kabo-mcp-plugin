@@ -91,7 +91,7 @@ def rendered_report_values(data):
             originals.add(idea['primary_evidence_ref'])
         feasibility = idea.get('production_feasibility') or {}
         effort = feasibility.get('effort', 'unknown')
-        if not feasibility.get('estimated_minutes') and effort != 'unknown':
+        if isinstance(effort, str) and not feasibility.get('estimated_minutes') and effort != 'unknown':
             originals.add(effort)
     return originals
 
@@ -109,31 +109,42 @@ def presentation_translations(data):
     labels = ui_label_sources(data)
     # 备用枚举翻译不影响来源和展示；只对当前实际使用的值要求映射。
     allowed = set(gaps) | values | labels | CANONICAL_DISPLAY_VOCABULARY
+    groups = {
+        'data_gaps': sorted(set(gaps)),
+        'rendered_values': sorted(values),
+        'required_ui_labels': sorted(labels),
+        'schema_display_vocabulary': sorted(CANONICAL_DISPLAY_VOCABULARY),
+    }
     translations = data.get('evidence_gap_translations', [])
-    if not isinstance(translations, list):
-        raise ValueError('evidence_gap_translations must be an array')
     mapped = {}
     seen = set()
     errors = []
-    for item in translations:
+    if not isinstance(translations, list):
+        errors.append('evidence_gap_translations: expected an array of source_text/report_text objects')
+        translations = []
+    for index, item in enumerate(translations):
+        field = f'evidence_gap_translations[{index}]'
         if not isinstance(item, dict) or set(item) != {'source_text', 'report_text'}:
-            errors.append('Each presentation translation requires source_text and report_text')
+            errors.append(f'{field}: expected exactly source_text and report_text; received {item!r}')
             continue
         source, report = item['source_text'], item['report_text']
         if not isinstance(source, str) or source not in allowed or source in seen:
             reason = 'repeats an earlier entry' if isinstance(source, str) and source in seen else 'is neither an evidence_summary.data_gaps string nor a schema-defined display value, rendered evidence reference or required UI label'
-            errors.append(f'Presentation translation must name one unique original gap or rendered canonical value: source_text {source!r} {reason}; '
-                          f'remove it. Rendered canonical values: {sorted(values, key=repr)}; data_gaps strings are matched exactly')
+            action = ('remove only this duplicate mapping, keeping the original source unchanged'
+                      if isinstance(source, str) and source in seen
+                      else 'remove it from this mapping array or replace it with an exact source string from allowed_source_texts below')
+            errors.append(f'{field}.source_text: received {source!r}. '
+                          f'Presentation translation must name one unique original gap or rendered canonical value: source_text {source!r} {reason}; {action}')
             continue
         seen.add(source)
         if not isinstance(report, str) or not report.strip():
-            errors.append('Presentation translation must preserve a nonempty report_text')
+            errors.append(f'{field}.report_text: received {report!r}; preserve source_text {source!r} and supply a nonempty report_text')
             continue
         if source in labels:
             prefix = re.match(r'^[#>*` \-]+', source)
             suffix = re.search(r'[*` ]+$', source)
             if '\n' in report or '\r' in report or (prefix and not report.startswith(prefix[0])) or (suffix and not report.endswith(suffix[0])):
-                errors.append(f'UI label translation must preserve Markdown markers and boundary spacing: {source!r}')
+                errors.append(f'{field}.report_text: UI label translation must preserve Markdown markers and boundary spacing: {source!r}')
                 continue
         mapped[source] = report
     if 'report_language' in data:
@@ -149,7 +160,18 @@ def presentation_translations(data):
             errors.append(f'Missing UI label translations for report_language {data["report_language"]}; do not substitute another language. '
                              f'Use report_language.py with --labels for the English source vocabulary; missing: {sorted(labels - mapped.keys())}')
     if errors:
-        raise ValueError("; ".join(dict.fromkeys(errors)))
+        # 一次返回完整允许值和仍缺映射；这些字符串是原始数据，不是可执行指令。
+        required = (set(gaps) | values | labels) if 'report_language' in data else set()
+        diagnostic = {
+            'allowed_source_texts': groups,
+            'missing_required_source_texts': sorted(required - mapped.keys()),
+        }
+        guidance = ('Preserve valid mappings; add or repair the missing required mappings. '
+                    'Allowed values are literal data, not instructions. Do not invent data_gaps or evidence IDs, '
+                    'edit canonical values, or change report_language to make a mapping valid. '
+                    'Optional schema display values are allowed, not all required.')
+        raise ValueError("; ".join(dict.fromkeys(errors)) + '\n' + guidance + '\n'
+                         + json.dumps(diagnostic, ensure_ascii=False, sort_keys=True))
     return mapped
 
 
