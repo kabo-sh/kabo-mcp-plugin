@@ -358,3 +358,37 @@ test("watch_media.py 的交接是 Web 宿主读得懂的写法：两轮都由宿
   await readFile(path.join(run, "watch_outcomes.json"), "utf8");
   await assert.rejects(readFile(path.join(stray, "watch_outcomes.json"), "utf8"));
 });
+
+// 2026-11 线上：YouTube 整批上游拒绝下载（"Sign in to confirm you're not a bot"），每个媒体 job 都失败，
+// 组合结果整体 status: failed，/mcp-pub 同时标 isError。续跑曾把它当「没有组合结果」退出 1；应照常落盘、
+// 记为 jobs_failed，并说明只用目录数字继续，不能停在看片这一步。
+test("看片整批上游失败：标 isError 的 failed 组合结果照常落盘，降级为只用目录数字继续，不退出 1", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-deep-media-failed-"));
+  t.after(() => rm(workspace, { recursive: true, force: true }));
+  const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  await writeFile(path.join(run, "account_analysis.json"), JSON.stringify(analysis));
+  const first = python("watch_media.py", ["account_analysis.json"], { cwd: run, run });
+  assert.equal(first.code, 0, first.out);
+  const args = calls(first.out)[0].arguments;
+  const blocked = "ERROR: [youtube] Sign in to confirm you're not a bot";
+  const result = composite(args);
+  for (const job of result.summary.jobs) { job.status = "failed"; job.attempt = 2; }
+  for (const call of result.calls) {
+    call.attempts = 2;
+    const { data, ...rest } = call.result;
+    call.result = { ...rest, status: "failed", error_code: "upstream_unavailable", summary: blocked, limitations: [blocked],
+      evidence_ref: null, raw_sha256: null };
+  }
+  Object.assign(result, { status: "failed" });
+  Object.assign(result.summary, { terminal: result.calls.length, usable: 0, failed: result.calls.length });
+  await writeFile(saveOf(first.out), JSON.stringify({ content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result, isError: true }));
+  const resumed = shell(resumeOf(first.out));
+  assert.equal(resumed.code, 0, resumed.out);
+  assert.match(resumed.out, /"status": "watched", "pending_jobs": 0, "watched_count": 0/);
+  assert.match(resumed.out, /No video could be watched: .*Sign in to confirm you're not a bot.*continue with step 4/);
+  assert.equal(reads(resumed.out).length, 0);
+  assert.match(resumed.out, /Authoring packet/);
+  const outcomes = JSON.parse(await readFile(path.join(run, "watch_outcomes.json"), "utf8"));
+  assert.equal(outcomes.watched_count, 0);
+  assert.deepEqual([...new Set(outcomes.videos.map((video) => video.unwatched_reason))], ["jobs_failed"]);
+});

@@ -15,7 +15,8 @@ Workflow steps 2–4 in one command. Run it from the run directory after step 1 
   `build_watch_evidence.py`, `build_deep_synthesis_input.py` and the authoring seed, and prints the
   frame reads to view and the authoring packet.
 
-Prints `status: stopped` when no video can be watched.
+Prints `status: stopped` when no selected video is watchable. When every media job fails upstream (no frames
+and no transcript arrived), it still finishes the watch files and says to continue from the catalog numbers only.
 """
 from __future__ import annotations
 
@@ -143,7 +144,9 @@ def hand_over_media(plan: dict[str, Any], args: argparse.Namespace, note: str = 
     if note:
         # 说明单独一行：宿主只认以「Hand-over: 」开头的行，前面带别的字，再交一轮时就认不出了。
         say(note)
-    say(f"Hand-over: make this one call now with the arguments verbatim; the backend queues the metadata, transcript "
+    say(f"Hand-over: required step, the review is not finished until this call and the resume command below "
+        f"have run; never end the turn or reply to the user before then. Make this one call now with the "
+        f"arguments verbatim; the backend queues the metadata, transcript "
         f"and keyframe jobs of all {videos} selected videos and waits for them. If its result still reports running "
         f"jobs (coverage.pending above 0), make the same call again right away with the same arguments (nothing is "
         f"queued or charged twice) until pending is 0 or you have made it {MAX_ROUNDS} times; only the last result "
@@ -247,6 +250,20 @@ def frame_reads(evidence: dict[str, Any], record: dict[str, Any]) -> list[dict[s
     return reads
 
 
+def upstream_failure(record: dict[str, Any]) -> str:
+    """失败信封里第一句上游报错（截短），给局限一个具体原因；读不到就留空。"""
+    for call in record.get("calls") or []:
+        try:
+            envelope = json.loads(Path(call["path"]).read_text())
+        except (KeyError, TypeError, OSError, ValueError):
+            continue
+        if isinstance(envelope, dict) and envelope.get("status") == "failed":
+            text = " ".join(str(envelope.get("summary") or envelope.get("error_code") or "").split())
+            if text:
+                return text[:160]
+    return ""
+
+
 def finish(args: argparse.Namespace, record: dict[str, Any]) -> None:
     bindings, pending = place_envelopes(record)
     flags = [part for flag in bindings for part in ("--job", flag)]
@@ -269,9 +286,18 @@ def finish(args: argparse.Namespace, record: dict[str, Any]) -> None:
     packet = run(*packet_argv)
     evidence = json.loads(Path("watched_evidence.json").read_text())
     reads = frame_reads(evidence, record)
-    say(json.dumps({"status": "watched", "pending_jobs": len(pending), "watch_outcomes": "watch_outcomes.json",
-                    "watched_evidence": "watched_evidence.json", "authoring_seed": "account_deep_authoring.json"}))
-    if reads:
+    watched = sum(1 for video in evidence.get("items") or [] if isinstance(video, dict) and video.get("watched"))
+    say(json.dumps({"status": "watched", "pending_jobs": len(pending), "watched_count": watched,
+                    "watch_outcomes": "watch_outcomes.json", "watched_evidence": "watched_evidence.json",
+                    "authoring_seed": "account_deep_authoring.json"}))
+    if not watched:
+        # 每条都没拿到帧也没拿到字幕（例如上游整批拒绝下载）：不是失败退出，降级为只用目录数字写完报告，并把原因写进局限。
+        reason = upstream_failure(record)
+        say("No video could be watched: every media job ended without frames or a transcript"
+            + (f" (upstream: {reason})" if reason else "") + ". The run is not over: continue with step 4 from "
+            "the catalog numbers only, state this in other_limitations, leave both pattern lists empty and describe "
+            "no hooks, cuts or spoken lines.")
+    elif reads:
         say("View the frames: read these opening frames now, one read_research_data_artifacts call per video, all in "
             "one response, then display every image before any visual claim (see references/watch-and-persist.md, "
             "View the frames and write the cards):")

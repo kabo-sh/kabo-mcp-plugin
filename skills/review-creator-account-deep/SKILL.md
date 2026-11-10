@@ -127,7 +127,9 @@ page per format, at most `CATALOG_CALL_CAP` (4) catalog calls per run.
    cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/watch_media.py' '<analysis>' --output-language <en|zh-CN> [--cap 10] [--named-content-id "<id>"]
    ```
 
-   Make the printed call, repeat the same call while its result still reports running jobs
+   The watch is mandatory: a printed hand-over is the next action, never a stopping point. Do not end
+   the turn or reply to the user until the resume has printed the authoring packet (or `status:
+   stopped`). Make the printed call, repeat the same call while its result still reports running jobs
    (`coverage.pending` above 0), then run the printed resume command with the last result's id. The resume
    may hand the same call over again while jobs are running; do as it says. `status: stopped` means
    no selected video can be watched: say so and describe no hooks or cuts. Catalog labels in

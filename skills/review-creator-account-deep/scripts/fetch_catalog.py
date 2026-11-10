@@ -166,8 +166,10 @@ def assemble(platform: str, handle: str, rows: list[dict[str, Any]], exhausted: 
          "--output", str(ANALYSIS)])
     return {"status": "ok", "account_analysis": str(ANALYSIS.resolve()), "rows": combined, "catalog_calls": len(rows),
             "catalog_call_cap": CATALOG_CALL_CAP, "snapshot_flags": flags, "sample_note": note,
-            "next_action": "The catalog is ready: continue SKILL.md step 1 with this run's account_analysis.json. "
-                           "There is no standard report on this path: quote only the scripted catalog numbers, "
+            "next_action": "The catalog is ready; the run is not finished. Required next step: make the "
+                           "collect_video_media call of the watch hand-over printed below now, then its resume "
+                           "command; never end the turn or reply to the user before the authoring packet is "
+                           "printed. There is no standard report on this path: quote only the scripted catalog numbers, "
                            "and put sample_note verbatim in other_limitations."}
 
 
