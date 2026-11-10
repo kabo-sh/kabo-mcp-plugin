@@ -14,6 +14,11 @@ of a delivered video (`edit_remake_video`), or single steps in a project or on a
 (`start_video_project`, `make_video_step`, `finish_video_project`). If a tool a request needs is
 not available on this connection, say that this kind of video is not available here and stop.
 
+Every video or picture goes to Kabo as a link: YouTube, Instagram or TikTok for videos, a public
+http(s) link for pictures, or a `kabo://file/...` link Kabo Web gives for an upload. Files on the
+user's computer (a path, `file://`, an attachment in a local folder) cannot be sent. Before any
+Kabo call, ask the user for a public link to each such file; never put a local path in an argument.
+
 A remake takes 30 min to 3 hours, mostly waiting on the runner. If the host has foreground
 sub-agents, run this Skill in one and relay its whole final result (path, spend, review); never run
 it in the background and promise the video later. Otherwise follow the steps in the main thread.
