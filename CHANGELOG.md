@@ -2,6 +2,10 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.36（2026-11-10；GitHub Release）
+
+- `review-creator-account-deep`：`plan_media_jobs.py` 每条看片视频请求的关键帧从 60 张降到 12 张，并显式带 `sampling: duration_scaled`（同视频分析）。下游只读每条开头 3 秒以内的帧（`watch_media.py` 最多给模型看 5 张，作者包只列 3 秒以内的帧）；在后台时长自适应采样下，12 帧（开头 6 + 正文 2 + 结尾 4）在 3 秒以内的帧与 60 帧逐张相同，其余 48 帧只是让组合结果变大、抽帧变慢（#157）。
+
 ## 1.0.35（2026-11-10；GitHub Release）
 
 - `analyze-content-video`：报告的测量依据行不再固定写「画面查看未核实 / viewing unverified」。帧送到了模型面前、报告也逐条引用，创作者却读成「画面没看过」（11-06 群反馈）；现在只写抽取帧数、报告引用帧数、转写与后台数据来源。1.0.32 之前生成的结果回放时照样认旧写法。
