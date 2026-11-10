@@ -95,7 +95,8 @@ export function versionFor(id, checksum, liveIndexes, current, declared = null, 
   return `${major}.${minor}.${patch + 1}`;
 }
 
-async function writeOverlay(store, object, overlay) {
+// expectedGeneration：publish 读 overlay 时的那一代（0 = 当时不存在）；中间被别人改过就报错重跑，不拿旧条目盖掉新写入。
+async function writeOverlay(store, object, overlay, expectedGeneration) {
   const bytes = Buffer.from(stableJson(validateIndex(overlay, 'production')));
   const digest = sha256(bytes);
   const history = historyObject(digest);
@@ -107,6 +108,7 @@ async function writeOverlay(store, object, overlay) {
     fail(`history collision: ${history}`);
   }
   const current = await store.read(object);
+  if (expectedGeneration !== undefined && (current?.generation ?? 0) !== expectedGeneration) fail(`${object} changed while publishing; rerun`);
   if (current?.bytes.equals(bytes)) return { object, sha256: digest, generation: current.generation, unchanged: true };
   const written = await store.write(object, bytes, current?.generation ?? 0);
   if (!written.ok) fail(`${object} changed while writing; rerun`);
@@ -135,7 +137,8 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
   };
   const live = [await readChannel('production'), await readChannel('internal')];
   if (!live.some(Boolean)) fail('cannot read any live channel index');
-  const current = (await readIndex(store, object))?.index ?? null;
+  const currentRead = await readIndex(store, object);
+  const current = currentRead?.index ?? null;
   // 另一个目标（生产 / test）的 overlay：同一份内容在那边已经有版本号，就用同一个号和同一个包。
   const others = await Promise.all(Object.entries(TARGETS).filter(([name]) => name !== targetName)
     .map(async ([, other]) => (await readIndex(store, other))?.index ?? null));
@@ -198,7 +201,7 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
       }]),
     ].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
   };
-  const written = await writeOverlay(store, object, overlay);
+  const written = await writeOverlay(store, object, overlay, currentRead?.generation ?? 0);
   // 记下每个 skill 用过的最高版本（只升不降）。
   const nextHighwater = { format_version: 1, skills: { ...(highwater.skills ?? {}) } };
   for (const [id, entry] of Object.entries(overlay.skills)) {

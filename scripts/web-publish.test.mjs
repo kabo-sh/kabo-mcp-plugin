@@ -123,3 +123,19 @@ test('test 目标：本插件产不出的条目（别名发上来的）原样保
   const prod = await publish({ store, pluginRoot: root, pluginCommit: 'd'.repeat(40) });
   assert.equal(prod.skills['creator-remake-web'], undefined);
 });
+
+test('publish：读 overlay 之后别人改过它，就报错重跑，不拿旧条目盖掉', async () => {
+  const { store } = await liveStore();
+  const root = pluginRepo({ 'alpha-skill': '# a1' });
+  const seed = { format_version: 1, channel: 'production', updated_at: '2026-11-05T00:00:00.000Z', skills: {} };
+  await store.write(TARGETS.test, Buffer.from(stableJson(seed)), 0);
+  const bundleStore = {
+    read: (...a) => store.read(...a),
+    write: async (...a) => {
+      const now = await store.read(TARGETS.test);
+      await store.write(TARGETS.test, Buffer.from(stableJson({ ...seed, updated_at: '2026-11-05T02:00:00.000Z' })), now.generation);
+      return store.write(...a);
+    },
+  };
+  await assert.rejects(publish({ store, bundleStore, pluginRoot: root, pluginCommit: COMMIT, targetName: 'test' }), /changed while publishing/);
+});
