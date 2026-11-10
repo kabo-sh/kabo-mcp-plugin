@@ -54,7 +54,7 @@ question: **does the picture have words in it that must read?**
   generates the still from `prompt` with frames from the creator's own videos as its references
   (so "in the look of the reference images" carries the creator's look; you cannot see those
   frames, so do not describe colours or characters you have not been told about), and asks for
-  no text in it. With `motion` it becomes a 5-second moving clip; leave `motion` empty only where
+  no text in it. **Never copy OCR or transcript speaker prefixes (`Speaker:`, `POAL:`, `[caption]`, timestamps) from the reference into `prompt` or ask the image model to render text.** With `motion` it becomes a 5-second moving clip; leave `motion` empty only where
   the reference itself holds a still. **When the reference moves, every picture moves.**
   Neighbouring short lines of one scene share one row and one clip.
 - `kind: "motion_graphic"` -- a plain card of the line's words, for a line where nothing better
@@ -92,7 +92,7 @@ It has to pass the renderer's checks, or the line falls back to a plain card:
 - Nothing from the network: no web fonts, no image URLs (draw icons as inline SVG or text).
   Never paste an image in as `data:`; the runner drops it.
 - One timeline: no timers, no `requestAnimationFrame`, no randomness.
-- Keep each row's three strings under about 20,000 characters together.
+- Keep each row's three strings under 250,000 characters together (`COMPOSITION_MAX_CHARS = 250,000`, so full inline `<svg>` street-grid / GeoJSON maps and multi-row UI DOM trees fit directly).
 
 A composition that needs a real-looking image inside it -- the picture an app produced, a photo
 on a page, the base of a map -- names it in `make.images` and shows it by name. The runner
@@ -106,13 +106,16 @@ six per row:
          "style": "...", "script": "..."}
 ```
 
-What makes one good: one idea per row, a few things moving at once, the same window and colours
-across rows so the cut reads as one piece, and each element landing on the word that names it.
-Fill the vertical frame: show the part of the interface the line is about at phone size -- the
-menu, the column, the dialog -- not a whole desktop window shrunk into the middle with black
-above and below. Give each scene its own row (a few lines); one composition for the whole video
-is slow to render and hard to keep readable.
-The captions already carry the narration, so do not spell the line out on screen as well.
+What makes one good (the `r30` UI & map density standard):
+- **Full-screen phone-sized UI density, never a sparse PPT slide**: when the reference shows an app, web page, spreadsheet, Windows dialog, registry tree, or settings panel, rebuild the real multi-row table, sidebar/toolbar, input fields, keycaps, or dialog controls filling the vertical `1080x1920` safe frame (8–14 rows of realistic data/controls, with the active row, button, or cursor step highlighted on `cue("word")`), never a 3-bullet summary card.
+- **Street-grid maps & vector diagrams**: when the reference shows a city/street map or geometric diagram, draw a dense multi-block street grid (`<svg>` roads, intersections, avenue/street labels, zone polygons, animated route/pins) or balanced upper-diagram + lower-formula card (`COMPOSITION_MAX_CHARS` allows up to 250,000 chars).
+- One idea per row, a few things moving at once, the same window and colours
+  across rows so the cut reads as one piece, and each element landing on the word that names it.
+- Fill the vertical frame: show the part of the interface the line is about at phone size -- the
+  menu, the column, the dialog -- not a whole desktop window shrunk into the middle with black
+  above and below. Give each scene its own row (a few lines); one composition for the whole video
+  is slow to render and hard to keep readable.
+- The captions already carry the narration, so do not spell the line out on screen as well.
 
 What the runner cannot do here: open a real web page or an app, or use the user's own material.
 Where the reference shows a real interface, rebuild it as a composition (`evidence: false`) and
