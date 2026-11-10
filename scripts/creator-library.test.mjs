@@ -174,10 +174,20 @@ test("先读 Kabo 画像：可见的画像项按占比成为候选支柱，带�
   assert.deepEqual(proposal.candidates[0].search_queries, ["Viral breakdowns query", "Viral breakdowns second"]);
   assert.equal(proposal.candidates[0].source, "kabo_profile");
   assert.equal(proposal.candidates[0].profile_item_id, "sc1");
-  assert.equal(proposal.candidates[0].evidence.share, 0.55);
+  assert.equal(proposal.candidates[0].evidence.share_of_posts, 0.55);
   assert.equal(proposal.candidates[0].evidence.examples[0].url, "https://www.instagram.com/reel/sc1ex/");
   assert.deepEqual(proposal.hidden_by_creator, ["Giveaways"]);
   assert.deepEqual(proposal.update_context, { account_id: "acc-1", expected_version: 3, basis: "2026-10-01T00:00:00Z" });
+  assert.equal(proposal.candidates[0].search_queries_are_tags, false);
+  assert.deepEqual(proposal.advice, []);
+  // 画像只给一项、检索词又是标签时：提示换成观众会搜的短语，并提示再从帖子里找候选。
+  const tagged = path.join(temp, "tagged.json");
+  await writeFile(tagged, JSON.stringify(profileResult([{ ...signature("sc9", "Tagged pillar", 0.4), seedTerms: ["views", "viralhooks", "reelstips"] }])));
+  const single = run("profile-pillars", "--profile", tagged);
+  assert.equal(single.candidates[0].search_queries_are_tags, true);
+  assert.equal(single.advice.length, 2);
+  assert.match(single.advice[0], /phrases a viewer would type/);
+  assert.match(single.advice[1], /step 4b/);
   // 没有画像项时不编造，退回本地计算。
   const empty = path.join(temp, "empty.json");
   await writeFile(empty, JSON.stringify(profileResult([])));

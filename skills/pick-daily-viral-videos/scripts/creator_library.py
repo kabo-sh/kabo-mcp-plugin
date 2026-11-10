@@ -556,15 +556,31 @@ def read_profile(path):
         candidates.append({
             "id": slug, "name": name[:60], "definition": (definition or name)[:300],
             "search_queries": (terms[:3] or [name[:120]]), "source": "kabo_profile",
+            # 画像里的 seedTerms 常是话题标签或单个词（views、viralhooks），拿去检索只会捞到泛内容。
+            "search_queries_are_tags": bool(terms) and all(" " not in term for term in terms[:3]),
             "profile_item_id": item.get("id"),
-            "evidence": {"share": share, "median_multiple": item.get("medianMultiplier"),
+            # 画像的 share 是条数占比（contentCount / 进了格式的作品数），不是播放占比。
+            "evidence": {"share_of_posts": share, "median_multiple": item.get("medianMultiplier"),
                          "content_count": item.get("contentCount"),
                          "examples": [{"url": row.get("sourceUrl"), "title": row.get("title"), "views": row.get("views"),
                                        "multiplier": row.get("multiplier")}
                                       for row in (item.get("representativeContent") or [])[:2] if isinstance(row, dict)]}})
     preferences = (effective or {}).get("preferences") if isinstance((effective or {}).get("preferences"), dict) else {}
     generated = ((effective or {}).get("base") or {}).get("generatedAt") if isinstance((effective or {}).get("base"), dict) else None
-    return {"status": "ok" if candidates else "no_signature_content", "niche": niche,
+    advice = []
+    if any(row["search_queries_are_tags"] for row in candidates):
+        advice.append("Some search_queries are single words or tags. Before saving, replace them with 1 to 3 phrases "
+                      "a viewer would type into search, and show them to the creator.")
+    status = (source or {}).get("signatureContentStatus")
+    if status == "no_qualifying_group" and candidates:
+        advice.append("Kabo's status no_qualifying_group means fewer than two groups cleared its bar. The one shown "
+                      "did clear it (at least 3 comparable posts with a median above the account's typical views): "
+                      "present it as a valid pillar.")
+    if len(candidates) == 1:
+        advice.append("Kabo has one signature content item. Also group the posts it does not cover (step 4b) and show "
+                      "any cluster that qualifies next to it, so the creator has a choice.")
+    return {"status": "ok" if candidates else "no_signature_content", "niche": niche, "advice": advice,
+         "signature_status": (source or {}).get("signatureContentStatus"),
          "profile_edited": bool((effective or {}).get("edited")),
          "language": (source or {}).get("language", {}).get("primary") if isinstance((source or {}).get("language"), dict) else None,
          "candidates": candidates,

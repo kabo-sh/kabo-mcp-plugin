@@ -140,7 +140,12 @@ cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' p
 ```
 
 `status: ok` means Kabo already knows this account's niche and signature content (with the
-creator's own earlier edits applied): present `niche` and `candidates` as the proposal. When the
+creator's own earlier edits applied): present `niche` and `candidates` as the proposal, and follow
+every line of `advice`. A candidate with `search_queries_are_tags: true` carries single words or
+tags from the profile: write 1 to 3 phrases a viewer would type into search for it and show them
+with the candidate, because the daily picks search with these phrases. When Kabo has only one
+candidate, also do 4b for the posts it does not cover and show any cluster that qualifies next to
+it, each labelled with where it came from. When the
 host cannot save the result to a file, read the niche and the signature content items from the
 result directly and write the same proposal by hand. If `get_creator_profile` is refused or the
 account is not saved in Kabo, use 4b.
@@ -169,7 +174,9 @@ posts are 72 hours old: show the clusters without a recommendation and let the c
 
 **4c. Show and confirm.** Show the niche line and 2 to 4 candidate pillars. For each: its name, a
 one-line definition, its evidence (two example posts with links, its median views against the
-account's typical views, its share of views) and, from 4b, why a cluster was not recommended. Say
+account's typical views, and its share: `share_of_posts` for a Kabo profile item is its share of
+the account's posts, while a cluster from 4b reports its share of views; name which one you are
+quoting) and, from 4b, why a cluster was not recommended. Say
 that a pillar the creator posts often but that usually does worse than typical is a finding, not a
 pillar. Then let the creator pick, rename, drop or add. Ask once, and do not save before they answer.
 
