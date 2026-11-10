@@ -92,7 +92,9 @@ Pass the pick as `params.voice` of `tts`, and say at delivery that a stock voice
 | A new still of the creator: another pose, framing, outfit or setting | `first_frame` (`image`: a `frame`, a photo or `frame_sNN.png`; optional `refs` 0-3; `prompt`) | edits the picture; redraws the face and is checked against the creator |
 | A still of the creator speaking a line | `tts`, then `talking` (picture + line audio; optional `prompt` for the performance) | a talking take from one picture |
 | A reference's own shot and moves with the creator in it | `replace` (shot + picture of the creator), then `lipsync` with the creator's words from `tts` | keeps the camera, props and gestures; a whole remake instead recreates the scene. Small moving text can garble |
-| B-roll, a scene, a product shot (no creator) | `still` (product pictures as `refs`), then `animate` to move it | no face is drawn |
+| B-roll, a scene, a product shot (no creator) | `still` (product pictures as `refs`), then `animate` to move it | no face is drawn; `project` auto-extracts clean `input/style_ref_NN.png` frames from reference inputs when `refs` is omitted |
+| An interface walkthrough, street-grid map, vector diagram, chart, kinetic typography, HUD callout or photo collage (when building from steps, not a whole narration remake) | `motion_graphics` (`params`: `spec`, `duration` 1-60, optional `preset`: `ui_walkthrough`, `street_grid_map`, `vector_diagram`, `data_chart`, `kinetic_typography`, `hud_callout`, `photo_collage`; optional `inputs`: `base`, `refs`) | free (`$0`) local 1080x1920 HyperFrames/Canvas render; `hud_callout` tracks `anchors` on `base` video with optical flow |
+| Camera shake, flash transition, or punch-in zoom on a clip | `shake`, `flash`, `impact_zoom` (`inputs.video`) | free (`$0`) local tool step |
 | Words that must be read on screen | `text_cards` on a base video | real text; never ask a generated picture to contain words |
 | Background music | `music` with a mood | royalty-free; if it says it is not available, leave music out and say so |
 | Captions in the creator's style | `captions` (optional `max_words` 1-8 per caption, `upper` for capitals) | |
