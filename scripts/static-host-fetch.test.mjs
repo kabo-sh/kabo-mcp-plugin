@@ -475,7 +475,7 @@ test("各份 static_host.py 的共用部分逐字相同；交给模型的调用�
     const text = await readFile(path.join(root, "skills", id, "scripts/static_host.py"), "utf8");
     shared.add(text.slice(text.indexOf("def evidence_id():")));
   }
-  assert.equal(fetchSkills.length, 15);
+  assert.equal(fetchSkills.length, 18);
   assert.equal(shared.size, 1, "evidence_id 之后的共用函数在各副本间不一致");
   const probe = String.raw`
 import json, runpy, sys

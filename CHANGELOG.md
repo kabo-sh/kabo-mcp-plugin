@@ -2,6 +2,32 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 未发布
+
+- 新增三个 Skill，组成创作者的日常流程（本仓原创，不是从 creator-skills 搬运；Skill 总数 18 → 21）：
+  - `start-with-kabo`：创作者第一次用 Kabo。先用五句话说明 Kabo 做什么、不做什么（不代发、不评论、不私信，只读公开数据）；绑定一个
+    Instagram / TikTok / YouTube 公开账号（先看 `get_kabo_info` 与 `list_connected_accounts`，创作者同意后才用 `connect_public_account`，
+    没有写权限就只在本地继续）；经 `collect_account_history` 与 `collect_video_media` 一次后台调用读作品与转写，在工作区建素材库
+    （`kabo-library/<平台>-<账号>/`）；赛道与内容支柱先读 `get_creator_profile`（`include: ["content_profile"]`、`effective: true`）里 Kabo
+    已有的结果作为提议，没有才按固定规则本地算（中位播放不低于账号常规水平 0.8 倍才算支柱，按播放占比排序，第二个支柱至少占 20%），
+    给出赛道一句话加 2–4 个候选支柱（各带证据），创作者确认后才保存，并按 `update_content_preferences` 的规则同步他们的改动；最后
+    提议两个宿主自己的定时任务（早上精选、每日复盘），宿主写法放在 `references/host-schedules.md`（Grok Bot 已核实，其余三个宿主待核实）。
+  - `pick-daily-viral-videos`：每天三条，按确认过的支柱（不是大赛道）找近 7 天、至少是作者自己常规播放 2 倍的爆款，每个支柱先保一条、
+    作者不重复、跨天不重复，不足三条不凑数；Instagram 为默认，只有主平台是 YouTube 才搜 YouTube。可无人值守：不在中途提问，需要确认的
+    一律跳过并在末尾列出。每条给出下一步的具体说法：拆解（`analyze-content-video`）、写我的版本（`create-script-and-packaging`）、
+    把我放进去复刻（`remake-viral-video`，仅限 90 秒以内的口播或旁白）、以及发布提示（Kabo 不代发，发布 24 小时后由
+    `review-new-posts` 复盘）。
+  - `review-new-posts`：一天一次（也可随时叫）。库建好之后发布、已满 24 小时、还没有 24 小时复盘的作品各复盘一次，与创作者自己更早的
+    作品在同一年龄的读数比（至少 3 条才比）；1 小时与 7 天复盘改为可选。每份日报都带账号回顾：粉丝变化（有读数时）、近 7 天作品对比常规
+    播放、每个支柱的表现、一条具体建议。只用公开指标。
+  - 三者共用 `creator_library.py`（三份副本逐字相同，测试校验）；取数沿用 `static_host.py` 的下载交付与 `build_public_snapshot.py`，
+    账号历史走 `collect_account_history`、转写走 `collect_video_media`、精选走 `collect_*_trend_candidates` 加 `enrich_*_shortlist`
+    （KS9：多轮取数在一次后台调用里完成，不交给宿主模型逐轮翻页）。
+  - 宿主没有持久文件时，三个 Skill 用 `list_connected_accounts` 加 `get_creator_profile`（复盘再加一次新的历史读取）重建最小库，并明说
+    依赖历史的功能受限（不能防止隔天重复，也没有同龄对比与粉丝变化）。
+  - 只做了离线测试（`scripts/creator-library.test.mjs`），没有在真实宿主或生产 `/mcp-pub` 上端到端跑过；`start_skill_run` 的
+    `skill_id` 枚举里还没有这三个 Skill，所以它们不调用该工具。
+
 ## 1.0.36（2026-11-10；GitHub Release）
 
 - `review-creator-account-deep`：`plan_media_jobs.py` 每条看片视频请求的关键帧从 60 张降到 12 张，并显式带 `sampling: duration_scaled`（同视频分析）。下游只读每条开头 3 秒以内的帧（`watch_media.py` 最多给模型看 5 张，作者包只列 3 秒以内的帧）；在后台时长自适应采样下，12 帧（开头 6 + 正文 2 + 结尾 4）在 3 秒以内的帧与 60 帧逐张相同，其余 48 帧只是让组合结果变大、抽帧变慢（#157）。

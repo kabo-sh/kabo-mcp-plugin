@@ -22,7 +22,10 @@
     "verify-platform-rule",
     "optimize-creator-brand",
     "plan-content-calendar",
-    "price-creator-brand-deals"
+    "price-creator-brand-deals",
+    "start-with-kabo",
+    "pick-daily-viral-videos",
+    "review-new-posts"
   ],
   "requiredTools": [
     "analyze_content_video",
