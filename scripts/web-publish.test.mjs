@@ -109,3 +109,34 @@ test('publish --hold：被扣下的 skill 不进 overlay（Web 用 Registry 原�
   const overlay = JSON.parse((await store.read(TARGETS.index)).bytes);
   assert.deepEqual(Object.keys(overlay.skills), ['alpha-skill']);
 });
+
+test('复刻合一：test 目标以 Web 的 skill id 登记插件的 remake-viral-video，生产目标仍排除', async () => {
+  const { store } = await liveStore();
+  const prod = JSON.parse((await store.read('channels/production/index.json')).bytes);
+  prod.skills['creator-remake-web'] = { version: '0.1.46', object: `bundles/creator-remake-web/0.1.46/${'b'.repeat(64)}.json`, content_checksum: `sha256:${'b'.repeat(64)}` };
+  await store.write('channels/production/index.json', Buffer.from(stableJson(prod)), (await store.read('channels/production/index.json')).generation);
+  const root = pluginRepo({ 'alpha-skill': '# a1', 'remake-viral-video': '# r' });
+  const index = await publish({ store, pluginRoot: root, pluginCommit: COMMIT });
+  assert.equal('creator-remake-web' in index.skills, false);
+  assert.equal('remake-viral-video' in index.skills, false);
+  const tested = await publish({ store, pluginRoot: root, pluginCommit: COMMIT, targetName: 'test' });
+  assert.equal(tested.skills['creator-remake-web'].version, '0.1.47');
+  assert.equal('remake-viral-video' in tested.skills, false);
+  const bundle = JSON.parse((await store.read(tested.skills['creator-remake-web'].object)).bytes);
+  assert.equal(bundle.id, 'creator-remake-web');
+  const skill = Buffer.from(bundle.files.find((f) => f.path === 'SKILL.md').content_base64, 'base64').toString('utf8');
+  assert.match(skill, /^name: creator-remake-web$/m);
+  assert.match(skill, /# r/);
+});
+
+test('publish --merge：只发点名的 skill，overlay 里别人的条目原样保留', async () => {
+  const { store } = await liveStore();
+  const root = pluginRepo({ 'alpha-skill': '# a1', 'beta-skill': '# b1' });
+  await publish({ store, pluginRoot: root, pluginCommit: COMMIT, targetName: 'test' });
+  const before = JSON.parse((await store.read(TARGETS.test)).bytes).skills['beta-skill'];
+  fs.writeFileSync(path.join(root, 'skills', 'alpha-skill', 'SKILL.md'), '---\nname: alpha-skill\ndescription: "x"\n---\n# a2\n');
+  fs.writeFileSync(path.join(root, 'skills', 'beta-skill', 'SKILL.md'), '---\nname: beta-skill\ndescription: "x"\n---\n# b2\n');
+  const merged = await publish({ store, pluginRoot: root, pluginCommit: 'f'.repeat(40), targetName: 'test', skills: ['alpha-skill'], merge: true });
+  assert.deepEqual(merged.skills['beta-skill'], before);
+  assert.equal(merged.skills['alpha-skill'].version, '1.2.7');
+});

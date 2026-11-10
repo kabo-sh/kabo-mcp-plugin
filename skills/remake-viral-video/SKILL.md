@@ -2,7 +2,7 @@
 name: remake-viral-video
 description: "Have Kabo produce a finished MP4: remake a viral talking-head or voice-over video (up to 10 min) with the creator, make one from an approved script, build one from steps (new words on the creator's own video, the creator in a reference's shot, B-roll, or nobody on camera: animation, narration), or change a delivered one. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all seven tools: remakes, edits of delivered videos and step-by-step projects)."
+compatibility: "On Kabo Web: no local requirements (see On Kabo Web). Elsewhere: requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all seven tools: remakes, edits of delivered videos and step-by-step projects)."
 allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project
 ---
 
@@ -17,6 +17,36 @@ not available on this connection, say that this kind of video is not available h
 A remake takes 30 min to 3 hours, mostly waiting on the runner. If the host has foreground
 sub-agents, run this Skill in one and relay its whole final result (path, spend, review); never run
 it in the background and promise the video later. Otherwise follow the steps in the main thread.
+
+## On Kabo Web
+
+When these tools run inside Kabo Web (the creator chats with Kabo itself; there is no local
+workspace or shell), the host does the file work, so:
+
+- Skip "Set up one run" and every `static_host.py` or `check_documents.py` command; nothing is
+  saved to `host-results/`.
+- The creator's uploaded or library files are written as `kabo://file/<file id>` in the link
+  fields (`creator.video_urls`, `creator.photo_urls`, `reference_url`, `reference_video_urls`,
+  `reference_image_urls`); use only files shared in this conversation.
+- At `waiting_script`, `get_remake_video` returns the brief inline under `brief` (`files` maps each
+  work/ path to its text). Write the four documents from it exactly as steps 3-5 say, then pass
+  them as JSON text in `render_remake_video` `files`; Kabo checks them before anything is paid.
+- A step's preview is attached to your next message; look at it before using the result. Signed
+  links are never shown to you.
+- A delivered video reaches the creator as a file card; say what it is, do not paste links.
+- When a result carries `relay`, tell the creator everything in it, in their language.
+- If inputs were confirmed in a form (an approved script and chosen files), use exactly those;
+  Kabo refuses anything else. Before the first paid step or render, tell the creator the plan and
+  its cost and wait for their reply; Kabo refuses a paid call in the same turn as the quote.
+- Once the creator has approved, keep going in the same turn: make a step, wait for it, make the
+  next, through `finish_video_project` or delivery. Nothing wakes you for a step you already saw
+  finish, so never end a turn with "next I will..." and nothing running. Stop only to ask the
+  creator a question they must answer, when a result carries `relay`, or when the real cost would
+  go above what they approved. Trimming the plan to stay inside that amount is not a new quote:
+  do it and say so.
+- A new request is new work. Do not tell the creator a change is already in the video because an
+  earlier step has the same op; if you think it is, look at that revision first, and if they ask
+  again, make it again.
 
 ## Choose what to make
 
