@@ -88,6 +88,12 @@ it. Decide by that, not by the request's wording ("remake" included):
 | a video or sound | -- (what is said, timed) | `transcribe` | no |
 | -- | a picture without the creator; text to read; captions; music; sound | `still`, `animate`, `text_cards`, `captions`, `music`, `mux` | no |
 
+The rows run in a project (`start_video_project`, a `make_video_step` per row,
+`finish_video_project`) or as steps on a delivered job. `start_remake_video` is only the whole
+remake of rule 5: it films everything anew and keeps none of the reference's own pictures,
+captions or screens, whatever the tool's name or the request's wording ("remake", "复刻"). If your
+one line keeps any of those, start a project.
+
 Before the first project step or edit, read `references/atoms.md` (steps and costs) or `references/edits.md`, say in 2-3 lines what you will make and the rough cost,
 then go ahead. A `degraded` face check never blocks delivery: say which part looks less
 like the creator. When a step's notes say a box you gave covers text or a face, redo it without
