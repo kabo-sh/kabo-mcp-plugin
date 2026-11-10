@@ -275,8 +275,9 @@ def _locale_preflight(args: argparse.Namespace, originals: dict[str, bytes]) -> 
 # Each discovery lane's files. The relevance lane keeps the names the one-lane workflow always used;
 # the reach lane's carry `-reach`, and the two collector results are persisted under neutral names
 # first, because both return the same schema and only their echoed window says which lane is which.
-# `eligible` is the subset every step after collection reads when the Creator's account profile is
-# attached (scripts/filter_candidate_eligibility.py); without a profile it is never written.
+# `eligible` is the subset every step after collection reads: the Creator's account profile filter
+# (scripts/filter_candidate_eligibility.py), then the Gate shortlist cap (`shortlist_for_gate`); with
+# neither it is never written.
 LANES = {
     "relevance": {"input": "trend-collection-input.json", "candidates": "trend-candidate-set.json",
                   "eligible": "trend-candidate-set-eligible.json",
@@ -698,10 +699,46 @@ def stage_discover(args: argparse.Namespace) -> None:
                       "--output", LANES[name]["eligible"], "--platform", PLATFORM, show=True)
         else:
             Path(LANES[name]["eligible"]).unlink(missing_ok=True)
+    for name in names:
+        shortlist_for_gate(name)
     cd.script("project_relevance_gate_input.py", "--request", REQUEST, "--candidates", lane_candidates("relevance"),
               "--output", lane["gate_input"], "--table", show=True)
     cd.say(json.dumps(gate_builder.stage_contract(cd.load(lane["gate_input"]), lane["scores"],
                                                  "gate" if "reach" in names else "rank", __file__), ensure_ascii=False))
+
+
+# 每条车道最多交给模型打分的候选数。enrich 每条车道只取 HANDED_PER_LANE（6）条，可一条车道回来 90 多条时
+# Gate 表要翻三页；线上（2026-11-05..08）模型面对 94 + 90 行没写分就结束了回合。先按确定规则留 30 条：
+# 搜索排名靠前的与发现热度最高的交替入选（lane_pick 的「两条看意思、四条看热度」两头都留得住），保持原顺序。
+# 写进 eligible 那个位置（与画像过滤同一种子集：items 缩减、其余字段与 candidate_set_id 不变），之后
+# Gate、排序、Snapshot 都读同一份；收集到的总数仍在 coverage 里，报告照实写。
+GATE_ITEMS_PER_LANE = 30
+
+
+def search_rank(item: dict[str, Any]) -> int:
+    ranks = [source.get("rank") for source in item.get("sources") or []
+             if isinstance(source, dict) and isinstance(source.get("rank"), int) and not isinstance(source.get("rank"), bool)]
+    return min(ranks) if ranks else 10**9
+
+
+def shortlist_for_gate(name: str) -> None:
+    source = lane_candidates(name)
+    candidates = cd.load(source)
+    items = candidates.get("items") or []
+    if len(items) <= GATE_ITEMS_PER_LANE:
+        return
+    by_rank = sorted(range(len(items)), key=lambda n: (search_rank(items[n]), n))
+    by_heat = sorted(range(len(items)), key=lambda n: (-discovery_heat(items[n]), n))
+    kept: list[int] = []
+    for pair in zip(by_rank, by_heat):
+        for n in pair:
+            if n not in kept and len(kept) < GATE_ITEMS_PER_LANE:
+                kept.append(n)
+    shortlist = {**candidates, "items": [items[n] for n in sorted(kept)],
+                 "gate_shortlist": {"input_items": len(items), "kept_items": len(kept),
+                                    "rule": f"best search rank and discovery heat, alternating, up to {GATE_ITEMS_PER_LANE}"}}
+    Path(LANES[name]["eligible"]).write_text(json.dumps(shortlist, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    cd.say(json.dumps({"status": "ok", "lane": name, "gate_shortlist": shortlist["gate_shortlist"]}))
 
 
 # --------------------------------------------------------------------------- gate (two lanes)
