@@ -222,3 +222,35 @@ test("collect_media.py 的交接是 Web 宿主读得懂的写法：宿主写入�
   await readFile(path.join(run, "snapshot/envelope-01.json"), "utf8");
   await assert.rejects(readFile(path.join(stray, "snapshot/envelope-01.json"), "utf8"));
 });
+
+// 只导出逐字稿（雨恬 11-10，生产 1.0.29）：只取转写、不取元数据，模型写的请求不带 content_id；
+// 以前 build_content_evidence.py 报「content_ref needs a content_id」退出，转写拿到了也导不出来。
+test("只导出逐字稿：请求不带 content_id 时从原始链接取，证据照常生成并导出 TXT/SRT", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-transcript-"));
+  t.after(() => rm(workspace, { recursive: true, force: true }));
+  const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  const REEL = "https://www.instagram.com/reel/DeZrE2phzDx/?igsh=share";
+  const first = python("collect_media.py", ["--url", REEL, "--operations", "transcript"], { cwd: run, run });
+  assert.equal(first.code, 0, first.out);
+  const args = calls(first.out)[0].arguments;
+  await save(saveOf(first.out), composite(args));
+  const collected = shell(resumeOf(first.out));
+  assert.equal(collected.code, 0, collected.out);
+  assert.match(collected.out, /"status": "collected"/);
+  await writeFile(path.join(run, "analysis/video-analysis-request.json"), JSON.stringify({
+    schema_version: "video-analysis-request.v1", request_id: "req-transcript",
+    source: { acquisition: "public_url", subject_state: "unknown", platform: "instagram", url: REEL, content_id: null, declared_format: "video", owner_data: null },
+    acquire: { media: "skip", transcript: "required", frames: "skip", owner_metrics: "skip" },
+    budget: { max_connector_calls: 4, max_provider_credits: null, confirmed_by_user: true, per_call: { timeout_seconds: 60, max_response_bytes: 50000000 } },
+    failure_policy: { on_missing_capability: "return_partial", fatal_capabilities: [] },
+  }));
+  const built = shell(`cd '${run}' && python3 '${path.join(scripts, "build_content_evidence.py")}' --request analysis/video-analysis-request.json `
+    + "--envelope snapshot/envelope-01.json --snapshot-root snapshot --output analysis/content_evidence.json --reference-index analysis/content_evidence.references.json");
+  assert.equal(built.code, 0, built.out);
+  const evidence = JSON.parse(await readFile(path.join(run, "analysis/content_evidence.json"), "utf8"));
+  assert.equal(evidence.content_ref.content_id, "DeZrE2phzDx");
+  assert.equal(evidence.transcript.status, "available");
+  const exported = shell(`cd '${run}' && python3 '${path.join(scripts, "export_transcript.py")}' analysis/content_evidence.json report/`);
+  assert.equal(exported.code, 0, exported.out);
+  assert.match(await readFile(path.join(run, "report/transcript.txt"), "utf8"), /Here is the one thing you need/);
+});
