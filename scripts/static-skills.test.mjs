@@ -192,15 +192,18 @@ english_line = canonical_note(evidence, analysis, en)
 out["replay"] = {"zh view, older English line": note_matches(english_line, evidence, analysis, zh),
                  "zh view, Chinese line": note_matches(canonical_note(evidence, analysis, zh), evidence, analysis, zh),
                  "en view, Chinese line": note_matches(canonical_note(evidence, analysis, zh), evidence, analysis, en),
-                 "zh view, edited line": note_matches(english_line.replace("14", "15"), evidence, analysis, zh)}
+                 "zh view, edited line": note_matches(english_line.replace("14", "15"), evidence, analysis, zh),
+                 "zh view, pre-1.0.32 Chinese line": note_matches(canonical_note(evidence, analysis, zh)[:-1] + "；画面查看未核实。", evidence, analysis, zh),
+                 "en view, pre-1.0.32 English line": note_matches(english_line[:-1] + "; viewing unverified.", evidence, analysis, en)}
 print(json.dumps(out, ensure_ascii=False))
 `;
   const scripts = path.join(import.meta.dirname, "..", "skills", "analyze-content-video", "scripts");
   const out = JSON.parse(execFileSync("python3", ["-I", "-B", "-c", probe, scripts], { encoding: "utf8" }));
-  const english = "YouTube video; 14 extracted frames; 2 cited frame refs; platform captions (108 cues); owner metrics unavailable; viewing unverified.";
+  // 不再写「viewing unverified / 画面查看未核实」：帧送到了模型面前、报告逐条引用，创作者却读成「画面没看过」。
+  const english = "YouTube video; 14 extracted frames; 2 cited frame refs; platform captions (108 cues); owner metrics unavailable.";
   assert.equal(out.en.note, english);
   assert.equal(out.None.note, english);
-  assert.equal(out["zh-CN"].note, "YouTube 视频；抽取 14 帧；报告引用 2 帧；平台字幕（108 条）；后台数据不可用；画面查看未核实。");
+  assert.equal(out["zh-CN"].note, "YouTube 视频；抽取 14 帧；报告引用 2 帧；平台字幕（108 条）；后台数据不可用。");
   for (const label of ["**怎么复用**：", "**要改什么**：", "- **镜头**：close-up", "- **这样说**：line", "## 下一步"]) {
     assert.ok(out["zh-CN"].report.includes(label), label);
   }
@@ -214,8 +217,10 @@ print(json.dumps(out, ensure_ascii=False))
   assert.equal(out["image zh-CN"], "图文帖：返回 5 个位置，4 个可用；总数未知；完整度未知；后台数据不可用。");
   assert.equal(out["image en"], "Image post: 4/5 returned positions available; total count unknown; completeness unknown; owner metrics unavailable.");
   // 更早版本给 zh 视图写的是英文 data_note；回放仍要认，改过数字的行照样拦。
+  // 1.0.32 之前的行末尾多一段「画面查看未核实 / viewing unverified」，回放旧结果时同样认。
   assert.deepEqual(out.replay, {"zh view, older English line": true, "zh view, Chinese line": true,
-                                "en view, Chinese line": false, "zh view, edited line": false});
+                                "en view, Chinese line": false, "zh view, edited line": false,
+                                "zh view, pre-1.0.32 Chinese line": true, "en view, pre-1.0.32 English line": true});
 });
 
 // 证据原文自带量级词（转录 "27 B" / "27 billion"、caption "27B"）时，报告照写不能判成编造；

@@ -80,8 +80,9 @@ otherwise: recorded extraction, canonical frame references cited by these cards,
 provenance and owner-metric availability. Requested
 `sampling_plan` intervals and possibly nominal `t_seconds` do not establish actual decoded spacing
 or viewing. Without verified decode records, describe intervals only as planned/requested
-limitations beside the relevant finding. Extraction and citation never establish pixel viewing;
-no viewing ledger exists in these inputs. For a language other than Chinese or English, the host
+limitations beside the relevant finding. The line states only countable facts; it says nothing
+about viewing, so never add that the frames were not looked at when you opened and cited them. For a
+language other than Chinese or English, the host
 translates the complete line for delivery without changing its quantities or uncertainty.
 Put claim-specific uncertainty once beside the claim it weakens, not in this measurement line.
 
