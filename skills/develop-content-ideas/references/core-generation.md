@@ -53,7 +53,8 @@ Passing validation on step 3 means a single generation attempt is enough.
 
 ## Continuations
 
-For a follow-up such as “10 more in the same style”, preserve the current request verbatim in
+Use `references/request-boundaries.md` to distinguish a new batch, an explicit style change,
+a selection and a local edit. For a follow-up such as “10 more in the same style”, preserve the current request verbatim in
 `user_brief` and leave `direct_topic=null` unless this turn also names a literal topic. Resolve the
 reference against the visible conversation: which list, version, topic or style does the user mean?
 If history is paged, inspect its range/count metadata or latest available page before treating
@@ -108,13 +109,13 @@ keep the format, causal mechanism, completion goal, restrictions and title/openi
 unless the user changes them. Later corrections override earlier proposals. These defaults never
 override the current instruction.
 
-In the existing `overview.portfolio_logic`, state the selected example and its relationship in
-plain language: the concrete starting input, how it produces progress, what controls each stage,
-and the end condition. Name the slots this batch changes. Preserve the **kind and number of inputs**
-as well as their causal roles. If one specific resource funds successive unlocks, another specific
-resource can replace it; a location, an activity, a collection of unrelated income sources or a
-new prohibition cannot replace that resource. Merely adding an unlock board to a different
-challenge does not preserve the mechanism. Do not broaden the slots to create variety.
+In the existing `overview.portfolio_logic`, bind each changeable slot to the selected example:
+its concrete source value, kind, count and causal role. State the unchanged progression and end
+condition separately. Do not widen a source slot into an alternative such as "input or activity"
+or "resource or collection rule"; the allowed slot must come from the selected example, not the
+proposed batch. If one specific resource funds successive unlocks, every replacement must name
+one specific resource in the same role. A place, activity, prohibition or category of unrelated
+resources is not that substitution, even with an unlock board and the same final goal.
 
 For each item, instantiate those slots first, then write its title, hook and `making_direction`
 from that mapping. The making direction must name the actual starting input, its earning or
@@ -125,11 +126,14 @@ left as "choose a resource", "define a currency" or another task for the creator
 fill-in template is the exception: retain its blanks and supply the requested filled examples
 under the template rules.
 
-During this same generation pass, compare each completed item with the selected relationship,
-not with the broad genre or the batch introduction. A matching title or a claim that all items
-share the mechanism cannot compensate for a missing or changed link in an individual item.
-Replace such an item with a concrete substitution before writing the complete IdeaSet. Distinct
-substitutions count as useful variety; do not force different mechanisms to satisfy novelty.
+During this same generation pass, read each item's title, opening and making direction against
+the bound source slot: which concrete value replaces it, is its kind/count unchanged, and does it
+cause the same progression? Judge the item's actual text, not the batch introduction's claim.
+A missing value, widened category or changed causal link requires replacing that item before
+writing the complete IdeaSet; a production note asking the creator to choose the input does not
+repair it. Distinct valid substitutions supply variety without changing the fixed mechanism.
+Record the compact per-item comparison specified in `request-boundaries.md` in the existing
+`overview.portfolio_logic`; do not add a schema field or treat an explicit user change as drift.
 This is the Agent's semantic check within the existing generation budget, not a new script
 validator or extra revision loop. Programmatic validation cannot establish that the referent
 or mechanism is right.

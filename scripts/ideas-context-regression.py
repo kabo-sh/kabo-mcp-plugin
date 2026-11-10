@@ -170,7 +170,7 @@ class ConversationContract(unittest.TestCase):
         with self.assertRaises(ValueError) as caught:
             presentation.presentation_translations(output)
         diagnostic = json.loads(str(caught.exception).splitlines()[-1])
-        self.assertEqual(['brief_only', 'open_shortlist', 'ready_for_selection'], diagnostic['missing_required_source_texts'])
+        self.assertEqual([], diagnostic['missing_required_source_texts'])
         output['evidence_gap_translations'] = [{'source_text': s, 'report_text': s} for s in diagnostic['missing_required_source_texts']]
         output['evidence_gap_translations'].append({'source_text': 'low', 'report_text': 'low'})
         self.assertIn('low', presentation.presentation_translations(output))
@@ -407,6 +407,7 @@ class ConversationContract(unittest.TestCase):
         """Report missing display translations in the same pass as schema failures."""
         self.prep()
         output = self.output()
+        output['report_language'] = 'de'
         output["ideas"][0]["unexpected"] = True
         output["evidence_gap_translations"] = []
         errors = validator.validate_idea_set(output, self.request(), self.root / "request.json")
@@ -417,6 +418,7 @@ class ConversationContract(unittest.TestCase):
         """Deliver after one revision fixes the schema and translation failures together."""
         self.prep()
         output = self.output()
+        output['report_language'] = 'de'
         output["ideas"][0]["unexpected"] = True
         output["evidence_gap_translations"] = []
         self.write("idea_set.json", output)
@@ -577,6 +579,7 @@ class ConversationContract(unittest.TestCase):
         """一次汇总全部映射错误，不用第二轮才揭示下一项。"""
         self.prep()
         output = self.output()
+        output['report_language'] = 'de'
         output["evidence_gap_translations"] = [
             {"source_text": value, "report_text": value} for value in ("made-up-state", "choose", "answer_production_question")]
         errors = "\n".join(validator.validate_idea_set(output, self.request(), self.root / "request.json"))
@@ -619,6 +622,7 @@ class ConversationContract(unittest.TestCase):
         for field in ("status", "task_intent", "source_mode", "evidence_summary", "ideas"):
             with self.subTest(field=field):
                 output = self.output()
+                output['report_language'] = 'de'
                 del output[field]
                 output["evidence_gap_translations"] = []
                 errors = "\n".join(validator.validate_idea_set(output, self.request(), self.root / "request.json"))

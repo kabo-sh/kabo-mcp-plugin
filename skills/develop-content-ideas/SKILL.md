@@ -58,14 +58,10 @@ titles and another series' characters cannot replace it. Do not start ideation o
 to that clarification. An already supplied selected draft can be continued through packaging
 without asking for it again. Requests for multiple new variations remain here.
 
-**Variations of one example.** When the user selects one concrete example and asks for more like
-it, use its title, opening and causal progression as a shared scaffold. Choose the requested
-number of concrete values for only its open slots, then instantiate the scaffold for every item.
-Keep each slot's kind and role: changing an input does not allow changing the activity, restriction
-or objective. Repeating the fixed scaffold is required here, not a near-duplicate to eliminate.
-Judge variety only within the permitted slots; do not reward a different mechanism as
-"differentiation". Follow *Continuations* in `references/core-generation.md`.
-
+**Resolve follow-ups before generating.** Read `references/request-boundaries.md` for selected
+examples, quantities, language changes and numbered follow-ups. Preserve a selected example's
+causal mechanism unless the user explicitly changes it; check every candidate, not only the batch
+introduction. A valid schema alone does not establish semantic consistency.
 
 This Skill runs no research: it consumes validated research artifacts through `upstream_sources[]`
 and deterministic `idea_context`. `user_brief.text` preserves the user's request; it is not by

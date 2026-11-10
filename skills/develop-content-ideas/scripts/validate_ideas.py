@@ -16,7 +16,7 @@ from typing import Any
 sys.dont_write_bytecode = True
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from report_language import evidence_gaps, report_language, report_value_translations
+from report_language import evidence_gaps, report_language, report_value_translations, normalized_locale
 from project_comments import has_comment_text, validate_projection, validate_target
 
 COMMON_ROOT = Path(__file__).resolve().parent.parent
@@ -751,7 +751,7 @@ def validate_authored_fields(request: dict[str, Any], errors: list[str], *,
             require(isinstance(hook_count, int) and 3 <= hook_count <= 5, "rework_content requires 3..5 Hook options", errors)
     elif intent in {"open_shortlist", "capacity_plan", "brief_only"}:
         if ready("idea_count"):
-            require(isinstance(idea_count, int) and 3 <= idea_count <= 20, f"{intent} requires idea_count=3..20", errors)
+            require(isinstance(idea_count, int) and 1 <= idea_count <= 20, f"{intent} requires idea_count=1..20", errors)
         if ready("hook_option_count"):
             require(hook_count in {1, 2}, f"{intent} requires hook_option_count=1 or 2", errors)
 
@@ -1208,7 +1208,7 @@ def validate_idea_set(
         # region is part of the requested output contract. Preserve the existing
         # fallback only for already-recognized legacy Chinese omissions.
         if "report_language" in idea_set and "report_language" in request:
-            output_language, request_language = idea_set["report_language"].lower(), request["report_language"].lower()
+            output_language, request_language = normalized_locale(idea_set["report_language"]), normalized_locale(request["report_language"])
         require(output_language == request_language, "idea_set report_language mismatch", errors)
     except ValueError as exc:
         errors.append(str(exc))

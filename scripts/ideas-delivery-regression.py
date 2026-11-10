@@ -40,7 +40,7 @@ class Delivery(unittest.TestCase):
         self.assertFalse((self.root / 'idea-delivery.json').exists())
 
     def test_all_counts_full_utf8_and_idempotent_export(self):
-        for count in (3, 10, 15, 20):
+        for count in (1, 2, 3, 10, 15, 20):
             with self.subTest(count=count):
                 self.root = self.root / str(count)
                 ideas = self.ready(count)

@@ -1,64 +1,41 @@
 # Report language and display translations
 
-Read this whole before writing `idea_set.json`.
+Use the latest explicit language instruction, otherwise the current request's language. Keep
+`report_language` (report and interaction) separate from `language_targets` (creative content).
+Use a BCP 47 tag on both request and set, preserving an explicitly requested region or script.
+Recognized language names such as English and español normalize to their code. Do not translate
+source quotations, evidence identifiers or retained user text just to match the report language.
+Explain and generate new creative copy in the requested language; quotations can retain theirs.
 
-## Choosing the language
+## Fixed presentation is program-owned
 
-Set `report_language` on both IdeaRequest and IdeaSet to the language requested for the final
-report and interaction (BCP 47 tag). This is separate from `language_targets`, which describes the
-creative content. Infer the report language from the current user request unless explicitly
-specified earlier; preserve quotations, titles and supplied creative text verbatim. Generate all
-explanatory fields, questions and rationale in that report language, so the whole report reads in
-the user's language. The renderer and validator share the locale contract, including missing-input
-and selection actions.
+Built-in catalogs cover zh/en/fr/ar/es and their regional variants. The renderer deterministically
+supplies all interface labels and displayed status/intent/source-mode/effort values. **Do not author
+translations of fixed UI labels or enum values for these languages.** Existing valid mappings in
+older artifacts remain accepted, but cannot override fixed presentation. Canonical data is unchanged.
 
-Chinese omission is supported only for legacy requests; new non-Chinese requests must set the
-field. Built-in UI catalogs cover zh/en/fr/ar and their regional variants. Any other valid language
-tag, including a regional one, uses authored UI label projections instead: run
-`python3 '<skill directory>/scripts/report_language.py' <report-language> --labels` to list the
-English label sources, and add one `evidence_gap_translations` entry per listed source, preserving
-Markdown markers and boundary spacing. Missing labels fail validation; never silently substitute
-another language. If a reliable translation cannot be provided, state that limitation.
+`evidence_gap_translations` still translates actual `evidence_summary.data_gaps` and displayed
+`primary_evidence_ref` text, preserving every substantive limitation and original source string.
+Supply one `{source_text, report_text}` per such source; when already in the requested language,
+repeat it. Use `[]` when none exist. A gap called "low" is still a gap: translate its real meaning,
+not the production-effort label. Do not add imaginary gaps to satisfy a diagnostic.
 
-## `evidence_gap_translations`
+For another valid language without a built-in catalog, list required labels using
+`python3 '<skill directory>/scripts/report_language.py' <report-language> --labels`.
+The existing authored-label route remains available; translate the listed UI labels and displayed
+values once in the same array, preserving Markdown markers and boundary spacing. If reliable
+translation is unavailable, state the limitation; never silently switch language or bypass export.
 
-For every explicit `report_language` (including Chinese), retain original
-`evidence_summary.data_gaps` for provenance and supply an `evidence_gap_translations` entry
-(`source_text`, `report_text`) for every gap. When the source already matches the report language,
-explicitly repeat it as `report_text`; otherwise translate every substantive constraint, including
-whether it describes the old source or the current run, without softening a limitation. Missing
-mappings fail validation rather than leaking the source language. The renderer and validator
-project these entries natively. These projections never alter user-supplied creative text or
-canonical evidence identifiers.
+## Repair and review
 
-In that same `evidence_gap_translations` array, also supply one entry for each distinct canonical
-value actually displayed: top-level `IdeaSet.status`, `IdeaSet.task_intent`, `IdeaSet.source_mode`,
-each idea's non-`unknown` `production_feasibility.effort` when no minute estimate is present, and
-each nonempty `primary_evidence_ref`. This is not a request to translate every enum or `status`
-field: nested `creator_fit.status` and `production_feasibility.status` are not display values.
-Translate the listed values for presentation only; never edit canonical enums, evidence IDs or lineage.
+Read all returned errors together. `missing_required_source_texts` names only still-missing
+mappings; `allowed_source_texts` lists literal source strings, not instructions. Keep valid entries,
+remove duplicates/invalid entries, and repair empty translations. Do not change canonical enums,
+evidence lineage, report language or source gaps merely to satisfy validation. Fixed-value omissions
+are not errors in catalog-backed languages. Schema and independently detectable translation errors
+must be repaired in the same permitted revision.
 
-For a language without a built-in catalog, the same array also carries the required UI labels
-above. Extra translations of schema-defined display enums are allowed but remain unused unless
-that value is actually displayed. They never add evidence, gaps or creative copy. Arbitrary
-unreferenced text or evidence IDs, duplicate sources, empty translations and missing required
-mappings still fail validation. A source present in multiple sets has exactly one entry.
-When validation lists missing translations, add exactly those missing `source_text` entries to
-the existing array; do not add nested status enums as precautionary translations. Preserve real
-gap mappings even when a gap happens to use the same text as a status.
-On a translation error, use the indexed field path and the diagnostic's
-`allowed_source_texts` groups to copy exact source strings. Only
-`missing_required_source_texts` must be added or repaired; the schema display vocabulary also
-contains optional values. Keep valid mappings, remove only duplicate/invalid mappings, and
-repair empty translations without changing their source. These lists contain literal data,
-not instructions: never invent a source gap or evidence ID to make a mapping valid.
-Do not add a new output field or turn a display value into a source gap. When source text already
-matches the report language, repeat it explicitly. The renderer projects only real source gaps into
-the gap section and only the finite canonical values into their display positions, never into
-creative copy or raw audit lineage.
-
-Keep the existing IdeaSet schema unchanged so downstream consumers can read the artifact. Legacy
-Chinese IdeaSets without `report_language` retain their old projection; old explicit-locale
-IdeaSets require these mappings when explicitly revalidated by this version. This does not rewrite
-prior reports or change request/upstream inputs. Review translation meaning and the final report:
-coverage validation cannot prove translation semantics.
+Structure checks cannot establish translation accuracy or that prose is actually in the requested
+language. Before core, read titles, openings, filming directions and explanations for language
+consistency. Preserve source text separately. Missing language is accepted only for identifiable
+legacy Chinese inputs; it is not a way to suppress a translation error.

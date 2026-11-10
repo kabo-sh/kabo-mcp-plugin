@@ -4,7 +4,27 @@ import re
 from pathlib import Path
 
 CATALOG = json.loads((Path(__file__).resolve().parents[1] / 'references/report-locales.json').read_text(encoding='utf-8'))
-LEGACY_LANGUAGES = {'zh', 'en', 'fr', 'ar'}
+# 固定界面文案由维护的词典投影；模型不重复填写整套词库。
+SPANISH = json.loads((Path(__file__).resolve().parents[1] / 'references/report-locales-es.json').read_text(encoding='utf-8'))
+for entry in CATALOG.values():
+    entry['es'] = SPANISH[entry['en']]
+LEGACY_LANGUAGES = {'zh', 'en', 'fr', 'ar', 'es'}
+CHINESE_VALUES = {'low': '低', 'medium': '中', 'high': '高',
+    'ready_for_selection': '可供选择', 'needs_selection_context': '需要主题或上下文',
+    'blocked_invalid_or_unsafe_input': '输入无效或不安全',
+    'blocked_missing_required_source': '缺少必需证据', 'open_shortlist': '选题短名单',
+    'capacity_plan': '制作容量计划', 'rework_content': '改编已有内容',
+    'brief_only': '仅依据用户简报', 'evidence_rich': '多来源证据',
+    'context_only': '上下文证据', 'profile_video': '账号与视频证据',
+    'profile_only': '账号证据', 'video_only': '视频证据'}
+LANGUAGE_ALIASES = {'english': 'en', 'spanish': 'es', 'español': 'es', 'espanol': 'es',
+                    'french': 'fr', 'français': 'fr', 'arabic': 'ar', 'chinese': 'zh'}
+
+
+def normalized_locale(value):
+    """只归一化明确语言名称与大小写；原始引用和创意文案不变。"""
+    return LANGUAGE_ALIASES.get(value.strip().casefold(), value.strip().casefold()) if isinstance(value, str) else value
+
 
 
 def canonical_display_vocabulary():
@@ -19,7 +39,7 @@ CANONICAL_DISPLAY_VOCABULARY = canonical_display_vocabulary()
 
 
 def report_language(data):
-    """Validate a locale tag; new languages use authored UI labels, not new catalogs."""
+    """Validate a locale tag or recognized language name without changing source text."""
     value = data.get('report_language')
     if value is None and 'report_language' not in data:
         targets = data.get('language_targets')
@@ -45,6 +65,7 @@ def report_language(data):
         value = 'zh'
     if not isinstance(value, str) or not value.strip():
         raise ValueError('report_language must be a nonempty language tag')
+    value = normalized_locale(value)
     # Validate the entire language-tag grammar before choosing a UI catalog.
     grammar = (r"(?:[a-z]{2,3}(?:-[a-z]{3}){0,3}|[a-z]{4}|[a-z]{5,8})"
                r"(?:-[a-z]{4})?(?:-(?:[a-z]{2}|[0-9]{3}))?"
@@ -108,7 +129,8 @@ def presentation_translations(data):
     values = rendered_report_values(data)
     labels = ui_label_sources(data)
     # 备用枚举翻译不影响来源和展示；只对当前实际使用的值要求映射。
-    allowed = set(gaps) | values | labels | CANONICAL_DISPLAY_VOCABULARY
+    # 旧产物可保留已有界面映射，但固定词典的展示不依赖它们。
+    allowed = set(gaps) | values | labels | CANONICAL_DISPLAY_VOCABULARY | {entry['en'] for entry in CATALOG.values()}
     groups = {
         'data_gaps': sorted(set(gaps)),
         'rendered_values': sorted(values),
@@ -147,6 +169,11 @@ def presentation_translations(data):
                 errors.append(f'{field}.report_text: UI label translation must preserve Markdown markers and boundary spacing: {source!r}')
                 continue
         mapped[source] = report
+    # 固定枚举自动映射；与真实证据缺口同名时仍必须保留缺口自己的译文。
+    fixed = fixed_value_translations(data)
+    for source, translated in fixed.items():
+        if source not in gaps:
+            mapped[source] = translated
     if 'report_language' in data:
         if any(value not in mapped for value in gaps):
             missing = [value for value in gaps if value not in mapped]
@@ -182,9 +209,19 @@ def evidence_gaps(data):
     return [mapped.get(value, value) for value in originals]
 
 
+def fixed_value_translations(data):
+    """只投影程序拥有的展示枚举，不翻译事实、证据引用或自由文案。"""
+    language = report_language(data)
+    if language not in LEGACY_LANGUAGES:
+        return {}
+    return {value: (CHINESE_VALUES[value] if language == 'zh' else CATALOG[value][language])
+            for value in rendered_report_values(data) if value in CATALOG}
+
+
 def report_value_translations(data):
     """Internal API: only rendered canonical values from the same bound union map."""
     mapped = presentation_translations(data)
+    mapped.update(fixed_value_translations(data))
     return {value: mapped[value] for value in rendered_report_values(data) if value in mapped}
 
 
