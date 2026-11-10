@@ -38,6 +38,9 @@ workspace or shell), the host does the file work, so:
 - If inputs were confirmed in a form (an approved script and chosen files), use exactly those;
   Kabo refuses anything else. Before the first paid step or render, tell the creator the plan and
   its cost and wait for their reply; Kabo refuses a paid call in the same turn as the quote.
+  Ask once: the plan and a dollar figure in one message. If you need the inputs' lengths to price
+  it, start the project and run the free steps first, then quote; after their yes, do not ask
+  again unless the real cost would go above what you quoted.
 - Once the creator has approved, keep going in the same turn: make a step, wait for it, make the
   next, through `finish_video_project` or delivery. Nothing wakes you for a step you already saw
   finish, so never end a turn with "next I will..." and nothing running. Stop only to ask the
