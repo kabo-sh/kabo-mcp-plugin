@@ -166,6 +166,11 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
     bundles.push(buildPluginBundle({ skillDirectory: directory, sourceCommit: pluginCommit, version }));
   }
   if (!bundles.length && !Object.keys(kept).length) fail('nothing to publish');
+  // test 目标多人共用：本插件 commit 产不出的条目（别的分支按别名发上来的 skill 等）原样保留，
+  // 否则每次发版顺手刷一遍 test 都会把别人正在测的版本冲掉。
+  if (targetName === 'test')
+    for (const [id, entry] of Object.entries(current?.skills ?? {}))
+      if (!available.includes(id) && !kept[id]) kept[id] = entry;
   for (const bundle of bundles) {
     const objectName = bundleObjectName(bundle);
     const bytes = Buffer.from(stableJson(bundle));

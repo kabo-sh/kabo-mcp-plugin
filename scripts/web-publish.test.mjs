@@ -109,3 +109,17 @@ test('publish --hold：被扣下的 skill 不进 overlay（Web 用 Registry 原�
   const overlay = JSON.parse((await store.read(TARGETS.index)).bytes);
   assert.deepEqual(Object.keys(overlay.skills), ['alpha-skill']);
 });
+
+test('test 目标：本插件产不出的条目（别名发上来的）原样保留；生产目标不保留', async () => {
+  const { store } = await liveStore();
+  const foreign = { version: '0.1.52', object: `bundles/creator-remake-web/0.1.52/${'b'.repeat(64)}.json`, content_checksum: `sha256:${'b'.repeat(64)}` };
+  const seed = { format_version: 1, channel: 'production', updated_at: '2026-11-05T00:00:00.000Z', skills: { 'creator-remake-web': foreign } };
+  await store.write(TARGETS.test, Buffer.from(stableJson(seed)), 0);
+  const root = pluginRepo({ 'alpha-skill': '# a1' });
+  const result = await publish({ store, pluginRoot: root, pluginCommit: COMMIT, targetName: 'test' });
+  assert.deepEqual(result.skills['creator-remake-web'], foreign);
+  assert.ok(result.skills['alpha-skill']);
+  await store.write(TARGETS.index, Buffer.from(stableJson(seed)), (await store.read(TARGETS.index))?.generation ?? 0);
+  const prod = await publish({ store, pluginRoot: root, pluginCommit: 'd'.repeat(40) });
+  assert.equal(prod.skills['creator-remake-web'], undefined);
+});
