@@ -2,6 +2,11 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.33（2026-11-10；GitHub Release）
+
+- `research-instagram-trends`：出 Gate 打分表前每条车道最多留 30 条，先收本周窗口内的、再收无发布时间的、窗口外的最后补；以前一条车道 90–100 多条要模型逐条打分，模型不打就收尾，还把没跑的步骤说成「指标补全没完成」（11-07 Web 巡检）。单条引用又没有异常值/前四分之一证据的 pattern 删掉，不换 stage 标签硬凑；没跑的步骤如实说没跑，不归咎上游（#153）。
+- 补记：`review-creator-account-deep` 媒体全部失败时降级为只用目录数字继续、不再 exit 1，看片交接是必做步骤（#152），已随 v1.0.32 标签发布。
+
 ## 1.0.32（2026-11-10；GitHub Release）
 
 - `analyze-content-video`：读帧调用已经把图片显示出来时就算看过了，不再要求逐帧保存与暂存（报告按 keyframes 信封列帧，不需要帧的字节）；以前在 Web 上 59 帧要 59 步暂存，超过每轮步数，读完帧就停下（11-07 生产回归两例）。`collect_media.py`：「还有 N 个任务在跑」单独一行，第二轮交接 Web 宿主也认得；续跑参数改成 `--id=<id>`；以 `cd` 进去的 run 为准（同 1.0.30 的深度复盘）。修正 `evidence-reading.md` 的 KS2.2 lint 错误（#149）。
