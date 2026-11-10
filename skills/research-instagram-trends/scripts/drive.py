@@ -710,6 +710,9 @@ def stage_discover(args: argparse.Namespace) -> None:
 # 每条车道最多交给模型打分的候选数。enrich 每条车道只取 HANDED_PER_LANE（6）条，可一条车道回来 90 多条时
 # Gate 表要翻三页；线上（2026-11-05..08）模型面对 94 + 90 行没写分就结束了回合。先按确定规则留 30 条：
 # 搜索排名靠前的与发现热度最高的交替入选（lane_pick 的「两条看意思、四条看热度」两头都留得住），保持原顺序。
+# 收集按更宽的发现窗口召回，Request 窗口（例如「这周」）之外的条目到 Snapshot 才被排除：实测 103 条里
+# 30 条在七天窗口内，不分先后地收只留下 9 条在窗口内，最后只剩 8 条进分析。所以先收窗口内的，再收没有
+# 发布时间的（判不了，留给后面），窗口外的最后才补。
 # 写进 eligible 那个位置（与画像过滤同一种子集：items 缩减、其余字段与 candidate_set_id 不变），之后
 # Gate、排序、Snapshot 都读同一份；收集到的总数仍在 coverage 里，报告照实写。
 GATE_ITEMS_PER_LANE = 30
@@ -721,22 +724,46 @@ def search_rank(item: dict[str, Any]) -> int:
     return min(ranks) if ranks else 10**9
 
 
+def _instant(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        moment = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+
+
+def window_tier(item: dict[str, Any], since: datetime | None, until: datetime | None) -> int:
+    """0：发布时间在 Request 窗口内；1：没有发布时间或没有窗口；2：确知在窗口外。"""
+    published = _instant(item.get("published_at"))
+    if published is None or since is None or until is None:
+        return 1
+    return 0 if since <= published <= until else 2
+
+
 def shortlist_for_gate(name: str) -> None:
     source = lane_candidates(name)
     candidates = cd.load(source)
     items = candidates.get("items") or []
     if len(items) <= GATE_ITEMS_PER_LANE:
         return
-    by_rank = sorted(range(len(items)), key=lambda n: (search_rank(items[n]), n))
-    by_heat = sorted(range(len(items)), key=lambda n: (-discovery_heat(items[n]), n))
+    window = (cd.load(REQUEST).get("window") or {}) if Path(REQUEST).is_file() else {}
+    since, until = _instant(window.get("since")), _instant(window.get("until"))
     kept: list[int] = []
-    for pair in zip(by_rank, by_heat):
-        for n in pair:
-            if n not in kept and len(kept) < GATE_ITEMS_PER_LANE:
-                kept.append(n)
+    for tier in (0, 1, 2):
+        pool = [n for n in range(len(items)) if window_tier(items[n], since, until) == tier]
+        by_rank = sorted(pool, key=lambda n: (search_rank(items[n]), n))
+        by_heat = sorted(pool, key=lambda n: (-discovery_heat(items[n]), n))
+        for pair in zip(by_rank, by_heat):
+            for n in pair:
+                if n not in kept and len(kept) < GATE_ITEMS_PER_LANE:
+                    kept.append(n)
+    in_window = sum(1 for n in kept if window_tier(items[n], since, until) == 0)
     shortlist = {**candidates, "items": [items[n] for n in sorted(kept)],
-                 "gate_shortlist": {"input_items": len(items), "kept_items": len(kept),
-                                    "rule": f"best search rank and discovery heat, alternating, up to {GATE_ITEMS_PER_LANE}"}}
+                 "gate_shortlist": {"input_items": len(items), "kept_items": len(kept), "kept_in_window": in_window,
+                                    "rule": f"in the request window first, then undated, then outside; within each, "
+                                            f"best search rank and discovery heat alternating; up to {GATE_ITEMS_PER_LANE}"}}
     Path(LANES[name]["eligible"]).write_text(json.dumps(shortlist, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     cd.say(json.dumps({"status": "ok", "lane": name, "gate_shortlist": shortlist["gate_shortlist"]}))
 
@@ -1141,7 +1168,7 @@ def report_correction(args: argparse.Namespace, authored: dict[str, bytes | None
                        "errors": [str(error)], "original_input_record": str(directory),
                        "corrections_remaining": 1, "run_id": cd.run_id(),
                        "next_stage": {"script": "scripts/drive.py", "arguments": ["report", *language_option(args)]},
-                       "instruction": f"Correct only the fields of {SYNTHESIS} that these errors name, from the evidence already in this run, and repeat the report stage once in this same open run. No data was fetched and the run is unchanged. Do not refetch, replace the run or deliver an older report. A second rejection is fatal."}, ensure_ascii=False))
+                       "instruction": f"Correct only the fields of {SYNTHESIS} that these errors name, from the evidence already in this run, and repeat the report stage once in this same open run. A pattern whose cited refs meet no stage's evidence rule (one ref without a cited outlier or top-quartile metric) is removed, not relabeled; fewer patterns, or none, is valid. No data was fetched and the run is unchanged. Do not refetch, replace the run or deliver an older report. A second rejection is fatal."}, ensure_ascii=False))
 
 
 def stage_report(args: argparse.Namespace) -> None:

@@ -40,7 +40,7 @@ test("Gate 候选上限：94 条留 30 条，排名前列与最热的都在，�
   assert.equal(kept.items.length, 30);
   assert.equal(kept.candidate_set_id, "set-1");
   assert.deepEqual(kept.coverage, full.coverage);
-  assert.deepEqual(kept.gate_shortlist, { input_items: 94, kept_items: 30, rule: "best search rank and discovery heat, alternating, up to 30" });
+  assert.deepEqual(kept.gate_shortlist, { input_items: 94, kept_items: 30, rule: "in the request window first, then undated, then outside; within each, best search rank and discovery heat alternating; up to 30", kept_in_window: 0 });
   const keys = kept.items.map((row) => row.content_key);
   assert.deepEqual(keys, [...keys].sort(), "原顺序");
   for (const n of [0, 1, 2, 14]) assert.ok(keys.includes(full.items[n].content_key), `排名第 ${n + 1}`);
@@ -62,4 +62,27 @@ test("Gate 候选上限：已有画像过滤的子集在它上面再收；不超
   await writeFile(path.join(run, "trend-candidate-set.json"), JSON.stringify(set(25)));
   shortlist(run, "relevance");
   await assert.rejects(readFile(path.join(run, "trend-candidate-set-eligible.json"), "utf8"));
+});
+
+// 收集按更宽的发现窗口召回，Request 窗口外的条目到 Snapshot 才被排除（实测 103 条里 30 条在「这周」内，
+// 不分先后地收只留下 9 条）：先收窗口内的，再收没有发布时间的，窗口外的最后才补。
+test("Gate 候选上限：先收 Request 窗口内的，再收没有发布时间的，窗口外的最后补", async (t) => {
+  const run = await mkdtemp(path.join(os.tmpdir(), "kabo-ig-shortlist-"));
+  t.after(() => rm(run, { recursive: true, force: true }));
+  await writeFile(path.join(run, "trend-research-request.json"), JSON.stringify({ window: { since: "2026-11-03T00:00:00Z", until: "2026-11-10T00:00:00Z" } }));
+  const full = set(100);
+  // 前 70 条排名、热度都靠前但在窗口外；后 30 条里 20 条在窗口内、10 条没有发布时间。
+  full.items.forEach((row, n) => {
+    if (n < 70) row.published_at = "2026-10-20T00:00:00Z";
+    else if (n < 90) row.published_at = "2026-11-05T00:00:00Z";
+    row.metrics = { play_count: 1_000_000 - 1000 * n };
+  });
+  await writeFile(path.join(run, "trend-candidate-set.json"), JSON.stringify(full));
+  shortlist(run, "relevance");
+  const kept = JSON.parse(await readFile(path.join(run, "trend-candidate-set-eligible.json"), "utf8"));
+  assert.equal(kept.items.length, 30);
+  assert.equal(kept.gate_shortlist.kept_in_window, 20);
+  const dated = kept.items.map((row) => row.published_at ?? null);
+  assert.equal(dated.filter((value) => value === "2026-11-05T00:00:00Z").length, 20);
+  assert.equal(dated.filter((value) => value === null).length, 10);
 });

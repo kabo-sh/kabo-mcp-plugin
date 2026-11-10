@@ -157,8 +157,8 @@ incomplete.
    `drive.py discover --policy <default_1y|recent_90d|user_named_span> [--since <ISO> --until <ISO>] --question-file -`.
    It freezes the window once, validates the plan per lane, hands over one
    `collect_instagram_trend_candidates` call per lane, places and binds the results, and prints the
-   relevance Gate table, at most 30 candidates per lane (best search rank and discovery heat; the
-   collected total stays in coverage). When the relevance lane returned no candidates at all, `discover` stops
+   relevance Gate table, at most 30 candidates per lane (in the request window first, then best search rank
+   and discovery heat; the collected total stays in coverage). When the relevance lane returned no candidates at all, `discover` stops
    with `gate input has no items to score` and this run cannot build a report: tell the user that
    no public Reels were found for these searches in this window, and suggest a broader or
    differently worded niche as a new request. Do not recollect in this run.
