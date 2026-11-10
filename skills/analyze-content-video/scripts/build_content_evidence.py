@@ -102,6 +102,18 @@ ACQUISITION_STATUSES = {
 FRAME_SELECTIONS = {"duration_scaled_v1", "evenly_spaced_bounded_v1", "explicit_timestamps_v1", "none"}
 TRANSCRIPT_ORIGINS = {"platform_captions", "provider_transcript", "speech_recognition"}
 PLATFORM_PREFIX = {"youtube": "yt", "instagram": "ig", "tiktok": "tt"}
+# 只导出逐字稿时不取元数据，模型写的请求也常不带 content_id：从创作者给的原始链接取。
+# 写法与各 Skill 里已有的同平台解析一致（research-youtube-trends、research-instagram-trends、select_comment_targets）。
+URL_CONTENT_ID = {
+    "youtube": re.compile(r"(?:[?&]v=|youtu\.be/|/shorts/|/embed/|/live/|/v/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])"),
+    "instagram": re.compile(r"instagram\.com/(?:[A-Za-z0-9._]+/)?(?:reels?|p|tv)/([A-Za-z0-9_-]{5,64})", re.IGNORECASE),
+    "tiktok": re.compile(r"tiktok\.com/.*?/(?:video|photo)/([0-9]{8,25})"),
+}
+
+
+def content_id_from_url(platform: str, url: Any) -> str | None:
+    match = URL_CONTENT_ID[platform].search(url) if isinstance(url, str) else None
+    return match[1] if match else None
 # The connector's blanket "nothing came back" sentence. It is true of one call, not of the run, so
 # it never travels into the evidence when anything else was retrieved.
 BLANKET = "no data was retrieved"
@@ -310,14 +322,15 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
         raise ValueError(f"request source.platform is {platform!r}, but the evidence is for one platform "
                          f"({', '.join(sorted(PLATFORM_PREFIX))}): set the platform the creator named in the request")
     file_ref = source.get("file_ref")
-    content_id = source.get("content_id") or video.get("id") or (Path(str(file_ref)).stem if file_ref else None)
     permalink = source.get("url") or video.get("webpage_url")
+    content_id = (source.get("content_id") or video.get("id") or content_id_from_url(platform, permalink)
+                  or (Path(str(file_ref)).stem if file_ref else None))
     if not permalink and file_ref:
         # An unpublished draft has no platform address; its locator is the file itself.
         permalink = Path(str(file_ref)).expanduser().resolve().as_uri()
     if not content_id or not permalink:
-        raise ValueError("content_ref needs a content_id and a URL or file_ref, from the request or from "
-                         "collect_public_metadata")
+        raise ValueError("content_ref needs a content_id and a URL or file_ref: put the original post or video "
+                         "link in the request's source.url, or its id in source.content_id")
     # 帖子投影的发布时间只补 metadata 没给的：metadata 是平台对自己视频的回答，两者都有时它优先。
     published = published_at or video.get("upload_date") or post_published_at
     if not published and source.get("subject_state") == "own_unpublished":
