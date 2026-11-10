@@ -1,4 +1,4 @@
-"""Derive the report's sampling facts; extraction and citation never prove pixel viewing."""
+"""Derive the report's sampling facts: extracted frames, cited frames, transcript and owner-metric sources."""
 from __future__ import annotations
 
 import math
@@ -25,7 +25,7 @@ def measurement_basis(evidence: dict, analysis: dict, view: dict) -> dict:
              or any(record(step).get("step") == "local_extraction" for step in evidence.get("acquisition") or []))
     if not local and platform is None:
         raise ValueError("cannot derive data_note: the video source is not known")
-    facts: dict = {"source": "Local video file" if local else platform, "viewing": "unverified"}
+    facts: dict = {"source": "Local video file" if local else platform}
     frames = record(evidence.get("frames"))
     frame_ids = set()
     status = frames.get("status")
@@ -144,7 +144,11 @@ def display_width(text: str) -> int:
 
 
 def measurement_note(facts: dict, language: str = "en") -> str:
-    """One measurement line, with fixed rounding and no claim about actual viewing."""
+    """One measurement line, with fixed rounding.
+
+    只陈述可数的事实：抽了多少帧、报告引用了多少帧、转写与后台数据从哪来。以前末尾固定写
+    「画面查看未核实 / viewing unverified」，帧明明送到了模型面前、报告也逐条引用，创作者却读成
+    「画面没看过」（11-06 群反馈）。帧数与引用数本身就说明了是抽样画面，不再加这句。"""
     if language == "zh":
         note = _zh_note(facts)
     else:
@@ -167,7 +171,7 @@ def _en_note(facts: dict) -> str:
     if "caption_cues" in facts:
         count = facts["caption_cues"]
         transcript += f" ({count} cue{'s' if count != 1 else ''})"
-    parts += [transcript, f"owner metrics {facts['owner_metrics']}", "viewing unverified"]
+    parts += [transcript, f"owner metrics {facts['owner_metrics']}"]
     return "; ".join(parts) + "."
 
 
@@ -182,7 +186,7 @@ def _zh_note(facts: dict) -> str:
     transcript = ZH_WORDS["transcript"][facts["transcript"]]
     if "caption_cues" in facts:
         transcript += f"（{facts['caption_cues']} 条）"
-    parts += [transcript, f"后台数据{ZH_WORDS['owner'][facts['owner_metrics']]}", "画面查看未核实"]
+    parts += [transcript, f"后台数据{ZH_WORDS['owner'][facts['owner_metrics']]}"]
     return "；".join(parts) + "。"
 
 
@@ -191,12 +195,14 @@ def canonical_note(evidence: dict, analysis: dict, view: dict) -> str:
 
 
 def note_matches(note, evidence: dict, analysis: dict, view: dict) -> bool:
-    """新结果按视图语言写 data_note；更早版本给 zh 视图写的是英文行，回放时两种都认。"""
+    """新结果按视图语言写 data_note；更早版本给 zh 视图写的是英文行，回放时两种都认。
+    1.0.32 之前的行末尾多一段「画面查看未核实 / viewing unverified」，回放旧结果时同样认。"""
     facts = measurement_basis(evidence, analysis, view)
-    accepted = {measurement_note(facts, note_language(view))}
+    current = {measurement_note(facts, note_language(view))}
     if note_language(view) != "en":
         try:
-            accepted.add(measurement_note(facts, "en"))
+            current.add(measurement_note(facts, "en"))
         except ValueError:
             pass
-    return note in accepted
+    legacy = {line[:-1] + ("；画面查看未核实。" if line.endswith("。") else "; viewing unverified.") for line in current}
+    return note in current | legacy

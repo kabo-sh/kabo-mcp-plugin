@@ -2,6 +2,10 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.35（2026-11-10；GitHub Release）
+
+- `analyze-content-video`：报告的测量依据行不再固定写「画面查看未核实 / viewing unverified」。帧送到了模型面前、报告也逐条引用，创作者却读成「画面没看过」（11-06 群反馈）；现在只写抽取帧数、报告引用帧数、转写与后台数据来源。1.0.32 之前生成的结果回放时照样认旧写法。
+
 ## 1.0.34（2026-11-10；GitHub Release）
 
 - 内容与 1.0.33 相同，只把声明了 `metadata.version` 的三个 Skill 往上提一版：`optimize-creator-brand` 0.3.24、`plan-content-calendar` 0.1.27（含 schema 里的 `candidate_skill` 常量）、`price-creator-brand-deals` 0.4.14。#152 改了 15 个 Skill 共用的 `static_host.py`，这三个的内容校验和随之变化，而 Web 发布要求声明版本高于线上版本，1.0.33 因此没能发到 Web。
