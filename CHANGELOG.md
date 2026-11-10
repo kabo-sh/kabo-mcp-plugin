@@ -5,6 +5,7 @@
 ## 1.0.32（2026-11-10；GitHub Release）
 
 - `analyze-content-video`：读帧调用已经把图片显示出来时就算看过了，不再要求逐帧保存与暂存（报告按 keyframes 信封列帧，不需要帧的字节）；以前在 Web 上 59 帧要 59 步暂存，超过每轮步数，读完帧就停下（11-07 生产回归两例）。`collect_media.py`：「还有 N 个任务在跑」单独一行，第二轮交接 Web 宿主也认得；续跑参数改成 `--id=<id>`；以 `cd` 进去的 run 为准（同 1.0.30 的深度复盘）。修正 `evidence-reading.md` 的 KS2.2 lint 错误（#149）。
+- `analyze-content-video`：只导出逐字稿时不取元数据，请求里又没有 `content_id`，`build_content_evidence.py` 以前报 `content_ref needs a content_id` 退出；现在从原始链接取（#151）。
 - `review-creator-account-deep`：音频名、作者是元数据，不代表听感；没有听到或测到的声音，不评曲风、氛围和是否搭配（复盘 N0685，#149）。
 
 ## 1.0.31（2026-11-09；GitHub Release）
