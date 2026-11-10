@@ -20,6 +20,16 @@ Never tell the creator a schedule exists unless the host confirmed creating it. 
 read back its name and next run time from the host's answer. If the host cannot schedule tasks, use
 the manual phrases at the end.
 
+**Prove delivery once.** A schedule that was created has not yet been shown to run. When the creator
+wants proof today, offer one of these, then put the schedule back:
+
+- move the daily task to a time a few minutes away, let it run once unattended, and move it back; or
+- create a temporary task that runs every few minutes, calls only `get_research_capabilities` (it
+  uses no allowance) and posts one line with the planned time, the actual time and the outcome; delete
+  it after a few runs.
+
+A run that the creator started by hand does not prove the schedule. Say which of the two was done.
+
 ## Grok Bot (routines)
 
 - A routine is created by asking the Bot in chat: send each of the two instructions above as the
@@ -43,6 +53,12 @@ the manual phrases at the end.
   `kabo-library/`.
 - A desktop task runs only while the app is open and the computer is awake. A run missed while the
   computer slept is caught up once on wake. Each task page lists its past runs.
+- The schedule uses the computer's own time zone, and a daily task starts a few minutes after the
+  minute it was set for. Each run is a new session: write the workspace folder that holds
+  `kabo-library/` into the task text, as the two instructions above do.
+- A run can pause on a permission prompt when the task was not saved with the creator's approvals.
+  If the first run produced nothing, ask the creator to open the task, run it once from its page and
+  approve the Kabo tools; later runs reuse those approvals.
 - Do not use cloud routines for these two jobs: a cloud run starts on a fresh machine that has
   neither the creator's installed plugins nor `kabo-library/`.
 - A terminal-only setup has no lasting schedule: use the manual phrases at the end.
