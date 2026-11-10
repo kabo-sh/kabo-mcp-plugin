@@ -29,6 +29,8 @@ wants proof today, offer one of these, then put the schedule back:
   it after a few runs.
 
 A run that the creator started by hand does not prove the schedule. Say which of the two was done.
+After a moved task has run, read the host's task list again: a host can turn a moved daily task into
+a one-time task, and then it has to be made daily again.
 
 ## Grok Bot (routines)
 
@@ -37,7 +39,8 @@ A run that the creator started by hand does not prove the schedule. Say which of
 - Routines run in the cloud, so the creator's computer can be off. They use the time zone in the
   creator's Settings, so check that setting instead of repeating a time zone in the request.
 - A new routine waits for its next scheduled time; it does not run once at creation. Tell the
-  creator when that next run is.
+  creator when that next run is. A routine starts within a window around its time (the Bot states up
+  to 15 minutes either side), so never promise an exact minute.
 - The routine page has a Test button that runs it immediately. Offer it: it is the quickest way to
   see a real result.
 - Results are posted in the Bot's chat. Run history is visible on the phone.
@@ -83,7 +86,8 @@ A run that the creator started by hand does not prove the schedule. Say which of
   Settings, Permissions, Artifacts and scheduled tasks.
 - Muse reaches Kabo through a custom connector that it builds itself, so an unattended run is not
   guaranteed to reach Kabo. After creating the task, run the same instruction once in chat, and tell
-  the creator the schedule works only if that run reached Kabo.
+  the creator the schedule works only if that run reached Kabo. A result usually arrives a few
+  minutes after the set time.
 - Muse Code, the command-line agent, loops only while its session stays open, and a loop expires
   after seven days: treat it as having no scheduled tasks.
 

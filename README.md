@@ -294,7 +294,7 @@ CHANGELOG.md                    # Version history (Chinese)
 The twenty-one Skills cover video analysis, standard and deep account reviews, scripts and packaging,
 content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor research, reach-drop
 diagnosis, publish-timing recommendations, platform monetization plans, official platform rule checks,
-brand identity options and media kits, content calendars, brand-deal pricing, and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 90 seconds or less
+brand identity options and media kits, content calendars, brand-deal pricing, and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 10 minutes or less
 (talking videos may cut to screen recordings or show a product) with the creator in it. Three more form a daily routine
 for a creator: `start-with-kabo` (first session: bind one public account, agree the niche and content pillars, offer two
 daily schedules), `pick-daily-viral-videos` (three viral picks a day matched to the pillars) and `review-new-posts`
