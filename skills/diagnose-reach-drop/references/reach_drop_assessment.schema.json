@@ -187,6 +187,10 @@
                       "type": "string",
                       "minLength": 1
                     },
+                    "source_ref": {
+                      "type": "string",
+                      "minLength": 1
+                    },
                     "groups": {
                       "type": "array",
                       "items": {

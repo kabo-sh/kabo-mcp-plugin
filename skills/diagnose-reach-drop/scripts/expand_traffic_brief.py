@@ -372,9 +372,18 @@ def expand_case(payload: dict, language: str = "zh-CN") -> tuple[dict, dict]:
         require(isinstance(question, dict), "brief question must be an object")
         question = copied(question)
         question.pop("target_source_text", None)
+        own_source = question.pop("source", None)
         result = common_question(question)
         require(result["id"] not in ids, "duplicate brief question id")
         ids.add(result["id"])
+        # 一个问题可以有自己的来源（例如用户口述的数字）：各来源各自成条，不再整份共用一个。
+        question_source = source_id
+        if own_source is not None:
+            require(isinstance(own_source, dict), "question source must be an object")
+            fields(own_source, {"kind", "locator"})
+            question_source = f"{result['id']}-source"
+            case["sources"].append({"id": question_source, "kind": source_kind(own_source["kind"]),
+                                    "locator": own_source["locator"]})
         if result["kind"] in {"recent_drop", "growth"}:
             groups = question.get("groups", [])
             period_shape = bool(groups) and all(
@@ -382,13 +391,13 @@ def expand_case(payload: dict, language: str = "zh-CN") -> tuple[dict, dict]:
                 and "values" not in group for group in groups
             )
             if result["kind"] == "growth" and period_shape:
-                add_period_totals(case, question, result, source_id)
+                add_period_totals(case, question, result, question_source)
             else:
-                add_performance(case, question, result, source_id)
+                add_performance(case, question, result, question_source)
         elif result["kind"] == "traffic_sources":
-            add_sources(case, question, result, source_id)
+            add_sources(case, question, result, question_source)
         else:
-            add_audience(case, question, result, source_id)
+            add_audience(case, question, result, question_source)
         case["questions"].append(result)
     return payload, case
 

@@ -104,8 +104,9 @@ cohorts, pass the plan with `--brief-file -` instead; it then needs `user_reques
 `--channel-id`; Instagram `--content-kind auto|feed|reels`. Caps: TikTok/YouTube 30; Instagram one
 page per format and analysis 30 (15/format in auto).
 
-For data the user supplied, or an AccountAnalysis file they imported, prepare in this request's
-run with the plan (including `user_request`) on stdin:
+Numbers the user gives (their own insights, a post they named) join that plan as questions with
+their own `source`. Without a public fetch, prepare data the user supplied, or an AccountAnalysis
+file they imported, in this request's run with the plan (including `user_request`) on stdin:
 
 ```sh
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/run_traffic_workflow.py' prepare - --output-dir . --language <en|zh-CN> --analysis '<file if any>'
