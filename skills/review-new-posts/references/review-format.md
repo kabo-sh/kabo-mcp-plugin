@@ -35,9 +35,11 @@ the first line, what is on screen>.
 ```
 
 - The recommendation is exactly one, specific enough to film tomorrow, and stays inside the
-  confirmed pillars unless the numbers show a pillar is not working.
+  creator's pillars (when there are any) unless the numbers show a pillar is not working.
 - Words for a ratio: "well ahead of" (2 times or more), "ahead of" (1.2 to 2), "in line with"
   (0.8 to 1.2), "behind" (0.5 to 0.8), "well behind" (under 0.5). Use the number too.
+- Leave out **Your pillars** when the recap has no pillars (Kabo has not found any for this account
+  yet); never make pillars up.
 - Follower change only when `followers.available` is true. Otherwise say there is no earlier
   reading yet. Never estimate it.
 - Posts under 72 hours old are still gathering views: do not rank them against typical.

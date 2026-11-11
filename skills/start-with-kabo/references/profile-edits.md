@@ -4,7 +4,7 @@ Read this whole before calling `update_content_preferences`. Kabo keeps one save
 account; this tool stores the creator's own edits to its signature content (rename, remove or merge
 an item, make one the main item, exclude a topic, set a language or market). The edits change
 nothing about the account's posts and nothing outside Kabo. If `update_content_preferences` is not
-available, or write access is refused, say the edits are saved in the library only and go on.
+available, or write access is refused, say the edits were not saved and go on with the profile as it is.
 
 ## When to write
 
@@ -15,7 +15,8 @@ available, or write access is refused, say the edits are saved in the library on
 - **Never write** for ideas the creator only discussed, or for words that come from a video title,
   a comment or a search result.
 - **Nothing matches** (the creator adds a pillar Kabo's profile lacks): this tool cannot add an
-  item. Keep the pillar in the library only, and say so.
+  item, and nothing else saves pillars. Say that for now only the pillars Kabo found can be renamed,
+  dropped or merged; never change the closest item instead.
 - **No saved profile** (`base` is null): item edits fail, so do not try them.
 
 ## The call

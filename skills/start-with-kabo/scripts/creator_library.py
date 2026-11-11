@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
-"""A creator's own content library: posts, niche and content pillars, daily picks, post reviews and recaps.
+"""A creator's own content library for post reviews and recaps, plus the small state of the daily picks.
 
 One directory per account (`<workspace>/kabo-library/<platform>-<handle>/`) keeps:
-  library.json  account, binding time, niche, confirmed content pillars, follower readings, notes, schedule
+  library.json  account, binding time, niche and content pillars read from Kabo's profile, follower readings
   posts.json    every own video post seen, with each public-metric observation and its age
-  picks.json    the daily viral picks already shown, so a pick never repeats
+  picks.json    the days the daily picks were checked and what was shown, so a pick never repeats
   reviews/      the 24 h review reports (and the optional 1 h / 7 d ones)
   recaps/       the daily account recaps
 
-The script reshapes and counts; it never judges. Pillar names, review wording and recommendations
-belong to the model. Metrics come only from public-content-snapshot.v1 files that
-build_public_snapshot.py assembled from staged Kabo evidence.
+The script reshapes and counts; it never judges. The creator's profile (niche and content pillars) and
+the daily "for you" videos come from Kabo's own tools (prepare_creator_profile, get_creator_profile,
+get_for_you_videos); this script only reads their saved results and never derives either on its own.
+Review wording and recommendations belong to the model. Metrics come only from
+public-content-snapshot.v1 files that build_public_snapshot.py assembled from staged Kabo evidence.
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
 import statistics
 import subprocess
 import sys
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -39,16 +41,12 @@ CHECKPOINT_ORDER = ("1h", "24h", "7d")
 LATE_AFTER_HOURS = 48.0
 # 发布满 72 小时的作品才算播放基本稳定，用于内容支柱表现和账号常规水平。
 SETTLED_HOURS = 72.0
-MIN_SETTLED_POSTS = 6
-# 支柱规则：中位播放不低于账号常规水平的 0.8 倍；第二个支柱至少占 20% 播放。
-PILLAR_MIN_MULTIPLE = 0.8
-SECOND_PILLAR_MIN_SHARE = 0.2
+# 画像里的主打内容最多取 4 项作为支柱（与后台画像的上限一致）。
 MAX_PILLARS = 4
 # 复刻只接 10 分钟以内的口播或旁白视频（与 remake-viral-video 自己的上限一致）。
 REMAKE_MAX_SECONDS = 600
 # 照片、图文不是视频，没有播放量，不进素材库。
 NON_VIDEO_FORMATS = {"instagram_feed", "tiktok_photo"}
-SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 USABLE_STATUSES = {"completed", "completed_partial"}
 PROFILE_OPERATIONS = {"resolve_profile", "get_channel"}
 CONTENT_OPERATIONS = {"list_posts", "list_reels", "list_channel_uploads", "list_account_posts"}
@@ -169,13 +167,9 @@ def ratio(value, base):
 # ---------------------------------------------------------------- 取数请求与快照
 
 def cmd_path(args):
+    # 只打印目录：三个 Skill 都会调用它，其中两个无人值守，这里不能带任何要对创作者说的话。
     directory = library_path(args.workspace, args.platform, args.handle)
-    result = {"library": str(directory)}
-    if not (directory / "library.json").exists():
-        # 新建库说明是第一次对话：开场两句若还没发过，现在补发；并告诉对方正在读作品。
-        result["tell_creator_now"] = OPENING + ["I'm reading your videos now. First numbers in a moment."]
-        result["note"] = "Skip any of these lines you already sent in this conversation."
-    say(result)
+    say({"library": str(directory), "exists": (directory / "library.json").exists()})
 
 
 def cmd_history_request(args):
@@ -184,7 +178,7 @@ def cmd_history_request(args):
         fail("--channel-id is only for YouTube")
     account = {"channel_id": args.channel_id} if args.channel_id else {"handle": normalize_handle(args.handle)}
     full = args.depth == "full"
-    # 首次建库读得多（样本越大支柱越可靠），每天的复盘只需要最近的作品。
+    # 建库那一次读得多（账号常规水平与同龄基线的样本更稳），每天的复盘只需要最近的作品。
     if args.platform == "instagram":
         history = {"max_items": 100 if full else 30, "max_pages": 40 if full else 10,
                    "instagram_formats": {"posts": False, "reels": True, "balance": "fewer_rows_first"}}
@@ -226,7 +220,7 @@ def cmd_snapshot(args):
              + json.dumps(problems, ensure_ascii=False))
     builder = HERE / "build_public_snapshot.py"
     if not builder.is_file():
-        fail("This Skill has no build_public_snapshot.py; build the snapshot from start-with-kabo or review-new-posts")
+        fail("This Skill has no build_public_snapshot.py; build the snapshot from review-new-posts")
     command = [sys.executable, "-B", str(builder), "--platform", args.platform, "--window", "auto",
                "--derive-complete", "--output", str(args.output)]
     for path in chosen:
@@ -266,12 +260,15 @@ def cmd_ingest(args):
         # 绑定时间取服务端抓取时间：此后发布的作品才进入复盘。
         write_json(directory / "library.json", {
             "format": LIBRARY_FORMAT, "platform": platform, "handle": handle,
-            "creator_id": owner.get("creator_id"), "bound_at": iso(observed), "stateless": False,
+            "creator_id": owner.get("creator_id"), "bound_at": iso(observed), "fresh": False,
             "niche": None, "pillars": [], "followers": [], "profile": {}, "updated_at": iso(observed),
         })
     library, store = load_library(directory)
     if library["platform"] != platform:
         fail(f"This library is for {library['platform']}, not {platform}")
+    if library.get("fresh") and any(post.get("observations") for post in (store.get("posts") or {}).values()):
+        # 库里已有上一次的读数，说明宿主保留了文件：此后的复盘有历史可比。
+        library["fresh"] = False
     if library.get("bound_at") is None:
         library["bound_at"] = iso(observed - timedelta(hours=library.get("lookback_hours", 0)))
     bound = parse_time(library["bound_at"])
@@ -348,197 +345,18 @@ def post_row(post, typical):
             "url": post.get("url"), "title": (post.get("title") or "")[:200]}
 
 
+# 开场两句由脚本给出，模型换成创作者的语言后各发一条，再问一个问题（账号）。说的必须是这次真会发生的事：
+# 画像由后台生成，要几分钟；推荐来自后台的「为你推荐」。
 OPENING = [
-    "I'm Kabo. I find the videos that are breaking out in your kind of content and help you make your own version.",
-    "Next few minutes: I look at your account, tell you which kind of your videos is working, then give you today's three breakout videos.",
+    "I'm Kabo. I find the most-watched recent videos in your kind of content and help you make your own version.",
+    "First I link your account and Kabo builds your profile, which takes a few minutes. Then I show you your "
+    "content pillars and today's three picks.",
 ]
 
 
 def cmd_opening(args):
-    """The first two messages of the first session, to be relayed as they are in the creator's language."""
-    say({"tell_creator_now": OPENING, "then": "ask for the account (or name the one you will read)"})
-
-
-def cmd_posts(args):
-    library, store = load_library(args.library)
-    posts = store["posts"]
-    typical = median([views for _, views in settled_views(posts)])
-    ordered = sorted(posts.values(), key=lambda post: post.get("published_at") or "", reverse=True)[: args.limit]
-    # 读完作品马上要对创作者说的话：条数、常规播放、最好的一条。模型只负责换成对方的语言原样转述。
-    best = max(settled_views(posts), key=lambda row: row[1], default=None)
-    tell = f"I read {len(posts)} of your videos."
-    if typical:
-        tell += f" A typical one gets about {int(round(typical))} views."
-    if best and typical:
-        title = (best[0].get("title") or "").strip().splitlines()[0][:60] if (best[0].get("title") or "").strip() else "your best one"
-        tell += f" Your best so far, \"{title}\", has {best[1]} views, {ratio(best[1], typical)} times that."
-    say({"tell_creator_now": tell, "handle": library["handle"], "platform": library["platform"],
-         "typical_settled_views": typical, "settled_posts": len(settled_views(posts)),
-         "posts": [post_row(post, typical) for post in ordered]})
-
-
-def cmd_media_request(args):
-    """The collect_video_media arguments that fetch transcripts for the posts worth reading."""
-    sys.path.insert(0, str(HERE))
-    import static_host
-    library, store = load_library(args.library)
-    posts = store["posts"]
-    ids = list(args.content_id or [])
-    if not ids:
-        # 播放最高的 4 条稳定作品，再补最近发布的、没选过的，凑满上限；一条也不重复。
-        top = [row[0]["content_id"] for row in sorted(settled_views(posts), key=lambda row: -row[1])[:4]]
-        recent = [post["content_id"] for post in sorted(posts.values(), key=lambda post: post.get("published_at") or "", reverse=True)]
-        ids = top + [cid for cid in recent if cid not in top]
-    unique = list(dict.fromkeys(ids))[: args.limit]
-    requests = [{"content_id": cid, "operation": "fetch_transcript", "parameters": {"url": posts[cid]["url"]}}
-                for cid in unique if cid in posts and posts[cid].get("url")]
-    if not requests:
-        fail("No post with a link to read a transcript from")
-    run_key = "lib:" + hashlib.sha256(str(static_host.run_dir()).encode()).hexdigest()[:24]
-    say({"requests": requests, "run_key": run_key, "wait_s": 100, "delivery": "download"})
-
-
-def transcript_text(envelope):
-    data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
-    cues = [str(cue.get("text")).strip() for cue in data.get("cues") or []
-            if isinstance(cue, dict) and isinstance(cue.get("text"), str) and cue["text"].strip()]
-    if cues:
-        return " ".join(cues)
-    for key in ("plain_text", "text"):
-        if isinstance(data.get(key), str) and data[key].strip():
-            return data[key].strip()
-    rows = [str(row.get("text")) for row in data.get("rows") or [] if isinstance(row, dict) and row.get("text")]
-    return " ".join(rows).strip()
-
-
-def cmd_transcripts(args):
-    """Transcript text of the newest staged collect_video_media result, one entry per post."""
-    sys.path.insert(0, str(HERE))
-    import static_host
-    records = static_host.composite_records("collect_video_media")
-    if not records:
-        fail("No staged collect_video_media result in this run; fetch it with static_host.py first")
-    record = records[-1]
-    out = []
-    for call in record["calls"]:
-        if call.get("tool") != "public_video_fetch_transcript":
-            continue
-        envelope = staged_envelope(call)
-        text = transcript_text(envelope) if envelope.get("status") in USABLE_STATUSES else ""
-        content_id = str(call.get("group") or "").rsplit("/", 1)[0]
-        data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
-        out.append({"content_id": content_id, "status": envelope.get("status"), "language": data.get("language"),
-                    "text": text[: args.chars], "has_speech": bool(text)})
-    coverage = record.get("coverage") if isinstance(record.get("coverage"), dict) else {}
-    say({"status": record.get("status"), "pending": coverage.get("pending"), "transcripts": out})
-
-
-def cluster_stats(clusters, posts):
-    settled = settled_views(posts)
-    total = sum(views for _, views in settled)
-    typical = median([views for _, views in settled])
-    rows = []
-    for cluster in clusters:
-        members = [posts[cid] for cid in cluster["content_ids"]]
-        views = [latest(post)["views"] for post in members
-                 if latest(post) and latest(post).get("views") is not None
-                 and (latest(post).get("age_hours") or 0) >= SETTLED_HOURS]
-        best = sorted((post for post in members if latest(post) and latest(post).get("views") is not None),
-                      key=lambda post: -latest(post)["views"])[:2]
-        rows.append({"id": cluster["id"], "name": cluster["name"], "posts": len(members),
-                     "settled_posts": len(views), "settled_views": sum(views),
-                     "view_share": round(sum(views) / total, 3) if total else None,
-                     "median_views": median(views),
-                     "median_multiple": ratio(median(views), typical),
-                     "example_posts": [{"url": post.get("url"), "title": (post.get("title") or "")[:120],
-                                        "views": latest(post)["views"]} for post in best]})
-    return rows, typical, len(settled)
-
-
-def choose_pillars(rows, settled_count):
-    # 规则写死在这里，模型只负责给出聚类。支柱要「有效」：中位播放不低于账号常规水平的 0.8 倍，
-    # 发得多但单条偏弱的聚类不算；合格的按播放占比排序取第一，第二个还要占比不低于 20%。
-    need = 3 if settled_count >= 12 else 2
-    sized = [row for row in rows if row["settled_posts"] >= need and row["view_share"] is not None]
-    eligible = [row for row in sized if (row["median_multiple"] or 0) >= PILLAR_MIN_MULTIPLE]
-    eligible.sort(key=lambda row: (-row["view_share"], -(row["median_views"] or 0)))
-    chosen = eligible[:1]
-    for row in eligible[1:]:
-        if row["view_share"] >= SECOND_PILLAR_MIN_SHARE:
-            chosen.append(row)
-            break
-    weak = False
-    if not chosen and sized:
-        # 没有一个聚类达到常规水平时，退回播放占比最高的一个，并标明它偏弱。
-        chosen, weak = [max(sized, key=lambda row: row["view_share"])], True
-    return [row["id"] for row in chosen], need, weak, {row["id"] for row in sized}, {row["id"] for row in eligible}
-
-
-def validate_clusters(raw, posts):
-    clusters = raw.get("clusters") if isinstance(raw, dict) else None
-    if not isinstance(clusters, list) or not 1 <= len(clusters) <= 6:
-        fail("clusters must be a list of 1 to 6 topic clusters")
-    seen_ids, seen_posts = set(), set()
-    for cluster in clusters:
-        if not SLUG.match(str(cluster.get("id", ""))) or cluster["id"] in seen_ids:
-            fail("Each cluster needs a unique id of lowercase letters, digits and hyphens")
-        seen_ids.add(cluster["id"])
-        check_pillar_text(cluster, "Cluster " + cluster["id"])
-        ids = cluster.get("content_ids")
-        if not isinstance(ids, list) or not ids:
-            fail(f"Cluster {cluster['id']} needs content_ids")
-        for content_id in ids:
-            if content_id not in posts:
-                fail(f"Unknown content_id {content_id}; use ids from creator_library.py posts")
-            if content_id in seen_posts:
-                fail(f"Post {content_id} is in more than one cluster")
-            seen_posts.add(content_id)
-    return clusters
-
-
-def check_pillar_text(entry, label):
-    for field in ("name", "definition"):
-        if not isinstance(entry.get(field), str) or not entry[field].strip():
-            fail(f"{label} needs a {field}")
-    queries = entry.get("search_queries")
-    if not isinstance(queries, list) or not 1 <= len(queries) <= 3 or not all(
-            isinstance(query, str) and 2 <= len(query.strip()) <= 120 for query in queries):
-        fail(f"{label} needs 1 to 3 search_queries of 2 to 120 characters")
-
-
-def cmd_propose_pillars(args):
-    """Local proposal: rank the model's topic clusters by the fixed pillar rule. Writes nothing."""
-    library, store = load_library(args.library)
-    posts = store["posts"]
-    clusters = validate_clusters(read_json(args.clusters), posts)
-    rows, typical, settled_count = cluster_stats(clusters, posts)
-    chosen, need, weak, sized, eligible = choose_pillars(rows, settled_count)
-    status = "ok" if settled_count >= MIN_SETTLED_POSTS else "insufficient_history"
-    by_id = {cluster["id"]: cluster for cluster in clusters}
-    for row in rows:
-        row["definition"] = by_id[row["id"]]["definition"]
-        row["search_queries"] = by_id[row["id"]]["search_queries"]
-        row["recommended"] = row["id"] in chosen and status == "ok"
-        if row["recommended"]:
-            row["why"] = "meets the rule"
-        elif row["id"] not in sized:
-            row["why"] = f"fewer than {need} posts are 72 hours old with public views"
-        elif row["id"] not in eligible:
-            row["why"] = f"median views are under {PILLAR_MIN_MULTIPLE} times the account's typical views"
-        else:
-            row["why"] = f"holds under {int(SECOND_PILLAR_MIN_SHARE * 100)}% of views, so it is not a second pillar"
-    rows.sort(key=lambda row: (not row["recommended"], -(row["view_share"] or 0)))
-    result = {"status": status, "settled_posts": settled_count, "typical_settled_views": typical,
-              "min_settled_posts_per_pillar": need, "below_typical": weak and status == "ok",
-              "candidates": rows[:MAX_PILLARS], "unassigned_posts": len(posts) - sum(len(c["content_ids"]) for c in clusters)}
-    top = next((row for row in rows if row["recommended"]), None)
-    if top:
-        result["tell_creator_now"] = (f"Your strongest kind of video so far looks like \"{top['name']}\": "
-                                      f"{len(by_id[top['id']]['content_ids'])} videos. I am reading a few of them now to check.")
-    if status != "ok":
-        result["note"] = (f"Fewer than {MIN_SETTLED_POSTS} posts are 72 hours old with public views; performance "
-                          "cannot rank pillars. Show the candidates without a recommendation and let the creator choose.")
-    say(result)
+    """The two opening messages of the first session, to be relayed as they are in the creator's language."""
+    say({"tell_creator_now": OPENING, "then": "ask one question: the account (or name the one you will use)"})
 
 
 def first_text(value):
@@ -553,15 +371,35 @@ def slug_of(text, taken):
     return slug
 
 
-def read_profile(path):
-    """Niche and pillar candidates from the saved Kabo profile (get_creator_profile with effective: true)."""
-    value = read_json(path)
-    structured = value.get("structuredContent", value) if isinstance(value, dict) else {}
-    if "content" in structured and "structuredContent" not in value and isinstance(structured.get("content"), list):
+def tool_payload(value):
+    """The structured answer inside a saved MCP tool result, and whether the host marked it as an error.
+
+    宿主存下来的可能是整份 MCP 结果（structuredContent，或只有 content[0].text 里的 JSON），也可能已经是
+    结构化内容本身；三种都认。"""
+    if not isinstance(value, dict):
+        return {}, False
+    is_error = value.get("isError") is True
+    if isinstance(value.get("structuredContent"), dict):
+        return value["structuredContent"], is_error
+    if isinstance(value.get("content"), list):
+        text = next((part.get("text") for part in value["content"] if isinstance(part, dict) and isinstance(part.get("text"), str)), None)
         try:
-            structured = json.loads(structured["content"][0]["text"])
-        except (KeyError, IndexError, TypeError, ValueError):
-            fail("--profile is not a complete get_creator_profile result")
+            parsed = json.loads(text) if text is not None else None
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, dict):
+            return parsed, is_error
+        return ({"message": text} if text else {}), is_error
+    return value, is_error
+
+
+def read_profile(path):
+    """Niche and content pillars from the creator's Kabo profile (get_creator_profile with effective: true).
+
+    只整理后台画像里的主打内容（signature content），不从作品里另行推导；后台没有就是没有。"""
+    structured, is_error = tool_payload(read_json(path))
+    if is_error:
+        fail("get_creator_profile was refused: " + json.dumps(structured, ensure_ascii=False)[:300])
     effective = structured.get("effectiveContentProfile") if isinstance(structured.get("effectiveContentProfile"), dict) else None
     base = structured.get("contentProfile") if isinstance(structured.get("contentProfile"), dict) else None
     source = effective or base
@@ -579,14 +417,10 @@ def read_profile(path):
             continue
         slug = slug_of(name, taken)
         taken.add(slug)
-        terms = [term.strip() for term in item.get("seedTerms") or [] if isinstance(term, str) and 2 <= len(term.strip()) <= 120]
         definition = " - ".join(part for part in (first_text(item.get("topic")), first_text(item.get("approach"))) if part)
         share = item.get("share") if isinstance(item.get("share"), (int, float)) else None
         candidates.append({
-            "id": slug, "name": name[:60], "definition": (definition or name)[:300],
-            "search_queries": (terms[:3] or [name[:120]]), "source": "kabo_profile",
-            # 画像里的 seedTerms 常是话题标签或单个词（views、viralhooks），拿去检索只会捞到泛内容。
-            "search_queries_are_tags": bool(terms) and all(" " not in term for term in terms[:3]),
+            "id": slug, "name": name[:60], "definition": (definition or name)[:300], "source": "kabo_profile",
             "profile_item_id": item.get("id"),
             # 画像的 share 是条数占比（contentCount / 进了格式的作品数），不是播放占比。
             "evidence": {"share_of_posts": share, "median_multiple": item.get("medianMultiplier"),
@@ -597,110 +431,129 @@ def read_profile(path):
     preferences = (effective or {}).get("preferences") if isinstance((effective or {}).get("preferences"), dict) else {}
     generated = ((effective or {}).get("base") or {}).get("generatedAt") if isinstance((effective or {}).get("base"), dict) else None
     advice = []
-    if any(row["search_queries_are_tags"] for row in candidates):
-        advice.append("Some search_queries are single words or tags. Before saving, replace them with 1 to 3 phrases "
-                      "a viewer would type into search, and show them to the creator.")
     status = (source or {}).get("signatureContentStatus")
     if status == "no_qualifying_group" and candidates:
         advice.append("Kabo's status no_qualifying_group means fewer than two groups cleared its bar. The one shown "
                       "did clear it (at least 3 comparable posts with a median above the account's typical views): "
                       "present it as a valid pillar.")
-    if len(candidates) == 1:
-        advice.append("Kabo has one signature content item. Also group the posts it does not cover (step 4b) and show "
-                      "any cluster that qualifies next to it, so the creator has a choice.")
-    tell = None
-    if candidates:
-        first = candidates[0]
-        count = first["evidence"].get("content_count")
-        tell = (f"Your strongest kind of video so far looks like \"{first['name']}\""
-                + (f": {count} videos" if count else "") + ". I am reading a few of them now to check.")
-    return {"status": "ok" if candidates else "no_signature_content", "tell_creator_now": tell, "niche": niche, "advice": advice,
-         "signature_status": (source or {}).get("signatureContentStatus"),
-         "profile_edited": bool((effective or {}).get("edited")),
-         "language": (source or {}).get("language", {}).get("primary") if isinstance((source or {}).get("language"), dict) else None,
-         "candidates": candidates,
-         "hidden_by_creator": [row.get("name") for row in (effective or {}).get("hiddenSignatureContent") or [] if isinstance(row, dict)],
-         "update_context": {"account_id": account.get("id"), "expected_version": preferences.get("version", 0),
-                            "basis": first_text(generated or (base or {}).get("generatedAt"))},
-         "note": None if candidates else "Kabo has no signature content for this account yet; compute pillars from the posts."}
+    return {"status": "ok" if candidates else "no_signature_content", "niche": niche, "advice": advice,
+            "signature_status": status,
+            "profile_edited": bool((effective or {}).get("edited")),
+            "language": (source or {}).get("language", {}).get("primary") if isinstance((source or {}).get("language"), dict) else None,
+            "candidates": candidates,
+            "hidden_by_creator": [row.get("name") for row in (effective or {}).get("hiddenSignatureContent") or [] if isinstance(row, dict)],
+            "update_context": {"account_id": account.get("id"), "expected_version": preferences.get("version", 0),
+                               "basis": first_text(generated or (base or {}).get("generatedAt"))},
+            "note": None if candidates else ("Kabo has no content pillars for this account yet (too few comparable posts). "
+                                             "Tell the creator so in one line and go on; never group the posts yourself.")}
 
 
 def cmd_profile_pillars(args):
     say(read_profile(args.profile))
 
 
+# ---------------------------------------------------------------- waiting on Kabo
+
+# 后台还在生成（画像或每日推荐）时按 retry_after_seconds 再查；总等待有上限，先到者为准：
+# 首次调用之后最多再查 4 次、累计等待最多 300 秒。宿主的单次命令与整次运行都有时限，不能无限等。
+POLL_MAX_RETRIES = 4
+POLL_MAX_WAIT_SECONDS = 300
+POLL_DEFAULT_WAIT = 60
+POLL_MIN_WAIT = 5
+
+
+def poll_decision(payload, attempt, waited):
+    """Whether to call the tool again after a `generating` answer, and how long to wait first."""
+    if attempt < 1 or waited < 0:
+        fail("--attempt starts at 1 and --waited at 0")
+    retry_after = payload.get("retry_after_seconds")
+    wait = retry_after if isinstance(retry_after, (int, float)) and not isinstance(retry_after, bool) and retry_after > 0 else POLL_DEFAULT_WAIT
+    remaining = POLL_MAX_WAIT_SECONDS - waited
+    if attempt > POLL_MAX_RETRIES or remaining < POLL_MIN_WAIT:
+        return {"action": "stop", "waited_seconds": waited, "calls": attempt}
+    wait = int(round(min(max(wait, POLL_MIN_WAIT), remaining)))
+    return {"action": "wait", "wait_seconds": wait, "then": "call the same tool again with the same arguments",
+            "next_flags": {"--attempt": attempt + 1, "--waited": waited + wait}}
+
+
+def status_of(payload, is_error):
+    # 宿主标了 isError、没有 status 或 status 不是字符串的，一律按失败处理，并把原样内容带回去报告。
+    status = payload.get("status")
+    if is_error or not isinstance(status, str) or not status:
+        return "failed"
+    return status
+
+
+PROFILE_STATUS_LINES = {
+    "first_wait": "Kabo is building your profile from your public videos. This usually takes a few minutes.",
+    "wait": "Still building your profile.",
+    "gave_up": ("Your profile is not ready yet, so I can't show your content pillars now. I'll go on with the rest; "
+                "ask me for your content pillars later."),
+    "insufficient_posts": ("You don't have enough videos yet for Kabo to find your content pillars, so there are none for "
+                           "now. I'll go on with the rest."),
+    "failed": "Kabo could not build your profile this time, so I can't show your content pillars now. I'll go on with the rest.",
+}
+
+
+def cmd_profile_status(args):
+    """What to do with a saved prepare_creator_profile result: read the profile, wait and ask again, or go on without it."""
+    payload, is_error = tool_payload(read_json(args.result))
+    status = status_of(payload, is_error)
+    result = {"status": status}
+    if status == "ready":
+        result.update({"action": "read_profile",
+                       "then": "call get_creator_profile with include content_profile and effective true"})
+    elif status == "generating":
+        decision = poll_decision(payload, args.attempt, args.waited)
+        result.update(decision)
+        if decision["action"] == "wait":
+            result["tell_creator_now"] = PROFILE_STATUS_LINES["first_wait" if args.attempt == 1 else "wait"]
+        else:
+            result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["gave_up"]})
+    elif status == "insufficient_posts":
+        result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["insufficient_posts"]})
+    else:
+        # failed，以及契约之外的任何 status：按失败处理，原样带回，不自己推导画像。
+        result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["failed"],
+                       "reported": {key: payload.get(key) for key in ("status", "retryable", "error", "message", "reason")
+                                    if key in payload} or payload})
+    say(result)
+
+
 def cmd_bootstrap(args):
-    """A minimal library for hosts that keep no files: pillars come from the creator's saved Kabo profile."""
+    """A new library built by review-new-posts when none exists: pillars, if any, come from the creator's Kabo profile.
+
+    第一次运行（引导对话不再在本地建库）和不留文件的宿主每次运行都走这里。没有画像或画像没有支柱时照样建库，
+    复盘与账号回顾照做，只是不带支柱小节。"""
     directory = Path(args.library)
     if (directory / "library.json").exists():
         fail("This library already exists; use it instead of rebuilding it")
-    proposal = read_profile(args.profile)
-    if proposal["status"] != "ok":
-        fail("Kabo has no saved content pillars for this account, so there is nothing to rebuild from; "
-             "run start-with-kabo in a host that keeps files")
+    proposal = read_profile(args.profile) if args.profile else None
+    candidates = (proposal or {}).get("candidates") or []
     handle, when = normalize_handle(args.handle), now_utc()
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "reviews").mkdir(exist_ok=True)
-    pillars = [{key: row[key] for key in ("id", "name", "definition", "search_queries", "source", "profile_item_id",
-                                          "evidence") if key in row} for row in proposal["candidates"]]
+    pillars = [{key: row[key] for key in ("id", "name", "definition", "source", "profile_item_id", "evidence") if key in row}
+               for row in candidates]
+    niche = (proposal or {}).get("niche")
+    language = (proposal or {}).get("language")
     # 回看 48 小时：第一次读历史时按那次的抓取时间定绑定时间，让每条作品恰好在 24–48 小时的那一天进入一次复盘。
+    # fresh 表示库里还只有这一次的读数；下一次在同一个库上读到历史时，ingest 把它改成 false。
     write_json(directory / "library.json", {
         "format": LIBRARY_FORMAT, "platform": args.platform, "handle": handle, "creator_id": None,
-        "bound_at": None, "lookback_hours": 48, "stateless": True,
-        "niche": {"text": proposal["niche"] or "", "source": "kabo_profile"}, "pillars": pillars,
-        "pillars_confirmed_at": iso(when), "pillars_confirmed_by": "saved_profile", "kabo_profile_synced": True,
-        "followers": [], "profile": {"language": proposal["language"]} if proposal["language"] else {},
+        "bound_at": None, "lookback_hours": 48, "fresh": True,
+        "niche": {"text": niche, "source": "kabo_profile"} if niche else None, "pillars": pillars,
+        "pillars_read_at": iso(when) if pillars else None, "pillars_source": "kabo_profile" if pillars else None,
+        "followers": [], "profile": {"language": language} if language else {},
         "updated_at": iso(when)})
     write_json(directory / "posts.json", {"posts": {}})
-    say({"library": str(directory), "stateless": True, "pillars": [row["id"] for row in pillars],
-         "limit": "History-dependent features are limited: no repeat protection across days and no same-age comparison."})
-
-
-def cmd_save_pillars(args):
-    """Save the niche and the pillars the creator confirmed. The only command that writes pillars."""
-    directory = Path(args.library)
-    library, store = load_library(directory)
-    posts = store["posts"]
-    raw = read_json(args.file)
-    pillars = raw.get("pillars")
-    if not isinstance(pillars, list) or not 1 <= len(pillars) <= MAX_PILLARS:
-        fail(f"pillars must list 1 to {MAX_PILLARS} confirmed pillars")
-    niche = first_text(raw.get("niche"))
-    if not niche or len(niche) > 200:
-        fail("niche must be one line of at most 200 characters")
-    if raw.get("niche_source") not in ("kabo_profile", "posts", "creator"):
-        fail("niche_source must be kabo_profile, posts or creator")
-    if raw.get("confirmed") is not True:
-        fail("The creator has not confirmed this set: write confirmed: true only after they agreed to it")
-    seen, saved = set(), []
-    for pillar in pillars:
-        if not SLUG.match(str(pillar.get("id", ""))) or pillar["id"] in seen:
-            fail("Each pillar needs a unique id of lowercase letters, digits and hyphens")
-        seen.add(pillar["id"])
-        check_pillar_text(pillar, "Pillar " + pillar["id"])
-        if pillar.get("source") not in ("kabo_profile", "local_posts", "creator"):
-            fail(f"Pillar {pillar['id']} needs a source: kabo_profile, local_posts or creator")
-        for content_id in pillar.get("content_ids") or []:
-            if content_id not in posts:
-                fail(f"Unknown content_id {content_id}")
-        saved.append({key: pillar[key] for key in ("id", "name", "definition", "search_queries", "source",
-                                                  "profile_item_id", "evidence") if key in pillar})
-    when = iso(now_utc())
-    previous = {row["id"] for row in library.get("pillars") or []}
-    for post in posts.values():
-        # 被换掉的旧支柱不留悬空归属；「other」和新支柱的归属保持。
-        if post.get("pillar_id") in previous and post["pillar_id"] not in seen:
-            post["pillar_id"] = None
-    for pillar in pillars:
-        for content_id in pillar.get("content_ids") or []:
-            posts[content_id]["pillar_id"] = pillar["id"]
-    library.update({"niche": {"text": niche, "source": raw["niche_source"]}, "pillars": saved,
-                    "pillars_confirmed_at": when, "pillars_confirmed_by": "creator",
-                    "kabo_profile_synced": bool(raw.get("kabo_synced")), "updated_at": when})
-    write_json(directory / "library.json", library)
-    write_json(directory / "posts.json", store)
-    say({"saved": True, "niche": library["niche"], "pillars": [row["id"] for row in saved],
-         "posts_assigned": sum(1 for post in posts.values() if post.get("pillar_id") in seen)})
+    result = {"library": str(directory), "fresh": True, "pillars": [row["id"] for row in pillars],
+              "limit": ("This library starts with this run's reading: no same-age comparison and no follower change yet. "
+                        "In a host that keeps no files every run starts like this.")}
+    if not pillars:
+        result["note"] = ("No content pillars from Kabo for this account, so the reviews and the recap have no pillar "
+                          "section. Do not make pillars up.")
+    say(result)
 
 
 def cmd_set_pillar(args):
@@ -715,33 +568,15 @@ def cmd_set_pillar(args):
     say({"content_id": args.content_id, "pillar_id": args.pillar_id})
 
 
-PROFILE_FIELDS = {"voice": str, "audience": str, "schedule": dict, "language": str, "notes": str}
-
-
-def cmd_set_profile(args):
-    directory = Path(args.library)
-    library, _ = load_library(directory)
-    profile = read_json(args.profile)
-    if not isinstance(profile, dict) or not profile or set(profile) - set(PROFILE_FIELDS):
-        fail("Profile fields: " + ", ".join(PROFILE_FIELDS))
-    for key, kind in PROFILE_FIELDS.items():
-        if key in profile and not isinstance(profile[key], kind):
-            fail(f"Profile field {key} must be a {kind.__name__}")
-    library.setdefault("profile", {}).update(profile)
-    library["updated_at"] = iso(now_utc())
-    write_json(directory / "library.json", library)
-    say({"profile": library["profile"]})
-
-
 def cmd_show(args):
     library, store = load_library(args.library)
     posts = store["posts"]
-    picks = read_json(Path(args.library) / "picks.json", {"days": {}})
+    picks = read_picks(Path(args.library))
     tracked = [post for post in posts.values() if post.get("tracked")]
     followers = library.get("followers") or []
     say({"platform": library["platform"], "handle": library["handle"], "bound_at": library["bound_at"],
-         "stateless": bool(library.get("stateless")), "niche": library.get("niche"),
-         "pillars": library.get("pillars"), "pillars_confirmed_by": library.get("pillars_confirmed_by"),
+         "fresh": bool(library.get("fresh")), "niche": library.get("niche"),
+         "pillars": library.get("pillars"), "pillars_source": library.get("pillars_source"),
          "profile": library.get("profile"), "posts_in_library": len(posts),
          "typical_settled_views": median([v for _, v in settled_views(posts)]),
          "followers_now": followers[-1] if followers else None,
@@ -854,9 +689,10 @@ def cmd_review_facts(args):
                                "post was first seen, so it can be up to one check interval late.")
     if last.get("views") is None:
         facts["limits"].append("The platform does not show this post's views publicly.")
-    if library.get("stateless"):
-        facts["limits"].append("This host keeps no files between runs, so earlier readings of the creator's posts are "
-                               "missing: no same-age comparison, and a post may be reviewed again on a later day.")
+    if library.get("fresh"):
+        facts["limits"].append("This library has only this run's reading of the creator's posts (its first run, or a "
+                               "host that keeps no files between runs): no same-age comparison yet. In a host that "
+                               "keeps no files a post may be reviewed again on a later day.")
     say(facts)
 
 
@@ -893,8 +729,9 @@ def cmd_recap(args):
     typical = median([views for _, views in settled])
     total = sum(views for _, views in settled)
     limits = []
-    if library.get("stateless"):
-        limits.append("This host keeps no files between runs: no follower change and no history beyond this read.")
+    if library.get("fresh"):
+        limits.append("This library has only this run's reading (its first run, or a host that keeps no files between "
+                      "runs): no follower change and no history beyond this read.")
     readings = library.get("followers") or []
     followers = {"available": False, "now": readings[-1]["value"] if readings else None}
     if len(readings) >= 2:
@@ -938,7 +775,7 @@ def cmd_recap(args):
             "latest_three_median_views": median(recent_three) if len(recent_three) == 3 else None,
             "earlier_median_views": median(earlier) if len(earlier) >= 3 else None})
     if not library.get("pillars"):
-        limits.append("This library has no confirmed pillars, so there is no per-pillar reading.")
+        limits.append("This library has no content pillars from Kabo, so there is no per-pillar reading.")
     unassigned = sum(1 for row in recent if not row["pillar_id"])
     say({"date": day, "handle": library["handle"], "platform": library["platform"], "followers": followers,
          "typical_settled_views": typical, "settled_posts": len(settled),
@@ -1023,196 +860,206 @@ def cmd_evidence(args):
 
 # ---------------------------------------------------------------- daily picks
 
-def enrichment_items(path):
-    value = read_json(path)
-    if value.get("schema_version") not in ("trend-enrichment.v1", "youtube-trend-enrichment.v1"):
-        fail(f"{path} is not a staged enrich_instagram_shortlist or enrich_youtube_shortlist result")
-    return [item for item in value.get("items") or [] if isinstance(item, dict)]
+def remake_note(platform, duration):
+    # 复刻只接 10 分钟以内的口播或旁白视频；是不是口播、多长，由复刻自己在收费前检查。
+    # 后台推荐不保证给时长：没有时长就只说「复刻前会先检查」，不臆测能不能复刻。
+    if platform is None:
+        return "checked first: before a remake, Kabo checks whether this video qualifies"
+    if platform not in ("instagram", "youtube", "tiktok"):
+        return "not supported for this platform"
+    if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration > REMAKE_MAX_SECONDS:
+        return f"not possible: longer than {REMAKE_MAX_SECONDS // 60} minutes"
+    if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration > 0:
+        return f"possible only if it is a talking-head or voice-over video ({int(duration)} seconds long); checked before any charge"
+    return "checked first: before a remake, Kabo checks whether this video qualifies"
 
 
-def candidate_view(item):
-    """Instagram and YouTube enrichment items in one shape."""
-    # Instagram 用 outlier / author / play_count，YouTube 用 account_breakout / channel / views。
-    outlier = item.get("outlier") or item.get("account_breakout") or {}
-    author = item.get("author") or {}
-    channel = item.get("channel") or {}
-    metrics = item.get("metrics") or {}
-    multiple = outlier.get("multiple")
-    return {
-        "author": author.get("handle") or channel.get("title") or channel.get("id"),
-        "multiple": multiple if isinstance(multiple, (int, float)) else None,
-        "typical": outlier.get("cohort_median"),
-        "compared": outlier.get("cohort_size", outlier.get("comparable_count")),
-        "strength": outlier.get("evidence_strength"),
-        "views": metrics.get("play_count", metrics.get("views")),
-    }
+# 每日推荐只取后台 get_for_you_videos 的结果：后台按「与账号同领域、语言匹配」筛选并按公开播放量排序，
+# 规则以后台为准。这里只做展示上的限制：每天最多 3 条；先 7 天、再 30 天、再 24 小时；跳过以前某天展示过的、
+# 创作者本人的、与已选同一作者的；不够就有几条给几条，绝不凑数。
+PICK_WINDOWS = ("7d", "30d", "24h")
+PICKS_PER_DAY = 3
+
+FOR_YOU_NOT_ELIGIBLE = {
+    "no_linked_account": "No account is linked in Kabo yet, so there are no picks. Link one with start-with-kabo.",
+    "no_public_videos": "Kabo found no public videos on your account yet, so it can't pick videos in your niche. Picks start once you have posted.",
+    "profile_insufficient": "Kabo doesn't know your niche well enough yet to pick videos for you; it needs more of your posts.",
+    "language_unknown": "Kabo couldn't tell which language your videos are in, so it can't match picks to your audience yet.",
+}
 
 
-def pillar_of(item, pillars):
-    # 采集时 intent_id 写成「支柱 id.序号」，据此把候选归回支柱。
-    for source in item.get("sources") or []:
-        intent = str(source.get("intent_id") or "")
-        pillar = intent.rsplit(".", 1)[0]
-        if pillar in pillars:
-            return pillar
+def read_picks(directory):
+    value = read_json(Path(directory) / "picks.json", {"days": {}})
+    days = value.get("days") if isinstance(value, dict) and isinstance(value.get("days"), dict) else {}
+    return {"days": {day: [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+                     for day, rows in days.items()}}
+
+
+def normalize_url(raw):
+    text = first_text(raw)
+    if not text:
+        return None
+    parts = urllib.parse.urlsplit(text)
+    host = (parts.hostname or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    path = parts.path.rstrip("/")
+    return f"{host}{path}" if host else text
+
+
+def video_keys(item):
+    """Every key that identifies one video; empty values never become keys."""
+    keys = set()
+    content_id = item.get("content_id")
+    if isinstance(content_id, (str, int)) and not isinstance(content_id, bool) and str(content_id).strip():
+        keys.add("id:" + str(content_id).strip())
+    url = normalize_url(item.get("url"))
+    if url:
+        keys.add("url:" + url)
+    for key in item.get("keys") or []:  # 已记录的推荐自带 keys
+        if isinstance(key, str) and key.strip():
+            keys.add(key.strip())
+    return keys
+
+
+def platform_of(item):
+    # 缺 platform 时从链接的域名认；认不出就是 None（复刻提示退回「复刻前会先检查」）。
+    named = (first_text(item.get("platform")) or "").lower()
+    if named:
+        return named
+    host = (urllib.parse.urlsplit(first_text(item.get("url")) or "").hostname or "").lower()
+    for platform, hosts in (("instagram", ("instagram.com",)), ("tiktok", ("tiktok.com",)),
+                            ("youtube", ("youtube.com", "youtu.be"))):
+        if any(host == name or host.endswith("." + name) for name in hosts):
+            return platform
     return None
 
 
-def cmd_pick_request(args):
-    """The exact collect_*_trend_candidates arguments for today's search; pass them to the tool unchanged."""
-    library, _ = load_library(args.library)
-    pillars = library.get("pillars") or []
-    if not pillars:
-        fail("This library has no confirmed content pillars yet; run start-with-kabo first")
-    language = (library.get("profile") or {}).get("language") or args.language
-    platform = args.platform or library["platform"]
-    if platform == "instagram":
-        # 每天一次的轻量检索：一个支柱一条检索词（只有一个支柱时取两条），按已推荐过的天数轮换检索词。
-        # 六条意图加默认预算要 12 次上游调用，实测会超过宿主的工具超时；这里与短窗口检索同一档预算，
-        # 每条意图只取一页搜索结果，上游调用数等于意图数。
-        picks = read_json(Path(args.library) / "picks.json", {"days": {}})
-        turn = len(picks.get("days") or {})
-        intents = []
-        per_pillar = 2 if len(pillars) == 1 else 1
-        for pillar in pillars[:MAX_PILLARS]:
-            queries = pillar["search_queries"]
-            for step in range(min(per_pillar, len(queries))):
-                index = (turn + step) % len(queries)
-                intents.append({"intent_id": f"{pillar['id']}.{index + 1}", "search_query": queries[index]})
-        request = {"platform": "instagram", "window": "last-week", "intents": intents,
-                   "budget": {"search_pages_per_intent": 1, "popular_pages_per_intent": 1, "challenger_pages_per_intent": 0,
-                              "max_provider_calls": len(intents), "max_candidates": 100},
-                   "delivery": "download"}
-    elif platform == "youtube":
-        # YouTube 检索有全站每日上限：最多 2 条意图，各取支柱的第一条检索词。
-        until = now_utc().replace(microsecond=0)
-        request = {"platform": "youtube", "published_after": iso(until - timedelta(days=7)), "published_before": iso(until),
-                   "intents": [{"intent_id": f"{pillar['id']}.1", "query": pillar["search_queries"][0]} for pillar in pillars[:2]],
-                   "delivery": "download"}
-    else:
-        fail("Daily picks search Instagram, and YouTube for YouTube creators")
-    if language:
-        request["language"] = language
-    say(request)
+def author_of(item):
+    handle = first_text(item.get("author_handle"))
+    if not handle:
+        return None
+    return handle.lstrip("@").lower() or None
 
 
-def cmd_candidates(args):
-    value = read_json(args.collection)
-    if value.get("schema_version") not in ("trend-candidate-set.v1", "youtube-trend-candidate-set.v1"):
-        fail("--collection must be a staged collect_instagram_trend_candidates or collect_youtube_trend_candidates result")
-    rows = []
-    for item in value.get("items") or []:
-        metrics = item.get("metrics") or {}
-        author = item.get("author") or {}
-        channel = item.get("channel") or {}
-        rows.append({"content_key": item.get("content_key"),
-                     "intents": sorted({str(source.get("intent_id")) for source in item.get("sources") or []}),
-                     "author": author.get("handle") or channel.get("title"),
-                     "author_followers": author.get("follower_count"),
-                     "views": metrics.get("play_count", metrics.get("views")),
-                     "published_at": item.get("published_at"), "duration_seconds": item.get("duration_seconds"),
-                     "text": " ".join(str(item.get(key) or "") for key in ("title", "caption", "description")).strip()[:240]})
-    say({"candidate_set_id": value.get("candidate_set_id"), "platform": value.get("platform"),
-         "window": value.get("discovery_window") or value.get("window"), "status": value.get("status"),
-         "limitations": value.get("limitations"), "candidates": rows})
+def window_items(payload, name):
+    windows = payload.get("windows") if isinstance(payload.get("windows"), dict) else {}
+    rows = windows.get(name)
+    if isinstance(rows, dict) and isinstance(rows.get("items"), list):
+        rows = rows["items"]
+    rows = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+    def order(pair):
+        index, row = pair
+        rank = row.get("rank")
+        ranked = isinstance(rank, (int, float)) and not isinstance(rank, bool)
+        return (0, rank, index) if ranked else (1, 0, index)
+    return [row for _, row in sorted(enumerate(rows), key=order)]
 
 
-def remake_note(platform, duration):
-    # 复刻只接 10 分钟以内的口播或旁白视频；是不是口播由复刻自己在收费前检查。
-    if platform not in ("instagram", "youtube", "tiktok"):
-        return "not supported for this platform"
-    if isinstance(duration, (int, float)) and duration > REMAKE_MAX_SECONDS:
-        return f"not possible: longer than {REMAKE_MAX_SECONDS // 60} minutes"
-    if not isinstance(duration, (int, float)):
-        return f"unknown length: possible only if it is a talking-head or voice-over video of {REMAKE_MAX_SECONDS // 60} minutes or less"
-    return f"possible only if it is a talking-head or voice-over video ({int(duration)} seconds long)"
-
-
-def cmd_pick(args):
-    directory = Path(args.library)
-    library, store = load_library(directory)
-    pillars = [pillar["id"] for pillar in library.get("pillars") or []]
-    if not pillars:
-        fail("This library has no confirmed content pillars yet; run start-with-kabo first")
-    history = read_json(directory / "picks.json", {"days": {}})
-    shown = {row.get("content_key") for rows in history["days"].values() for row in rows} | {
-        row.get("url") for rows in history["days"].values() for row in rows}
-    day = args.date or now_utc().date().isoformat()
-    if day in history["days"] and args.write:
-        fail(f"Picks for {day} are already recorded")
-    own = library["handle"]
-    candidates, rejected = [], {"already_shown": 0, "own_post": 0, "below_multiple": 0, "no_pillar": 0,
-                                "weak_or_missing_baseline": 0}
-    for path in args.enrichment:
-        for item in enrichment_items(path):
-            view = candidate_view(item)
-            if item.get("content_key") in shown or item.get("url") in shown:
-                rejected["already_shown"] += 1
-            elif str(view["author"] or "").lstrip("@").lower() == own:
-                rejected["own_post"] += 1
-            # 只有样本够的倍数才算爆款证据（与趋势技能同一口径：moderate 或 strong）。
-            elif view["multiple"] is None or view["strength"] not in ("moderate", "strong"):
-                rejected["weak_or_missing_baseline"] += 1
-            elif view["multiple"] < args.min_multiple:
-                rejected["below_multiple"] += 1
-            elif pillar_of(item, pillars) is None:
-                rejected["no_pillar"] += 1
-            else:
-                candidates.append(item)
-    candidates.sort(key=lambda item: -(item.get("final_score") or 0))
-    chosen, authors = [], set()
-
-    def take(item):
-        author = candidate_view(item)["author"]
-        if any(item is row for row in chosen) or (author and author in authors):
-            return False
-        chosen.append(item)
-        authors.add(author)
-        return True
-
-    # 先保证每个支柱至少一条（按支柱顺序），再按综合得分补满。
-    for pillar in pillars:
-        if len(chosen) >= args.count:
-            break
-        for item in candidates:
-            if pillar_of(item, pillars) == pillar and take(item):
+def select_picks(payload, shown, own_handle, count):
+    """Up to `count` picks: 7d by Kabo's rank first, then 30d, then 24h; never padded."""
+    chosen, used_keys, authors = [], set(), set()
+    skipped = {"shown_on_earlier_day": 0, "own_post": 0, "same_author": 0, "duplicate": 0, "no_link": 0}
+    sizes = {}
+    for window in PICK_WINDOWS:
+        rows = window_items(payload, window)
+        sizes[window] = len(rows)
+        for row in rows:
+            if len(chosen) >= count:
                 break
-    for item in candidates:
-        if len(chosen) >= args.count:
-            break
-        take(item)
-    picks = []
-    for item in chosen[: args.count]:
-        view = candidate_view(item)
-        duration = item.get("duration_seconds")
-        picks.append({
-            "content_key": item.get("content_key"), "url": item.get("url"), "platform": item.get("platform"),
-            "author": view["author"], "pillar_id": pillar_of(item, pillars), "published_at": item.get("published_at"),
-            "views": view["views"], "multiple": view["multiple"], "author_typical_views": view["typical"],
-            "author_posts_compared": view["compared"], "evidence_strength": view["strength"],
-            "creator_transferability": (item.get("semantic_scores") or {}).get("creator_transferability"),
-            "text": " ".join(str(item.get(key) or "") for key in ("title", "caption")).strip()[:300],
-            "duration_seconds": duration, "remake": remake_note(item.get("platform"), duration),
-        })
-    result = {"date": day, "picks": picks, "candidates_passed": len(candidates), "rejected": rejected,
-              "min_multiple": args.min_multiple}
-    if library.get("stateless"):
-        result["limits"] = ["This host keeps no files between runs, so a video shown on an earlier day can come back."]
-    if len(picks) < args.count:
-        result["note"] = (f"Only {len(picks)} candidate(s) passed; never pad the list with weaker videos. Say how "
-                          "many were found and why the rest were excluded.")
-    if args.write and picks:
-        history["days"][day] = picks
-        write_json(directory / "picks.json", history)
-        result["written"] = True
+            keys = video_keys(row)
+            author = author_of(row)
+            if not normalize_url(row.get("url")):
+                skipped["no_link"] += 1
+            elif keys & used_keys:
+                skipped["duplicate"] += 1  # 同一条视频出现在多个时间窗
+            elif keys & shown:
+                skipped["shown_on_earlier_day"] += 1
+            elif own_handle and author == own_handle:
+                skipped["own_post"] += 1
+            elif author and author in authors:
+                skipped["same_author"] += 1
+            else:
+                used_keys |= keys
+                if author:
+                    authors.add(author)
+                views = row.get("views")
+                chosen.append({
+                    "window": window, "rank": row.get("rank"),
+                    "views": views if isinstance(views, (int, float)) and not isinstance(views, bool) else None,
+                    "reason": first_text(row.get("reason")), "url": first_text(row.get("url")),
+                    "platform": platform_of(row), "format": first_text(row.get("format")),
+                    "title": (first_text(row.get("title")) or first_text(row.get("caption")) or "")[:300],
+                    "author_handle": first_text(row.get("author_handle")), "published_at": first_text(row.get("published_at")),
+                    "content_id": str(row["content_id"]) if row.get("content_id") not in (None, "") else None,
+                    "remake": remake_note(platform_of(row), row.get("duration_seconds")),
+                    "keys": sorted(keys)})
+    return chosen, skipped, sizes
+
+
+def cmd_for_you(args):
+    """Today's picks from a saved get_for_you_videos result; records the day once the result is ready."""
+    directory = Path(args.library)
+    day = args.date or now_utc().date().isoformat()
+    history = read_picks(directory)
+    if day in history["days"]:
+        # 同一天再跑（定时任务重试、手动再叫）：不重选、不覆盖，原样给出已记录的那份。
+        say({"status": "ready", "action": "deliver", "date": day, "already_recorded": True,
+             "picks": history["days"][day], "found": len(history["days"][day])})
+        return
+    payload, is_error = tool_payload(read_json(args.result))
+    status = status_of(payload, is_error)
+    result = {"status": status, "date": day}
+    if status == "ready":
+        shown = {key for other, rows in history["days"].items() if other != day for row in rows for key in video_keys(row)}
+        own = normalize_handle(args.handle) if args.handle else None
+        picks, skipped, sizes = select_picks(payload, shown, own, args.count)
+        result.update({"action": "deliver", "picks": picks, "found": len(picks), "wanted": args.count,
+                       "skipped": skipped, "window_sizes": sizes,
+                       **{key: payload.get(key) for key in ("generated_at", "expires_at", "next_refresh_at")}})
+        if len(picks) < args.count:
+            result["note"] = (f"Only {len(picks)} of {args.count} could be shown today; never pad the list. Say how many "
+                              "there are, and why in plain words from `skipped` when it explains it.")
+        if args.write:
+            # 零条的日子也记下：今天已查过，同一天再跑不再触发。
+            directory.mkdir(parents=True, exist_ok=True)
+            history["days"][day] = picks
+            write_json(directory / "picks.json", history)
+            result["recorded"] = True
+    elif status == "generating":
+        decision = poll_decision(payload, args.attempt, args.waited)
+        result.update(decision)
+        if decision["action"] == "wait":
+            result["progress_line"] = "Kabo is still preparing today's picks for you."
+        else:
+            result["message"] = "Kabo is still preparing today's picks; the next run will bring them."
+    elif status == "not_eligible":
+        reason = first_text(payload.get("reason")) or "unknown"
+        result.update({"action": "stop", "reason": reason,
+                       "message": FOR_YOU_NOT_ELIGIBLE.get(reason, f"Kabo can't make picks for this account right now (reason: {reason}).")})
+    else:
+        # failed，以及契约之外的任何 status：按失败处理，原样报告，不搜索、不兜底。
+        retryable = payload.get("retryable") is True
+        detail = first_text(payload.get("message")) or first_text(payload.get("error")) or first_text(payload.get("reason"))
+        if status != "failed":
+            message = f"Kabo returned an answer this Skill does not know (status: {status}), so there are no picks today."
+        elif retryable:
+            message = "Kabo could not make today's picks because of a temporary error; the next run will try again."
+        else:
+            message = "Kabo could not make today's picks" + (f" ({detail})." if detail else ".")
+        result.update({"action": "stop", "retryable": retryable, "message": message,
+                       "reported": {key: payload.get(key) for key in ("status", "retryable", "error", "message", "reason")
+                                    if key in payload} or payload})
     say(result)
 
 
 def cmd_picks(args):
-    """The picks already recorded for one day, to show again instead of searching again."""
-    history = read_json(Path(args.library) / "picks.json", {"days": {}})
+    """Whether one day was already checked and what it showed, to show again instead of asking Kabo again."""
+    history = read_picks(args.library)
     day = args.date or now_utc().date().isoformat()
-    say({"date": day, "picks": history["days"].get(day), "recorded_days": sorted(history["days"])[-7:]})
+    say({"date": day, "checked": day in history["days"], "picks": history["days"].get(day),
+         "recorded_days": sorted(history["days"])[-7:]})
 
 
 def build_parser():
@@ -1223,6 +1070,25 @@ def build_parser():
     command.add_argument("--workspace", required=True)
     command.add_argument("--platform", required=True, choices=PLATFORMS)
     command.add_argument("--handle", required=True)
+    commands.add_parser("opening")
+    command = commands.add_parser("profile-status")
+    command.add_argument("--result", required=True)
+    command.add_argument("--attempt", type=int, default=1)
+    command.add_argument("--waited", type=int, default=0)
+    command = commands.add_parser("profile-pillars")
+    command.add_argument("--profile", required=True)
+    command = commands.add_parser("for-you")
+    command.add_argument("--library", required=True)
+    command.add_argument("--result", required=True)
+    command.add_argument("--handle")
+    command.add_argument("--date")
+    command.add_argument("--count", type=int, default=PICKS_PER_DAY)
+    command.add_argument("--attempt", type=int, default=1)
+    command.add_argument("--waited", type=int, default=0)
+    command.add_argument("--write", action="store_true")
+    command = commands.add_parser("picks")
+    command.add_argument("--library", required=True)
+    command.add_argument("--date")
     command = commands.add_parser("history-request")
     command.add_argument("--platform", required=True, choices=PLATFORMS)
     command.add_argument("--handle")
@@ -1231,35 +1097,19 @@ def build_parser():
     command = commands.add_parser("snapshot")
     command.add_argument("--platform", required=True, choices=PLATFORMS)
     command.add_argument("--output", required=True)
+    command = commands.add_parser("bootstrap")
+    command.add_argument("--library", required=True)
+    command.add_argument("--platform", required=True, choices=PLATFORMS)
+    command.add_argument("--handle", required=True)
+    command.add_argument("--profile")
     command = commands.add_parser("ingest")
     command.add_argument("--library", required=True)
     command.add_argument("--snapshot", required=True)
     command.add_argument("--handle")
-    commands.add_parser("opening")
-    command = commands.add_parser("posts")
-    command.add_argument("--library", required=True)
-    command.add_argument("--limit", type=int, default=40)
-    command = commands.add_parser("media-request")
-    command.add_argument("--library", required=True)
-    command.add_argument("--content-id", action="append")
-    command.add_argument("--limit", type=int, default=8)
-    command = commands.add_parser("transcripts")
-    command.add_argument("--chars", type=int, default=1500)
-    command = commands.add_parser("propose-pillars")
-    command.add_argument("--library", required=True)
-    command.add_argument("--clusters", required=True)
-    command = commands.add_parser("profile-pillars")
-    command.add_argument("--profile", required=True)
-    command = commands.add_parser("save-pillars")
-    command.add_argument("--library", required=True)
-    command.add_argument("--file", required=True)
     command = commands.add_parser("set-pillar")
     command.add_argument("--library", required=True)
     command.add_argument("--content-id", required=True)
     command.add_argument("--pillar-id", required=True)
-    command = commands.add_parser("set-profile")
-    command.add_argument("--library", required=True)
-    command.add_argument("--profile", required=True)
     command = commands.add_parser("show")
     command.add_argument("--library", required=True)
     command = commands.add_parser("due")
@@ -1287,39 +1137,15 @@ def build_parser():
     command = commands.add_parser("evidence")
     command.add_argument("--dir", required=True)
     command.add_argument("--tool")
-    command = commands.add_parser("candidates")
-    command.add_argument("--collection", required=True)
-    command = commands.add_parser("pick-request")
-    command.add_argument("--library", required=True)
-    command.add_argument("--platform", choices=("instagram", "youtube"))
-    command.add_argument("--language")
-    command = commands.add_parser("bootstrap")
-    command.add_argument("--library", required=True)
-    command.add_argument("--platform", required=True, choices=PLATFORMS)
-    command.add_argument("--handle", required=True)
-    command.add_argument("--profile", required=True)
-    command = commands.add_parser("pick")
-    command.add_argument("--library", required=True)
-    command.add_argument("--enrichment", action="append", required=True)
-    command.add_argument("--count", type=int, default=3)
-    command.add_argument("--min-multiple", type=float, default=2.0)
-    command.add_argument("--date")
-    command.add_argument("--write", action="store_true")
-    command = commands.add_parser("picks")
-    command.add_argument("--library", required=True)
-    command.add_argument("--date")
     return parser
 
 
-HANDLERS = {"path": cmd_path, "history-request": cmd_history_request, "snapshot": cmd_snapshot,
-            "ingest": cmd_ingest, "posts": cmd_posts, "opening": cmd_opening, "media-request": cmd_media_request,
-            "transcripts": cmd_transcripts, "propose-pillars": cmd_propose_pillars,
-            "profile-pillars": cmd_profile_pillars, "save-pillars": cmd_save_pillars,
-            "set-pillar": cmd_set_pillar, "set-profile": cmd_set_profile, "show": cmd_show, "due": cmd_due,
+HANDLERS = {"path": cmd_path, "opening": cmd_opening, "profile-status": cmd_profile_status,
+            "profile-pillars": cmd_profile_pillars, "for-you": cmd_for_you, "picks": cmd_picks,
+            "history-request": cmd_history_request, "snapshot": cmd_snapshot, "bootstrap": cmd_bootstrap,
+            "ingest": cmd_ingest, "set-pillar": cmd_set_pillar, "show": cmd_show, "due": cmd_due,
             "review-facts": cmd_review_facts, "record-review": cmd_record_review, "recap": cmd_recap,
-            "record-recap": cmd_record_recap, "comments": cmd_comments, "evidence": cmd_evidence,
-            "candidates": cmd_candidates, "pick": cmd_pick, "picks": cmd_picks,
-            "pick-request": cmd_pick_request, "bootstrap": cmd_bootstrap}
+            "record-recap": cmd_record_recap, "comments": cmd_comments, "evidence": cmd_evidence}
 
 
 def main():

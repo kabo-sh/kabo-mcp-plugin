@@ -1,8 +1,8 @@
 ---
 name: review-new-posts
-description: "Daily account check for a creator with a Kabo library: review every post published since the library was built that has passed 24 hours, compared with their own earlier posts at the same age, plus an account recap (follower change, last 7 days against typical views, each confirmed pillar, one recommendation). Safe to run unattended from a daily schedule. Use for 'review my new posts', 'how is my new video doing', 'how is my account this week'. Public metrics only; needs start-with-kabo first."
+description: "Daily account check for a creator: review every new post that has passed 24 hours, compared with their own earlier posts at the same age, plus an account recap (follower change, last 7 days against typical views, each content pillar from their Kabo profile when there are any, one recommendation). Builds its own library on the first run. Safe to run unattended from a daily schedule. Use for 'review my new posts', 'how is my new video doing', 'how is my account this week'. Public metrics only."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, the persistent workspace holding the creator's library from start-with-kabo (without one it rebuilds a smaller library each run), and script network access to kabo.sh and the signed storage.googleapis.com links Kabo results return. Kabo permissions: data; optional workspace:read to read the saved profile when the library is missing."
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, a persistent workspace for the creator's library, which this Skill builds on its first run (without one it rebuilds it on every run), and script network access to kabo.sh and the signed storage.googleapis.com links Kabo results return. Kabo permissions: data; optional workspace:read to read the saved profile when the library is missing."
 allowed-tools: get_research_data_download collect_account_history instagram_list_comments youtube_list_comments tiktok_discovery_list_comments list_connected_accounts get_creator_profile
 ---
 
@@ -10,17 +10,18 @@ allowed-tools: get_research_data_download collect_account_history instagram_list
 
 Designed for one scheduled run per day, and also on demand. Each run does two things:
 
-1. **Post reviews.** Every post published after the library was built, that has passed 24 hours and
-   has no 24-hour review yet, gets one. Each review compares the post with the creator's own
+1. **Post reviews.** Every post published after the library's binding time (48 hours before its
+   first reading), that has passed 24 hours and has no 24-hour review yet, gets one. Each review compares the post with the creator's own
    earlier posts at the same age (when at least three exist), reads the comments, and ends with what
    to make next. The 1-hour and 7-day reviews are optional: make them only when the creator asks.
 2. **Account recap**, in every daily report: follower change, the last 7 days of posts against
-   typical views, how each confirmed pillar is doing, and one concrete recommendation.
+   typical views, how each content pillar is doing (when Kabo found pillars for the account), and one
+   concrete recommendation.
 
 **One part only.** The request may ask for one part. "New-post reviews only": do steps 1, 2, 3 and
 5, skip step 4, and when no review is due reply with one line that no post reached 24 hours today.
 "Account recap only": do steps 1, 2, 4 and 5 and skip the reviews in step 3 (still record a new
-post's pillar). With neither, do both.
+post's pillar when the library has pillars). With neither, do both.
 
 This usually runs from a schedule with nobody watching. **Ask no questions during the run.**
 Anything that would need the creator's confirmation is skipped and listed at the end ("skipped:
@@ -44,31 +45,42 @@ holds the library.
 ```sh
 mkdir -p '<workspace>'
 python3 '<skill directory>/scripts/creator_library.py' path --workspace '<workspace>' --platform <platform> --handle '<handle>'
-python3 '<skill directory>/scripts/creator_library.py' show --library '<library directory>'
 python3 '<skill directory>/scripts/static_host.py' init --workspace '<workspace>'
+python3 '<skill directory>/scripts/creator_library.py' show --library '<library directory>'
 ```
 
 The first creates the workspace when the host kept no files, the second prints the library
-directory, the last the run directory. Start every command that
+directory and whether the library `exists`, the third the run directory, and the last (only when the
+library exists) its pillars and state. Start every command that
 touches the run with `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>'`. Commands here
 are complete as written: do not run scripts with `--help` or read their source. Quote paths.
 
 - No platform or handle given: take it from `list_connected_accounts` (one account), else from the
   schedule's own text.
-- **The library is missing** (the host keeps no files): rebuild the minimum state. Take the account
-  from `list_connected_accounts`, read `get_creator_profile` with `{"account_id": "<id>", "include":
-  ["content_profile"], "effective": true}`, save the complete result to `profile.json` in the run, and
-  run `cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' bootstrap --library
-  '<library directory>' --platform <platform> --handle '<handle>' --profile profile.json`. Say plainly
-  in the report that this host keeps no files, so earlier readings are missing: no same-age
-  comparison, no follower change, and a post may be reviewed again on a later day. If Kabo has no
-  saved pillars either, still make the reviews and the recap without a pillar section.
+- **The library is missing** (`path` says `exists: false`): build it now. This happens on the first
+  run, and on every run in a host that keeps no files. When the account is linked in Kabo (its `id`
+  from `list_connected_accounts`), call `get_creator_profile` with `{"account_id": "<id>", "include":
+  ["content_profile"], "effective": true}` and save the complete result to `profile.json` in the run
+  with the host's file-write tool. Then:
+
+  ```sh
+  cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' bootstrap --library '<library directory>' --platform <platform> --handle '<handle>' --profile profile.json
+  ```
+
+  Leave out `--profile profile.json` when the account is not linked in Kabo or the profile call was
+  refused. The pillars, if any, are the ones in the creator's Kabo profile; with none, the library is
+  built anyway and the reviews and the recap go without a pillar section. Never make pillars up. On
+  this run, read the posts in step 2 with `--depth full`. Say plainly in the report that this is the
+  library's first reading (`limit`): no same-age comparison and no follower change yet; in a host that
+  keeps no files every run starts like this, and a post may be reviewed again on a later day.
 
 ## 2. Read the latest posts
 
 ```sh
 cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' history-request --platform <platform> --handle '<handle>' --depth daily
 ```
+
+(`--depth full` instead on the run that built the library in step 1.)
 
 Call `collect_account_history` once with the printed arguments, unchanged. Its result has a download
 url; the 22 characters between `research-export/v1/` and `.json` are the result id. Never retype or
@@ -101,8 +113,8 @@ many). Add `--with-optional` to `due` only when the creator asked for the 1-hour
 cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' due --library '<library directory>'
 ```
 
-**Pillar of a new post.** For a post in `new_tracked_posts`, decide from its title which confirmed
-pillar it belongs to (`show` lists them), or `other`:
+**Pillar of a new post.** Only when the library has pillars (`show` lists them): for a post in
+`new_tracked_posts`, decide from its title which pillar it belongs to, or `other`:
 
 ```sh
 cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' set-pillar --library '<library directory>' --content-id <id> --pillar-id <pillar id or other>
@@ -173,7 +185,8 @@ with a posting tool of their host that they approve post by post; Kabo never pos
 
 ## Limits to state when relevant
 
-- Only posts published after the library was built are reviewed, on the account the library is for.
+- Only posts published after the library's binding time (48 hours before its first reading) are
+  reviewed, on the account the library is for.
   Photo and carousel posts have no views and are not reviewed.
 - Ages count from the platform's publish time. When a platform gives only a date, age counts from
   when the post was first seen, which can be up to one run late; the review says so.

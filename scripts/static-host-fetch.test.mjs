@@ -833,6 +833,8 @@ test("stage：状态为完成却没有 data 的结果（下载结果丢了 downl
     const script = path.join(root, "skills", id, "scripts", "static_host.py");
     const text = await readFile(script, "utf8").catch(() => "");
     if (!text.includes("completed status but no data")) continue;
+    // 引导与每日推荐的副本不收任何取数结果（数据操作白名单为空），没有可拿来试的数据工具。
+    if (/^CONNECTOR_TOOLS: dict\[str, str\] = \{\}$/m.test(text)) continue;
     // 取这份副本声明的第一个普通数据工具（投影查找与聚合工具另有规则）。
     const declared = text.slice(text.indexOf("CONNECTOR_TOOLS = {"), text.indexOf("\n}\n", text.indexOf("CONNECTOR_TOOLS = {")));
     const entry = [...declared.matchAll(/"([a-z-]+)\/([a-z_]+)": "([a-z_]+)"/g)]

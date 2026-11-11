@@ -43,21 +43,18 @@ ARTIFACT_REF_META = "kabo.sh/object_ref"
 RESIGN_TOOL = "get_research_data_download"
 
 
-# 本 Skill 用到的数据操作与 /mcp-pub 工具名一一对应；只接受这些工具的结果作为证据。
-CONNECTOR_TOOLS = {
-    "instagram-discovery/resolve_profile": "instagram_resolve_profile",
-}
+# 本 Skill 不暂存任何 Kabo 取数结果：画像与每日推荐由后台工具直接给出（宿主把完整结果存成文件交给
+# creator_library.py），这里只用 init 建运行目录。白名单因此为空，任何工具结果都不会被当作证据落盘。
+CONNECTOR_TOOLS: dict[str, str] = {}
 # 聚合工具直接返回带 schema_version 的结果，参数按工具自己的输入结构直接给出。
-AGGREGATE_TOOLS = {"collect_instagram_trend_candidates", "enrich_instagram_shortlist", "collect_youtube_trend_candidates",
-                   "enrich_youtube_shortlist"}
+AGGREGATE_TOOLS: set[str] = set()
 # 聚合工具出参（内联与下载那份同形）的 schema_version；按它判形状，不按 connector_id。
-AGGREGATE_SCHEMAS = {"collect_instagram_trend_candidates": "trend-candidate-set.v1", "enrich_instagram_shortlist": "trend-enrichment.v1",
-                     "collect_youtube_trend_candidates": "youtube-trend-candidate-set.v1",
-                     "enrich_youtube_shortlist": "youtube-trend-enrichment.v1"}
-# 异步任务的终态与产物字节由这个工具返回，同样可以保存为证据。
+AGGREGATE_SCHEMAS: dict[str, str] = {}
+# 异步任务的终态与产物字节由这个工具返回；共用的按编号取数路径要它在场。上面没有声明任何数据操作，
+# 所以读回的任务结果一律以「未声明的数据操作」拒收，不会落盘。
 JOB_TOOLS = {"get_research_data_job"}
-# 本 Skill 不交组合取数工具；候选采集与补全各一次后台调用。
-HANDED_COMPOSITES = set()
+# 本 Skill 不交组合取数工具。
+HANDED_COMPOSITES: set[str] = set()
 # 本 Skill 不用路线别名，也没有返回固定投影的业务级工具。
 ROUTE_ALIASES: dict[str, set[str]] = {}
 PROJECTIONS: dict[str, str] = {}
