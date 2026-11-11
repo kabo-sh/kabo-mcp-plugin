@@ -65,6 +65,10 @@ it off.
   `kabo-library/`.
 - A desktop task runs only while the app is open and the computer is awake. A run missed while the
   computer slept is caught up once on wake. Each task page lists its past runs.
+- A run also needs the computer's network to reach Claude at that minute. A run that starts while a
+  VPN or proxy blocks it fails at once and is not retried (seen in testing: the 8:00 task started at
+  8:03 and failed on the network before any Kabo step). When a daily message is missing, look at the
+  task page for a failed run before changing anything else.
 - The schedule uses the computer's own time zone, and a daily task starts a few minutes after the
   minute it was set for. Each run is a new session: write the workspace folder that holds
   `kabo-library/` into the task text, as the two instructions above do.
