@@ -104,8 +104,7 @@ cohorts, pass the plan with `--brief-file -` instead; it then needs `user_reques
 `--channel-id`; Instagram `--content-kind auto|feed|reels`. Caps: TikTok/YouTube 30; Instagram one
 page per format and analysis 30 (15/format in auto).
 
-Numbers the user gives (their own insights, a post they named) join that plan as questions with
-their own `source`. Without a public fetch, prepare data the user supplied, or an AccountAnalysis
+Numbers the user gives join that plan as questions with their own `source`. Without a public fetch, prepare data the user supplied, or an AccountAnalysis
 file they imported, in this request's run with the plan (including `user_request`) on stdin:
 
 ```sh

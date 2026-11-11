@@ -6,8 +6,7 @@ account, source and original request, so its plan needs nothing else; a plan for
 `account`. Optional top-level `coverage`, beside `questions`, is a text array of needs the selected
 modules cannot resolve. Supplied data may declare
 `source:{kind,locator}`; kinds are `user_supplied`, `owner_export`, `account_analysis`. A question
-may carry its own `source`, so numbers the user gives can sit beside fetched public data; each
-question compares within one source, and a single group is reported as observed values.
+may carry its own `source`, so supplied numbers can sit beside fetched public data.
 
 Each question needs `kind` and `intent` (`explain`, `diagnose`, or `act` for requested next steps).
 Optional `id`, `ask`, `selection_reason` describe the user's need and evidence selection.
