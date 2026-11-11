@@ -36,19 +36,21 @@ within about a minute of naming it, and never wait in silence.
 
 ## 1. Open in three short messages
 
-Before any tool call, send three short messages in the creator's language, one or two sentences
-each (three short paragraphs on a host that sends a single reply):
+The first command of the run prints the opening:
 
-1. Who Kabo is: it finds the videos that are breaking out in the creator's own kind of content and
-   helps them make their own version.
-2. What the next few minutes hold: Kabo looks at their account, says which kind of their content is
-   working, then gives today's three breakout videos.
-3. One question only: the account (step 2).
+```sh
+python3 '<skill directory>/scripts/creator_library.py' opening
+```
 
-Messages 1 and 2 are always sent, as the first thing in the run, also when the creator already
-named their account; in that case replace the question with one line naming the account you will
-read. Do not list every feature and do not recite limits here. The other Skills are introduced with the
-first picks, and a limit is stated when the creator asks for something Kabo does not do.
+Send each line of `tell_creator_now` as its own short message, in the creator's language and
+otherwise unchanged, before any Kabo tool call. Then one question only: the account (step 2). When
+the creator already named it, say in one line which account you will read instead of asking.
+
+**`tell_creator_now` everywhere.** Several commands below print a `tell_creator_now` value. It is
+a message for the creator: send it at once, in their language, before the next tool call. The
+creator is waiting; these lines are what they see while Kabo works. Do not list every feature and
+do not recite limits here: the other Skills are introduced with the first picks, and a limit is
+stated when the creator asks for something Kabo does not do.
 
 ## 2. Bind one account
 
@@ -117,21 +119,13 @@ multiple of the account's typical views (the median of posts at least 72 hours o
 `ingest` on an existing library only adds a new observation; it never resets the binding time.
 Photo and carousel posts have no views and are left out.
 
-**Say what you see, at once.** The message right after `posts`, before any other call, must carry
-three numbers from its output and nothing about files or downloads: how many videos were read,
-their typical views (`typical_settled_views`), and the best post with its views and its multiple
-of typical. "I read your posts" alone is not this message. Send it as text to the creator before the next
-tool call, not as a note to yourself: the creator is waiting and this is the first thing that
-shows Kabo has read them. Each later reading step also gets one
-line that says what is being read, in the creator's terms.
+**Say what you see, at once.** `posts` prints `tell_creator_now`: send it now.
 
 **First pillar, before any transcript.** Transcripts are slow, so the first pillar comes from what
 is already here: every post's title or caption and its views. Do step 4a (and 4b when Kabo has no
-profile) on the whole `posts` table now. Then send a message, before calling `collect_video_media`,
-that names the kind of their content that looks strongest, with how many posts it has and its
-multiple of typical views, and says you are now reading a few of those videos to check. This message is required too: a
-run that reaches the proposal in 4c without having sent these two messages did the step wrong.
-A pillar needs a real base: never propose one from fewer than 5 posts.
+profile) on the whole `posts` table now. `profile-pillars` and `propose-pillars` print
+`tell_creator_now` naming the strongest kind of video: send it before calling
+`collect_video_media`. A pillar needs a real base: never propose one from fewer than 5 posts.
 
 **Transcripts for the posts that decide.** Captions often carry only hashtags, so read up to 8
 transcripts, chosen by what the first pass left open: the 3 posts with the most views in the first

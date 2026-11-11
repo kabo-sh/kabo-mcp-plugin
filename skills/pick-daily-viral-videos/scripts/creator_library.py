@@ -169,7 +169,13 @@ def ratio(value, base):
 # ---------------------------------------------------------------- 取数请求与快照
 
 def cmd_path(args):
-    say({"library": str(library_path(args.workspace, args.platform, args.handle))})
+    directory = library_path(args.workspace, args.platform, args.handle)
+    result = {"library": str(directory)}
+    if not (directory / "library.json").exists():
+        # 新建库说明是第一次对话：开场两句若还没发过，现在补发；并告诉对方正在读作品。
+        result["tell_creator_now"] = OPENING + ["I'm reading your videos now. First numbers in a moment."]
+        result["note"] = "Skip any of these lines you already sent in this conversation."
+    say(result)
 
 
 def cmd_history_request(args):
@@ -342,12 +348,31 @@ def post_row(post, typical):
             "url": post.get("url"), "title": (post.get("title") or "")[:200]}
 
 
+OPENING = [
+    "I'm Kabo. I find the videos that are breaking out in your kind of content and help you make your own version.",
+    "Next few minutes: I look at your account, tell you which kind of your videos is working, then give you today's three breakout videos.",
+]
+
+
+def cmd_opening(args):
+    """The first two messages of the first session, to be relayed as they are in the creator's language."""
+    say({"tell_creator_now": OPENING, "then": "ask for the account (or name the one you will read)"})
+
+
 def cmd_posts(args):
     library, store = load_library(args.library)
     posts = store["posts"]
     typical = median([views for _, views in settled_views(posts)])
     ordered = sorted(posts.values(), key=lambda post: post.get("published_at") or "", reverse=True)[: args.limit]
-    say({"handle": library["handle"], "platform": library["platform"],
+    # 读完作品马上要对创作者说的话：条数、常规播放、最好的一条。模型只负责换成对方的语言原样转述。
+    best = max(settled_views(posts), key=lambda row: row[1], default=None)
+    tell = f"I read {len(posts)} of your videos."
+    if typical:
+        tell += f" A typical one gets about {int(round(typical))} views."
+    if best and typical:
+        title = (best[0].get("title") or "").strip().splitlines()[0][:60] if (best[0].get("title") or "").strip() else "your best one"
+        tell += f" Your best so far, \"{title}\", has {best[1]} views, {ratio(best[1], typical)} times that."
+    say({"tell_creator_now": tell, "handle": library["handle"], "platform": library["platform"],
          "typical_settled_views": typical, "settled_posts": len(settled_views(posts)),
          "posts": [post_row(post, typical) for post in ordered]})
 
@@ -506,6 +531,10 @@ def cmd_propose_pillars(args):
     result = {"status": status, "settled_posts": settled_count, "typical_settled_views": typical,
               "min_settled_posts_per_pillar": need, "below_typical": weak and status == "ok",
               "candidates": rows[:MAX_PILLARS], "unassigned_posts": len(posts) - sum(len(c["content_ids"]) for c in clusters)}
+    top = next((row for row in rows if row["recommended"]), None)
+    if top:
+        result["tell_creator_now"] = (f"Your strongest kind of video so far looks like \"{top['name']}\": "
+                                      f"{len(by_id[top['id']]['content_ids'])} videos. I am reading a few of them now to check.")
     if status != "ok":
         result["note"] = (f"Fewer than {MIN_SETTLED_POSTS} posts are 72 hours old with public views; performance "
                           "cannot rank pillars. Show the candidates without a recommendation and let the creator choose.")
@@ -579,7 +608,13 @@ def read_profile(path):
     if len(candidates) == 1:
         advice.append("Kabo has one signature content item. Also group the posts it does not cover (step 4b) and show "
                       "any cluster that qualifies next to it, so the creator has a choice.")
-    return {"status": "ok" if candidates else "no_signature_content", "niche": niche, "advice": advice,
+    tell = None
+    if candidates:
+        first = candidates[0]
+        count = first["evidence"].get("content_count")
+        tell = (f"Your strongest kind of video so far looks like \"{first['name']}\""
+                + (f": {count} videos" if count else "") + ". I am reading a few of them now to check.")
+    return {"status": "ok" if candidates else "no_signature_content", "tell_creator_now": tell, "niche": niche, "advice": advice,
          "signature_status": (source or {}).get("signatureContentStatus"),
          "profile_edited": bool((effective or {}).get("edited")),
          "language": (source or {}).get("language", {}).get("primary") if isinstance((source or {}).get("language"), dict) else None,
@@ -1200,6 +1235,7 @@ def build_parser():
     command.add_argument("--library", required=True)
     command.add_argument("--snapshot", required=True)
     command.add_argument("--handle")
+    commands.add_parser("opening")
     command = commands.add_parser("posts")
     command.add_argument("--library", required=True)
     command.add_argument("--limit", type=int, default=40)
@@ -1276,7 +1312,7 @@ def build_parser():
 
 
 HANDLERS = {"path": cmd_path, "history-request": cmd_history_request, "snapshot": cmd_snapshot,
-            "ingest": cmd_ingest, "posts": cmd_posts, "media-request": cmd_media_request,
+            "ingest": cmd_ingest, "posts": cmd_posts, "opening": cmd_opening, "media-request": cmd_media_request,
             "transcripts": cmd_transcripts, "propose-pillars": cmd_propose_pillars,
             "profile-pillars": cmd_profile_pillars, "save-pillars": cmd_save_pillars,
             "set-pillar": cmd_set_pillar, "set-profile": cmd_set_profile, "show": cmd_show, "due": cmd_due,
