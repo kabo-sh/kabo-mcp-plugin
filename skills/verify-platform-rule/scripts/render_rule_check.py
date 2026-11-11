@@ -134,7 +134,8 @@ def render(value: dict) -> str:
                 lines.append("")
             # 推测放在全部引文之后、带固定标签，读者一眼分得清哪句是平台说的、哪句是推出来的。
             if claim.get("inference"):
-                lines += [f"**{words['implication'].strip()}** {claim['inference'].strip()}", ""]
+                # 压成一段：多行推测里的标题或判定词不能在标签外长成一条独立结论。
+                lines += [f"**{words['implication'].strip()}** {' '.join(claim['inference'].split())}", ""]
 
     if unwritten:
         lines += [f"## {words['no_text_section']}", "", words["no_text_lead"], ""]

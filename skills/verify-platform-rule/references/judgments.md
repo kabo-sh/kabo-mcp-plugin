@@ -34,7 +34,9 @@ it can never help. Account-specific strategy beyond the established facts remain
 Skill.
 
 Operational claims need quotes supporting the specific path, choice or step, not merely its
-effect; a step the quotes do not state goes in that claim's `inference`, never in its `statement`.
+effect. A step the user asserts stays its own claim, `no_official_text` when the read pages do not
+state it; a step you add that the quotes do not state goes in a quoted claim's `inference`, never
+in its `statement`.
 Split independently supported controls without expanding into unrelated advice.
 Use `unreachable_sources` to explain failed or navigation-only pages in the user's language;
 recorded fetch failures cannot be dropped. The driver binds metadata and exact original passages,

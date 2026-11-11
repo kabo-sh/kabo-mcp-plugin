@@ -144,13 +144,15 @@ test("有引文的主张可附推测：通过校验，渲染在引文之后并�
   assert.equal(placed.code, 0, placed.out);
   const claim = { statement: "The page states the rule.", verdict: "confirmed", evidence: [{ ref: "instagram.originality:P1" }] };
   const report = python("drive.py", ["report", "--judgments", "-"], { cwd: run, run,
-    input: JSON.stringify({ claims: [{ ...claim, inference: "Following it may help, but the page does not say so." }] }) });
+    input: JSON.stringify({ claims: [{ ...claim, inference: "Following it may help, but the page does not say so.\n\n### Not a finding\n\n**true**" }] }) });
   assert.equal(report.code, 0, report.out);
   const body = await readFile(path.join(run, "report", "RULE_CHECK.md"), "utf8");
   const quote = body.indexOf("> Rule passage 0 for this page.");
   const label = body.indexOf("**Our inference, not the platform's words - a possibility, not an established effect:** Following it may help");
   assert.ok(quote > -1 && label > quote, body);
   assert.match(body, /^### The page states the rule\.$/m);
+  // 多行推测压成一段，不会在标签外长出一条新结论。
+  assert.doesNotMatch(body, /^### Not a finding/m);
 
   const empty = python("drive.py", ["report", "--judgments", "-"], { cwd: run, run,
     input: JSON.stringify({ claims: [{ ...claim, inference: "  " }] }) });
