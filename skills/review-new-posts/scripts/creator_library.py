@@ -1076,16 +1076,24 @@ def read_picks(directory):
                      for day, rows in days.items()}}
 
 
+# 链接里标识视频的查询参数：YouTube 的 watch 链接只靠 ?v= 区分视频。其余查询参数（igsh、si、utm_…）是分享追踪，去掉。
+# 曾经整串丢掉查询参数，所有 youtube.com/watch?v=… 被当成同一条视频（Codex 实测 30 条只选出 1 条）。
+URL_ID_PARAMS = ("v",)
+
+
 def normalize_url(raw):
     text = first_text(raw)
     if not text:
         return None
     parts = urllib.parse.urlsplit(text)
     host = (parts.hostname or "").lower()
-    if host.startswith("www."):
-        host = host[4:]
+    if host.startswith("www.") or host.startswith("m."):
+        host = host.split(".", 1)[1]
     path = parts.path.rstrip("/")
-    return f"{host}{path}" if host else text
+    query = [(key, value) for key, value in urllib.parse.parse_qsl(parts.query) if key in URL_ID_PARAMS and value]
+    if not host:
+        return text
+    return f"{host}{path}" + (("?" + urllib.parse.urlencode(sorted(query))) if query else "")
 
 
 def video_keys(item):
@@ -1117,6 +1125,20 @@ def platform_of(item):
 
 
 def author_of(item):
+    """The key that says two picks share an author: author_id first, then author_handle; None when neither is given.
+
+    作者未知（null 或空串）时不参与「同一作者不重复」：YouTube 结果目前不给 author_handle，
+    把空值当成同一个作者会只剩一条。后台若补上 author_id 就优先用它。"""
+    author_id = item.get("author_id")
+    if isinstance(author_id, (str, int)) and not isinstance(author_id, bool) and str(author_id).strip():
+        return "id:" + str(author_id).strip()
+    handle = first_text(item.get("author_handle"))
+    handle = handle.lstrip("@").lower() if handle else None
+    return "handle:" + handle if handle else None
+
+
+def own_handle_of(item):
+    # 本人作品后台已排除；这里只是在给了作者名时再核一次。作者未知时不判。
     handle = first_text(item.get("author_handle"))
     if not handle:
         return None
@@ -1141,7 +1163,8 @@ def window_items(payload, name):
 def select_picks(payload, shown, own_handle, count):
     """Up to `count` picks: 7d by Kabo's rank first, then 30d, then 24h; never padded."""
     chosen, used_keys, authors = [], set(), set()
-    skipped = {"shown_on_earlier_day": 0, "own_post": 0, "same_author": 0, "duplicate": 0, "no_link": 0}
+    skipped = {"shown_on_earlier_day": 0, "own_post": 0, "same_author": 0, "same_video_in_another_window": 0,
+               "no_link": 0}
     sizes = {}
     for window in PICK_WINDOWS:
         rows = window_items(payload, window)
@@ -1154,10 +1177,11 @@ def select_picks(payload, shown, own_handle, count):
             if not normalize_url(row.get("url")):
                 skipped["no_link"] += 1
             elif keys & used_keys:
-                skipped["duplicate"] += 1  # 同一条视频出现在多个时间窗
+                # 同一条视频（content_id 或归一后的链接相同）出现在多个时间窗；只看视频标识，不看作者。
+                skipped["same_video_in_another_window"] += 1
             elif keys & shown:
                 skipped["shown_on_earlier_day"] += 1
-            elif own_handle and author == own_handle:
+            elif own_handle and own_handle_of(row) == own_handle:
                 skipped["own_post"] += 1
             elif author and author in authors:
                 skipped["same_author"] += 1
@@ -1172,7 +1196,9 @@ def select_picks(payload, shown, own_handle, count):
                     "reason": first_text(row.get("reason")), "url": first_text(row.get("url")),
                     "platform": platform_of(row), "format": first_text(row.get("format")),
                     "title": (first_text(row.get("title")) or first_text(row.get("caption")) or "")[:300],
-                    "author_handle": first_text(row.get("author_handle")), "published_at": first_text(row.get("published_at")),
+                    "author_handle": first_text(row.get("author_handle")),
+                    "author_id": str(row["author_id"]) if row.get("author_id") not in (None, "") else None,
+                    "published_at": first_text(row.get("published_at")),
                     "content_id": str(row["content_id"]) if row.get("content_id") not in (None, "") else None,
                     "remake": remake_note(platform_of(row)),
                     "keys": sorted(keys)})

@@ -1,6 +1,6 @@
 ---
 name: pick-daily-viral-videos
-description: "Pick today's 3 short videos for a creator from Kabo's daily 'for you' list: recent videos in the creator's niche and language, ranked by Kabo by public views. Never repeated across days, never padded, each with its views, its rank, Kabo's reason and concrete next steps. Safe to run unattended from a daily schedule. Use for 'today's picks', 'daily viral videos', 'what should I make today'. Needs an account linked in Kabo (start-with-kabo links one)."
+description: "Pick today's 3 videos for a creator from Kabo's daily 'for you' list: recent videos in the creator's niche and language, ranked by Kabo by public views. Never repeated across days, never padded, each with its views, its rank, Kabo's reason and concrete next steps. Safe to run unattended from a daily schedule. Use for 'today's picks', 'daily viral videos', 'what should I make today'. Needs an account linked in Kabo (start-with-kabo links one)."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its get_for_you_videos tool, Python 3, and a persistent workspace that remembers which videos were already shown (without one, a video can come back on a later day). Kabo permissions: workspace:read."
 allowed-tools: list_connected_accounts get_for_you_videos
@@ -8,7 +8,7 @@ allowed-tools: list_connected_accounts get_for_you_videos
 
 # Pick Daily Viral Videos
 
-Give the creator three short videos they could turn into their own next post, from Kabo's daily
+Give the creator three videos they could turn into their own next post, from Kabo's daily
 "for you" list. Kabo chooses and ranks that list: videos in the same niche as the creator's account
 and in a matching language, ranked by public views, up to 12 per time window. This Skill only decides
 which three of them to show today. It never searches for videos itself and never ranks them
@@ -96,7 +96,13 @@ same arguments; if that fails too, report the failed step in one short message a
 1. Up to 3 picks a day.
 2. Take the `7d` list first, in Kabo's `rank` order; then the `30d` list; then the `24h` list.
 3. Skip a video shown on an earlier day, a video by the creator's own account, a second video by an
-   author already picked today, the same video met again in another window, and a video with no link.
+   author already picked today, the same video met again in another window, and a video with no
+   link. A video is the same video when its `content_id` or its link matches (YouTube links keep their
+   `?v=` id). Two videos have the same author when their `author_id` matches or, without one, their
+   `author_handle`; a video whose author is not given is never treated as a repeat author or as the
+   creator's own (Kabo already leaves out the creator's own posts). In `skipped`:
+   `shown_on_earlier_day`, `own_post`, `same_author`, `same_video_in_another_window` and `no_link`
+   count those five cases.
 4. When fewer than 3 remain, show those; when none remain, there are none today. Never pad.
 5. Record the day once Kabo's list was ready, even with no pick, so a second run on the same day
    shows the same result instead of asking Kabo again. A day on which Kabo was still preparing, said
@@ -107,6 +113,10 @@ same arguments; if that fails too, report the failed step in one short message a
 One message in the creator's language. For each pick:
 
 1. The link, the author and the title (from `title`, which is the caption when the video has no title).
+   When `author_handle` is null, write "author not supplied"; never write "@None" or an empty "@".
+   When `format` is `long`, say it is a long-form video (Kabo's list can include them; this Skill does
+   not filter them out); never call it a short. `reel` and `short` are short videos; `video` is a
+   video whose length Kabo did not classify.
 2. The proof in plain words, from the output only: "1.2M views, #2 in Kabo's list of the last 7
    days for your niche". `window` is `7d`, `30d` or `24h` (the last 7 days, 30 days or 24 hours);
    leave out a number that is missing.

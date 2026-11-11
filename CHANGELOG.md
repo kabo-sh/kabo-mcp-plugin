@@ -4,6 +4,12 @@
 
 ## 未发布
 
+- 修 `pick-daily-viral-videos` 只选出 1 条的问题（Codex 实测，YouTube 账号，30 条推荐只选出 1 条、29 条报为重复）：链接归一时
+  整串丢掉查询参数，所有 `youtube.com/watch?v=…` 被当成同一条视频，跨天去重也会因此误判。现在保留标识视频的 `?v=`，去掉
+  `si`、`igsh` 等分享追踪参数。同作者判断优先用 `author_id`（后台若补上），其次 `author_handle`，作者未知时不参与同作者与
+  排除本人判断；跨窗重复只看 `content_id` 与链接。跳过计数里原来的 `duplicate` 改名为 `same_video_in_another_window`，五项含义
+  写进 SKILL.md；作者未知写「author not supplied」，`format: "long"` 说是长视频、不叫 short，都写进 SKILL.md。
+
 - 配合 kabo#2180 修订的失败语义（真实宿主里新绑定的 YouTube 账号暴露）：
   - `prepare_creator_profile` 的 `failed` + `retryable=true`（执行偶发，如 `classification_unavailable`、`model_invalid_output`）
     不再说成「作品不够」：`start-with-kabo` 告诉创作者 Kabo 正在重试，按 `retry_after_seconds` 等后再调同一工具（后台自动重跑

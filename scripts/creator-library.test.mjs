@@ -136,6 +136,10 @@ test("三个 Skill 的说明不再引用已删除的命令、文件与本地推�
   // 复盘每次运行都按画像刷新支柱，读不到就沿用旧值。
   assert.match(texts["review-new-posts"], /refresh-pillars --library '<library directory>' --profile profile\.json/);
   assert.match(texts["review-new-posts"], /--unavailable/);
+  // 作者未知与长视频的写法在说明里，不靠模型临场发挥。
+  assert.match(texts["pick-daily-viral-videos"], /author not supplied/);
+  assert.match(texts["pick-daily-viral-videos"], /`format` is `long`/);
+  assert.match(texts["pick-daily-viral-videos"], /same_video_in_another_window/);
   // 绑定前明确问一次。
   assert.match(texts["start-with-kabo"], /Ask before linking/);
   assert.doesNotMatch(texts["start-with-kabo"], /unless the creator objected/);
@@ -403,7 +407,7 @@ test("每日推荐：7 天窗按排名优先，再用 30 天、24 小时补；�
   }), "2026-11-11");
   assert.equal(day1.status, "ready");
   assert.deepEqual(day1.picks.map(pick => [pick.content_id, pick.window, pick.rank]), [["a", "7d", 1], ["b", "7d", 2], ["c", "30d", 2]]);
-  assert.deepEqual(day1.skipped, { shown_on_earlier_day: 0, own_post: 1, same_author: 1, duplicate: 1, no_link: 1 });
+  assert.deepEqual(day1.skipped, { shown_on_earlier_day: 0, own_post: 1, same_author: 1, same_video_in_another_window: 1, no_link: 1 });
   assert.equal(day1.picks[0].reason, "Popular in your niche (a)");
   assert.equal(day1.picks[0].views, 99000);
   // 没有时长：复刻只说「会先检查」，不臆测。
@@ -449,6 +453,50 @@ test("每日推荐：7 天窗按排名优先，再用 30 天、24 小时补；�
   assert.equal(day5.picks[0].platform, "instagram");
   assert.equal(day5.picks[0].title, "caption g");
   assert.match(day5.picks[0].remake, /checks whether this video qualifies/);
+});
+
+// Codex 实测（YouTube 账号）：30 条推荐的 author_handle 全是 null，链接是 watch?v=…。曾经只选出 1 条，
+// 原因是链接归一时丢了 ?v=，所有 watch 链接被当成同一条视频；作者为空也不能被当成同一个作者。
+const ytVideo = (id, rank, extra = {}) => ({ content_id: id, url: `https://www.youtube.com/watch?v=${id}&si=share${rank}`,
+  platform: "youtube", format: "long", title: `title ${id}`, caption: null, author_handle: null,
+  published_at: "2026-11-10T10:00:00Z", views: 900000 - rank * 1000, rank, reason: `Popular (${id})`, ...extra });
+
+test("每日推荐：作者全为空的 YouTube 结果也能选满 3 条；作者部分为空；有 author_id 时按它去重；跨窗去重只看视频标识", async t => {
+  const temp = await workspace(t);
+  const library = path.join(temp, "lib");
+  const result = path.join(temp, "for-you.json");
+  const forYou = async (value, date) => {
+    await writeFile(result, JSON.stringify(value));
+    return run("for-you", "--library", library, "--result", result, "--handle", "mrbeast", "--date", date, "--write");
+  };
+  const range = (prefix, count) => Array.from({ length: count }, (_, i) => ytVideo(`${prefix}${i + 1}`, i + 1));
+  // 全部作者为空，7d 11 条、30d 12 条、24h 7 条；30d 的第一条与 7d 的第二条是同一条视频（链接 query 不同）。
+  const windows = { "7d": range("w", 11), "30d": [{ ...ytVideo("w2", 1), url: "https://youtube.com/watch?v=w2" }, ...range("m", 11)], "24h": range("d", 7) };
+  const day1 = await forYou(ready(windows, { platform: "youtube" }), "2026-11-11");
+  assert.deepEqual(day1.picks.map(pick => [pick.window, pick.rank, pick.content_id]), [["7d", 1, "w1"], ["7d", 2, "w2"], ["7d", 3, "w3"]]);
+  assert.deepEqual(day1.skipped, { shown_on_earlier_day: 0, own_post: 0, same_author: 0, same_video_in_another_window: 0, no_link: 0 });
+  assert.deepEqual(day1.picks[0].keys, ["id:w1", "url:youtube.com/watch?v=w1"]);
+  assert.equal(day1.picks[0].author_handle, null);
+  assert.equal(day1.picks[0].format, "long");
+  // 第二天：7d 只剩 w4 以后；昨天的 w2 在 30d 里换了个链接写法再出现，按 ?v= 认出来。
+  const day2 = await forYou(ready({ "7d": [ytVideo("w1", 1), ytVideo("w2", 2)], "30d": [{ ...ytVideo("w3", 1), content_id: "" }, ytVideo("m1", 2)], "24h": [ytVideo("d1", 1), ytVideo("d2", 2)] }, { platform: "youtube" }), "2026-11-12");
+  assert.deepEqual(day2.picks.map(pick => pick.content_id), ["m1", "d1", "d2"]);
+  assert.equal(day2.skipped.shown_on_earlier_day, 3);
+  // 只有 7d 里的跨窗重复：同一条视频在 30d 再出现时计 same_video_in_another_window，不计作者。
+  const day3 = await forYou(ready({ "7d": [ytVideo("x1", 1)], "30d": [ytVideo("x1", 1), ytVideo("x2", 2)], "24h": [] }, { platform: "youtube" }), "2026-11-13");
+  assert.deepEqual(day3.picks.map(pick => pick.content_id), ["x1", "x2"]);
+  assert.deepEqual(day3.skipped, { shown_on_earlier_day: 0, own_post: 0, same_author: 0, same_video_in_another_window: 1, no_link: 0 });
+
+  // 部分作者为空、部分有名字：有名字的照常去重，空的不参与。本人只在给了名字时排除。
+  const mixed = await forYou(ready({ "7d": [ytVideo("p1", 1, { author_handle: "@Alpha" }), ytVideo("p2", 2, { author_handle: "alpha" }),
+    ytVideo("p3", 3), ytVideo("p4", 4, { author_handle: "MrBeast" }), ytVideo("p5", 5)] }), "2026-11-14");
+  assert.deepEqual(mixed.picks.map(pick => pick.content_id), ["p1", "p3", "p5"]);
+  assert.deepEqual([mixed.skipped.same_author, mixed.skipped.own_post], [1, 1]);
+  // author_id 优先：名字不同但 id 相同算同一作者；名字相同但 id 不同不算。
+  const byId = await forYou(ready({ "7d": [ytVideo("q1", 1, { author_id: "UC1", author_handle: "one" }), ytVideo("q2", 2, { author_id: "UC1", author_handle: "renamed" }),
+    ytVideo("q3", 3, { author_id: "UC2", author_handle: "one" }), ytVideo("q4", 4, { author_id: "UC3" })] }), "2026-11-15");
+  assert.deepEqual(byId.picks.map(pick => [pick.content_id, pick.author_id]), [["q1", "UC1"], ["q3", "UC2"], ["q4", "UC3"]]);
+  assert.equal(byId.skipped.same_author, 1);
 });
 
 test("每日推荐的各 status：generating 严格按 retry_after 有上限地等，not_eligible（含 unavailable）与 failed（转述 failure_code）一句话结束；工具错误与未知 status 按失败；都不记当天", async t => {
