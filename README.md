@@ -389,10 +389,13 @@ grant workspace access. `get_kabo_info` shows basic identity and permissions wit
 Ask the agent to save a completed script or update an existing one; it keeps the saved version
 and rejects conflicting edits. You can also ask to connect a public Instagram, TikTok or YouTube
 account. Public Connect uses data allowance and does not start official social OAuth or analysis.
-Connecting Kabo asks only for read access. The first time you save a script or connect an account,
-your host asks you to approve write access. Existing connections may need authorization for the
-new workspace permissions. If these tools are unavailable, the original public research and local
-drafting workflows remain usable.
+Connecting Kabo asks for read and write access to your Kabo workspace (`workspace:read` and
+`workspace:write`), because the first session links your account, has Kabo build your profile and
+saves your pillar edits. Connections made before this change have read access only: sign in to Kabo
+again once to get write access (in Codex:
+`codex mcp login kabo --scopes openid,profile,email,offline_access,data,video,workspace:read,workspace:write`;
+in other hosts, disconnect and reconnect Kabo). Until then, a Skill that needs to write tells you to
+reconnect, and the original public research and local drafting workflows remain usable.
 
 The three trends Skills can also start from your saved account profile. When you ask for trends for
 your own linked account, the agent reads the account's saved content profile (your signature
@@ -415,6 +418,6 @@ read, in this plugin and in Kabo's web app; the profile Kabo computed stays as i
 reset your edits. A plain, unambiguous change is saved and repeated back to you in one sentence; a
 guess, a removal, a merge or a reset is restated for you to confirm first. Your market is only the
 default search region (Instagram search takes none); it never filters results by region.
-Content-language checks follow the short-window rules above. An edit applies from the next trend run. Saving needs write access, which your host asks
-you to approve the first time; without it, or when Kabo does not offer the tool yet, nothing is
-saved and the research runs as before.
+Content-language checks follow the short-window rules above. An edit applies from the next trend run. Saving needs write access, which a
+connection made before this plugin asked for it lacks until you sign in again; without it, or when Kabo does not offer the
+tool yet, nothing is saved and the research runs as before.

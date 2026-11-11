@@ -133,6 +133,9 @@ test("三个 Skill 的说明不再引用已删除的命令、文件与本地推�
   assert.deepEqual(pinned.get("get_for_you_videos").outputSchema.properties.reason.anyOf[0].enum,
     ["no_linked_account", "no_public_videos", "profile_insufficient", "language_unknown", "unavailable"]);
   for (const id of owners) for (const name of allowed(id)) assert.ok(pinned.has(name), `${id}：${name} 不在钉住的 tools/list 里`);
+  // 复盘每次运行都按画像刷新支柱，读不到就沿用旧值。
+  assert.match(texts["review-new-posts"], /refresh-pillars --library '<library directory>' --profile profile\.json/);
+  assert.match(texts["review-new-posts"], /--unavailable/);
   // 绑定前明确问一次。
   assert.match(texts["start-with-kabo"], /Ask before linking/);
   assert.doesNotMatch(texts["start-with-kabo"], /unless the creator objected/);
@@ -561,6 +564,65 @@ test("复盘第一次运行：没有本地库时从 Kabo 画像建库，回看 4
     await writeFile(daily, "recap");
     assert.match(run("record-recap", "--library", bare, "--report", daily, "--date", "2026-10-21").report, /recaps\/2026-10-21\.md$/);
   }
+});
+
+test("复盘每次运行按 Kabo 画像刷新支柱：改名保持归属、合并归到合并项、删除置未归类；读不到画像沿用旧值并写进 limits；画像没有支柱就清空", async t => {
+  const temp = await workspace(t);
+  const library = path.join(temp, "lib");
+  const profile = path.join(temp, "profile.json");
+  const write = (items) => writeFile(profile, JSON.stringify(profileResult(items)));
+  await write([signature("sc1", "Viral breakdowns", 0.5), signature("sc2", "Charisma tips", 0.3), signature("sc3", "Vlogs", 0.2)]);
+  run("bootstrap", "--library", library, "--platform", "instagram", "--handle", "maker", "--profile", profile);
+  const t0 = "2026-10-20T08:00:00Z";
+  run("ingest", "--library", library, "--snapshot", await snapshot(temp, "s0.json", t0, history(t0)));
+  const assign = { old0: "viral-breakdowns", old1: "viral-breakdowns", old2: "charisma-tips", old3: "vlogs", old4: "other" };
+  for (const [id, pillar] of Object.entries(assign)) run("set-pillar", "--library", library, "--content-id", id, "--pillar-id", pillar);
+  const review = path.join(temp, "r.md");
+  await writeFile(review, "review");
+  const before = JSON.parse(await readFile(path.join(library, "posts.json"), "utf8")).posts;
+  const owner = (id) => JSON.parse(execFileSync("python3", ["-I", "-B", "-c", "import json,sys;print(json.dumps(json.load(open(sys.argv[1]))['posts'][sys.argv[2]]['pillar_id']))", path.join(library, "posts.json"), id], options));
+
+  // 1. sc1 改名、sc2 与 sc3 合并成 m_1（origin.baseIds 列出成员）。
+  await write([{ ...signature("sc1", "Why videos go viral", 0.5) },
+    { ...signature("m_1", "Talking and daily life", 0.5), origin: { baseIds: ["sc2", "sc3"], baseName: null, renamed: true, weightSource: "profile" } }]);
+  const merged = run("refresh-pillars", "--library", library, "--profile", profile);
+  assert.equal(merged.refreshed, true);
+  assert.deepEqual(merged.pillars, ["viral-breakdowns", "talking-and-daily-life"]);
+  assert.deepEqual(merged.pillar_moves, { "charisma-tips": "talking-and-daily-life", vlogs: "talking-and-daily-life" });
+  assert.deepEqual(merged.posts, { kept: 2, moved: 2, unassigned: 0 });
+  assert.deepEqual(["old0", "old1", "old2", "old3", "old4"].map(owner), ["viral-breakdowns", "viral-breakdowns", "talking-and-daily-life", "talking-and-daily-life", "other"]);
+  const shown = run("show", "--library", library);
+  assert.equal(shown.pillars[0].name, "Why videos go viral");
+  assert.deepEqual(shown.pillars[1].profile_base_ids, ["sc2", "sc3"]);
+  assert.equal(shown.pillars_refresh.ok, true);
+
+  // 2. 读不到画像：沿用上一次，复盘与回顾的 limits 说明；整次运行不失败。
+  const failed = run("refresh-pillars", "--library", library, "--unavailable", "get_creator_profile failed: not_found");
+  assert.deepEqual([failed.refreshed, failed.pillars], [false, ["viral-breakdowns", "talking-and-daily-life"]]);
+  assert.ok(run("recap", "--library", library, "--date", "2026-10-21").limits.some(line => /could not be refreshed.*not_found.*using the ones read at/.test(line)));
+  assert.ok(run("review-facts", "--library", library, "--content-id", "old0", "--checkpoint", "24h").limits.some(line => /could not be refreshed/.test(line)));
+  await writeFile(path.join(temp, "refused.json"), JSON.stringify({ isError: true, content: [{ type: "text", text: "Internal error" }] }));
+  assert.equal(run("refresh-pillars", "--library", library, "--profile", path.join(temp, "refused.json")).refreshed, false);
+  assert.deepEqual(["old0", "old2"].map(owner), ["viral-breakdowns", "talking-and-daily-life"]);
+
+  // 3. 合并项被删除：它的作品置为未归类；读数不丢。
+  await write([signature("sc1", "Why videos go viral", 0.9)]);
+  const removed = run("refresh-pillars", "--library", library, "--profile", profile);
+  assert.deepEqual(removed.pillars, ["viral-breakdowns"]);
+  assert.deepEqual(removed.posts, { kept: 2, moved: 0, unassigned: 2 });
+  assert.deepEqual(["old0", "old2", "old3", "old4"].map(owner), ["viral-breakdowns", null, null, "other"]);
+  assert.equal(run("recap", "--library", library, "--date", "2026-10-22").limits.some(line => /could not be refreshed/.test(line)), false);
+  const after = JSON.parse(await readFile(path.join(library, "posts.json"), "utf8")).posts;
+  assert.deepEqual(after.old2.observations, before.old2.observations);
+
+  // 4. 画像没有支柱：本地也清空，回顾不带支柱小节。
+  await write([]);
+  const none = run("refresh-pillars", "--library", library, "--profile", profile);
+  assert.deepEqual([none.pillars, none.posts.unassigned], [[], 2]);
+  const recap = run("recap", "--library", library, "--date", "2026-10-23");
+  assert.deepEqual(recap.pillars, []);
+  assert.ok(recap.limits.some(line => /no content pillars from Kabo/.test(line)));
+  assert.equal(run("show", "--library", library).niche.text, "Short breakdowns of viral videos for small creators");
 });
 
 // ---- 整条取数路径：静态宿主暂存组合结果（与后台同形）→ snapshot → ingest；转写同理。

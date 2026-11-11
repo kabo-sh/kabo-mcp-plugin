@@ -4,6 +4,18 @@
 
 ## 未发布
 
+- **权限范围扩大：首次授权加入 `workspace:write`。** `host-auth.json` 的 `defaultScopes` 由 `data video workspace:read` 改为
+  `data video workspace:read workspace:write`，包检查（`scripts/package-standard.mjs`）与测试同步。理由：新用户的第一次对话要绑定
+  账号（`connect_public_account`）、触发画像生成（`prepare_creator_profile`）、保存支柱修改（`update_content_preferences`），都需要
+  写权限；真实宿主实测 Codex 按 `defaultScopes` 授权、不会按 403 challenge 补权，所以 e2801c0 的「写权限按需补权」在 Codex 上拿不到
+  写权限，三者都报 `Insufficient scope`。已安装的用户需要重新登录一次才会拿到写权限（Codex：`codex mcp login kabo --scopes
+  openid,profile,email,offline_access,data,video,workspace:read,workspace:write`；其他宿主断开后重新连接 Kabo），README 与
+  INSTALL.md 已写明；旧授权用户由各 Skill 现有的缺写权限处理兜底（`start-with-kabo` 提示重新授权，不处理就不带支柱继续）。
+- `review-new-posts` 每次运行都按 `get_creator_profile` 刷新本地库的赛道与支柱（新命令 `refresh-pillars`），以后台画像为准：
+  画像项 id 不变（含改名）的支柱保持作品归属；被合并的按合并项的 `origin.baseIds` 归到合并后的支柱；被删除、隐藏、拆分或跌出
+  前 4 项的，作品置为未归类，历史读数与已记录的复盘不动；画像没有支柱时本地也清空。读不到画像时沿用上一次的支柱，并在复盘与
+  账号回顾的 limits 里写明「支柱未能刷新」，不让整次复盘失败。
+
 - 新增三个 Skill，组成创作者的日常流程（本仓原创，不是从 creator-skills 搬运；Skill 总数 18 → 21）：
   - `start-with-kabo`：创作者第一次用 Kabo。开场两条短消息加一个问题（问账号）；先看 `get_kabo_info` 与
     `list_connected_accounts`，未绑定的账号**先问一次**再用 `connect_public_account` 绑定；随后 `prepare_creator_profile`

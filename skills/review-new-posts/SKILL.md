@@ -74,6 +74,27 @@ are complete as written: do not run scripts with `--help` or read their source. 
   library's first reading (`limit`): no same-age comparison and no follower change yet; in a host that
   keeps no files every run starts like this, and a post may be reviewed again on a later day.
 
+- **The library exists: refresh its pillars from Kabo, every run.** Kabo's profile is the only source
+  of pillars, and the creator may have edited it since the last run. When the account is linked in
+  Kabo, call `get_creator_profile` with `{"account_id": "<id>", "include": ["content_profile"],
+  "effective": true}`, save the complete result to `profile.json` in the run, and run:
+
+  ```sh
+  cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' refresh-pillars --library '<library directory>' --profile profile.json
+  ```
+
+  When the call was refused or failed, or the account is not linked in Kabo, run it with
+  `--unavailable '<one-line reason>'` instead of `--profile`: the library keeps its previous pillars,
+  and the reviews and the recap say in `limits` that the pillars could not be refreshed. The run goes
+  on either way. The refresh follows Kabo's profile and never derives pillars locally:
+  - a pillar whose Kabo item keeps its id (renamed or reworded included) keeps its posts;
+  - a pillar merged into another item (a merged item lists its members) passes its posts to the
+    merged pillar;
+  - a pillar that was removed, hidden, split or is no longer among Kabo's top four leaves its posts
+    unassigned; their readings and recorded reviews stay;
+  - when Kabo's profile has no pillars, the library has none either, and the recap has no pillar
+    section.
+
 ## 2. Read the latest posts
 
 ```sh

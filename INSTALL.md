@@ -42,7 +42,12 @@ codex plugin marketplace add kabo-sh/kabo-mcp-plugin
 codex plugin add kabo@kabo-plugin-openai
 ```
 
-The user signs in to Kabo when prompted, then opens a new task so the tools and Skills load.
+The user signs in to Kabo when prompted, then opens a new task so the tools and Skills load. If Kabo was
+connected before, its old sign-in has no write access; sign in again with all permissions:
+
+```sh
+codex mcp login kabo --scopes openid,profile,email,offline_access,data,video,workspace:read,workspace:write
+```
 
 ## Grok Bot
 

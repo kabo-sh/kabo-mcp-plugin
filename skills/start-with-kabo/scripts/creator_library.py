@@ -420,6 +420,9 @@ def read_profile(path):
         candidates.append({
             "id": slug, "name": name[:60], "definition": (definition or name)[:300], "source": "kabo_profile",
             "profile_item_id": item.get("id"),
+            # 合并项（m_…）的 origin.baseIds 列出合并进来的原项；单项就是它自己。刷新支柱时据此把作品归到合并后的项。
+            "profile_base_ids": [str(base) for base in ((item.get("origin") or {}).get("baseIds") or [item.get("id")])
+                                 if isinstance(base, (str, int)) and str(base)],
             # 画像的 share 是条数占比（contentCount / 进了格式的作品数），不是播放占比。
             "evidence": {"share_of_posts": share, "median_multiple": item.get("medianMultiplier"),
                          "content_count": item.get("contentCount"),
@@ -589,8 +592,7 @@ def cmd_bootstrap(args):
     handle, when = normalize_handle(args.handle), now_utc()
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "reviews").mkdir(exist_ok=True)
-    pillars = [{key: row[key] for key in ("id", "name", "definition", "source", "profile_item_id", "evidence") if key in row}
-               for row in candidates]
+    pillars = [pillar_record(row) for row in candidates]
     niche = (proposal or {}).get("niche")
     language = (proposal or {}).get("language")
     # 回看 48 小时：第一次读历史时按那次的抓取时间定绑定时间，让每条作品恰好在 24–48 小时的那一天进入一次复盘。
@@ -600,6 +602,8 @@ def cmd_bootstrap(args):
         "bound_at": None, "lookback_hours": 48, "fresh": True,
         "niche": {"text": niche, "source": "kabo_profile"} if niche else None, "pillars": pillars,
         "pillars_read_at": iso(when) if pillars else None, "pillars_source": "kabo_profile" if pillars else None,
+        "pillars_refresh": {"ok": proposal is not None, "at": iso(when),
+                            **({} if proposal is not None else {"reason": "no profile result"})},
         "followers": [], "profile": {"language": language} if language else {},
         "updated_at": iso(when)})
     write_json(directory / "posts.json", {"posts": {}})
@@ -610,6 +614,97 @@ def cmd_bootstrap(args):
         result["note"] = ("No content pillars from Kabo for this account, so the reviews and the recap have no pillar "
                           "section. Do not make pillars up.")
     say(result)
+
+
+PILLAR_KEYS = ("id", "name", "definition", "source", "profile_item_id", "profile_base_ids", "evidence")
+
+
+def pillar_record(row):
+    return {key: row[key] for key in PILLAR_KEYS if key in row}
+
+
+def align_pillars(old_pillars, candidates):
+    """New local pillars from Kabo's profile, and where each old local pillar id now goes (None: unassigned).
+
+    对齐规则（以后台画像为准，只按画像项的稳定 id 对，不看名字）：
+    1. 画像项 id 不变（改名、改话题也一样）：沿用原来的本地 id，作品归属不动。
+    2. 原项被合并：新合并项（m_…）的 origin.baseIds 含原项 id，原项的作品归到合并项。
+    3. 原项被删除、隐藏、跌出前 4 项，或原合并项被拆开（对应关系不唯一）：作品置为未归类（pillar_id 为空）。
+    历史读数与已记录的复盘都不动；"other" 归属保持。"""
+    by_item = {str(row.get("profile_item_id")): row for row in old_pillars if row.get("profile_item_id")}
+    taken, pillars, moves = set(), [], {}
+    # 先给 id 不变的项保留原本地 id，再给新项按名字起 id，避免撞名。
+    kept = {}
+    for row in candidates:
+        old = by_item.get(str(row.get("profile_item_id")))
+        if old:
+            kept[id(row)] = old["id"]
+            taken.add(old["id"])
+    for row in candidates:
+        local = kept.get(id(row)) or slug_of(row["name"], taken)
+        taken.add(local)
+        pillars.append(pillar_record({**row, "id": local}))
+    for old in old_pillars:
+        item = str(old.get("profile_item_id") or "")
+        target = next((new["id"] for new in pillars if item and new.get("profile_item_id") == item), None)
+        if target is None and item:
+            target = next((new["id"] for new in pillars if item in (new.get("profile_base_ids") or [])), None)
+        moves[old["id"]] = target
+    return pillars, moves
+
+
+def cmd_refresh_pillars(args):
+    """Refresh the library's niche and pillars from this run's get_creator_profile result (Kabo's profile wins)."""
+    directory = Path(args.library)
+    library, store = load_library(directory)
+    when = iso(now_utc())
+    proposal, problem = None, args.unavailable
+    if args.profile and not problem:
+        try:
+            proposal = read_profile(args.profile)
+        except (ValueError, OSError, json.JSONDecodeError) as error:
+            problem = str(error)[:300]
+    if proposal is None:
+        # 读不到画像：沿用上一次的支柱，在复盘与回顾的 limits 里说明，不让整次复盘失败。
+        library["pillars_refresh"] = {"ok": False, "at": when, "reason": problem or "no profile result"}
+        write_json(directory / "library.json", library)
+        say({"refreshed": False, "reason": library["pillars_refresh"]["reason"],
+             "pillars": [row["id"] for row in library.get("pillars") or []], "pillars_read_at": library.get("pillars_read_at")})
+        return
+    old = library.get("pillars") or []
+    pillars, moves = align_pillars(old, proposal["candidates"])
+    moved = {"kept": 0, "moved": 0, "unassigned": 0}
+    for post in store.get("posts", {}).values():
+        current = post.get("pillar_id")
+        if current in (None, "other") or current not in moves:
+            continue
+        target = moves[current]
+        if target == current:
+            moved["kept"] += 1
+        elif target:
+            moved["moved"] += 1
+        else:
+            moved["unassigned"] += 1
+        post["pillar_id"] = target
+    niche = proposal.get("niche")
+    library.update({"niche": {"text": niche, "source": "kabo_profile"} if niche else None, "pillars": pillars,
+                    "pillars_read_at": when, "pillars_source": "kabo_profile" if pillars else None,
+                    "pillars_refresh": {"ok": True, "at": when}, "updated_at": when})
+    if proposal.get("language"):
+        library.setdefault("profile", {})["language"] = proposal["language"]
+    write_json(directory / "library.json", library)
+    write_json(directory / "posts.json", store)
+    say({"refreshed": True, "pillars": [row["id"] for row in pillars], "posts": moved,
+         "pillar_moves": {old_id: target for old_id, target in moves.items() if target != old_id}})
+
+
+def pillar_refresh_limit(library):
+    state = library.get("pillars_refresh") or {}
+    if state.get("ok") is False:
+        return ("Content pillars could not be refreshed from Kabo this run (" + str(state.get("reason")) + "); "
+                + (f"using the ones read at {library.get('pillars_read_at')}." if library.get("pillars")
+                   else "there are none in this library."))
+    return None
 
 
 def cmd_set_pillar(args):
@@ -633,6 +728,7 @@ def cmd_show(args):
     say({"platform": library["platform"], "handle": library["handle"], "bound_at": library["bound_at"],
          "fresh": bool(library.get("fresh")), "niche": library.get("niche"),
          "pillars": library.get("pillars"), "pillars_source": library.get("pillars_source"),
+         "pillars_read_at": library.get("pillars_read_at"), "pillars_refresh": library.get("pillars_refresh"),
          "profile": library.get("profile"), "posts_in_library": len(posts),
          "typical_settled_views": median([v for _, v in settled_views(posts)]),
          "followers_now": followers[-1] if followers else None,
@@ -745,6 +841,8 @@ def cmd_review_facts(args):
                                "post was first seen, so it can be up to one check interval late.")
     if last.get("views") is None:
         facts["limits"].append("The platform does not show this post's views publicly.")
+    if pillar_refresh_limit(library):
+        facts["limits"].append(pillar_refresh_limit(library))
     if library.get("fresh"):
         facts["limits"].append("This library has only this run's reading of the creator's posts (its first run, or a "
                                "host that keeps no files between runs): no same-age comparison yet. In a host that "
@@ -785,6 +883,8 @@ def cmd_recap(args):
     typical = median([views for _, views in settled])
     total = sum(views for _, views in settled)
     limits = []
+    if pillar_refresh_limit(library):
+        limits.append(pillar_refresh_limit(library))
     if library.get("fresh"):
         limits.append("This library has only this run's reading (its first run, or a host that keeps no files between "
                       "runs): no follower change and no history beyond this read.")
@@ -1159,6 +1259,10 @@ def build_parser():
     command.add_argument("--library", required=True)
     command.add_argument("--snapshot", required=True)
     command.add_argument("--handle")
+    command = commands.add_parser("refresh-pillars")
+    command.add_argument("--library", required=True)
+    command.add_argument("--profile")
+    command.add_argument("--unavailable")
     command = commands.add_parser("set-pillar")
     command.add_argument("--library", required=True)
     command.add_argument("--content-id", required=True)
@@ -1196,7 +1300,7 @@ def build_parser():
 HANDLERS = {"path": cmd_path, "opening": cmd_opening, "profile-status": cmd_profile_status,
             "profile-pillars": cmd_profile_pillars, "for-you": cmd_for_you, "picks": cmd_picks,
             "history-request": cmd_history_request, "snapshot": cmd_snapshot, "bootstrap": cmd_bootstrap,
-            "ingest": cmd_ingest, "set-pillar": cmd_set_pillar, "show": cmd_show, "due": cmd_due,
+            "ingest": cmd_ingest, "refresh-pillars": cmd_refresh_pillars, "set-pillar": cmd_set_pillar, "show": cmd_show, "due": cmd_due,
             "review-facts": cmd_review_facts, "record-review": cmd_record_review, "recap": cmd_recap,
             "record-recap": cmd_record_recap, "comments": cmd_comments, "evidence": cmd_evidence}
 
