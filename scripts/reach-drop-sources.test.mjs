@@ -82,11 +82,11 @@ test("user-supplied numbers join imported public data under their own labelled s
   assert.ok(skip.missing.includes("earlier_and_recent_performance_records"));
   assert.match(evidence, /Source: user-supplied, not verified\./);
   assert.match(evidence, /One group only: these values are observations, not a comparison\./);
-  // 交给创作者的报告走 creator_evidence，同样要带出来源标注。
+  // 交给创作者的最终报告由 compose_traffic.compose 组装，同样要带出来源标注。
   const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1" };
   const final = spawnSync("python3", ["-B", "-c",
-    "import json,sys; sys.path.insert(0, sys.argv[1]); from creator_evidence import evidence; "
-    + "a = json.loads(sys.stdin.read()); print(evidence(a['questions'][1], False, True, a['sources']))",
+    "import json,sys; sys.path.insert(0, sys.argv[1]); from compose_traffic import compose; "
+    + "print(compose(json.loads(sys.stdin.read()), {}, 'en'))",
     path.dirname(workflow)], { input: JSON.stringify(assessment), env, encoding: "utf8" });
   assert.match(final.stdout + final.stderr, /Source: user-supplied, not verified\./);
 });
