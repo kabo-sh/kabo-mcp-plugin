@@ -45,6 +45,8 @@ EN = {
                      "What follows is a tentative mechanism interpretation, not a platform statement "
                      "or an established basis for action."),
     "gloss": "Translation: ",
+    "implication": ("Our inference, not the platform's words - a possibility, not an established "
+                    "effect: "),
     "unreachable": "Pages this check could not read",
     "unreachable_lead": ("These were meant to be read and were not. That is not evidence they are "
                          "unchanged; it only means nobody looked:"),
@@ -130,6 +132,9 @@ def render(value: dict) -> str:
                 lines.append(f"— [{item['url']}]({item['url']}) · {authority} · "
                              f"{item['retrieved_at'][:10]}{effective}")
                 lines.append("")
+            # 推测放在全部引文之后、带固定标签，读者一眼分得清哪句是平台说的、哪句是推出来的。
+            if claim.get("inference"):
+                lines += [f"**{words['implication'].strip()}** {claim['inference'].strip()}", ""]
 
     if unwritten:
         lines += [f"## {words['no_text_section']}", "", words["no_text_lead"], ""]

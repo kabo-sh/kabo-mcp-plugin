@@ -137,3 +137,23 @@ test("续跑时交接点名的文件不存在：一句话点名文件与该存�
   assert.ok(placed.out.includes("no result for slot 01 (render_official_pages). Run the resume command again with --id 01=<id>"), placed.out);
   assert.equal(existsSync(path.join(run, "analysis", "rule-input.json")), false);
 });
+
+test("有引文的主张可附推测：通过校验，渲染在引文之后并标明是推测；空推测被拒", async (t) => {
+  const { run, calls } = await handedOver(t);
+  const placed = await placeComposite(run, composite(calls[0].arguments.pages));
+  assert.equal(placed.code, 0, placed.out);
+  const claim = { statement: "The page states the rule.", verdict: "confirmed", evidence: [{ ref: "instagram.originality:P1" }] };
+  const report = python("drive.py", ["report", "--judgments", "-"], { cwd: run, run,
+    input: JSON.stringify({ claims: [{ ...claim, inference: "Following it may help, but the page does not say so." }] }) });
+  assert.equal(report.code, 0, report.out);
+  const body = await readFile(path.join(run, "report", "RULE_CHECK.md"), "utf8");
+  const quote = body.indexOf("> Rule passage 0 for this page.");
+  const label = body.indexOf("**Our inference, not the platform's words - a possibility, not an established effect:** Following it may help");
+  assert.ok(quote > -1 && label > quote, body);
+  assert.match(body, /^### The page states the rule\.$/m);
+
+  const empty = python("drive.py", ["report", "--judgments", "-"], { cwd: run, run,
+    input: JSON.stringify({ claims: [{ ...claim, inference: "  " }] }) });
+  assert.notEqual(empty.code, 0);
+  assert.match(empty.out, /inference is empty/);
+});
