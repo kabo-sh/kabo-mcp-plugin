@@ -116,6 +116,23 @@ test("三个 Skill 的说明不再引用已删除的命令、文件与本地推�
   // 两处等待上限写在说明里，与脚本一致。
   assert.match(texts["start-with-kabo"], /at most 8 more\s+calls and at most 8 minutes/);
   assert.match(texts["pick-daily-viral-videos"], /at most 3\s+more calls and at most 10 minutes/);
+  // 写权限缺失时的处理写在说明里；定时任务只跑只读或取数的两个 Skill，不调写工具。
+  assert.match(texts["start-with-kabo"], /`ask_write_access`/);
+  assert.match(texts["start-with-kabo"], /--write-retried/);
+  assert.match(texts["start-with-kabo"], /The scheduled jobs run only `pick-daily-viral-videos` and `review-new-posts`/);
+  for (const id of ["pick-daily-viral-videos", "review-new-posts"]) assert.equal(allowed(id).includes("prepare_creator_profile"), false, id);
+  // 两个新工具已在钉住的 tools/list 里，scope 与 Skill 的 compatibility 一致；入参键都在 inputSchema 里。
+  const pinned = new Map(JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools.map(tool => [tool.name, tool]));
+  const scopes = (name) => pinned.get(name).securitySchemes.flatMap(scheme => scheme.scopes);
+  assert.deepEqual(scopes("get_for_you_videos"), ["workspace:read"]);
+  assert.deepEqual(scopes("prepare_creator_profile"), ["workspace:write"]);
+  assert.deepEqual(Object.keys(pinned.get("prepare_creator_profile").inputSchema.properties).sort(), ["account_id", "niche"]);
+  assert.deepEqual(pinned.get("prepare_creator_profile").inputSchema.required, ["account_id"]);
+  assert.deepEqual(pinned.get("prepare_creator_profile").outputSchema.properties.status.enum, ["ready", "generating", "insufficient_posts", "niche_required", "failed"]);
+  assert.deepEqual(pinned.get("get_for_you_videos").outputSchema.properties.status.enum, ["ready", "generating", "not_eligible", "failed"]);
+  assert.deepEqual(pinned.get("get_for_you_videos").outputSchema.properties.reason.anyOf[0].enum,
+    ["no_linked_account", "no_public_videos", "profile_insufficient", "language_unknown", "unavailable"]);
+  for (const id of owners) for (const name of allowed(id)) assert.ok(pinned.has(name), `${id}：${name} 不在钉住的 tools/list 里`);
   // 绑定前明确问一次。
   assert.match(texts["start-with-kabo"], /Ask before linking/);
   assert.doesNotMatch(texts["start-with-kabo"], /unless the creator objected/);
@@ -311,6 +328,21 @@ test("prepare_creator_profile：ready 去读画像；generating 严格按 retry_
   // 契约之外的 status 与工具错误都按失败处理，原样带回。
   const odd = await status({ status: "queued_somewhere" });
   assert.deepEqual([odd.status, odd.action, odd.reported.status], ["queued_somewhere", "continue_without_profile", "queued_somewhere"]);
+  // 宿主授权里没有 workspace:write：工具错误 Insufficient scope。先请创作者重新授权，再试一次；仍不行就不带画像往下走。
+  const noScope = { isError: true, content: [{ type: "text", text: "Insufficient scope: workspace:write is required" }] };
+  const askWrite = await status(noScope);
+  assert.deepEqual([askWrite.status, askWrite.action, askWrite.reason], ["failed", "ask_write_access", "insufficient_scope"]);
+  assert.match(askWrite.tell_creator_now, /Reconnect Kabo in this app and approve write access/);
+  assert.match(askWrite.no_write_access_line, /no content pillars for now.*picks only need read access/);
+  assert.match(askWrite.then, /--write-retried/);
+  const stillNoScope = await status(noScope, "--write-retried");
+  assert.equal(stillNoScope.action, "continue_without_profile");
+  assert.match(stillNoScope.tell_creator_now, /read access/);
+  // niche_required 带的 failure_code（如 profile_private）只带出去说明，照样问一次领域。
+  const privateProfile = await status(prepared("niche_required", { failure_code: "profile_private", retry_after_seconds: 86400 }));
+  assert.deepEqual([privateProfile.action, privateProfile.failure_code], ["ask_niche", "profile_private"]);
+  // 另一请求正在推断赛道时后台给 30 秒：照等 30 秒。
+  assert.equal((await status(prepared("generating", { retry_after_seconds: 30 }))).wait_seconds, 30);
   const notFound = await status({ isError: true, content: [{ type: "text", text: "not_found: account is not yours" }] });
   assert.deepEqual([notFound.status, notFound.failure_code], ["failed", "not_found: account is not yours"]);
 });

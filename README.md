@@ -319,10 +319,10 @@ which were shown. `review-new-posts` builds its own library from the account's p
 Skills are written to run unattended from a host's own scheduled tasks and never post, comment or message anyone.
 Host-specific scheduling notes live in `skills/start-with-kabo/references/host-schedules.md`.
 
-`get_for_you_videos` and `prepare_creator_profile` (kabo-sh/kabo#2176) are not yet on `/mcp-pub` or in the pinned
-tool list (`contracts/directory-mcp/`). Until Kabo releases them and the contract is pinned again, `start-with-kabo` cannot
-show pillars or picks and `pick-daily-viral-videos` cannot run; these Skills have been tested offline only for this
-change.
+`get_for_you_videos` (`workspace:read`) and `prepare_creator_profile` (`workspace:write`) come from kabo-sh/kabo#2176
+and are pinned in `contracts/directory-mcp/`. Building the profile needs write access to the creator's Kabo account,
+so it happens only in the first session; the scheduled jobs run only `pick-daily-viral-videos` and `review-new-posts`.
+The new flow has been tested offline; real-host acceptance is still pending.
 
 `remake-viral-video` uses the `start_remake_video`, `get_remake_video` and `render_remake_video`
 tools on `/mcp-pub`, plus `edit_remake_video` to change a delivered video and `start_video_project`,

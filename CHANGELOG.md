@@ -38,12 +38,14 @@
     0.8 倍与 20% 规则、`save-pillars` 本地保存支柱）与本地的每日推荐（`pick-request` / `candidates` / `pick`，即
     `collect_*_trend_candidates` 加 `enrich_*_shortlist` 与「作者常规播放 2 倍」筛选），改为调用后台的 `prepare_creator_profile`
     与 `get_for_you_videos`。同时删除 `posts`、`media-request`、`transcripts`、`set-profile` 命令，`path` 不再夹带开场白。
-  - **依赖尚未上线的后台工具**：`get_for_you_videos`（`workspace:read`）、`prepare_creator_profile`（`workspace:write`）由
-    kabo 仓的 draft PR #2176（分支 `feat/mcp-for-you-profile-20261111`）实现，插件已按其定稿契约对接（内联结果、字段固定全出现，
-    推荐条目没有时长字段，多账号未指定是工具错误 `validation_error`），目前不在 `/mcp-pub`，也不在本仓钉住的 `contracts/directory-mcp/` 里；
-    因此它们只出现在两个 Skill 的 `allowed-tools`（`skills:lint` 会报「不在 /mcp-pub 工具清单中」，门禁未启用），还没有进
-    `runtime-contract.json`（包检查要求它与钉住的契约一致）。后台上线后需要重新钉住契约、把两者加进 `runtime-contract.json`，
-    并在真实宿主里验证，之后才能发布。插件按约定契约宽容读取：缺字段不崩，未知 `status` 按失败并原样报告。
+  - 依赖的后台工具 `get_for_you_videos`（`workspace:read`）与 `prepare_creator_profile`（`workspace:write`）随 kabo#2176
+    合并上线（`/mcp-pub` 工具数 77 → 79）。`contracts/directory-mcp/` 按 `pin.json` 记录的命令在 kabo `d70c9f2da` 重新导出并钉住
+    （`tools-list.json` 与后台制品 `docs/contracts/directory-mcp-tools-list.golden.json` 逐字节相同），两个工具加进
+    `runtime-contract.json` 的 `requiredTools`。插件按其契约对接：内联结果、字段固定全出现，推荐条目没有时长字段，多账号未指定
+    是工具错误 `validation_error`。
+  - 宿主的 Kabo 授权里没有 `workspace:write` 时，`prepare_creator_profile` 返回 `Insufficient scope` 工具错误：`start-with-kabo`
+    请创作者在宿主里重新授权并批准写权限后再试一次；不处理就说明暂时没有支柱、照常给推荐（只需读权限）。定时任务只跑
+    `pick-daily-viral-videos` 与 `review-new-posts`，不调写工具（Codex 非交互运行时写工具会停在审批上），写在 `host-schedules.md`。
     改动前的版本曾在 Codex、Muse、Claude Code、Grok Bot 里对着生产 `/mcp-pub` 实测（见 PR #160）；改动后的流程只有离线测试。
   - 早先按 Leo 11 月 11 日意见重做的第一次对话（开场不罗列功能、选择用宿主的选项控件、推荐先于定时任务、结尾四行）保留；
     其中「读完作品马上说具体数字」「读转写前先给第一个支柱」两项随本地推导一起删除。`review-new-posts` 支持只做新作品复盘或

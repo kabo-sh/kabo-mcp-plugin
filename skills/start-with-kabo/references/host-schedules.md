@@ -8,6 +8,13 @@ or changes them.
 2. **New-post review**, 12:00 by default, runs `review-new-posts` for the reviews only.
 3. **Daily account review**, 20:00 by default, runs `review-new-posts` for the recap only.
 
+The scheduled jobs run only `pick-daily-viral-videos` and `review-new-posts`. Their Kabo tools need
+read access or data allowance only; neither calls `prepare_creator_profile` or any other tool that
+writes to the creator's Kabo account. Building the profile and saving pillar edits happen in the
+first session, with the creator present: a write tool can stop an unattended run on an approval
+prompt (seen in Codex: `prepare_creator_profile` asked for approval in a non-interactive run), and it
+fails outright when the host's Kabo connection has no write access.
+
 Use the host section below. Fill the brackets and use these as the task texts:
 
 > Every day at [time] [time zone], use the pick-daily-viral-videos skill for [platform] @[handle]

@@ -33,7 +33,8 @@ every host.
 - If a step fails, say which part is missing and why in one line, and go on with the steps that do
   not need it.
 - **Questions.** Ask only the questions written in the steps below: the account, whether to link it,
-  the creator's niche when Kabo asks for it, the pillars and the schedule. The steps are the same for
+  the creator's niche when Kabo asks for it, whether they approved write access when Kabo needs it,
+  the pillars and the schedule. The steps are the same for
   every platform and every host.
 - **Choices.** Whenever the creator has to choose, give 2 to 4 options with the recommended one
   first, and ask one question per message. Use the host's own choice control when it has one (in
@@ -116,13 +117,20 @@ Do what its `action` says:
 - `ask_niche`: Kabo could not work out the creator's niche from their posts. Send `tell_creator_now`
   and ask `question`, as one question with no options. When the creator answers, call
   `prepare_creator_profile` again with `{"account_id": "<id>", "niche": "<the creator's answer, in their
-  own words>"}`, save the result to the next `prepare-<n>.json` and run `profile-status` on it with
+  own words>"}` (3 to 200 characters; shorten a longer answer only by cutting, never by rewording it), save the result to the next `prepare-<n>.json` and run `profile-status` on it with
   `--attempt 1 --waited 0 --niche-sent`; then follow its `action` as above. Never write the niche
   yourself, from the posts or a guess. If the creator does not want to answer, say in one line that
   there are no content pillars for now, skip step 4 and go to step 5. Ask this only once.
+- `ask_write_access`: the host's Kabo connection lacks write access (`Insufficient scope`), which
+  building a profile needs. Send `tell_creator_now`: the creator reconnects Kabo in this host and
+  approves write access. When they say they did, call `prepare_creator_profile` again with the same
+  arguments, save the result to the next `prepare-<n>.json` and run `profile-status` on it with
+  `--attempt 1 --waited 0 --write-retried`. When they do not want to, or the error comes back, send
+  `no_write_access_line` (no content pillars for now), skip step 4 and go to step 5: the daily picks
+  need only read access and go ahead as usual.
 - `continue_without_profile`: send `tell_creator_now` (not enough posts, the niche still could not be
   placed after the creator's answer, the profile could not be built, or it is still not ready when
-  the waiting ends), skip step 4 and go to step 5. For a failure, `failure_code` says why: mention it
+  the waiting ends, or write access is still missing), skip step 4 and go to step 5. For a failure, `failure_code` says why: mention it
   in plain words. A `status` this Skill does not know is handled the same way; `reported` holds what
   Kabo answered. A tool error instead of a result (for example `not_found`) is a failure too.
 

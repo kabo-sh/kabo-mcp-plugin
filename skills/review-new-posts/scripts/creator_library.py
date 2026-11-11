@@ -493,6 +493,13 @@ def failure_detail(payload):
             or first_text(payload.get("error")))
 
 
+def needs_write_access(payload, is_error):
+    # 宿主的 Kabo 授权里没有 workspace:write 时，写工具返回 Insufficient scope 的工具错误（不是某个 status）。
+    # 这是授权问题，重试没用：要创作者在宿主里重新授权并批准写权限。
+    text = " ".join(str(payload.get(key) or "") for key in ("failure_code", "error", "message", "code")).lower()
+    return is_error and ("insufficient_scope" in text or "insufficient scope" in text)
+
+
 def reported(payload):
     keys = ("status", "failure_code", "retryable", "retry_after_seconds", "reason", "error", "message")
     return {key: payload.get(key) for key in keys if key in payload} or payload
@@ -511,6 +518,11 @@ PROFILE_STATUS_LINES = {
                              "I'll go on with the rest."),
     "failed": "Kabo could not build your profile this time, so I can't show your content pillars now. I'll go on with the rest.",
     "retryable": "This can be tried again later.",
+    "needs_write_access": ("To build your content profile, Kabo needs permission to save to your Kabo account, and this "
+                           "app has not granted it. Reconnect Kabo in this app and approve write access, then tell me "
+                           "to try again."),
+    "no_write_access": ("Without that permission there are no content pillars for now. I'll go on with the rest; daily "
+                        "picks only need read access."),
 }
 
 
@@ -519,7 +531,18 @@ def cmd_profile_status(args):
     payload, is_error = tool_payload(read_json(args.result))
     status = status_of(payload, is_error)
     result = {"status": status}
-    if status == "ready":
+    if status == "failed" and needs_write_access(payload, is_error):
+        if args.write_retried:
+            result.update({"action": "continue_without_profile", "reason": "insufficient_scope",
+                           "tell_creator_now": PROFILE_STATUS_LINES["no_write_access"], "reported": reported(payload)})
+        else:
+            result.update({"action": "ask_write_access", "reason": "insufficient_scope",
+                           "tell_creator_now": PROFILE_STATUS_LINES["needs_write_access"],
+                           "then": "if the creator says they approved it, call prepare_creator_profile again with the same "
+                                   "arguments and run profile-status with --attempt 1 --waited 0 --write-retried; if they "
+                                   "do not, send no_write_access_line and go on without a profile",
+                           "no_write_access_line": PROFILE_STATUS_LINES["no_write_access"], "reported": reported(payload)})
+    elif status == "ready":
         result.update({"action": "read_profile",
                        "then": "call get_creator_profile with include content_profile and effective true"})
     elif status == "generating":
@@ -532,11 +555,14 @@ def cmd_profile_status(args):
     elif status == "niche_required" and not args.niche_sent:
         # 后台从公开内容推断不出赛道：问创作者一句话，原话作为 niche 重试一次。模型不能替创作者编。
         result.update({"action": "ask_niche", "tell_creator_now": PROFILE_STATUS_LINES["niche_required"],
+                       # niche_not_inferred，或分析器的错误码（如 profile_private）；只作说明，不改流程。
+                       "failure_code": failure_detail(payload),
                        "question": PROFILE_STATUS_LINES["niche_question"],
                        "then": "call prepare_creator_profile again with the same account_id and niche set to the "
                                "creator's own words, then run profile-status with --attempt 1 --waited 0 --niche-sent"})
     elif status == "niche_required":
-        result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["niche_still_required"]})
+        result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["niche_still_required"],
+                       "failure_code": failure_detail(payload)})
     elif status == "insufficient_posts":
         result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["insufficient_posts"],
                        "retry_after_seconds": seconds(payload.get("retry_after_seconds"))})
@@ -1101,6 +1127,7 @@ def build_parser():
     command.add_argument("--attempt", type=int, default=1)
     command.add_argument("--waited", type=int, default=0)
     command.add_argument("--niche-sent", action="store_true")
+    command.add_argument("--write-retried", action="store_true")
     command = commands.add_parser("profile-pillars")
     command.add_argument("--profile", required=True)
     command = commands.add_parser("for-you")
