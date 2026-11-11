@@ -4,6 +4,12 @@
 
 ## 未发布
 
+- `pick-daily-viral-videos` 加按窗口的相对播放量门槛（常量 `VIEWS_FLOOR_SHARE = 0.10`）：一个窗口里低于该窗口榜首播放 10% 的、
+  或没有播放量的不选，各窗口用自己的榜首；先 7d、再 30d、再 24h 的顺序与去重规则不变，过门槛的不足 3 条不凑数，并说明其余明显
+  低于榜首。跳过计数新增 `below_views_floor`，输出带 `views_floor`（各窗 `top_views` 与 `min_views`）。理由：真实宿主里 YouTube
+  7d 榜是 63,831 / 1,266 / 1,240 …，按 rank 取前 3 会把没起量的视频当推荐。只用后台给的 `views`，不引入后台没有的口径。
+  推荐的证据写成「N views · #rank in Kabo's last-7-days / last-30-days / last-24-hours list」，窗口名与实际来源一致。
+
 - 修 `pick-daily-viral-videos` 只选出 1 条的问题（Codex 实测，YouTube 账号，30 条推荐只选出 1 条、29 条报为重复）：链接归一时
   整串丢掉查询参数，所有 `youtube.com/watch?v=…` 被当成同一条视频，跨天去重也会因此误判。现在保留标识视频的 `?v=`，去掉
   `si`、`igsh` 等分享追踪参数。同作者判断优先用 `author_id`（后台若补上），其次 `author_handle`，作者未知时不参与同作者与

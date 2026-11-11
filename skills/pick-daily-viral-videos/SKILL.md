@@ -95,6 +95,9 @@ same arguments; if that fails too, report the failed step in one short message a
 
 1. Up to 3 picks a day.
 2. Take the `7d` list first, in Kabo's `rank` order; then the `30d` list; then the `24h` list.
+   In each list, only videos with at least 10% of the views of that list's top video qualify (a video
+   with no views never does); each list is measured against its own top video. `views_floor` gives
+   each list's `top_views` and `min_views`.
 3. Skip a video shown on an earlier day, a video by the creator's own account, a second video by an
    author already picked today, the same video met again in another window, and a video with no
    link. A video is the same video when its `content_id` or its link matches (YouTube links keep their
@@ -102,7 +105,8 @@ same arguments; if that fails too, report the failed step in one short message a
    `author_handle`; a video whose author is not given is never treated as a repeat author or as the
    creator's own (Kabo already leaves out the creator's own posts). In `skipped`:
    `shown_on_earlier_day`, `own_post`, `same_author`, `same_video_in_another_window` and `no_link`
-   count those five cases.
+   count those five cases, and `below_views_floor` counts videos under their list's 10% floor (or with
+   no views).
 4. When fewer than 3 remain, show those; when none remain, there are none today. Never pad.
 5. Record the day once Kabo's list was ready, even with no pick, so a second run on the same day
    shows the same result instead of asking Kabo again. A day on which Kabo was still preparing, said
@@ -117,9 +121,10 @@ One message in the creator's language. For each pick:
    When `format` is `long`, say it is a long-form video (Kabo's list can include them; this Skill does
    not filter them out); never call it a short. `reel` and `short` are short videos; `video` is a
    video whose length Kabo did not classify.
-2. The proof in plain words, from the output only: "1.2M views, #2 in Kabo's list of the last 7
-   days for your niche". `window` is `7d`, `30d` or `24h` (the last 7 days, 30 days or 24 hours);
-   leave out a number that is missing.
+2. The proof, from the output only, in this form: "N views · #rank in Kabo's last-7-days list"
+   (`window` `7d`), "last-30-days list" (`30d`) or "last-24-hours list" (`24h`). Name the list the pick
+   actually came from; a pick taken from `30d` to fill a gap is a last-30-days pick. Leave out a number
+   that is missing.
 3. Why Kabo picked it: `reason`, in one sentence, in the creator's language. Leave it out when it is
    missing.
 4. How they could make their own version: one opening line in their voice and what they would show,
@@ -140,7 +145,10 @@ One message in the creator's language. For each pick:
      is published.
 
 When fewer than three were shown, say how many, and why in plain words when `skipped` explains it
-(for example "4 of Kabo's videos were already shown on earlier days"). Add any "skipped: …" items,
+(for example "4 of Kabo's videos were already shown on earlier days"). When `below_views_floor` is
+above 0, say in one sentence that the others had far fewer views than the top of their list, with the
+numbers from `views_floor` (for example "this week's list was led by a 63,831-view video; the others
+were far below it"). Every number comes from the output. Add any "skipped: …" items,
 and, in a host that keeps no files, that a video shown on an earlier day can come back.
 
 ## Limits to state when relevant

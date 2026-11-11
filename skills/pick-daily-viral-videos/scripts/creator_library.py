@@ -1059,6 +1059,11 @@ def remake_note(platform):
 # 创作者本人的、与已选同一作者的；不够就有几条给几条，绝不凑数。
 PICK_WINDOWS = ("7d", "30d", "24h")
 PICKS_PER_DAY = 3
+# 按窗口的相对播放量门槛：低于该窗口第 1 名播放量 10% 的不选，没有 views 的也不选。
+# 后台按播放量排序，但一个窗口里常常只有榜首一条真正出圈（实测 YouTube 7d：63,831 后面是 1,266、1,240），
+# 照 rank 取前 3 会把明显没起量的视频当成推荐。只用后台给的 views，不引入作者基线倍数这类后台没有的口径；
+# 每个窗口用自己的榜首算门槛，补位时也一样。过门槛的不足 3 条就不凑数。
+VIEWS_FLOOR_SHARE = 0.10
 
 FOR_YOU_NOT_ELIGIBLE = {
     "no_linked_account": "No account is linked in Kabo yet, so there are no picks. Link one with start-with-kabo.",
@@ -1164,18 +1169,25 @@ def select_picks(payload, shown, own_handle, count):
     """Up to `count` picks: 7d by Kabo's rank first, then 30d, then 24h; never padded."""
     chosen, used_keys, authors = [], set(), set()
     skipped = {"shown_on_earlier_day": 0, "own_post": 0, "same_author": 0, "same_video_in_another_window": 0,
-               "no_link": 0}
-    sizes = {}
+               "no_link": 0, "below_views_floor": 0}
+    sizes, floors = {}, {}
     for window in PICK_WINDOWS:
         rows = window_items(payload, window)
         sizes[window] = len(rows)
+        counted = [row["views"] for row in rows if seconds(row.get("views")) is not None]
+        top = max(counted) if counted else None
+        floor = top * VIEWS_FLOOR_SHARE if top is not None else None
+        floors[window] = {"top_views": top, "min_views": int(-(-floor // 1)) if floor is not None else None}
         for row in rows:
             if len(chosen) >= count:
                 break
             keys = video_keys(row)
             author = author_of(row)
+            views = row.get("views")
             if not normalize_url(row.get("url")):
                 skipped["no_link"] += 1
+            elif seconds(views) is None or views < floor:
+                skipped["below_views_floor"] += 1
             elif keys & used_keys:
                 # 同一条视频（content_id 或归一后的链接相同）出现在多个时间窗；只看视频标识，不看作者。
                 skipped["same_video_in_another_window"] += 1
@@ -1202,7 +1214,7 @@ def select_picks(payload, shown, own_handle, count):
                     "content_id": str(row["content_id"]) if row.get("content_id") not in (None, "") else None,
                     "remake": remake_note(platform_of(row)),
                     "keys": sorted(keys)})
-    return chosen, skipped, sizes
+    return chosen, skipped, sizes, floors
 
 
 def cmd_for_you(args):
@@ -1221,13 +1233,16 @@ def cmd_for_you(args):
     if status == "ready":
         shown = {key for other, rows in history["days"].items() if other != day for row in rows for key in video_keys(row)}
         own = normalize_handle(args.handle) if args.handle else None
-        picks, skipped, sizes = select_picks(payload, shown, own, args.count)
+        picks, skipped, sizes, floors = select_picks(payload, shown, own, args.count)
         result.update({"action": "deliver", "picks": picks, "found": len(picks), "wanted": args.count,
-                       "skipped": skipped, "window_sizes": sizes,
+                       "skipped": skipped, "window_sizes": sizes, "views_floor": floors,
                        **{key: payload.get(key) for key in ("generated_at", "expires_at", "next_refresh_at")}})
         if len(picks) < args.count:
             result["note"] = (f"Only {len(picks)} of {args.count} could be shown today; never pad the list. Say how many "
                               "there are, and why in plain words from `skipped` when it explains it.")
+            if skipped["below_views_floor"]:
+                result["note"] += (" The others had far fewer views than the top video of their list (under "
+                                   f"{int(VIEWS_FLOOR_SHARE * 100)}% of it, see `views_floor`), so they were not picked.")
         if args.write:
             # 零条的日子也记下：今天已查过，同一天再跑不再触发。
             directory.mkdir(parents=True, exist_ok=True)

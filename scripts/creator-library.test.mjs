@@ -140,6 +140,9 @@ test("三个 Skill 的说明不再引用已删除的命令、文件与本地推�
   assert.match(texts["pick-daily-viral-videos"], /author not supplied/);
   assert.match(texts["pick-daily-viral-videos"], /`format` is `long`/);
   assert.match(texts["pick-daily-viral-videos"], /same_video_in_another_window/);
+  assert.match(texts["pick-daily-viral-videos"], /below_views_floor/);
+  assert.match(texts["pick-daily-viral-videos"], /10% of the views of that list's top video/);
+  assert.match(texts["pick-daily-viral-videos"], /last-30-days list/);
   // 绑定前明确问一次。
   assert.match(texts["start-with-kabo"], /Ask before linking/);
   assert.doesNotMatch(texts["start-with-kabo"], /unless the creator objected/);
@@ -407,7 +410,7 @@ test("每日推荐：7 天窗按排名优先，再用 30 天、24 小时补；�
   }), "2026-11-11");
   assert.equal(day1.status, "ready");
   assert.deepEqual(day1.picks.map(pick => [pick.content_id, pick.window, pick.rank]), [["a", "7d", 1], ["b", "7d", 2], ["c", "30d", 2]]);
-  assert.deepEqual(day1.skipped, { shown_on_earlier_day: 0, own_post: 1, same_author: 1, same_video_in_another_window: 1, no_link: 1 });
+  assert.deepEqual(day1.skipped, { shown_on_earlier_day: 0, own_post: 1, same_author: 1, same_video_in_another_window: 1, no_link: 1, below_views_floor: 0 });
   assert.equal(day1.picks[0].reason, "Popular in your niche (a)");
   assert.equal(day1.picks[0].views, 99000);
   // 没有时长：复刻只说「会先检查」，不臆测。
@@ -474,7 +477,7 @@ test("每日推荐：作者全为空的 YouTube 结果也能选满 3 条；作�
   const windows = { "7d": range("w", 11), "30d": [{ ...ytVideo("w2", 1), url: "https://youtube.com/watch?v=w2" }, ...range("m", 11)], "24h": range("d", 7) };
   const day1 = await forYou(ready(windows, { platform: "youtube" }), "2026-11-11");
   assert.deepEqual(day1.picks.map(pick => [pick.window, pick.rank, pick.content_id]), [["7d", 1, "w1"], ["7d", 2, "w2"], ["7d", 3, "w3"]]);
-  assert.deepEqual(day1.skipped, { shown_on_earlier_day: 0, own_post: 0, same_author: 0, same_video_in_another_window: 0, no_link: 0 });
+  assert.deepEqual(day1.skipped, { shown_on_earlier_day: 0, own_post: 0, same_author: 0, same_video_in_another_window: 0, no_link: 0, below_views_floor: 0 });
   assert.deepEqual(day1.picks[0].keys, ["id:w1", "url:youtube.com/watch?v=w1"]);
   assert.equal(day1.picks[0].author_handle, null);
   assert.equal(day1.picks[0].format, "long");
@@ -485,7 +488,7 @@ test("每日推荐：作者全为空的 YouTube 结果也能选满 3 条；作�
   // 只有 7d 里的跨窗重复：同一条视频在 30d 再出现时计 same_video_in_another_window，不计作者。
   const day3 = await forYou(ready({ "7d": [ytVideo("x1", 1)], "30d": [ytVideo("x1", 1), ytVideo("x2", 2)], "24h": [] }, { platform: "youtube" }), "2026-11-13");
   assert.deepEqual(day3.picks.map(pick => pick.content_id), ["x1", "x2"]);
-  assert.deepEqual(day3.skipped, { shown_on_earlier_day: 0, own_post: 0, same_author: 0, same_video_in_another_window: 1, no_link: 0 });
+  assert.deepEqual(day3.skipped, { shown_on_earlier_day: 0, own_post: 0, same_author: 0, same_video_in_another_window: 1, no_link: 0, below_views_floor: 0 });
 
   // 部分作者为空、部分有名字：有名字的照常去重，空的不参与。本人只在给了名字时排除。
   const mixed = await forYou(ready({ "7d": [ytVideo("p1", 1, { author_handle: "@Alpha" }), ytVideo("p2", 2, { author_handle: "alpha" }),
@@ -497,6 +500,62 @@ test("每日推荐：作者全为空的 YouTube 结果也能选满 3 条；作�
     ytVideo("q3", 3, { author_id: "UC2", author_handle: "one" }), ytVideo("q4", 4, { author_id: "UC3" })] }), "2026-11-15");
   assert.deepEqual(byId.picks.map(pick => [pick.content_id, pick.author_id]), [["q1", "UC1"], ["q3", "UC2"], ["q4", "UC3"]]);
   assert.equal(byId.skipped.same_author, 1);
+});
+
+// 按窗口的相对播放量门槛（榜首的 10%）：用真实宿主里看到的两组数字核对。
+test("每日推荐：低于本窗榜首 10% 播放的不选，各窗用自己的榜首；过门槛的不足 3 条不凑数并说明；门槛值随输出带出", async t => {
+  const temp = await workspace(t);
+  const result = path.join(temp, "for-you.json");
+  let n = 0;
+  const forYou = async (value) => {
+    await writeFile(result, JSON.stringify(value));
+    n += 1;
+    return run("for-you", "--library", path.join(temp, `lib${n}`), "--result", result, "--handle", "maker", "--date", "2026-11-11", "--write");
+  };
+  const list = (prefix, views, extra = {}) => views.map((count, i) => ({ ...ytVideo(`${prefix}${i + 1}`, i + 1), views: count, ...extra }));
+
+  // YouTube（@mrbeast 实测）：7d 只有榜首一条出圈；30d 门槛 380,531；24h 也按自己的榜首。
+  const youtube = await forYou(ready({
+    "7d": list("w", [63831, 1266, 1240, 1158, 1040, 990]),
+    "30d": list("m", [3805307, 2100000, 350000, 120000]),
+    "24h": list("d", [9000, 800]),
+  }, { platform: "youtube" }));
+  assert.deepEqual(youtube.picks.map(pick => [pick.window, pick.rank, pick.views]), [["7d", 1, 63831], ["30d", 1, 3805307], ["30d", 2, 2100000]]);
+  assert.deepEqual(youtube.views_floor["7d"], { top_views: 63831, min_views: 6384 });
+  assert.deepEqual(youtube.views_floor["30d"], { top_views: 3805307, min_views: 380531 });
+  assert.equal(youtube.skipped.below_views_floor, 5);
+  // 30d 再少一条：7d 1 条 + 30d 1 条 + 24h 榜首 1 条；24h 第二条低于 900 不选。
+  const youtube2 = await forYou(ready({
+    "7d": list("w", [63831, 1266, 1240, 1158, 1040]),
+    "30d": list("m", [3805307, 350000]),
+    "24h": list("d", [9000, 800]),
+  }, { platform: "youtube" }));
+  assert.deepEqual(youtube2.picks.map(pick => [pick.window, pick.views]), [["7d", 63831], ["30d", 3805307], ["24h", 9000]]);
+  // 24h 也没有：只给 2 条，不凑数，并说明其余明显低于榜首。
+  const youtube3 = await forYou(ready({ "7d": list("w", [63831, 1266, 1240]), "30d": list("m", [3805307, 350000]), "24h": [] }, { platform: "youtube" }));
+  assert.deepEqual(youtube3.picks.map(pick => pick.views), [63831, 3805307]);
+  assert.match(youtube3.note, /never pad.*far fewer views than the top video of their list \(under 10%/);
+
+  // Instagram（实测）：7d 门槛 22,084 取前 2 条；第 3 条从 30d 补，220,832 与 68,241 是 7d 的同一条视频。
+  const ig = (id, views) => ({ ...video(id, `author_${id}`, 0), views });
+  const seven = [["i1", 220832], ["i2", 68241], ["i3", 8715], ["i4", 6710], ["i5", 3466], ["i6", 2178], ["i7", 558]].map(([id, v], i) => ({ ...ig(id, v), rank: i + 1 }));
+  const thirty = [["j1", 604600], ["j2", 232789], ["i1", 220832], ["j4", 79719], ["j5", 79647], ["i2", 68241], ["j7", 36109], ["j8", 30116]].map(([id, v], i) => ({ ...ig(id, v), rank: i + 1 }));
+  const instagram = await forYou(ready({ "7d": seven, "30d": thirty, "24h": [] }));
+  assert.deepEqual(instagram.picks.map(pick => [pick.window, pick.content_id, pick.views]), [["7d", "i1", 220832], ["7d", "i2", 68241], ["30d", "j1", 604600]]);
+  assert.deepEqual(instagram.views_floor["7d"], { top_views: 220832, min_views: 22084 });
+  assert.equal(instagram.skipped.below_views_floor, 5);
+
+  // 边界：全部过门槛就照 rank 取 3 条；只有 1 条；views 缺失或为 0 不选；窗口为空。
+  const allPass = await forYou(ready({ "7d": list("a", [1000, 900, 800, 700]) }));
+  assert.deepEqual([allPass.picks.map(pick => pick.views), allPass.skipped.below_views_floor], [[1000, 900, 800], 0]);
+  const single = await forYou(ready({ "7d": list("s", [5000]) }));
+  assert.deepEqual([single.found, single.skipped.below_views_floor], [1, 0]);
+  const missing = await forYou(ready({ "7d": [...list("v", [5000]), { ...ytVideo("v2", 2), views: null }, { ...ytVideo("v3", 3), views: 0 }] }));
+  assert.deepEqual([missing.found, missing.skipped.below_views_floor], [1, 2]);
+  const noViews = await forYou(ready({ "7d": [{ ...ytVideo("z1", 1), views: null }] }));
+  assert.deepEqual([noViews.found, noViews.views_floor["7d"]], [0, { top_views: null, min_views: null }]);
+  const empty = await forYou(ready({}));
+  assert.deepEqual([empty.found, empty.views_floor["24h"]], [0, { top_views: null, min_views: null }]);
 });
 
 test("每日推荐的各 status：generating 严格按 retry_after 有上限地等，not_eligible（含 unavailable）与 failed（转述 failure_code）一句话结束；工具错误与未知 status 按失败；都不记当天", async t => {
