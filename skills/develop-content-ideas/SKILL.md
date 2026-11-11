@@ -17,6 +17,26 @@ stages, and wait for its final result before replying; never run it in the backg
 user the report will come later. Without a foreground sub-agent, follow the same steps in the main
 thread.
 
+**Choose delivery mode before prep.** When the user asks to pick or briefly explain entries
+from a previously delivered validated list, read that actual list, choose entries and write brief
+summaries; use `scripts/render_selection.py` as described in `references/delivery.md` to preserve
+their original numbers/titles and display that file. Stop there: do not rebuild an IdeaSet, rerank it,
+or run the new-generation stages below. For a numbered selection, reuse that exact entry;
+for a scoped edit, preserve its identity and untouched content. Only requests for new ideas
+or a new batch enter prep. Read `references/delivery.md` for these follow-up boundaries.
+
+**Finish the procedure before answering.** Prep's `ok` means inputs are ready, not that ideas
+passed validation. Author every required candidate field, run core, use its one permitted revision,
+then export the final file. Read `references/delivery-state.md` before the first stage.
+
+**Delivery.** Read `references/delivery.md`. Default to the complete validated list, exported by
+`scripts/deliver_ideas.py` and displayed unchanged using the file delivery procedure in that reference.
+Never replace file emission with a model-written copy. Only an explicit request to pick or briefly
+summarize permits a selection from that validated list. Keep the original candidate numbers.
+A failed/needs-revision result is not deliverable; repair within the existing budget or explain
+what could not be completed. If emission fails, retry once, then report the display failure.
+
+
 Route by the requested deliverable: selectable topic directions stay here, including lists with
 candidate titles or hooks. A concrete next Reel draft or copy for an identified direction
 (title, opening, on-screen text or beat plan) belongs to `create-script-and-packaging`, even when the request
@@ -38,20 +58,10 @@ titles and another series' characters cannot replace it. Do not start ideation o
 to that clarification. An already supplied selected draft can be continued through packaging
 without asking for it again. Requests for multiple new variations remain here.
 
-**Variations of one example.** When the user selects one concrete example and asks for more like
-it, use its title, opening and causal progression as a shared scaffold. Choose the requested
-number of concrete values for only its open slots, then instantiate the scaffold for every item.
-Keep each slot's kind and role: changing an input does not allow changing the activity, restriction
-or objective. Repeating the fixed scaffold is required here, not a near-duplicate to eliminate.
-Judge variety only within the permitted slots; do not reward a different mechanism as
-"differentiation". Follow *Continuations* in `references/core-generation.md`.
-
-**Delivery.** The deliverable is `RESULT.md` at the run root, and only after core reports
-`status="ok"` and the final check passes. Read it completely (every chunk when the host pages) and
-copy it exactly to the reply, once: never summarize, rewrite, reorder or retype its numbers, and
-never append a second paraphrased report. `IDEA_REPORT_FULL.md` is audit-only and never delivered.
-A `needs_revision`, `not_met` or failed result is never presented as a validated report; when a
-missing upstream artifact blocked the request, name the Skill that produces it as the next step.
+**Resolve follow-ups before generating.** Read `references/request-boundaries.md` for selected
+examples, quantities, language changes and numbered follow-ups. Preserve a selected example's
+causal mechanism unless the user explicitly changes it; check every candidate, not only the batch
+introduction. A valid schema alone does not establish semantic consistency.
 
 This Skill runs no research: it consumes validated research artifacts through `upstream_sources[]`
 and deterministic `idea_context`. `user_brief.text` preserves the user's request; it is not by
@@ -153,20 +163,17 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
      the completed skill result.
 6. If machine-readable JSON is requested, emit only the declared JSON object. Creator-facing
    Markdown is a renderer projection and must not be appended to strict JSON.
-7. Only after core reports `status="ok"`, run the final step from the run directory, without
-   running core again or consuming another generation attempt:
+7. After core returns `status="ok"` with actual ideas, export the final file:
 
    ```sh
-   cd '<run directory>' && python3 '<skill directory>/scripts/validate_ideas.py' idea-set idea_set.json request.json --report RESULT.md
+   python3 '<skill directory>/scripts/deliver_ideas.py' --run-dir '<run directory>'
    ```
 
-   This is the final step; its deliverable is `RESULT.md` at the run root, not under `report/`.
-   The command verifies and returns the complete Creator-facing reply. Send that output unchanged
-   (read every chunk if the host pages it). Before sending, check that the reply retains every
-   requested candidate's title, opening line, making direction and pending production conditions;
-   a larger batch must not become a title-only list or lose the later candidates' hooks and steps.
-   There is no final step for `needs_revision`, `not_met` or a failed/unreadable stage result. A
-   zero exit with `needs_revision` never permits emitting the draft as a validated report.
+   Require `status="validated"`, then display the returned file using the exact path-based
+   call in `references/delivery.md`.
+   Follow `references/delivery.md` for curated requests, one emission retry and numbered follow-ups.
+   `needs_revision`, `not_met` and failures never permit a final list. A validated terminal gate
+   with no ideas is only a missing-input clarification. `IDEA_REPORT_FULL.md` remains audit-only.
 
 ## Judgment rules
 

@@ -67,10 +67,17 @@ export function patternHits(files, rules) {
     for (const [label, pattern] of rules) if (pattern.test(file)) hits.push(`${file}: ${label}`);
     text(file).split("\n").forEach((line, index) => {
       for (const [label, pattern] of rules)
-        if (pattern.test(line)) hits.push(`${file}:${index + 1}: ${label}: ${line.trim().slice(0, 100)}`);
+        if (pattern.test(line) && !allowedIdeaFileDelivery(file, label, line))
+          hits.push(`${file}:${index + 1}: ${label}: ${line.trim().slice(0, 100)}`);
     });
   }
   return hits;
+}
+
+// 用户明确批准选题使用现有文件显示能力；只放行这一句传输说明，不放行其他宿主执行机制。
+function allowedIdeaFileDelivery(file, label, line) {
+  return file === "skills/develop-content-ideas/references/delivery.md" && label === "Web script tool" &&
+    line === "Pass the returned absolute `report_path` to the host's existing `emit_block` capability:";
 }
 
 // 日期与版本代号写的是「什么时候、哪一版发现的」，属于 PR 描述；Skill 里只留规则本身。
@@ -101,6 +108,16 @@ test("全仓不出现数据供应商名（公开仓库，测试夹具与文档�
 
 test("Skill 正文不写宿主专属机制", () => {
   assert.deepEqual(patternHits(skillProse(), HOST_SPECIFIC), []);
+});
+
+test("选题文件显示例外不能扩到其他文件或宿主调用", () => {
+  const file = "skills/develop-content-ideas/references/delivery.md";
+  const line = "Pass the returned absolute `report_path` to the host's existing `emit_block` capability:";
+  assert.equal(allowedIdeaFileDelivery(file, "Web script tool", line), true);
+  assert.equal(allowedIdeaFileDelivery("skills/review-creator-account/references/delivery.md", "Web script tool", line), false);
+  assert.equal(allowedIdeaFileDelivery(file, "Web script tool", line + " run_bundle_script"), false);
+  assert.equal(allowedIdeaFileDelivery(file, "Web script tool", "Call emit_block with rewritten text"), false);
+  assert.equal(allowedIdeaFileDelivery(file, "registry lookup", line), false);
 });
 
 test("Skill 里不出现基准用例编号、场景编号或本地 run id", () => {

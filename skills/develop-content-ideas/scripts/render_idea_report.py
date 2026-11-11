@@ -19,15 +19,8 @@ def load(path: Path) -> dict:
 
 
 def ordered_ideas(data: dict) -> list[dict]:
-    by_id = {item["idea_id"]: item for item in data["ideas"]}
-    result: list[dict] = []
-    for idea_id in data["overview"]["recommended_candidate_ids"]:
-        if idea_id in by_id and by_id[idea_id] not in result:
-            result.append(by_id[idea_id])
-    for item in sorted(data["ideas"], key=lambda value: value["rank"]):
-        if item not in result:
-            result.append(item)
-    return result
+    # 展示顺序与后台 rank 保持一致；推荐标记不改变用户看到的编号。
+    return sorted(data["ideas"], key=lambda value: value["rank"])
 
 
 def minute_text(feasibility: dict, tr=lambda value: value, display=lambda value: value) -> str:
