@@ -5,37 +5,44 @@
 ## 未发布
 
 - 新增三个 Skill，组成创作者的日常流程（本仓原创，不是从 creator-skills 搬运；Skill 总数 18 → 21）：
-  - `start-with-kabo`：创作者第一次用 Kabo。先用五句话说明 Kabo 做什么、不做什么（不代发、不评论、不私信，只读公开数据）；绑定一个
-    Instagram / TikTok / YouTube 公开账号（先看 `get_kabo_info` 与 `list_connected_accounts`，创作者同意后才用 `connect_public_account`，
-    没有写权限就只在本地继续）；经 `collect_account_history` 与 `collect_video_media` 一次后台调用读作品与转写，在工作区建素材库
-    （`kabo-library/<平台>-<账号>/`）；赛道与内容支柱先读 `get_creator_profile`（`include: ["content_profile"]`、`effective: true`）里 Kabo
-    已有的结果作为提议，没有才按固定规则本地算（中位播放不低于账号常规水平 0.8 倍才算支柱，按播放占比排序，第二个支柱至少占 20%），
-    给出赛道一句话加 2–4 个候选支柱（各带证据），创作者确认后才保存，并按 `update_content_preferences` 的规则同步他们的改动；最后
-    提议两个宿主自己的定时任务（早上精选、每日复盘），宿主写法放在 `references/host-schedules.md`（Grok Bot、Claude Code、Muse 已实测；Codex 的定时任务只能在 ChatGPT 桌面应用里建，未实测）。
-  - `pick-daily-viral-videos`：每天三条，按确认过的支柱（不是大赛道）找近 7 天、至少是作者自己常规播放 2 倍的爆款，每个支柱先保一条、
-    作者不重复、跨天不重复，不足三条不凑数；Instagram 为默认，只有主平台是 YouTube 才搜 YouTube。可无人值守：不在中途提问，需要确认的
-    一律跳过并在末尾列出。每条给出下一步的具体说法：拆解（`analyze-content-video`）、写我的版本（`create-script-and-packaging`）、
-    把我放进去复刻（`remake-viral-video`，仅限 10 分钟以内的口播或旁白）、以及发布提示（Kabo 不代发，发布 24 小时后由
-    `review-new-posts` 复盘）。
-  - `review-new-posts`：一天一次（也可随时叫）。库建好之后发布、已满 24 小时、还没有 24 小时复盘的作品各复盘一次，与创作者自己更早的
-    作品在同一年龄的读数比（至少 3 条才比）；1 小时与 7 天复盘改为可选。每份日报都带账号回顾：粉丝变化（有读数时）、近 7 天作品对比常规
-    播放、每个支柱的表现、一条具体建议。只用公开指标。
-  - 三者共用 `creator_library.py`（三份副本逐字相同，测试校验）；取数沿用 `static_host.py` 的下载交付与 `build_public_snapshot.py`，
-    账号历史走 `collect_account_history`、转写走 `collect_video_media`、精选走 `collect_*_trend_candidates` 加 `enrich_*_shortlist`
-    （KS9：多轮取数在一次后台调用里完成，不交给宿主模型逐轮翻页）。
-  - 宿主没有持久文件时，三个 Skill 用 `list_connected_accounts` 加 `get_creator_profile`（复盘再加一次新的历史读取）重建最小库，并明说
-    依赖历史的功能受限（不能防止隔天重复，也没有同龄对比与粉丝变化）。
-  - 除离线测试（`scripts/creator-library.test.mjs`）外，已在 Codex、Muse、Claude Code、Grok Bot 四个宿主里对着生产 `/mcp-pub` 实测（结果见 PR #160）；`start_skill_run` 的
-    `skill_id` 枚举里还没有这三个 Skill，所以它们不调用该工具。
+  - `start-with-kabo`：创作者第一次用 Kabo。开场两条短消息加一个问题（问账号）；先看 `get_kabo_info` 与
+    `list_connected_accounts`，未绑定的账号**先问一次**再用 `connect_public_account` 绑定；随后 `prepare_creator_profile`
+    让后台生成画像（生成中按 `retry_after_seconds` 等，首次之后最多再查 4 次、总等待不超过 5 分钟，等待时告诉创作者在做什么），
+    就绪后用 `get_creator_profile`（`include: ["content_profile"]`、`effective: true`）读出赛道与支柱、整理成提案请创作者确认；
+    改名、删除、合并用 `update_content_preferences` 存回 Kabo（暂不能新增支柱，如实说明）。作品不够或画像生成失败时如实说一句，
+    流程照常往下走。之后给今天的推荐，再提三件宿主自己的定时任务（每日推荐 8:00、新内容 24 小时复盘 12:00、每日账号回顾 20:00，
+    时区从宿主读出），结尾四行以内。宿主写法在 `references/host-schedules.md`。
+  - `pick-daily-viral-videos`：每天三条，只来自后台 `get_for_you_videos`（与账号同领域、语言匹配，按公开播放量排序，每窗最多
+    12 条）。插件只做展示上的限制：先 7 天窗按后台排名取，不够再用 30 天、24 小时补；跳过以前某天展示过的、创作者本人的、
+    同一作者的第二条；不够就有几条给几条，不凑数。跨天去重靠库目录里的 `picks.json`，后台结果就绪的日子（含零条）都记下，
+    同一天再跑原样重放。证据只用后台口径：播放量、所在时间窗的排名、后台给的理由。后台还在生成时有上限地等，仍未就绪、
+    `not_eligible`、`failed` 或未知 `status` 都一句话说明并结束，不搜索、不兜底。可无人值守。
+  - `review-new-posts`：一天一次（也可随时叫）。绑定时间之后发布、已满 24 小时、还没有 24 小时复盘的作品各复盘一次，与创作者自己
+    更早的作品在同一年龄的读数比（至少 3 条才比）；1 小时与 7 天复盘可选。每份日报都带账号回顾：粉丝变化（有读数时）、近 7 天
+    作品对比常规播放、每个支柱的表现（有支柱时）、一条具体建议。只用公开指标。没有本地库时自己建库（`bootstrap` 加首次
+    `ingest`，回看 48 小时），支柱取自 `get_creator_profile`；没有画像或画像没有支柱也照常建库、复盘与出日报，只是不带支柱小节。
+  - 三者共用 `creator_library.py`（三份副本逐字相同，测试校验）。复盘取数沿用 `static_host.py` 的下载交付与
+    `build_public_snapshot.py`，账号历史走 `collect_account_history`（KS9）。`start-with-kabo` 与 `pick-daily-viral-videos`
+    不读作品历史，`static_host.py` 只用来建运行目录，白名单为空，也不再带 `build_public_snapshot.py`。
+  - 宿主没有持久文件时：推荐无法跨天去重，复盘每次从新的一次读数开始（没有同龄对比与粉丝变化），说明里都会明说。
+  - `start_skill_run` 的 `skill_id` 枚举里还没有这三个 Skill，所以它们不调用该工具。
   - 证明定时任务真的会送达时，优先把每日任务临时挪到几分钟后；只有创作者要求反复验证时才另建每隔几分钟跑一次的临时任务，创建时就告诉
     创作者它会一直跑到被删除、怎么自己关掉，看到证明后立刻删除并读任务列表确认。对话里说的次数上限不算数：实测中 Grok Bot 被告知
     「跑满 5 次」并复述了一遍，任务仍在云端跑了 137 次（不到 12 小时），直到被手动删除。
 
-  - 按 Leo 11 月 11 日的意见重做新用户第一次对话：开场改成三条短消息（不再罗列全部功能和限制）；绑定账号只问一个问题；读作品时
-    先说出两三件具体事实，并在读口播文字之前就用全部作品的标题和播放给出第一个支柱（少于 5 条作品不提支柱），口播文字只读决定性的
-    8 条；支柱提案压到一屏（名字、一句证据、一条示例，依据按需给）；确认后先给今天的推荐，再提三件定时任务（每日推荐 8:00、
-    新内容 24 小时复盘 12:00、每日账号回顾 20:00，时区从宿主读出，用户只需确认）；结尾四行以内。需要用户选择时用宿主的选项控件，
-    没有就给编号选项。`review-new-posts` 支持只做新作品复盘或只做账号回顾。
+  - 按仓库所有者的决定，插件不再保留与后台重复的方法：删除本地的支柱推导（全量读历史与转写后聚类、`propose-pillars`、写死的
+    0.8 倍与 20% 规则、`save-pillars` 本地保存支柱）与本地的每日推荐（`pick-request` / `candidates` / `pick`，即
+    `collect_*_trend_candidates` 加 `enrich_*_shortlist` 与「作者常规播放 2 倍」筛选），改为调用后台的 `prepare_creator_profile`
+    与 `get_for_you_videos`。同时删除 `posts`、`media-request`、`transcripts`、`set-profile` 命令，`path` 不再夹带开场白。
+  - **依赖尚未上线的后台工具**：`get_for_you_videos`、`prepare_creator_profile` 由 kabo 仓的 draft PR（分支
+    `feat/mcp-for-you-profile-20261111`）实现，目前不在 `/mcp-pub`，也不在本仓钉住的 `contracts/directory-mcp/` 里；
+    因此它们只出现在两个 Skill 的 `allowed-tools`（`skills:lint` 会报「不在 /mcp-pub 工具清单中」，门禁未启用），还没有进
+    `runtime-contract.json`（包检查要求它与钉住的契约一致）。后台上线后需要重新钉住契约、把两者加进 `runtime-contract.json`，
+    并在真实宿主里验证，之后才能发布。插件按约定契约宽容读取：缺字段不崩，未知 `status` 按失败并原样报告。
+    改动前的版本曾在 Codex、Muse、Claude Code、Grok Bot 里对着生产 `/mcp-pub` 实测（见 PR #160）；改动后的流程只有离线测试。
+  - 早先按 Leo 11 月 11 日意见重做的第一次对话（开场不罗列功能、选择用宿主的选项控件、推荐先于定时任务、结尾四行）保留；
+    其中「读完作品马上说具体数字」「读转写前先给第一个支柱」两项随本地推导一起删除。`review-new-posts` 支持只做新作品复盘或
+    只做账号回顾。
 
 ## 1.0.37（2026-11-11；GitHub Release）
 

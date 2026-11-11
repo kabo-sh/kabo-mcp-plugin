@@ -296,9 +296,10 @@ content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor resear
 diagnosis, publish-timing recommendations, platform monetization plans, official platform rule checks,
 brand identity options and media kits, content calendars, brand-deal pricing, and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 10 minutes or less
 (talking videos may cut to screen recordings or show a product) with the creator in it. Three more form a daily routine
-for a creator: `start-with-kabo` (first session: bind one public account, agree the niche and content pillars, give today's picks, offer three
-daily jobs), `pick-daily-viral-videos` (three viral picks a day matched to the pillars) and `review-new-posts`
-(a 24-hour review of each new post plus a daily account recap). See
+for a creator: `start-with-kabo` (first session: link one public account, have Kabo build the creator's profile and confirm the
+niche and content pillars it found, give today's picks, offer three daily jobs), `pick-daily-viral-videos` (three picks a day
+from Kabo's daily "for you" list, never repeated) and `review-new-posts` (a 24-hour review of each new post plus a daily
+account recap). See
 [skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
 same Skills.
 
@@ -309,12 +310,19 @@ Current release acceptance focuses on short-window content-language checks and u
 `optimize-creator-brand`, `plan-content-calendar` and `price-creator-brand-deals` are ported from
 creator-skills; their cross-host acceptance is pending.
 
-`start-with-kabo`, `pick-daily-viral-videos` and `review-new-posts` keep a library in the workspace
-(`kabo-library/<platform>-<handle>/`) through a shared `creator_library.py`; the three copies are identical. They are
-written to run unattended from a host's own scheduled tasks and never post, comment or message anyone. Host-specific
-scheduling notes live in `skills/start-with-kabo/references/host-schedules.md`; the sections for Claude Code,
-ChatGPT/Codex and Muse still await verification. They have only been tested offline, not against the production
-`/mcp-pub` connection.
+`start-with-kabo`, `pick-daily-viral-videos` and `review-new-posts` keep their state in the workspace
+(`kabo-library/<platform>-<handle>/`) through a shared `creator_library.py`; the three copies are identical. The
+creator's profile (niche and content pillars) and the daily picks come only from Kabo: `prepare_creator_profile` and
+`get_creator_profile` for the profile, `get_for_you_videos` for the picks. The Skills do not derive pillars or search for
+picks themselves; `pick-daily-viral-videos` only chooses which three of Kabo's videos to show each day and remembers
+which were shown. `review-new-posts` builds its own library from the account's public posts on its first run. The
+Skills are written to run unattended from a host's own scheduled tasks and never post, comment or message anyone.
+Host-specific scheduling notes live in `skills/start-with-kabo/references/host-schedules.md`.
+
+`get_for_you_videos` and `prepare_creator_profile` are not yet on `/mcp-pub` or in the pinned tool list
+(`contracts/directory-mcp/`). Until Kabo releases them and the contract is pinned again, `start-with-kabo` cannot
+show pillars or picks and `pick-daily-viral-videos` cannot run; these Skills have been tested offline only for this
+change.
 
 `remake-viral-video` uses the `start_remake_video`, `get_remake_video` and `render_remake_video`
 tools on `/mcp-pub`, plus `edit_remake_video` to change a delivered video and `start_video_project`,
