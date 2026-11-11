@@ -219,7 +219,7 @@ def compose(assessment: dict, analyses: dict, language="zh-CN") -> str:
                             for label, key in zip(labels, ("check", "then", "opening")) if step.get(key)]
         elif finding.get("intent") == "act" and not need:
             section += ["", "本次没有形成可执行的下一步。" if zh else "No next step was formed this time."]
-        body = creator_evidence(finding, zh, analysis.get("detail") == "full")
+        body = creator_evidence(finding, zh, analysis.get("detail") == "full", assessment.get("sources"))
         if body:
             section += ["", body.rstrip()]
         if analysis.get("hypotheses"):

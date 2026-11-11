@@ -31,7 +31,7 @@ const publicDrop = {
     { label: "recent", record_ids: ["post-12", "post-9", "post-3"] }],
 };
 const userSkip = {
-  id: "skip", kind: "recent_drop", intent: "diagnose", metric: "three_second_skip_rate_percent", format: "reel",
+  id: "brief", kind: "recent_drop", intent: "diagnose", metric: "three_second_skip_rate_percent", format: "reel",
   ask: "How did the named reel hold viewers?", selection_reason: "The user gave this reel's insights.",
   source: { kind: "user_supplied", locator: "creator message" },
   groups: [{ label: "named reel", values: [80], content_ids: ["named-reel"] }],
@@ -82,6 +82,13 @@ test("user-supplied numbers join imported public data under their own labelled s
   assert.ok(skip.missing.includes("earlier_and_recent_performance_records"));
   assert.match(evidence, /Source: user-supplied, not verified\./);
   assert.match(evidence, /One group only: these values are observations, not a comparison\./);
+  // 交给创作者的报告走 creator_evidence，同样要带出来源标注。
+  const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1" };
+  const final = spawnSync("python3", ["-B", "-c",
+    "import json,sys; sys.path.insert(0, sys.argv[1]); from creator_evidence import evidence; "
+    + "a = json.loads(sys.stdin.read()); print(evidence(a['questions'][1], False, True, a['sources']))",
+    path.dirname(workflow)], { input: JSON.stringify(assessment), env, encoding: "utf8" });
+  assert.match(final.stdout + final.stderr, /Source: user-supplied, not verified\./);
 });
 
 test("values left on the plan's public source are sent back for their own source", async () => {

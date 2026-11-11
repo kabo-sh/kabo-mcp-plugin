@@ -381,7 +381,7 @@ def expand_case(payload: dict, language: str = "zh-CN") -> tuple[dict, dict]:
         if own_source is not None:
             require(isinstance(own_source, dict), "question source must be an object")
             fields(own_source, {"kind", "locator"})
-            question_source = f"{result['id']}-source"
+            question_source = f"question:{result['id']}:source"
             case["sources"].append({"id": question_source, "kind": source_kind(own_source["kind"]),
                                     "locator": own_source["locator"]})
         if result["kind"] in {"recent_drop", "growth"}:
