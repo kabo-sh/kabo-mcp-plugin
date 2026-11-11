@@ -81,7 +81,9 @@ Do what its `action` says:
   a list that is still not ready when the waiting ends ("the next run will bring them"), an account
   Kabo cannot make picks for (`reason`: no linked account, no public videos, not enough known about
   the niche, unknown language, or daily picks not available for this account) and a failed call
-  (`failure_code` says why; when `retryable` is true, it can be tried again later). A `status` or
+  (`failure_code` says why, and `message` says roughly when new picks can be made, from Kabo's
+  `retry_after_seconds`). Never call `get_for_you_videos` again after a failure in the same run,
+  whatever `retryable` says: a failure Kabo can redo at once comes back as `generating` instead. A `status` or
   `reason` this Skill does not know is reported as it is; `reported` holds what Kabo answered, word
   for word. A tool error instead of a result (`validation_error`, `not_found`) is a failure too.
 

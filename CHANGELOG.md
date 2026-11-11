@@ -4,6 +4,16 @@
 
 ## 未发布
 
+- 配合 kabo#2180 修订的失败语义（真实宿主里新绑定的 YouTube 账号暴露）：
+  - `prepare_creator_profile` 的 `failed` + `retryable=true`（执行偶发，如 `classification_unavailable`、`model_invalid_output`）
+    不再说成「作品不够」：`start-with-kabo` 告诉创作者 Kabo 正在重试，按 `retry_after_seconds` 等后再调同一工具（后台自动重跑
+    复盘、回 `generating`），计入原有轮询上限（最多再查 8 次、总等待 480 秒）。`retryable=false` 时说明暂时没有支柱、大约多久后
+    可以再试（把秒数换成「约 N 小时」），本次不再调用；`insufficient_posts` 仍说作品不够；`job_id=null` 的 `generating` 照常轮询。
+  - `get_for_you_videos` 的 `failed` 一律不轮询，按 `retry_after_seconds` 说大约多久后能出新推荐，并转述 `failure_code`；不再按
+    `retryable` 说「稍后重试」。
+  - kabo#2180 上线前后台仍是旧行为（分类失败回 `insufficient_posts`，`context_changed` 回 `failed` + `retryable=true` + 约 24 小时），
+    插件同样能处理：前者照「作品不够」说，后者不轮询并如实说时间。
+
 - **权限范围扩大：首次授权加入 `workspace:write`。** `host-auth.json` 的 `defaultScopes` 由 `data video workspace:read` 改为
   `data video workspace:read workspace:write`，包检查（`scripts/package-standard.mjs`）与测试同步。理由：新用户的第一次对话要绑定
   账号（`connect_public_account`）、触发画像生成（`prepare_creator_profile`）、保存支柱修改（`update_content_preferences`），都需要
@@ -30,7 +40,7 @@
     12 条）。插件只做展示上的限制：先 7 天窗按后台排名取，不够再用 30 天、24 小时补；跳过以前某天展示过的、创作者本人的、
     同一作者的第二条；不够就有几条给几条，不凑数。跨天去重靠库目录里的 `picks.json`，后台结果就绪的日子（含零条）都记下，
     同一天再跑原样重放。证据只用后台口径：播放量、所在时间窗的排名、后台给的理由。后台还在生成时有上限地等，仍未就绪、
-    `not_eligible`（含 `unavailable`：推荐暂未对该账号开放）、`failed`（转述 `failure_code`，`retryable` 时说明可稍后重试）、
+    `not_eligible`（含 `unavailable`：推荐暂未对该账号开放）、`failed`（转述 `failure_code`，不轮询，按 `retry_after_seconds` 说大约多久后再来）、
     工具错误或未知 `status` 都一句话说明并结束，不搜索、不兜底。生成中严格按 `retry_after_seconds` 等（通常 120 秒，后台补画像
     时 300 秒），首次之后最多再查 3 次、总等待不超过 10 分钟，定时运行同样适用。可无人值守。
   - `review-new-posts`：一天一次（也可随时叫）。绑定时间之后发布、已满 24 小时、还没有 24 小时复盘的作品各复盘一次，与创作者自己

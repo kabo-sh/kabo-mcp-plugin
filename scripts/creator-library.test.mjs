@@ -323,11 +323,36 @@ test("prepare_creator_profile：ready 去读画像；generating 严格按 retry_
   assert.equal(thin.action, "continue_without_profile");
   assert.match(thin.tell_creator_now, /enough videos/);
   assert.equal(thin.retry_after_seconds, 86000);
-  const failed = await status(prepared("failed", { failure_code: "profile_build_failed", retryable: true, retry_after_seconds: 300 }));
+  // kabo#2180：执行偶发的失败（retryable=true）不是「作品不够」：等 retry_after 后再调，后台自动重跑并回 generating，
+  // 与 generating 共用轮询上限。
+  const flaky = await status(prepared("failed", { failure_code: "classification_unavailable", retryable: true, retry_after_seconds: 42 }));
+  assert.deepEqual([flaky.action, flaky.wait_seconds, flaky.next_flags], ["wait", 42, { "--attempt": 2, "--waited": 42 }]);
+  assert.match(flaky.tell_creator_now, /couldn't sort them into content pillars this time; it is trying again/);
+  assert.doesNotMatch(flaky.tell_creator_now, /enough videos/);
+  const otherCode = await status(prepared("failed", { failure_code: "model_invalid_output", retryable: true, retry_after_seconds: 10 }), "--attempt", "2", "--waited", "42");
+  assert.equal(otherCode.action, "wait");
+  assert.match(otherCode.tell_creator_now, /trying again \(model_invalid_output\)/);
+  // 自动重跑：回 generating（For you 在途时 job_id 为 null，照常轮询），再到 ready。
+  const rerun = await status(prepared("generating", { job_id: null, retry_after_seconds: 60 }), "--attempt", "3", "--waited", "52");
+  assert.deepEqual([rerun.action, rerun.wait_seconds], ["wait", 60]);
+  assert.equal((await status(prepared("ready"), "--attempt", "4", "--waited", "112")).action, "read_profile");
+  // 可重试的失败也受同一上限：查满 8 次或等待额度不够就不再重试，往下走。
+  const exhausted = await status(prepared("failed", { failure_code: "classification_unavailable", retryable: true, retry_after_seconds: 30 }), "--attempt", "9", "--waited", "300");
+  assert.equal(exhausted.action, "continue_without_profile");
+  assert.match(exhausted.tell_creator_now, /not ready yet/);
+  // 重跑到上限或不可重试：retryable=false，说明暂时没有支柱、大约多久后能再试，不再调用。
+  const failed = await status(prepared("failed", { failure_code: "profile_build_failed", retryable: false, retry_after_seconds: 82800 }));
   assert.equal(failed.action, "continue_without_profile");
   assert.equal(failed.failure_code, "profile_build_failed");
-  assert.match(failed.tell_creator_now, /tried again later/);
+  assert.equal(failed.retry_in, "about 23 hours");
+  assert.match(failed.tell_creator_now, /can't show your content pillars now.*again in about 23 hours/);
   assert.equal(failed.reported.failure_code, "profile_build_failed");
+  // 入队即失败时 retry_after 为 null：不编时间。
+  const queued = await status(prepared("failed", { failure_code: "queue_unavailable", retryable: false }));
+  assert.equal(queued.retry_in, null);
+  assert.doesNotMatch(queued.tell_creator_now, /again in/);
+  // 旧后台把分类失败报成 insufficient_posts：照「作品不够」说，不崩。
+  assert.equal((await status(prepared("insufficient_posts", { retry_after_seconds: 86400 }))).action, "continue_without_profile");
   // 契约之外的 status 与工具错误都按失败处理，原样带回。
   const odd = await status({ status: "queued_somewhere" });
   assert.deepEqual([odd.status, odd.action, odd.reported.status], ["queued_somewhere", "continue_without_profile", "queued_somewhere"]);
@@ -456,12 +481,18 @@ test("每日推荐的各 status：generating 严格按 retry_after 有上限地�
     assert.match(answer.message, pattern);
     assert.equal(answer.retry_after_seconds, reason === "no_linked_account" ? null : 3600);
   }
-  const retryable = await forYou(forYouResult("failed", { failure_code: "upstream_timeout", retryable: true, retry_after_seconds: 600 }));
-  assert.equal(retryable.failure_code, "upstream_timeout");
-  assert.match(retryable.message, /upstream_timeout.*tried again later/);
+  // kabo#2180：failed 一律不轮询，按 retry_after_seconds 说大约多久后再来。
+  const failedNow = await forYou(forYouResult("failed", { failure_code: "collection_failed", retryable: false, retry_after_seconds: 7200 }));
+  assert.deepEqual([failedNow.action, failedNow.failure_code, failedNow.retry_in], ["stop", "collection_failed", "about 2 hours"]);
+  assert.match(failedNow.message, /collection_failed.*New picks can be made in about 2 hours/);
+  assert.equal("wait_seconds" in failedNow, false);
+  // 旧后台：context_changed 回 failed + retryable=true + 约 24 小时——同样不轮询，如实说时间。
+  const oldStyle = await forYou(forYouResult("failed", { failure_code: "context_changed", retryable: true, retry_after_seconds: 86000 }));
+  assert.deepEqual([oldStyle.action, oldStyle.retry_in], ["stop", "about 24 hours"]);
+  assert.equal("wait_seconds" in oldStyle, false);
+  assert.match((await forYou(forYouResult("failed", { failure_code: "model_budget", retry_after_seconds: 1800 }))).message, /about 30 minutes/);
   const final = await forYou({ structuredContent: { status: "failed", retryable: false, message: "provider quota" } });
-  assert.match(final.message, /provider quota/);
-  assert.doesNotMatch(final.message, /tried again/);
+  assert.match(final.message, /provider quota.*next run will try again/);
   // 多账号未指定是工具错误 validation_error，不是某个 status。
   const ambiguous = await forYou({ isError: true, content: [{ type: "text", text: "validation_error: account_id is required (acc-1, acc-2)" }] });
   assert.deepEqual([ambiguous.status, ambiguous.action], ["failed", "stop"]);

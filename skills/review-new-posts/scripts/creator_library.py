@@ -503,6 +503,17 @@ def needs_write_access(payload, is_error):
     return is_error and ("insufficient_scope" in text or "insufficient scope" in text)
 
 
+def about_time(value):
+    """A cooldown in seconds as plain words for the creator ("about 3 hours"); None when there is none."""
+    wait = seconds(value)
+    if wait is None:
+        return None
+    if wait < 90 * 60:
+        return f"about {max(1, round(wait / 60))} minutes"
+    hours = round(wait / 3600)
+    return f"about {hours} hour" + ("s" if hours != 1 else "")
+
+
 def reported(payload):
     keys = ("status", "failure_code", "retryable", "retry_after_seconds", "reason", "error", "message")
     return {key: payload.get(key) for key in keys if key in payload} or payload
@@ -520,7 +531,10 @@ PROFILE_STATUS_LINES = {
     "niche_still_required": ("Kabo still can't place your content, so there are no content pillars for now. "
                              "I'll go on with the rest."),
     "failed": "Kabo could not build your profile this time, so I can't show your content pillars now. I'll go on with the rest.",
-    "retryable": "This can be tried again later.",
+    "retry_in": "You can ask for your content pillars again in {when}.",
+    "retrying": "Kabo didn't finish organizing your profile this time and is trying again.",
+    "classification_unavailable": ("Kabo read your videos but couldn't sort them into content pillars this time; "
+                                   "it is trying again."),
     "needs_write_access": ("To build your content profile, Kabo needs permission to save to your Kabo account, and this "
                            "app has not granted it. Reconnect Kabo in this app and approve write access, then tell me "
                            "to try again."),
@@ -569,12 +583,29 @@ def cmd_profile_status(args):
     elif status == "insufficient_posts":
         result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["insufficient_posts"],
                        "retry_after_seconds": seconds(payload.get("retry_after_seconds"))})
+    elif status == "failed" and not is_error and payload.get("retryable") is True:
+        # 执行偶发（kabo#2180）：retry_after_seconds 很短，到时再调同一个工具后台会自动重跑一次复盘、回 generating。
+        # 这类重试与 generating 共用同一个轮询上限（最多再查 8 次、总等待 480 秒）；后台 24 小时内至多重跑 2 次，
+        # 到上限会回 retryable=false。不说成「作品不够」。
+        code = failure_detail(payload)
+        decision = poll_decision(payload, args.attempt, args.waited, POLL_LIMITS["profile"])
+        result.update(decision)
+        result["failure_code"] = code
+        if decision["action"] == "wait":
+            line = PROFILE_STATUS_LINES["classification_unavailable"] if code == "classification_unavailable" else (
+                PROFILE_STATUS_LINES["retrying"][:-1] + (f" ({code})." if code else "."))
+            result["tell_creator_now"] = line
+        else:
+            result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["gave_up"],
+                           "reported": reported(payload)})
     else:
-        # failed，以及契约之外的任何 status：按失败处理，原样带回，不自己推导画像。
+        # failed（retryable=false 或工具错误），以及契约之外的任何 status：按失败处理，原样带回，不自己推导画像；
+        # 有冷却就说大约多久后能再试。
         line = PROFILE_STATUS_LINES["failed"]
-        if payload.get("retryable") is True:
-            line += " " + PROFILE_STATUS_LINES["retryable"]
-        result.update({"action": "continue_without_profile", "tell_creator_now": line,
+        when = about_time(payload.get("retry_after_seconds"))
+        if when:
+            line += " " + PROFILE_STATUS_LINES["retry_in"].format(when=when)
+        result.update({"action": "continue_without_profile", "tell_creator_now": line, "retry_in": when,
                        "failure_code": failure_detail(payload), "reported": reported(payload)})
     say(result)
 
@@ -1192,16 +1223,18 @@ def cmd_for_you(args):
                        "message": FOR_YOU_NOT_ELIGIBLE.get(reason, f"Kabo can't make picks for this account right now (reason: {reason}).")})
     else:
         # failed、工具错误（validation_error、not_found），以及契约之外的任何 status：按失败处理，原样报告，不搜索、不兜底。
+        # failed 不轮询（kabo#2180 起一律 retryable=false；能立即重来的情形后台直接回 generating）。
+        # retry_after_seconds 是距下次可触发的秒数：换成「大约多久后再来」。旧后台的 retryable=true 加约 24 小时同样处理。
         retryable = payload.get("retryable") is True
         detail = failure_detail(payload)
+        when = about_time(payload.get("retry_after_seconds"))
         if status != "failed":
             message = f"Kabo returned an answer this Skill does not know (status: {status}), so there are no picks today."
         else:
             message = "Kabo could not make today's picks" + (f" ({detail})." if detail else ".")
-            if retryable:
-                message += " It can be tried again later; the next run will try again."
-        result.update({"action": "stop", "retryable": retryable, "failure_code": detail, "message": message,
-                       "reported": reported(payload)})
+            message += f" New picks can be made in {when}." if when else " The next run will try again."
+        result.update({"action": "stop", "retryable": retryable, "failure_code": detail, "retry_in": when,
+                       "message": message, "reported": reported(payload)})
     say(result)
 
 

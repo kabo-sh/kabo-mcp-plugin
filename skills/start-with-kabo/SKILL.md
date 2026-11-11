@@ -113,7 +113,10 @@ Do what its `action` says:
   `prepare-<n>.json` (the next number) and run `profile-status` on it with the `--attempt` and
   `--waited` values from `next_flags` (add `--niche-sent` when the niche was sent). Wait exactly
   `wait_seconds`, which is Kabo's `retry_after_seconds`. The script caps the waiting: at most 8 more
-  calls and at most 8 minutes of waiting in all, whichever comes first.
+  calls and at most 8 minutes of waiting in all, whichever comes first. `wait` also comes after a
+  failure Kabo will retry by itself (`retryable: true`, for example `classification_unavailable`):
+  calling again after the wait makes Kabo rebuild the profile, and these retries count toward the
+  same cap. Never describe such a failure as too few videos.
 - `ask_niche`: Kabo could not work out the creator's niche from their posts. Send `tell_creator_now`
   and ask `question`, as one question with no options. When the creator answers, call
   `prepare_creator_profile` again with `{"account_id": "<id>", "niche": "<the creator's answer, in their
@@ -131,7 +134,8 @@ Do what its `action` says:
 - `continue_without_profile`: send `tell_creator_now` (not enough posts, the niche still could not be
   placed after the creator's answer, the profile could not be built, or it is still not ready when
   the waiting ends, or write access is still missing), skip step 4 and go to step 5. For a failure, `failure_code` says why: mention it
-  in plain words. A `status` this Skill does not know is handled the same way; `reported` holds what
+  in plain words; `tell_creator_now` already says roughly when the creator can ask again (`retry_in`),
+  so do not call `prepare_creator_profile` again in this session. A `status` this Skill does not know is handled the same way; `reported` holds what
   Kabo answered. A tool error instead of a result (for example `not_found`) is a failure too.
 
 When the host cannot save files, read `status` and `retry_after_seconds` from the result yourself
