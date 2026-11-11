@@ -23,14 +23,22 @@ the manual phrases at the end.
 **Prove delivery once.** A schedule that was created has not yet been shown to run. When the creator
 wants proof today, offer one of these, then put the schedule back:
 
-- move the daily task to a time a few minutes away, let it run once unattended, and move it back; or
+- move the daily task to a time a few minutes away, let it run once unattended, and move it back
+  (preferred: nothing new is left running); or
 - create a temporary task that runs every few minutes, calls only `get_research_capabilities` (it
-  uses no allowance) and posts one line with the planned time, the actual time and the outcome; delete
-  it after a few runs.
+  uses no allowance) and posts one line with the planned time, the actual time and the outcome. Write
+  its end into the task when creating it: it stops after 3 runs or 30 minutes, whichever comes
+  first, and removes itself. If the host cannot make a task end by itself, use the first option.
 
 A run that the creator started by hand does not prove the schedule. Say which of the two was done.
 After a moved task has run, read the host's task list again: a host can turn a moved daily task into
 a one-time task, and then it has to be made daily again.
+
+A temporary task is never left for later. Before the reply that reports the proof, read the host's
+task list and confirm the temporary task is gone. If it is still there, delete or pause it then. If
+that fails, the first line of the reply says that a task is still running every few minutes and how
+the creator switches it off. Left alone, such a task keeps running in the cloud after the
+conversation ends (in testing one ran 134 times overnight).
 
 ## Grok Bot (routines)
 
