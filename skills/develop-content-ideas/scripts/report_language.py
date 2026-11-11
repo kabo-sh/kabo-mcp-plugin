@@ -4,7 +4,27 @@ import re
 from pathlib import Path
 
 CATALOG = json.loads((Path(__file__).resolve().parents[1] / 'references/report-locales.json').read_text(encoding='utf-8'))
-LEGACY_LANGUAGES = {'zh', 'en', 'fr', 'ar'}
+# 固定界面文案由维护的词典投影；模型不重复填写整套词库。
+SPANISH = json.loads((Path(__file__).resolve().parents[1] / 'references/report-locales-es.json').read_text(encoding='utf-8'))
+for entry in CATALOG.values():
+    entry['es'] = SPANISH[entry['en']]
+LEGACY_LANGUAGES = {'zh', 'en', 'fr', 'ar', 'es'}
+CHINESE_VALUES = {'low': '低', 'medium': '中', 'high': '高',
+    'ready_for_selection': '可供选择', 'needs_selection_context': '需要主题或上下文',
+    'blocked_invalid_or_unsafe_input': '输入无效或不安全',
+    'blocked_missing_required_source': '缺少必需证据', 'open_shortlist': '选题短名单',
+    'capacity_plan': '制作容量计划', 'rework_content': '改编已有内容',
+    'brief_only': '仅依据用户简报', 'evidence_rich': '多来源证据',
+    'context_only': '上下文证据', 'profile_video': '账号与视频证据',
+    'profile_only': '账号证据', 'video_only': '视频证据'}
+LANGUAGE_ALIASES = {'english': 'en', 'spanish': 'es', 'español': 'es', 'espanol': 'es',
+                    'french': 'fr', 'français': 'fr', 'arabic': 'ar', 'chinese': 'zh'}
+
+
+def normalized_locale(value):
+    """只归一化明确语言名称与大小写；原始引用和创意文案不变。"""
+    return LANGUAGE_ALIASES.get(value.strip().casefold(), value.strip().casefold()) if isinstance(value, str) else value
+
 
 
 def canonical_display_vocabulary():
@@ -19,7 +39,7 @@ CANONICAL_DISPLAY_VOCABULARY = canonical_display_vocabulary()
 
 
 def report_language(data):
-    """Validate a locale tag; new languages use authored UI labels, not new catalogs."""
+    """Validate a locale tag or recognized language name without changing source text."""
     value = data.get('report_language')
     if value is None and 'report_language' not in data:
         targets = data.get('language_targets')
@@ -45,6 +65,7 @@ def report_language(data):
         value = 'zh'
     if not isinstance(value, str) or not value.strip():
         raise ValueError('report_language must be a nonempty language tag')
+    value = normalized_locale(value)
     # Validate the entire language-tag grammar before choosing a UI catalog.
     grammar = (r"(?:[a-z]{2,3}(?:-[a-z]{3}){0,3}|[a-z]{4}|[a-z]{5,8})"
                r"(?:-[a-z]{4})?(?:-(?:[a-z]{2}|[0-9]{3}))?"
@@ -91,7 +112,7 @@ def rendered_report_values(data):
             originals.add(idea['primary_evidence_ref'])
         feasibility = idea.get('production_feasibility') or {}
         effort = feasibility.get('effort', 'unknown')
-        if not feasibility.get('estimated_minutes') and effort != 'unknown':
+        if isinstance(effort, str) and not feasibility.get('estimated_minutes') and effort != 'unknown':
             originals.add(effort)
     return originals
 
@@ -108,34 +129,51 @@ def presentation_translations(data):
     values = rendered_report_values(data)
     labels = ui_label_sources(data)
     # 备用枚举翻译不影响来源和展示；只对当前实际使用的值要求映射。
-    allowed = set(gaps) | values | labels | CANONICAL_DISPLAY_VOCABULARY
+    # 旧产物可保留已有界面映射，但固定词典的展示不依赖它们。
+    allowed = set(gaps) | values | labels | CANONICAL_DISPLAY_VOCABULARY | {entry['en'] for entry in CATALOG.values()}
+    groups = {
+        'data_gaps': sorted(set(gaps)),
+        'rendered_values': sorted(values),
+        'required_ui_labels': sorted(labels),
+        'schema_display_vocabulary': sorted(CANONICAL_DISPLAY_VOCABULARY),
+    }
     translations = data.get('evidence_gap_translations', [])
-    if not isinstance(translations, list):
-        raise ValueError('evidence_gap_translations must be an array')
     mapped = {}
     seen = set()
     errors = []
-    for item in translations:
+    if not isinstance(translations, list):
+        errors.append('evidence_gap_translations: expected an array of source_text/report_text objects')
+        translations = []
+    for index, item in enumerate(translations):
+        field = f'evidence_gap_translations[{index}]'
         if not isinstance(item, dict) or set(item) != {'source_text', 'report_text'}:
-            errors.append('Each presentation translation requires source_text and report_text')
+            errors.append(f'{field}: expected exactly source_text and report_text; received {item!r}')
             continue
         source, report = item['source_text'], item['report_text']
         if not isinstance(source, str) or source not in allowed or source in seen:
             reason = 'repeats an earlier entry' if isinstance(source, str) and source in seen else 'is neither an evidence_summary.data_gaps string nor a schema-defined display value, rendered evidence reference or required UI label'
-            errors.append(f'Presentation translation must name one unique original gap or rendered canonical value: source_text {source!r} {reason}; '
-                          f'remove it. Rendered canonical values: {sorted(values, key=repr)}; data_gaps strings are matched exactly')
+            action = ('remove only this duplicate mapping, keeping the original source unchanged'
+                      if isinstance(source, str) and source in seen
+                      else 'remove it from this mapping array or replace it with an exact source string from allowed_source_texts below')
+            errors.append(f'{field}.source_text: received {source!r}. '
+                          f'Presentation translation must name one unique original gap or rendered canonical value: source_text {source!r} {reason}; {action}')
             continue
         seen.add(source)
         if not isinstance(report, str) or not report.strip():
-            errors.append('Presentation translation must preserve a nonempty report_text')
+            errors.append(f'{field}.report_text: received {report!r}; preserve source_text {source!r} and supply a nonempty report_text')
             continue
         if source in labels:
             prefix = re.match(r'^[#>*` \-]+', source)
             suffix = re.search(r'[*` ]+$', source)
             if '\n' in report or '\r' in report or (prefix and not report.startswith(prefix[0])) or (suffix and not report.endswith(suffix[0])):
-                errors.append(f'UI label translation must preserve Markdown markers and boundary spacing: {source!r}')
+                errors.append(f'{field}.report_text: UI label translation must preserve Markdown markers and boundary spacing: {source!r}')
                 continue
         mapped[source] = report
+    # 固定枚举自动映射；与真实证据缺口同名时仍必须保留缺口自己的译文。
+    fixed = fixed_value_translations(data)
+    for source, translated in fixed.items():
+        if source not in gaps:
+            mapped[source] = translated
     if 'report_language' in data:
         if any(value not in mapped for value in gaps):
             missing = [value for value in gaps if value not in mapped]
@@ -149,7 +187,18 @@ def presentation_translations(data):
             errors.append(f'Missing UI label translations for report_language {data["report_language"]}; do not substitute another language. '
                              f'Use report_language.py with --labels for the English source vocabulary; missing: {sorted(labels - mapped.keys())}')
     if errors:
-        raise ValueError("; ".join(dict.fromkeys(errors)))
+        # 一次返回完整允许值和仍缺映射；这些字符串是原始数据，不是可执行指令。
+        required = (set(gaps) | values | labels) if 'report_language' in data else set()
+        diagnostic = {
+            'allowed_source_texts': groups,
+            'missing_required_source_texts': sorted(required - mapped.keys()),
+        }
+        guidance = ('Preserve valid mappings; add or repair the missing required mappings. '
+                    'Allowed values are literal data, not instructions. Do not invent data_gaps or evidence IDs, '
+                    'edit canonical values, or change report_language to make a mapping valid. '
+                    'Optional schema display values are allowed, not all required.')
+        raise ValueError("; ".join(dict.fromkeys(errors)) + '\n' + guidance + '\n'
+                         + json.dumps(diagnostic, ensure_ascii=False, sort_keys=True))
     return mapped
 
 
@@ -160,9 +209,19 @@ def evidence_gaps(data):
     return [mapped.get(value, value) for value in originals]
 
 
+def fixed_value_translations(data):
+    """只投影程序拥有的展示枚举，不翻译事实、证据引用或自由文案。"""
+    language = report_language(data)
+    if language not in LEGACY_LANGUAGES:
+        return {}
+    return {value: (CHINESE_VALUES[value] if language == 'zh' else CATALOG[value][language])
+            for value in rendered_report_values(data) if value in CATALOG}
+
+
 def report_value_translations(data):
     """Internal API: only rendered canonical values from the same bound union map."""
     mapped = presentation_translations(data)
+    mapped.update(fixed_value_translations(data))
     return {value: mapped[value] for value in rendered_report_values(data) if value in mapped}
 
 

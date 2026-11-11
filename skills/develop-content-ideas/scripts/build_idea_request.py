@@ -210,7 +210,7 @@ def main() -> int:
             "  source_mode is derived from the supplied evidence, never authored: trend/competitor context alone is context_only; no evidence is brief_only.\n"
             "  generation_basis.direct_topic is an exact user-supplied topic, not a paraphrase.\n"
             "  report_language: required for new non-Chinese requests; use a BCP 47 tag.\n"
-            "  open_shortlist/capacity_plan/brief_only: 3..20 ideas and 1 or 2 Hook lines.\n"
+            "  open_shortlist/capacity_plan/brief_only: 1..20 ideas and 1 or 2 Hook lines.\n"
             "  One Hook line requires progressive_line=null; two require a distinct second line.\n"
             "  assets_used may contain only declared available_assets.\n"
             "  Undeclared required_assets need requires_user_confirmation, assumptions and production_missing; capacity_plan forbids them.\n\n"

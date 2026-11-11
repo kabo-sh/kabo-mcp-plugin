@@ -24,7 +24,7 @@ assets rather than silently downgrading that deliverable.
   first-batch content plan without requiring account history, production assets or
   posting-frequency decisions before choosing topics. Do not replace this plan with an
   unprioritized list or invent an algorithmic cadence. The concise renderer carries this field.
-- `open_shortlist`, `brief_only`, and `capacity_plan` support 3–20 ideas. Preserve the explicit
+- `open_shortlist`, `brief_only`, and `capacity_plan` support 1–20 ideas. Preserve the explicit
   requested count in the request, IdeaSet and report; never truncate it to a smaller default.
   Larger supported batches use the same two-pass generation budget and evidence/production gates.
 - For reusable sentence patterns, keep the fill-in slots in `working_title` and include each

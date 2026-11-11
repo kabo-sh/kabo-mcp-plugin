@@ -70,7 +70,7 @@ class IdeaCounts(unittest.TestCase):
 
     def test_supported_counts_reach_core_and_every_report_item(self):
         """旧小批量和新15/20批量均完整经过校验、渲染。"""
-        for count in (3, 10, 15, 20):
+        for count in (1, 2, 3, 10, 15, 20):
             with self.subTest(count=count):
                 root = self.root / str(count)
                 request = self.prepare(root, count)
@@ -85,7 +85,7 @@ class IdeaCounts(unittest.TestCase):
 
     def test_out_of_range_counts_and_missing_count_do_not_generate(self):
         """保留短名单下限和显式数量必填要求，不悄悄补默认值。"""
-        for count in (2, 21, None):
+        for count in (0, 21, None):
             with self.subTest(count=count):
                 root = self.root / str(count)
                 intent = self.intent(count)
@@ -184,6 +184,7 @@ class IdeaCounts(unittest.TestCase):
         """20条的格式、翻译和素材状态同轮报全，一次修订后完整交付。"""
         self.prepare(self.root, 20)
         output = self.output(20)
+        output["evidence_summary"]["data_gaps"] = ["No owner analytics supplied"]
         output["evidence_gap_translations"] = []
         for idea in output["ideas"]:
             idea["hook_options"] = [{"option_id": "unused", "opening_line": "A second opening",
@@ -205,7 +206,7 @@ class IdeaCounts(unittest.TestCase):
             idea["production_feasibility"].update(status="requires_user_confirmation",
                                                   assumptions=["Confirm a consenting guest before filming."])
         self.assertFalse((self.root / "RESULT.md").exists())
-        output["evidence_gap_translations"] = self.output(20)["evidence_gap_translations"]
+        output["evidence_gap_translations"] = [{"source_text": "No owner analytics supplied", "report_text": "No owner analytics supplied"}]
         output["gates"]["production_missing"] = ["Confirm a consenting guest before filming."]
         output["interaction"]["next_actions"].append("answer_production_question")
         self.write(self.root, "idea_set.json", output)
@@ -216,21 +217,14 @@ class IdeaCounts(unittest.TestCase):
             self.assertIn(idea["working_title"], report)
         self.assertIn("Confirm a consenting guest before filming.", report)
 
-    def test_translation_repair_targets_display_values_not_nested_statuses(self):
-        """首次反馈区分顶层展示与素材状态；按缺项修订一次即可交付全部20条。"""
+    def test_fixed_values_need_no_authored_translation_but_nested_values_are_rejected(self):
+        """固定展示不耗修订机会；错误新增的嵌套状态映射仍必须拒绝。"""
         self.prepare(self.root, 20)
         output = self.output(20)
         output["evidence_gap_translations"] = []
         self.write(self.root, "idea_set.json", output)
-        _, first = self.stage(self.root, "core")
-        message = "; ".join(first["errors"])
-        self.assertIn("Add exactly these missing source_text entries", message)
-        self.assertIn("top-level IdeaSet.status", message)
-        self.assertIn("production_feasibility.status are not display values", message)
-        output["evidence_gap_translations"] = self.output(20)["evidence_gap_translations"]
-        self.write(self.root, "idea_set.json", output)
-        code, revised = self.stage(self.root, "core")
-        self.assertEqual((0, "ok", 2), (code, revised["status"], revised["generation_attempts"]), revised)
+        code, delivered = self.stage(self.root, "core")
+        self.assertEqual((0, "ok", 1), (code, delivered["status"], delivered["generation_attempts"]), delivered)
         for idea in output["ideas"]:
             self.assertIn(idea["working_title"], (self.root / "RESULT.md").read_text())
         request = json.loads((self.root / "request.json").read_text())
@@ -257,6 +251,14 @@ class IdeaCounts(unittest.TestCase):
             self.assertIn(idea["working_title"], result.stdout)
             self.assertIn(idea["hook_preview"]["opening_line"], result.stdout)
             self.assertIn(idea["making_direction"], result.stdout)
+        command += ["--deliver"]
+        delivered = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(0, delivered.returncode, delivered.stderr)
+        self.assertEqual(expected, delivered.stdout.split("KABO_FINAL_REPLY_BEGIN\n", 1)[1].split("KABO_FINAL_REPLY_END", 1)[0])
+        metadata = json.loads(delivered.stdout.splitlines()[0])
+        self.assertEqual(20, metadata["candidate_count"])
+        self.assertTrue(metadata["delivery_ready"])
+        self.assertEqual("verbatim", metadata["response_mode"])
         report.write_text(expected[:len(expected) // 2])
         result = subprocess.run(command, capture_output=True, text=True)
         self.assertNotEqual(0, result.returncode)

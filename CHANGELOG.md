@@ -11,7 +11,7 @@
     （`kabo-library/<平台>-<账号>/`）；赛道与内容支柱先读 `get_creator_profile`（`include: ["content_profile"]`、`effective: true`）里 Kabo
     已有的结果作为提议，没有才按固定规则本地算（中位播放不低于账号常规水平 0.8 倍才算支柱，按播放占比排序，第二个支柱至少占 20%），
     给出赛道一句话加 2–4 个候选支柱（各带证据），创作者确认后才保存，并按 `update_content_preferences` 的规则同步他们的改动；最后
-    提议两个宿主自己的定时任务（早上精选、每日复盘），宿主写法放在 `references/host-schedules.md`（Grok Bot 已核实，其余三个宿主待核实）。
+    提议两个宿主自己的定时任务（早上精选、每日复盘），宿主写法放在 `references/host-schedules.md`（Grok Bot、Claude Code、Muse 已实测；Codex 的定时任务只能在 ChatGPT 桌面应用里建，未实测）。
   - `pick-daily-viral-videos`：每天三条，按确认过的支柱（不是大赛道）找近 7 天、至少是作者自己常规播放 2 倍的爆款，每个支柱先保一条、
     作者不重复、跨天不重复，不足三条不凑数；Instagram 为默认，只有主平台是 YouTube 才搜 YouTube。可无人值守：不在中途提问，需要确认的
     一律跳过并在末尾列出。每条给出下一步的具体说法：拆解（`analyze-content-video`）、写我的版本（`create-script-and-packaging`）、
@@ -25,8 +25,14 @@
     （KS9：多轮取数在一次后台调用里完成，不交给宿主模型逐轮翻页）。
   - 宿主没有持久文件时，三个 Skill 用 `list_connected_accounts` 加 `get_creator_profile`（复盘再加一次新的历史读取）重建最小库，并明说
     依赖历史的功能受限（不能防止隔天重复，也没有同龄对比与粉丝变化）。
-  - 只做了离线测试（`scripts/creator-library.test.mjs`），没有在真实宿主或生产 `/mcp-pub` 上端到端跑过；`start_skill_run` 的
+  - 除离线测试（`scripts/creator-library.test.mjs`）外，已在 Codex、Muse、Claude Code、Grok Bot 四个宿主里对着生产 `/mcp-pub` 实测（结果见 PR #160）；`start_skill_run` 的
     `skill_id` 枚举里还没有这三个 Skill，所以它们不调用该工具。
+  - 证明定时任务真的会送达时，优先把每日任务临时挪到几分钟后；另建临时任务时必须在任务里写明自己结束（跑满 3 次或 30 分钟）并自行删除，
+    汇报前读一次任务列表确认它已经不在（实测中一个靠事后手动删除的临时任务在云端跑了一整夜，共 134 次）。
+
+## 1.0.37（2026-11-11；GitHub Release）
+
+- `develop-content-ideas`：选题报告由脚本校验后写成最终文件，经宿主现有 `emit_block(path)` 原样显示，模型最多附一句引导语，不再在对话里重打或改写报告（I20 不完整、报告被缩短）。请求先由代码规范：`es-ES` 等语言标签统一、中英法阿西界面文字由程序给出；支持 1 条及 15–20 条；同风格续写检查是否保留原输入的核心机制（S094）。校验通过时记录请求与选题内容的 SHA-256，导出前不一致即报错不交付。从已有列表挑选/展开的追问路由不在本版修复范围（#144）。
 
 ## 1.0.36（2026-11-10；GitHub Release）
 

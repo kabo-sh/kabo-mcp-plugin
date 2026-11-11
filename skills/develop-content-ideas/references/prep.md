@@ -59,7 +59,7 @@ cd '<run directory>' && python3 '<skill directory>/scripts/prepare_conversation_
 ```
 
 `--hook-count` defaults to one opening; pass `2` only when requested. Repeat `--platform` when
-needed. Shortlists support 3–20 ideas in one run, including an explicit request for 15 or 20;
+needed. Shortlists support 1–20 ideas in one run, including an explicit request for 15 or 20;
 never silently reduce the count or split a supported request to bypass the generation budget.
 The helper returns `intent.json` and `conversation-source.json` plus the retained message
 count and reference index. Check those against the selected source. It preserves message text,
