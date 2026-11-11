@@ -2,6 +2,10 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.42（2026-11-12；GitHub Release）
+
+- `verify-platform-rule`：引文支撑的主张可以另带 `inference`，写从依据能推出、但页面没写的内容，只能写成可能，不写成确定效果；报告在引文之后单独标为「我们的推测，不是平台原话」。以前结构不允许引文与推测并存，模型为了交出操作，把页面没写的动作并进已证实的主张里（11-10 生产会话）。用户自己提出的步骤仍单列为主张，页面没写就标 `no_official_text`；校验只拒绝空推测，多行推测渲染成一段（#162）。
+
 ## 1.0.41（2026-11-12；GitHub Release）
 
 - `remake-viral-video` 支持用户给的**本地**视频与照片（mp4/mov/m4v/webm ≤200 MB、JPEG/PNG ≤10 MB）：`upload-call` 生成
