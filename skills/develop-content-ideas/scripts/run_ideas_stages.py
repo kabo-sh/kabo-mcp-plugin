@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import fcntl
 import json
 import re
 import sys
@@ -36,6 +37,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_idea_request import RequestInputError, build, load as load_json  # noqa: E402
 from render_idea_report import concise, full, validate_concise  # noqa: E402
 from validate_ideas import bound_conversation_context, generation_decision, validate_authored_intent, validate_idea_set, validate_request  # noqa: E402
+
+from idea_batches import create_plan, progress, append_batch, check_core_plan
 
 STAGE_SCHEMA = "ideas-stage-timing.v1"
 MAX_GENERATION_ATTEMPTS = 2
@@ -323,11 +326,13 @@ def run_prep(args: argparse.Namespace) -> int:
     timing["core"] = core
     write_json(timing_path, timing)
 
+    work = progress(create_plan(run_dir, request), run_dir) if decision.get("status") == "ready_for_generation" else {}
     print(json.dumps({
+        **work,
         "status": "ok",
         "stage": "prep",
         "delivery_ready": False,
-        "next_action": ("Preparation is complete, not idea delivery. Author the complete idea_set.json using the ideaCandidate schema, then run core in this same run directory. Do not send ideas before core succeeds and the final report check passes."
+        "next_action": ("Preparation is complete, not delivery. Author only next_numbers (at most ten candidates) using submission_template, save batch-N.json and execute next_command. The script supplies IDs, ranks and request metadata, then assembles idea_set.json only when every batch is present. Continue missing batches, then core, export and emit; never answer from prep or fragments."
                         if decision.get("status") == "ready_for_generation" else "Follow decision.status; preparation alone never authorizes an idea report."),
         "next_core_command": [sys.executable, str(Path(__file__).resolve()), "core", "--run-dir", str(run_dir)],
         "decision": decision,
@@ -341,7 +346,11 @@ def run_prep(args: argparse.Namespace) -> int:
 
 def collect_validation_errors(idea_set: dict[str, Any], request: dict[str, Any], request_path: Path) -> list[str]:
     """Deduplicate idea-set validation errors for revision briefs."""
-    return list(dict.fromkeys(validate_idea_set(idea_set, request, request_path)))
+    errors = validate_idea_set(idea_set, request, request_path)
+    titles = [re.sub(r"\s+", " ", x.get("working_title", "").strip()).casefold() for x in idea_set.get("ideas", []) if isinstance(x, dict) and isinstance(x.get("working_title"), str)]
+    if len(titles) != len(set(titles)):
+        errors.append("Candidate titles must be distinct across the complete set")
+    return list(dict.fromkeys(errors))
 
 
 def compact_revision_errors(errors: list[str]) -> list[str]:
@@ -408,6 +417,7 @@ def run_core(args: argparse.Namespace) -> int:
         allowed_statuses = {"ready_for_generation", "blocked_missing_required_source", "needs_selection_context"}
         if prep.get("status") not in allowed_statuses or decision.get("status") not in allowed_statuses:
             raise ValueError("core requires prep and decision status ready_for_generation or a terminal selection gate")
+        check_core_plan(run_dir, core)
         if not idea_set_path.exists():
             raise ValueError(f"{idea_set_path.name} missing; write the IdeaSet before core")
         request_bytes = request_path.read_bytes()
@@ -600,6 +610,10 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ARTIFACT_FLAGS:
         prep.add_argument(f"--{name}", type=Path)
 
+    batch = commands.add_parser("batch", help="accept at most ten candidates and assemble when complete")
+    batch.add_argument("--run-dir", type=Path, required=True)
+    batch.add_argument("--input", type=Path, required=True)
+
     core = commands.add_parser("core", help="validate idea-set, revise once if needed, then render")
     core.add_argument("--run-dir", type=Path, required=True)
     core.add_argument("--idea-set", default="idea_set.json",
@@ -615,6 +629,16 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    if args.command == "batch":
+        try:
+            run_dir = args.run_dir.resolve()
+            with (run_dir / ".idea-batches.lock").open("a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                print(json.dumps(append_batch(run_dir, load_json(args.input)), ensure_ascii=False))
+            return 0
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(json.dumps({"status": "failed", "stage": "batch", "delivery_ready": False, "error": str(error)}))
+            return 1
     if args.command == "prep":
         return run_prep(args)
     return run_core(args)
