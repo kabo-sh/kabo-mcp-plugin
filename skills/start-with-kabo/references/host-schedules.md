@@ -89,6 +89,13 @@ it off.
   creating it.
 - A scheduled task created in the desktop app runs on the creator's computer, which must be on with
   the app running. It keeps the workspace and the library.
+- The desktop app's New task form asks for the task text, a repeat and a time in 15-minute steps. It
+  has no folder field, so the folder that holds `kabo-library/` has to be in the task text, as the
+  two instructions above have it. Under Advanced, leave "run on this computer" on.
+- Creating a task does not run it: the app answers once to confirm, and the first run comes at the
+  set time. A run starts within a few minutes of that time, sometimes a little before it, and posts
+  into the task's own chat. To move a task, ask in that chat; the app states the next run and that
+  it still repeats daily.
 - Past runs are listed under Scheduled, which marks unread results.
 
 ## Muse
