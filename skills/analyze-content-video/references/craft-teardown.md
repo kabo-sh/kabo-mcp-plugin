@@ -32,9 +32,9 @@ renderer to look for.
    state the creator declared.
 
    **Then look at the frames.** They arrive as references — an id, a second, a checksum — and a
-   reference is not a picture. Read the frame bytes with `read_research_data_artifacts` and
-   `fetch` as *Reading the frame bytes* in `references/evidence-reading.md` says, then open the
-   image files and look at them. Framing, shot size, camera movement, type, colour and where the eye
+   reference is not a picture. Read the frames with `read_research_data_artifacts` as *Reading the
+   frame bytes* in `references/evidence-reading.md` says, and look at the images: the ones the read
+   shows you, or the fetched files you open. Framing, shot size, camera movement, type, colour and where the eye
    goes all live in the picture. Read only the words and you have written what the video *said*,
    filed under a question about how it was *made*.
 3. **Measure before you claim.** Put what can be counted on the page, each with the timecode it

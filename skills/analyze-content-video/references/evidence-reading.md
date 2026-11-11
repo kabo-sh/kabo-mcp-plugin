@@ -35,8 +35,10 @@ needs a frame.
 
 **Reading the frame bytes.** A completed keyframe job lists `frames[]` / `artifacts[]` refs. Select
 the exact refs you need and read them with `read_research_data_artifacts` (`job_id` plus those
-`object_refs`, with `"delivery": "download"`), save that small result and run `static_host.py fetch`
-on it (it is fetched, not persisted). Then open each image's `path` from fetch's output with the
+`object_refs`, with `"delivery": "download"`). If that read shows you the images themselves, they
+are viewed: do not save or stage them, one by one or at all; the evidence builder lists frames from
+the keyframe envelope, not from their bytes. When the read returns a download link instead, save
+that small result and run `static_host.py fetch` on it (it is fetched, not persisted). Then open each image's `path` from fetch's output with the
 host's own file or image viewer: a file on disk is not yet seen. Only for items fetch lists as
 unavailable, or when scripts cannot reach the network, read those refs again without `delivery`
 (the images then arrive inline) and stage that result from the host's result export; never rebuild
@@ -86,8 +88,8 @@ excerpt is not a complete export.
 
 ## Where the metadata comes from
 
-**On YouTube, take `content_metadata` from `youtube_get_video`, not from
-`public_video_collect_public_metadata`.** The media tool reads a video page from a datacentre
+**On YouTube, take `content_metadata` from `youtube_get_video`, not from the media call's
+`metadata` operation.** The media tool reads a video page from a datacentre
 address, and YouTube refuses those: it answers `service_unavailable` on every YouTube URL, and a run
 that used it lost title, tags, cover and publish date. `youtube_get_video` is the platform answering
 about its own video; it is not a deferred job and carries the same facts plus public counts. Call it

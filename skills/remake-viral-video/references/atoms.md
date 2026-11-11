@@ -40,12 +40,12 @@ A change to a video that was already delivered is an edit or steps on that job
   place), which become `input/img_NN.<ext>`.
 
 Video links are YouTube, Instagram or TikTok; picture links are public JPEG or PNG. Files on the
-user's computer cannot be sent in this version. More photos, reference videos or pictures can be
+user's computer cannot be sent. More photos, reference videos or pictures can be
 added to a ready project later (`--job-id`, below).
 
-**Without the creator.** A project with no creator footage or photos can use only the steps that
-draw no face of the creator (`still`, `animate`, `text_cards`, `music`, `tts` with a stock voice,
-and the editing steps); a face step is refused with `no_creator`. Never present a generated person
+**Without the creator.** No face is needed; never ask for it. A project with no creator footage or photos uses only steps that
+draw no face (`still`, `animate`, `text_cards`, `music`, `tts` with a stock voice
+the user picks, and editing); a face step is refused with `no_creator`. Never present a generated person
 as the creator or as any real person.
 
 **An invented AI presenter (`persona`).** Only when the user has no footage or photos of themselves
@@ -69,10 +69,10 @@ person, never `creator/...`). The project then reports `persona: true`.
   persona project cannot take creator footage later. When real footage exists, use it instead.
 - At delivery, say plainly that the person on screen is an AI-generated fictional presenter.
 
-**No speech in the creator's footage.** `tts` reads lines in the creator's cloned voice by default;
-with nothing to clone it is refused with `no_voice`. First ask for a link to a video of the
-creator speaking (10-30 seconds is enough) and add it to the project. Only if they have none,
-offer the stock voices and let the user pick; never pick one for them:
+**No voice to clone** (no creator material, or no speech in it). `tts` reads lines in the
+creator's cloned voice by default; with nothing to clone it is refused with `no_voice`. Before starting
+the project (videos cannot be added later), ask once for a link to them
+speaking (10-30 s) or one of these stock voices, and wait; never pick for them:
 
 - `933563129e564b19a115bedd57b7406a`: female, young, soft and conversational
 - `b545c585f631496c914815291da4e893`: female, young, bright
@@ -92,13 +92,15 @@ Pass the pick as `params.voice` of `tts`, and say at delivery that a stock voice
 | A new still of the creator: another pose, framing, outfit or setting | `first_frame` (`image`: a `frame`, a photo or `frame_sNN.png`; optional `refs` 0-3; `prompt`) | edits the picture; redraws the face and is checked against the creator |
 | A still of the creator speaking a line | `tts`, then `talking` (picture + line audio; optional `prompt` for the performance) | a talking take from one picture |
 | A reference's own shot and moves with the creator in it | `replace` (shot + picture of the creator), then `lipsync` with the creator's words from `tts` | keeps the camera, props and gestures; a whole remake instead recreates the scene. Small moving text can garble |
-| B-roll, a scene, a product shot (no creator) | `still` (product pictures as `refs`), then `animate` to move it | no face is drawn |
+| B-roll, a scene, a product shot (no creator) | `still` (product pictures as `refs`), then `animate` to move it | no face is drawn; `project` auto-extracts clean `input/style_ref_NN.png` frames from reference inputs when `refs` is omitted |
+| An interface walkthrough, street-grid map, vector diagram, chart, kinetic typography, HUD callout or photo collage (when building from steps, not a whole narration remake) | `motion_graphics` (`params`: `spec`, `duration` 1-60, optional `preset`: `ui_walkthrough`, `street_grid_map`, `vector_diagram`, `data_chart`, `kinetic_typography`, `hud_callout`, `photo_collage`; optional `inputs`: `base`, `refs`) | free (`$0`) local 1080x1920 HyperFrames/Canvas render; `hud_callout` tracks `anchors` on `base` video with optical flow |
+| Camera shake, flash transition, or punch-in zoom on a clip | `shake`, `flash`, `impact_zoom` (`inputs.video`) | free (`$0`) local tool step |
 | Words that must be read on screen | `text_cards` on a base video | real text; never ask a generated picture to contain words |
 | Background music | `music` with a mood | royalty-free; if it says it is not available, leave music out and say so |
 | Captions in the creator's style | `captions` (optional `max_words` 1-8 per caption, `upper` for capitals) | |
 | Part of a video or audio | `trim` (`t0`, `t1`) | |
 | Another sound track on a video | `mux` (`mode` `replace` or `mix`), `extract_audio` to take a video's sound | |
-| What a video or sound says | `transcribe` (`media`, optional `language`) | timed segments, no file; free |
+| What a video or sound says | `transcribe` (`media`, optional `language`) | timed segments with word times, no file; free. Cut speech at word edges, never inside a word, and never put the same stretch of a source in twice; the step notes say when a cut does |
 | The same words in a different, non-creator voice (for example a reference speaker's track that must not keep their voice) | `voice_change` with `voice: "warm_female"` (the only stock voice it has) | it cannot make the creator's voice: for that, `tts` with the creator's voice, then `lipsync` or `mux` |
 | A picture over a range, a clip spliced in, clips joined | `overlay`, `splice`, `concat` | |
 | A still from a video (to use as a picture, or to look at a moment) | `frame` (`t` in seconds, or `at` `first` / `last`; any video handle) | cheap; also how you see a video |
@@ -224,8 +226,8 @@ written here as `static_host.py`.
    the step against the op's inputs and params and prints the `make_video_step` arguments; call the
    tool with exactly those. A refusal from the script is a mistake in the step file: fix it. Inputs
    are handles from `project.handles` only, never paths or links. One step runs at a time.
-3. **Wait and look.** The step returns `working`. Call `get_remake_video` with `wait_s` 30 and
-   `project` true until `project.last_step.status` is `done` or `failed`. Save the result to
+3. **Wait and look.** The step returns `working`. Call `get_remake_video` with `wait_s` 30,
+   `project` true and `words` true until `project.last_step.status` is `done` or `failed`. Save the result to
    `host-results/<NN>-get_remake_video.json` and run
    `static_host.py fetch-step --input 'host-results/<NN>-get_remake_video.json'`. It saves the
    step's file under `project/outputs/` and prints its `path`, handle, spend, model, fallback and

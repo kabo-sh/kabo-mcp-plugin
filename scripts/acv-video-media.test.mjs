@@ -25,7 +25,7 @@ function shell(command) {
 const calls = (out) => out.split("\n").filter((line) => line.startsWith("call: ")).map((line) => JSON.parse(line.slice(6)));
 const reads = (out) => out.split("\n").filter((line) => line.startsWith("read: ")).map((line) => JSON.parse(line.slice(6)));
 const saveOf = (out) => out.split("\n").find((line) => line.startsWith("  result ")).split("has no download url: ")[1].slice(0, -1);
-const resumeOf = (out) => { const line = out.split("\n").find((l) => l.startsWith("Then run this one command")); return line.slice(line.indexOf("cd '")).replace(/ --id <id>$/, ""); };
+const resumeOf = (out) => { const line = out.split("\n").find((l) => l.startsWith("Then run this one command")); return line.slice(line.indexOf("cd '")).replace(/ --id=<id>$/, ""); };
 
 const URL_ = "https://www.youtube.com/watch?v=fixture0001";
 const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -105,6 +105,32 @@ test("视频分析媒体一次组合调用：交接一个 call，续跑等到终
   assert.equal(frameReads.length, 1);
   assert.equal(frameReads[0].arguments.job_id, uuid(2));
   assert.equal(frameReads[0].arguments.object_refs.length, 3);
+  // 读帧把图片直接给了模型就算看过：不要求逐帧暂存（Web 上 59 帧就是 59 步，超出每轮步数）。
+  assert.match(third.out, /If its result shows you the images, they are viewed: do not save or stage them/);
+  assert.match(first.out, / --id=<id>$/m);
+
+  // 没有暂存任何帧字节：builder 照样按 keyframes 信封列出全部帧，测量依据行照常生成。
+  const request = path.join(run, "analysis/video-analysis-request.json");
+  await writeFile(request, JSON.stringify({
+    schema_version: "video-analysis-request.v1", request_id: "req-frames",
+    source: { acquisition: "public_url", subject_state: "unknown", platform: "youtube", url: URL_, content_id: "fixture0001", declared_format: "video", owner_data: null },
+    acquire: { media: "best_effort", transcript: "best_effort", frames: "best_effort", owner_metrics: "skip" },
+    budget: { max_connector_calls: 10, max_provider_credits: null, confirmed_by_user: true, per_call: { timeout_seconds: 60, max_response_bytes: 50000000 } },
+    failure_policy: { on_missing_capability: "return_partial", fatal_capabilities: [] },
+  }));
+  const built = shell(`cd '${run}' && python3 '${path.join(scripts, "build_content_evidence.py")}' --request analysis/video-analysis-request.json `
+    + "--envelope snapshot/envelope-01.json --envelope snapshot/envelope-02.json --envelope snapshot/envelope-03.json "
+    + "--snapshot-root snapshot --output analysis/content_evidence.json --reference-index analysis/content_evidence.references.json");
+  assert.equal(built.code, 0, built.out);
+  const evidence = JSON.parse(await readFile(path.join(run, "analysis/content_evidence.json"), "utf8"));
+  assert.equal(evidence.frames.status, "available");
+  assert.equal(evidence.frames.origin, "extracted_frames");
+  assert.equal(evidence.frames.items.length, 3);
+  const basis = spawnSync("python3", ["-c", "import json,sys; sys.path.insert(0, sys.argv[1]); import creator_measurement_basis as m; "
+    + "print(json.dumps(m.measurement_basis(json.load(open(sys.argv[2])), {}, {})))", scripts, path.join(run, "analysis/content_evidence.json")],
+    { encoding: "utf8", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
+  assert.equal(basis.status, 0, basis.stderr);
+  assert.equal(JSON.parse(basis.stdout).frame_kind, "extracted");
 });
 
 test("collect_media.py：未知操作与超出上限的帧数直接拒绝，不交出调用", () => {
@@ -153,7 +179,7 @@ function hostHandover(stdout) {
       const w = words(tail[1].trim());
       if (!w || w[0] !== "cd" || w[2] !== "&&" || w[3] !== "python3") return null;
       const args = []; const rest = w.slice(5);
-      for (let k = 0; k < rest.length; k += 1) { if (rest[k] === "--id") { k += 1; continue; } args.push(rest[k]); }
+      for (let k = 0; k < rest.length; k += 1) { if (rest[k] === "--id") { k += 1; continue; } if (rest[k].startsWith("--id=")) continue; args.push(rest[k]); }
       resume = { cwd: w[1], script: w[4], args }; break;
     }
   }
@@ -172,12 +198,59 @@ test("collect_media.py 的交接是 Web 宿主读得懂的写法：宿主写入�
   assert.equal(handover.resume.cwd, run);
   assert.equal(path.basename(handover.resume.script), "collect_media.py");
   assert.ok(!handover.resume.args.includes("<id>"));
-  // 宿主写的是研究工具的原样出参（没有 MCP 包装），续跑不带环境变量。
-  await writeFile(handover.files[0], JSON.stringify(composite(handover.calls[0].arguments)));
-  const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1" };
-  delete env.KABO_STATIC_RUN_DIR;
-  const resumed = spawnSync("python3", [handover.resume.script, ...handover.resume.args], { cwd: handover.resume.cwd, encoding: "utf8", env });
+  // 宿主写的是研究工具的原样出参（没有 MCP 包装）。续跑命令不带环境变量；shell 里残留着另一个 run 的
+  // KABO_STATIC_RUN_DIR 时，结果仍要落在 cd 进去的那个 run。
+  const stray = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  assert.notEqual(stray, run);
+  const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1", KABO_STATIC_RUN_DIR: stray };
+  const resume = (current) => spawnSync("python3", [current.resume.script, ...current.resume.args], { cwd: current.resume.cwd, encoding: "utf8", env });
+  const args = handover.calls[0].arguments;
+  // 第一轮还有 job 在跑：再交的一轮同样要让宿主认得（说明单独一行，槽位编号换成 02）。
+  await writeFile(handover.files[0], JSON.stringify(composite(args, new Set(["video/extract_keyframes"]))));
+  const second = resume(handover);
+  assert.equal(second.status, 0, second.stdout + second.stderr);
+  assert.match(second.stdout, /1 media job\(s\) are still running/);
+  const again = hostHandover(second.stdout);
+  assert.ok(again, second.stdout);
+  assert.deepEqual(again.calls[0].arguments, args);
+  assert.match(path.basename(again.files[0]), /^02-/);
+  await writeFile(again.files[0], JSON.stringify(composite(args)));
+  const resumed = resume(again);
   assert.equal(resumed.status, 0, resumed.stdout + resumed.stderr);
   assert.match(resumed.stdout, /"status": "collected"/);
   assert.equal(reads(resumed.stdout).length, 1);
+  await readFile(path.join(run, "snapshot/envelope-01.json"), "utf8");
+  await assert.rejects(readFile(path.join(stray, "snapshot/envelope-01.json"), "utf8"));
+});
+
+// 只导出逐字稿（雨恬 11-10，生产 1.0.29）：只取转写、不取元数据，模型写的请求不带 content_id；
+// 以前 build_content_evidence.py 报「content_ref needs a content_id」退出，转写拿到了也导不出来。
+test("只导出逐字稿：请求不带 content_id 时从原始链接取，证据照常生成并导出 TXT/SRT", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-transcript-"));
+  t.after(() => rm(workspace, { recursive: true, force: true }));
+  const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  const REEL = "https://www.instagram.com/reel/DeZrE2phzDx/?igsh=share";
+  const first = python("collect_media.py", ["--url", REEL, "--operations", "transcript"], { cwd: run, run });
+  assert.equal(first.code, 0, first.out);
+  const args = calls(first.out)[0].arguments;
+  await save(saveOf(first.out), composite(args));
+  const collected = shell(resumeOf(first.out));
+  assert.equal(collected.code, 0, collected.out);
+  assert.match(collected.out, /"status": "collected"/);
+  await writeFile(path.join(run, "analysis/video-analysis-request.json"), JSON.stringify({
+    schema_version: "video-analysis-request.v1", request_id: "req-transcript",
+    source: { acquisition: "public_url", subject_state: "unknown", platform: "instagram", url: REEL, content_id: null, declared_format: "video", owner_data: null },
+    acquire: { media: "skip", transcript: "required", frames: "skip", owner_metrics: "skip" },
+    budget: { max_connector_calls: 4, max_provider_credits: null, confirmed_by_user: true, per_call: { timeout_seconds: 60, max_response_bytes: 50000000 } },
+    failure_policy: { on_missing_capability: "return_partial", fatal_capabilities: [] },
+  }));
+  const built = shell(`cd '${run}' && python3 '${path.join(scripts, "build_content_evidence.py")}' --request analysis/video-analysis-request.json `
+    + "--envelope snapshot/envelope-01.json --snapshot-root snapshot --output analysis/content_evidence.json --reference-index analysis/content_evidence.references.json");
+  assert.equal(built.code, 0, built.out);
+  const evidence = JSON.parse(await readFile(path.join(run, "analysis/content_evidence.json"), "utf8"));
+  assert.equal(evidence.content_ref.content_id, "DeZrE2phzDx");
+  assert.equal(evidence.transcript.status, "available");
+  const exported = shell(`cd '${run}' && python3 '${path.join(scripts, "export_transcript.py")}' analysis/content_evidence.json report/`);
+  assert.equal(exported.code, 0, exported.out);
+  assert.match(await readFile(path.join(run, "report/transcript.txt"), "utf8"), /Here is the one thing you need/);
 });

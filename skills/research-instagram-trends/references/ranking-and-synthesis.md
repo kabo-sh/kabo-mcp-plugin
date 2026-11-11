@@ -111,6 +111,10 @@ Analysis and schema (in the Workflow leave `schema_version`, `request_id` and `r
   capture time, snapshot status, candidate/analyzed counts, coverage or limitations there. Never
   copy formulas, routes, quotas, shortlist mechanics, experiments, window boilerplate or audit
   inventory. One strong reference is valid; do not pad.
+- Give each pattern a `stage` its cited refs prove: `current_high_performance` needs a cited
+  ≥ 1.5× account outlier or a top-quartile public metric of the Analysis ranking; `recurring_pattern`
+  needs at least two distinct refs. A mechanism with one ref and neither proof is not a pattern:
+  leave it out (it may still be a featured reference). Fewer patterns, or none, is a valid report.
 - When no ranked evidence remains, set `status: partial`, leave `featured_content_refs`, `patterns`
   and `emerging_creators` empty, and provide a useful task-specific next action as a proposed test,
   not an observed trend. Briefly qualify any claim that cannot be established; never invent tracks,

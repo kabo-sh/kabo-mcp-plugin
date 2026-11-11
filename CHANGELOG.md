@@ -2,6 +2,52 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.36（2026-11-10；GitHub Release）
+
+- `review-creator-account-deep`：`plan_media_jobs.py` 每条看片视频请求的关键帧从 60 张降到 12 张，并显式带 `sampling: duration_scaled`（同视频分析）。下游只读每条开头 3 秒以内的帧（`watch_media.py` 最多给模型看 5 张，作者包只列 3 秒以内的帧）；在后台时长自适应采样下，12 帧（开头 6 + 正文 2 + 结尾 4）在 3 秒以内的帧与 60 帧逐张相同，其余 48 帧只是让组合结果变大、抽帧变慢（#157）。
+
+## 1.0.35（2026-11-10；GitHub Release）
+
+- `analyze-content-video`：报告的测量依据行不再固定写「画面查看未核实 / viewing unverified」。帧送到了模型面前、报告也逐条引用，创作者却读成「画面没看过」（11-06 群反馈）；现在只写抽取帧数、报告引用帧数、转写与后台数据来源。1.0.32 之前生成的结果回放时照样认旧写法。
+
+## 1.0.34（2026-11-10；GitHub Release）
+
+- 内容与 1.0.33 相同，只把声明了 `metadata.version` 的三个 Skill 往上提一版：`optimize-creator-brand` 0.3.24、`plan-content-calendar` 0.1.27（含 schema 里的 `candidate_skill` 常量）、`price-creator-brand-deals` 0.4.14。#152 改了 15 个 Skill 共用的 `static_host.py`，这三个的内容校验和随之变化，而 Web 发布要求声明版本高于线上版本，1.0.33 因此没能发到 Web。
+
+## 1.0.33（2026-11-10；GitHub Release）
+
+- `research-instagram-trends`：出 Gate 打分表前每条车道最多留 30 条，先收本周窗口内的、再收无发布时间的、窗口外的最后补；以前一条车道 90–100 多条要模型逐条打分，模型不打就收尾，还把没跑的步骤说成「指标补全没完成」（11-07 Web 巡检）。单条引用又没有异常值/前四分之一证据的 pattern 删掉，不换 stage 标签硬凑；没跑的步骤如实说没跑，不归咎上游（#153）。
+- 补记：`review-creator-account-deep` 媒体全部失败时降级为只用目录数字继续、不再 exit 1，看片交接是必做步骤（#152），已随 v1.0.32 标签发布。
+
+## 1.0.32（2026-11-10；GitHub Release）
+
+- `analyze-content-video`：读帧调用已经把图片显示出来时就算看过了，不再要求逐帧保存与暂存（报告按 keyframes 信封列帧，不需要帧的字节）；以前在 Web 上 59 帧要 59 步暂存，超过每轮步数，读完帧就停下（11-07 生产回归两例）。`collect_media.py`：「还有 N 个任务在跑」单独一行，第二轮交接 Web 宿主也认得；续跑参数改成 `--id=<id>`；以 `cd` 进去的 run 为准（同 1.0.30 的深度复盘）。修正 `evidence-reading.md` 的 KS2.2 lint 错误（#149）。
+- `analyze-content-video`：只导出逐字稿时不取元数据，请求里又没有 `content_id`，`build_content_evidence.py` 以前报 `content_ref needs a content_id` 退出；现在从原始链接取（#151）。
+- `review-creator-account-deep`：音频名、作者是元数据，不代表听感；没有听到或测到的声音，不评曲风、氛围和是否搭配（复盘 N0685，#149）。
+
+## 1.0.31（2026-11-09；GitHub Release）
+
+- `remake-viral-video`：按 kabo#2136 重新钉目录契约；轮询 `get_remake_video` 时带 `words: true`，transcribe 结果带逐词时间，按词边界下刀、不把同一段原片放两次，trim / concat 的 step notes 会提示（#145）。
+
+## 1.0.30（2026-11-09；GitHub Release）
+
+- `review-creator-account-deep`：`watch_media.py` 的看片交接改成 Web 宿主能自己完成的写法（同 1.0.25 的视频分析）：槽位行带编号，续跑命令不带 `KABO_STATIC_RUN_DIR=…` 前缀并以 `cd` 进去的 run 为准，「还有 N 个任务在跑」单独一行，第二轮交接宿主也认得；续跑参数改成 `--id=<id>`，结果编号以「-」开头时不再被当成选项报错（#140）。
+- `recommend-publish-timing`：标题或摘要要以 HH:MM 报出推荐时间，且不报推荐窗口以外的钟点；单小时答出时，正文不再报分块投票的胜出段（以前会出现「推荐 18:00」又写「06:00–09:00 表现最好」）；没拿到创作者时区时，模型用创作者的语言写 `creator_view.clock_note`（这些钟点未确认是本地时间），渲染在答案下面（#141）。
+
+## 1.0.29（2026-11-09；GitHub Release）
+
+- `remake-viral-video`：创作者不出镜的需求（动画、商品图、剪自己的视频、旁白）直接用单步做，不要正脸；需要声音而没录音时，开项目前一次问说话视频链接或 stock 声音并等回答，不替用户选；已确认脚本可做无人出镜旁白（tts 原词 + 画面 + mux）；素材明显不是本人说话时先问用户要哪种（#142，对应 creator-remake-web 0.1.48/0.1.49）。
+
+## 1.0.28（2026-11-08；GitHub Release）
+
+- 内容同 1.0.27；`plan-content-calendar` 的 `metadata.version` 升到 0.1.26（#133 改了该 Skill 内容，Web 发布要求声明版本高于线上，1.0.27 因此未上 Web）。
+
+## 1.0.27（2026-11-08；GitHub Release）
+
+- `review-creator-account`：比较时对齐等长观测窗口，成交率与缺订单数据按实测样本给结论（#132）。
+- `develop-content-ideas`：支持一次 15–20 条选题，补齐数量、续接和日历接收（#133，迁自 creator-skills#165）。
+- `review-creator-account`：账号增长预测校准，概率与区间基于计算输入、不足时说明缺口（#134，自 #106 拆出）。
+
 ## 1.0.26（2026-11-07；GitHub Release）
 
 - `develop-content-ideas`：沿用对话里可见的上下文（已选机制、同款变体、续集源），不改写用户原始请求；保留诊断信息（#89）。

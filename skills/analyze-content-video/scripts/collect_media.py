@@ -6,7 +6,7 @@ Run it from the run directory.
 - First run: prints one `collect_video_media` call for the media operations this mode needs, the
   file to save its result in when it has no download url, and the resume command. The backend
   queues every job itself and waits for them; nothing is polled job by job.
-- `--placed --id <id>`: fetches that result. While the backend still reports running jobs
+- `--placed --id=<id>`: fetches that result. While the backend still reports running jobs
   (`coverage.pending` above 0) it prints the same call again: nothing is queued or charged twice.
   Once every job is terminal (or after `MAX_ROUNDS` results) it persists each terminal envelope as
   `snapshot/envelope-NN.json`, prints the `--envelope` / `--pending` arguments for
@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -49,7 +50,7 @@ MAX_FRAMES = static_host.FRAME_CAPS["public_video_extract_keyframes"]
 # 存文件只是没有下载链接时的退路。
 SAVE_RULE = ("Do not save the result. Its download url holds its result id: the 22 characters between "
              "`research-export/v1/` and `.json`. Put the id of your last call's result into the resume command "
-             "below as `--id <id>`. Only if that result has no download url, save it whole, as returned, to the "
+             "below as `--id=<id>`. Only if that result has no download url, save it whole, as returned, to the "
              "fallback file named under the call (with the host's file-write tool, never as a command-line "
              "argument) and leave `--id` out. Never download anything yourself; call get_research_data_download "
              "only when the resume says the id expired.")
@@ -94,7 +95,18 @@ def resume_command(args: argparse.Namespace) -> str:
     # connector_driver.py 的交接同一种写法，Web 宿主（kabo-agent-service plugin-handover.ts）才认得出来、
     # 自己调用并续跑；认不出时整段交接落到模型手里，模型常在暂存这一步失手（pre M3b/M4c/M5a）。
     return (f"cd {run_directory} && python3 "
-            + " ".join(quote(part) for part in argv) + " --id <id>")
+            # `--id=<id>` 而不是 `--id <id>`：结果编号可能以「-」开头（实测 `-lNCEjm2WwISAEzMxbDqAA`），
+            # 分开写时 argparse 把它当成另一个选项，续跑直接报错。Web 宿主照样跳过 `--id=` 这个词。
+            + " ".join(quote(part) for part in argv) + " --id=<id>")
+
+
+def bind_run_to_cwd() -> None:
+    """续跑命令只写 `cd '<run>' && python3 …`，不带环境变量；static_host.run_dir 却先读环境变量。shell 里
+    残留着别的 run 的 KABO_STATIC_RUN_DIR 时，媒体证据会写进那个 run。当前目录在某个 run 里，就以它为准。"""
+    here = Path.cwd().resolve()
+    run = next((path for path in (here, *here.parents) if (path / ".static-run.json").is_file()), None)
+    if run is not None:
+        os.environ["KABO_STATIC_RUN_DIR"] = str(run)
 
 
 def hand_over_media(args: argparse.Namespace, note: str = "") -> None:
@@ -106,8 +118,11 @@ def hand_over_media(args: argparse.Namespace, note: str = "") -> None:
     current["handed_at"] = datetime.now(timezone.utc).isoformat()
     save_state(current)
     wanted = ", ".join(args.operations)
-    say((note + " " if note else "") +
-        f"Hand-over: make this one call now with the arguments verbatim; the backend queues this video's {wanted} "
+    if note:
+        # 说明单独一行：Web 宿主（plugin-handover.ts）只认以「Hand-over: 」开头的行，前面带别的字，
+        # 还有 job 在跑、再交一轮时就认不出，整段交接又落回模型手里。
+        say(note)
+    say(f"Hand-over: make this one call now with the arguments verbatim; the backend queues this video's {wanted} "
         f"jobs and waits for them. If its result still reports running jobs (coverage.pending above 0), make the "
         f"same call again right away with the same arguments (nothing is queued or charged twice) until pending is "
         f"0 or you have made it {MAX_ROUNDS} times; only the last result counts. The media is not ready until this "
@@ -148,7 +163,7 @@ def take_saved(result_id: str | None) -> None:
             if staged_since(current.get("handed_at")):
                 # 宿主已用自己的方式把结果落进本 run（例如直接 stage），没有另存文件：照用已落的那份。
                 continue
-            raise ValueError(f"no result for this hand-over: run the same resume command again with --id <id>, the "
+            raise ValueError(f"no result for this hand-over: run the same resume command again with --id=<id>, the "
                              f"id from the last {TOOL} call's download url (only for a result with no download url, "
                              f"save it whole at {path} and leave --id out). On a host that passes results as "
                              f"evidence references, first run static_host.py stage --tool {TOOL} on the last "
@@ -213,8 +228,12 @@ def finish(record: dict[str, Any]) -> None:
                 if isinstance(item, dict) and item.get("object_ref")]
         job_id = envelope.get("job_id") or (jobs.get(keyframes["group"]) or {}).get("job_id")
         if refs and job_id:
-            say("Frames: bring them into the run now with this one read (save and fetch its result the way the "
-                "Skill says for read_research_data_artifacts), then open each image before any visual claim:")
+            # 读帧调用本身把图片交给了模型（Web 宿主就是这样）时，帧已看过，报告也不需要帧的字节：builder 按
+            # keyframes 信封列帧。再要求逐帧暂存，59 帧就是 59 步，超过宿主每轮的步数，模型只好放弃（11-07 生产）。
+            say("Frames: make this one read now. If its result shows you the images, they are viewed: do not save "
+                "or stage them, and go on to build_content_evidence.py. Only if it returns a download link instead, "
+                "save and fetch it the way the Skill says for read_research_data_artifacts, then open each image's "
+                "path before any visual claim:")
             say("read: " + json.dumps({"tool": "read_research_data_artifacts",
                                        "arguments": {"job_id": job_id, "object_refs": refs, "delivery": "download"}},
                                       ensure_ascii=False))
@@ -231,6 +250,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--placed", action="store_true")
     parser.add_argument("--id", dest="result_id", help="the result id of the last collect_video_media call")
     args = parser.parse_args(argv)
+    bind_run_to_cwd()
     args.operations = [name.strip() for name in args.operations.split(",") if name.strip()]
     try:
         unknown = [name for name in args.operations if name not in OPERATIONS]

@@ -95,7 +95,8 @@ export function versionFor(id, checksum, liveIndexes, current, declared = null, 
   return `${major}.${minor}.${patch + 1}`;
 }
 
-async function writeOverlay(store, object, overlay) {
+// expectedGeneration：publish 读 overlay 时的那一代（0 = 当时不存在）；中间被别人改过就报错重跑，不拿旧条目盖掉新写入。
+async function writeOverlay(store, object, overlay, expectedGeneration) {
   const bytes = Buffer.from(stableJson(validateIndex(overlay, 'production')));
   const digest = sha256(bytes);
   const history = historyObject(digest);
@@ -107,6 +108,7 @@ async function writeOverlay(store, object, overlay) {
     fail(`history collision: ${history}`);
   }
   const current = await store.read(object);
+  if (expectedGeneration !== undefined && (current?.generation ?? 0) !== expectedGeneration) fail(`${object} changed while publishing; rerun`);
   if (current?.bytes.equals(bytes)) return { object, sha256: digest, generation: current.generation, unchanged: true };
   const written = await store.write(object, bytes, current?.generation ?? 0);
   if (!written.ok) fail(`${object} changed while writing; rerun`);
@@ -135,7 +137,8 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
   };
   const live = [await readChannel('production'), await readChannel('internal')];
   if (!live.some(Boolean)) fail('cannot read any live channel index');
-  const current = (await readIndex(store, object))?.index ?? null;
+  const currentRead = await readIndex(store, object);
+  const current = currentRead?.index ?? null;
   // 另一个目标（生产 / test）的 overlay：同一份内容在那边已经有版本号，就用同一个号和同一个包。
   const others = await Promise.all(Object.entries(TARGETS).filter(([name]) => name !== targetName)
     .map(async ([, other]) => (await readIndex(store, other))?.index ?? null));
@@ -166,6 +169,11 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
     bundles.push(buildPluginBundle({ skillDirectory: directory, sourceCommit: pluginCommit, version }));
   }
   if (!bundles.length && !Object.keys(kept).length) fail('nothing to publish');
+  // test 目标多人共用：本插件 commit 产不出的条目（别的分支按别名发上来的 skill 等）原样保留，
+  // 否则每次发版顺手刷一遍 test 都会把别人正在测的版本冲掉。
+  if (targetName === 'test')
+    for (const [id, entry] of Object.entries(current?.skills ?? {}))
+      if (!available.includes(id) && !hold.includes(id) && !kept[id]) kept[id] = entry;
   for (const bundle of bundles) {
     const objectName = bundleObjectName(bundle);
     const bytes = Buffer.from(stableJson(bundle));
@@ -193,7 +201,7 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
       }]),
     ].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
   };
-  const written = await writeOverlay(store, object, overlay);
+  const written = await writeOverlay(store, object, overlay, currentRead?.generation ?? 0);
   // 记下每个 skill 用过的最高版本（只升不降）。
   const nextHighwater = { format_version: 1, skills: { ...(highwater.skills ?? {}) } };
   for (const [id, entry] of Object.entries(overlay.skills)) {
