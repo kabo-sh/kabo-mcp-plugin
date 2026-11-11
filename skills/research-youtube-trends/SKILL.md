@@ -35,6 +35,10 @@ the matching account's accepted languages,
 and apply the independent language check in `references/short-window-topic-gate.md` before ranking.
 The report language never changes which video languages are acceptable.
 
+For a scheduled backend migration or a comparison across 24h, 7d and 30d, read
+`references/multi-window-acceptance.md`. It defines evidence reuse and acceptance boundaries;
+it does not replace this Skill's original routes with a combined workflow.
+
 ## Running commands
 
 `<skill directory>` is the folder holding this `SKILL.md`. Before the first data call, reserve
