@@ -8,7 +8,11 @@ export function validateStaticSkills(files) {
     throw new Error("静态 Skills 来源身份无效。");
   const ids = new Set();
   for (const skill of lock.skills) {
-    if (!/^[a-z][a-z0-9-]*$/.test(skill.id) || ids.has(skill.id) || !/^\d+\.\d+\.\d+$/.test(skill.derivedFromVersion))
+    const native = skill.origin === "native";
+    const validSource = native
+      ? skill.sourcePath === `skills/${skill.id}` && /^\d+\.\d+\.\d+$/.test(skill.initialVersion ?? "") && !Object.hasOwn(skill, "derivedFromVersion") && !Object.hasOwn(skill, "derivedFromCommit")
+      : !Object.hasOwn(skill, "origin") && /^\d+\.\d+\.\d+$/.test(skill.derivedFromVersion ?? "");
+    if (!/^[a-z][a-z0-9-]*$/.test(skill.id) || ids.has(skill.id) || !validSource)
       throw new Error("静态 Skill 身份重复或缺少特化起点版本。");
     if (!files.has(`skills/${skill.id}/SKILL.md`)) throw new Error(`静态 Skill 缺少正文：skills/${skill.id}/SKILL.md`);
     ids.add(skill.id);

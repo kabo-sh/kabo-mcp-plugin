@@ -118,6 +118,12 @@
       "derivedFromVersion": "0.4.12",
       "sourcePath": "creator-skills/runtime/price-creator-brand-deals",
       "derivedFromCommit": "b6a65d4201d60d999075d2c5fe1038643cf724c7"
+    },
+    {
+      "id": "review-thumbnail",
+      "origin": "native",
+      "sourcePath": "skills/review-thumbnail",
+      "initialVersion": "0.1.0"
     }
   ]
 }

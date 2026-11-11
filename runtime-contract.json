@@ -22,7 +22,8 @@
     "verify-platform-rule",
     "optimize-creator-brand",
     "plan-content-calendar",
-    "price-creator-brand-deals"
+    "price-creator-brand-deals",
+    "review-thumbnail"
   ],
   "requiredTools": [
     "analyze_content_video",

@@ -7,7 +7,7 @@ import test from "node:test";
 import { packageFiles, checkPackage } from "./package-check.mjs";
 import { deterministicZip, validatePackage } from "./openai-plugin-package.mjs";
 
-const ids = ["analyze-content-video", "review-creator-account", "review-creator-account-deep", "create-script-and-packaging", "develop-content-ideas", "research-instagram-trends", "research-tiktok-trends", "research-youtube-trends", "analyze-creator-competitors", "analyze-tiktok-competitors", "remake-viral-video", "diagnose-reach-drop", "recommend-publish-timing", "plan-platform-monetization", "verify-platform-rule", "optimize-creator-brand", "plan-content-calendar", "price-creator-brand-deals"];
+const ids = ["analyze-content-video", "review-creator-account", "review-creator-account-deep", "create-script-and-packaging", "develop-content-ideas", "research-instagram-trends", "research-tiktok-trends", "research-youtube-trends", "analyze-creator-competitors", "analyze-tiktok-competitors", "remake-viral-video", "diagnose-reach-drop", "recommend-publish-timing", "plan-platform-monetization", "verify-platform-rule", "optimize-creator-brand", "plan-content-calendar", "price-creator-brand-deals", "review-thumbnail"];
 
 async function installed(t) {
   const temp = await mkdtemp(path.join(os.tmpdir(), "kabo-static-installed-"));

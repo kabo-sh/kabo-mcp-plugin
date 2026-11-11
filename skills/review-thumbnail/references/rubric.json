@@ -1,0 +1,45 @@
+{
+  "framework": "vidiq-ten-binary-v1",
+  "items": [
+    {
+      "id": "topic_match",
+      "label": "Topic Match"
+    },
+    {
+      "id": "emotion",
+      "label": "Emotional Triggers"
+    },
+    {
+      "id": "harmony",
+      "label": "Visual Harmony"
+    },
+    {
+      "id": "eye_catching",
+      "label": "Eye Catching Elements"
+    },
+    {
+      "id": "uncluttered",
+      "label": "Uncluttered Composition"
+    },
+    {
+      "id": "color_contrast",
+      "label": "Color And Contrast"
+    },
+    {
+      "id": "unique_concept",
+      "label": "Unique Concept"
+    },
+    {
+      "id": "execution",
+      "label": "Creative Execution"
+    },
+    {
+      "id": "curiosity",
+      "label": "Curiosity Elicitation"
+    },
+    {
+      "id": "resolution_aspect",
+      "label": "Resolution & Aspect Ratio"
+    }
+  ]
+}
