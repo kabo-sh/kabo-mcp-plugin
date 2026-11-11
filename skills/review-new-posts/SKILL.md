@@ -17,6 +17,11 @@ Designed for one scheduled run per day, and also on demand. Each run does two th
 2. **Account recap**, in every daily report: follower change, the last 7 days of posts against
    typical views, how each confirmed pillar is doing, and one concrete recommendation.
 
+**One part only.** The request may ask for one part. "New-post reviews only": do steps 1, 2, 3 and
+5, skip step 4, and when no review is due reply with one line that no post reached 24 hours today.
+"Account recap only": do steps 1, 2, 4 and 5 and skip the reviews in step 3 (still record a new
+post's pillar). With neither, do both.
+
 This usually runs from a schedule with nobody watching. **Ask no questions during the run.**
 Anything that would need the creator's confirmation is skipped and listed at the end ("skipped:
 …"). If a step fails, say which part could not be made and why, in one short message. When the host

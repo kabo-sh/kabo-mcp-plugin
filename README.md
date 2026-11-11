@@ -296,8 +296,8 @@ content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor resear
 diagnosis, publish-timing recommendations, platform monetization plans, official platform rule checks,
 brand identity options and media kits, content calendars, brand-deal pricing, and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 10 minutes or less
 (talking videos may cut to screen recordings or show a product) with the creator in it. Three more form a daily routine
-for a creator: `start-with-kabo` (first session: bind one public account, agree the niche and content pillars, offer two
-daily schedules), `pick-daily-viral-videos` (three viral picks a day matched to the pillars) and `review-new-posts`
+for a creator: `start-with-kabo` (first session: bind one public account, agree the niche and content pillars, give today's picks, offer three
+daily jobs), `pick-daily-viral-videos` (three viral picks a day matched to the pillars) and `review-new-posts`
 (a 24-hour review of each new post plus a daily account recap). See
 [skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
 same Skills.

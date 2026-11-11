@@ -1,20 +1,26 @@
 # Daily schedules by host
 
-Two recurring jobs, created with the host's own scheduled tasks and only after the creator agrees:
+Three recurring jobs, created with the host's own scheduled tasks and only after the creator agrees.
+Propose the times and the time zone (read it from the host or the computer); the creator confirms
+or changes them.
 
-1. **Morning picks** runs `pick-daily-viral-videos` once a day.
-2. **Daily review** runs `review-new-posts` once a day, after the creator usually posts.
+1. **Daily picks**, 8:00 by default, runs `pick-daily-viral-videos`.
+2. **New-post review**, 12:00 by default, runs `review-new-posts` for the reviews only.
+3. **Daily account review**, 20:00 by default, runs `review-new-posts` for the recap only.
 
-Ask for the time of day and the time zone, then use the host section below. Fill the brackets in
-these two instructions and use them as the task text:
+Use the host section below. Fill the brackets and use these as the task texts:
 
 > Every day at [time] [time zone], use the pick-daily-viral-videos skill for [platform] @[handle]
 > with the Kabo library in [workspace]. Ask me nothing. Send me the picks here. Never post, comment,
 > follow or message anyone.
 
 > Every day at [time] [time zone], use the review-new-posts skill for [platform] @[handle] with the
-> Kabo library in [workspace]. Ask me nothing. Send me the account recap and any new post reviews
-> here. Never post, comment or reply to anyone.
+> Kabo library in [workspace], new-post reviews only. Ask me nothing. Send me the review of each
+> post that passed 24 hours, or one line when there is none. Never post, comment or reply to anyone.
+
+> Every day at [time] [time zone], use the review-new-posts skill for [platform] @[handle] with the
+> Kabo library in [workspace], account recap only. Ask me nothing. Send me the account recap here.
+> Never post, comment or reply to anyone.
 
 Never tell the creator a schedule exists unless the host confirmed creating it. After creating one,
 read back its name and next run time from the host's answer. If the host cannot schedule tasks, use
@@ -43,7 +49,7 @@ it off.
 
 ## Grok Bot (routines)
 
-- A routine is created by asking the Bot in chat: send each of the two instructions above as the
+- A routine is created by asking the Bot in chat: send each of the instructions above as the
   request ("create a routine that ..."). There is no form to fill in.
 - Routines run in the cloud, so the creator's computer can be off. They use the time zone in the
   creator's Settings, so check that setting instead of repeating a time zone in the request.
@@ -71,11 +77,11 @@ it off.
   task page for a failed run before changing anything else.
 - The schedule uses the computer's own time zone, and a daily task starts a few minutes after the
   minute it was set for. Each run is a new session: write the workspace folder that holds
-  `kabo-library/` into the task text, as the two instructions above do.
+  `kabo-library/` into the task text, as the instructions above do.
 - A run can pause on a permission prompt when the task was not saved with the creator's approvals.
   If the first run produced nothing, ask the creator to open the task, run it once from its page and
   approve the Kabo tools; later runs reuse those approvals.
-- Do not use cloud routines for these two jobs: a cloud run starts on a fresh machine that has
+- Do not use cloud routines for these jobs: a cloud run starts on a fresh machine that has
   neither the creator's installed plugins nor `kabo-library/`.
 - A terminal-only setup has no lasting schedule: use the manual phrases at the end.
 
@@ -91,7 +97,7 @@ it off.
   the app running. It keeps the workspace and the library.
 - The desktop app's New task form asks for the task text, a repeat and a time in 15-minute steps. It
   has no folder field, so the folder that holds `kabo-library/` has to be in the task text, as the
-  two instructions above have it. Under Advanced, leave "run on this computer" on.
+  instructions above have it. Under Advanced, leave "run on this computer" on.
 - Creating a task does not run it: the app answers once to confirm, and the first run comes at the
   set time. A run starts within a few minutes of that time, sometimes a little before it, and posts
   into the task's own chat. To move a task, ask in that chat; the app states the next run and that
@@ -113,9 +119,10 @@ it off.
 
 ## When the host has no scheduled tasks
 
-Give the creator these two phrases to say once a day, and do not set anything up:
+Give the creator these phrases to say once a day, and do not set anything up:
 
 - Every morning: "Show me today's picks."
-- Every evening, or after posting: "Review my new posts."
+- A day after posting: "Review my new posts."
+- Every evening: "How is my account doing?"
 
 Say plainly that nothing runs on its own in this host.

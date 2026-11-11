@@ -1,6 +1,6 @@
 ---
 name: start-with-kabo
-description: "First session with Kabo for a creator: explain what Kabo does, bind one public Instagram, TikTok or YouTube account, read its recent posts, propose the creator's niche and 2-4 content pillars (from the saved Kabo profile when it exists) for them to confirm, then offer a daily picks run and a daily post-review run. Use for 'get me started', 'set me up', 'onboard me', 'what are my content pillars'. Not a full account review."
+description: "First session with Kabo for a creator: explain what Kabo does, bind one public Instagram, TikTok or YouTube account, read its recent posts, propose the creator's niche and 2-4 content pillars (from the saved Kabo profile when it exists) for them to confirm, give today's picks, then offer three daily jobs (picks, new-post review, account review). Use for 'get me started', 'set me up', 'onboard me', 'what are my content pillars'. Not a full account review."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, a persistent local workspace that later Skills reuse (without one the Skills run with less history), and script network access to kabo.sh and the signed storage.googleapis.com links Kabo results return. Kabo permissions: data; optional workspace:read to find a linked account, workspace:write only to link the account or save pillar edits when the creator agrees."
 allowed-tools: get_research_data_download get_research_data_job collect_account_history collect_video_media get_kabo_info list_connected_accounts get_creator_profile connect_public_account update_content_preferences
@@ -13,8 +13,10 @@ pillars, which schedule), so run it in the main thread. Only the reading steps (
 a foreground sub-agent, and the main thread must wait for its final result before replying; never
 run it in the background and promise the result later.
 
-In one run, in this order: introduce Kabo, bind one account, read its recent posts, agree the
-creator's niche and content pillars with them, offer two daily schedules, and offer today's picks.
+In one run, in this order: open in three short messages, bind one account, read its posts while
+saying what you see, agree the niche and content pillars, give today's picks, offer three daily
+jobs, and close in four lines. The creator should see a concrete fact about their own account
+within about a minute of naming it, and never wait in silence.
 
 ## Ground rules
 
@@ -27,34 +29,43 @@ creator's niche and content pillars with them, offer two daily schedules, and of
 - Nothing about the niche or pillars is final until the creator confirms it.
 - If a step fails, say which part of the library is missing and why; never present a partial
   library as complete.
+- **Choices.** Whenever the creator has to choose, give 2 to 4 options with the recommended one
+  first, and ask one question per message. Use the host's own choice control when it has one (in
+  Claude Code the ask-the-user question tool; Grok Bot turns a short closing question followed by
+  lettered options into buttons). Otherwise number the options so a reply of "1" is enough.
 
-## 1. Introduce Kabo
+## 1. Open in three short messages
 
-Before any tool call, say this in the creator's language, in about five short lines:
+Before any tool call, send three short messages in the creator's language, one or two sentences
+each (three short paragraphs on a host that sends a single reply):
 
-- Kabo finds videos that are breaking out inside your own content pillars, so you see what works
-  for people like you today.
-- It breaks down why a video worked, and writes scripts and packaging for your version of it.
-- It can remake a viral talking-head video with you in it, and it reviews your new posts.
-- Today we will connect your account, read your recent posts and agree on your niche and pillars;
-  then you choose two daily jobs: morning picks and a daily post review.
-- What Kabo does not do: it never posts, comments or messages anyone, and it reads public data
-  only, so private retention, reach and revenue stay unknown.
+1. Who Kabo is: it finds the videos that are breaking out in the creator's own kind of content and
+   helps them make their own version.
+2. What the next few minutes hold: Kabo looks at their account, says which kind of their content is
+   working, then gives today's three breakout videos.
+3. One question only: the account (step 2).
+
+Messages 1 and 2 are always sent, as the first thing in the run, also when the creator already
+named their account; in that case replace the question with one line naming the account you will
+read. Do not list every feature and do not recite limits here. The other Skills are introduced with the
+first picks, and a limit is stated when the creator asks for something Kabo does not do.
 
 ## 2. Bind one account
 
-- Call `get_kabo_info`, then `list_connected_accounts`. If an account is linked, use it; ask which
-  one only when several fit. If none is linked, ask for the platform and the public handle.
+- Call `get_kabo_info`, then `list_connected_accounts`. If one account is linked, name it and offer
+  "use this one" as the first option; ask which one only when several fit. If none is linked, ask
+  one question: the platform and the public handle.
 - One library holds one account. A creator with several platforms builds one library each; start
   with the platform they post on most. X (Twitter) is not supported yet: say so and ask for an
   Instagram, TikTok or YouTube account.
-- To save the account in Kabo, ask first. Only after the creator agrees, call
-  `connect_public_account` with `platform`, `handle_or_url` and an `idempotency_key` of the form
-  `library:<platform>:<handle>` (letters, digits, `.`, `_`, `:` and `-` only). It uses data
-  allowance and starts no official social login. Replacing an existing link needs the creator's
-  confirmation plus the current id and bindingVersion from `list_connected_accounts`. It needs
-  write access: if the host refuses it, continue with the handle locally and say the account is not
-  saved in Kabo (so the profile steps below use the posts instead).
+- Saving is not a separate question. In the message that confirms the account, say that it will be
+  kept in their Kabo, then call `connect_public_account` with `platform`, `handle_or_url` and an
+  `idempotency_key` of the form `library:<platform>:<handle>` (letters, digits, `.`, `_`, `:` and
+  `-` only), unless the creator objected. It uses data allowance and starts no official social
+  login. Replacing an existing link needs the creator's confirmation plus the current id and
+  bindingVersion from `list_connected_accounts`. It needs write access: if the host refuses it,
+  continue with the handle locally and say the account is not saved in Kabo (so the profile steps
+  below use the posts instead).
 
 ## 3. Read the account and build the library
 
@@ -106,11 +117,29 @@ multiple of the account's typical views (the median of posts at least 72 hours o
 `ingest` on an existing library only adds a new observation; it never resets the binding time.
 Photo and carousel posts have no views and are left out.
 
-**Transcripts.** Captions often carry only hashtags. Read transcripts for up to 8 posts (the 4 with
-the most views among settled posts and the 4 most recent):
+**Say what you see, at once.** The message right after `posts`, before any other call, must carry
+three numbers from its output and nothing about files or downloads: how many videos were read,
+their typical views (`typical_settled_views`), and the best post with its views and its multiple
+of typical. "I read your posts" alone is not this message. Send it as text to the creator before the next
+tool call, not as a note to yourself: the creator is waiting and this is the first thing that
+shows Kabo has read them. Each later reading step also gets one
+line that says what is being read, in the creator's terms.
+
+**First pillar, before any transcript.** Transcripts are slow, so the first pillar comes from what
+is already here: every post's title or caption and its views. Do step 4a (and 4b when Kabo has no
+profile) on the whole `posts` table now. Then send a message, before calling `collect_video_media`,
+that names the kind of their content that looks strongest, with how many posts it has and its
+multiple of typical views, and says you are now reading a few of those videos to check. This message is required too: a
+run that reaches the proposal in 4c without having sent these two messages did the step wrong.
+A pillar needs a real base: never propose one from fewer than 5 posts.
+
+**Transcripts for the posts that decide.** Captions often carry only hashtags, so read up to 8
+transcripts, chosen by what the first pass left open: the 3 posts with the most views in the first
+pillar, the 3 with the most views outside it, and the 2 most recent. Name them with `--content-id`
+(with none given, the script takes the 4 most viewed and the 4 most recent):
 
 ```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/creator_library.py' media-request --library '<library directory>'
+cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/creator_library.py' media-request --library '<library directory>' --content-id <id> --content-id <id>
 ```
 
 Call `collect_video_media` with the printed arguments, unchanged. The backend queues the jobs and
@@ -124,7 +153,9 @@ cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' t
 ```
 
 A post whose transcript failed or came back empty (no speech, music only) is a gap: use its caption
-and say so. The pillars below must not depend on a transcript you did not get.
+and say so. The pillars below must not depend on a transcript you did not get. Use the transcripts
+to correct the first pass (a cluster that mixes two subjects, a post in the wrong cluster) and to
+word each pillar's promise; rerun 4b when the clusters changed.
 
 ## 4. Niche and content pillars, confirmed by the creator
 
@@ -174,13 +205,15 @@ share of views, and a second pillar needs at least 20% of the views. Also write 
 from what the posts and transcripts actually say. `status: insufficient_history` means too few
 posts are 72 hours old: show the clusters without a recommendation and let the creator choose.
 
-**4c. Show and confirm.** Show the niche line and 2 to 4 candidate pillars. For each: its name, a
-one-line definition, its evidence (two example posts with links, its median views against the
-account's typical views, and its share: `share_of_posts` for a Kabo profile item is its share of
-the account's posts, while a cluster from 4b reports its share of views; name which one you are
-quoting) and, from 4b, why a cluster was not recommended. Say
-that a pillar the creator posts often but that usually does worse than typical is a finding, not a
-pillar. Then let the creator pick, rename, drop or add. Ask once, and do not save before they answer.
+**4c. Show and confirm, on one screen.** The niche in one line, then 2 to 4 pillars. Each pillar
+gets three things only: its name, one sentence of evidence in plain words ("20 of your videos,
+1.75 times your usual views"; say "share of your posts" for a Kabo profile item's `share_of_posts`
+and "share of your views" for a 4b cluster), and one example post as a link. Leave out the
+clusters that were not recommended, the rule and the search phrases; end with one line that the
+reasoning is available on request, and give it when asked. Then one question with options: keep
+these, keep only the first, or change something (rename, drop, add). That is the whole message:
+no other finding, no cluster that was not recommended, no caveat about the method; keep those for
+when the creator asks. Do not save before they answer.
 
 **4d. Save.** Write `confirmed.json` after they agree, with `"confirmed": true`, the niche and
 `niche_source` (`kabo_profile`, `posts` or `creator`), and 1 to 4 pillars (`id`, `name`,
@@ -205,43 +238,44 @@ it (read the profile first, pass `expected_version` and `basis`, confirm removal
 guesses with the creator, never change the closest item when nothing matches). Pillars the creator
 added stay in the library only. When write access is refused, say the edits are in the library only.
 
-## 5. Offer the two daily schedules
+## 5. Today's picks
 
-Explain both in plain words, then ask once:
+Before offering anything recurring, give the creator one real result: follow the
+`pick-daily-viral-videos` skill now for the confirmed pillars. With its picks, name in one line
+each what they can ask for next (a breakdown, a script, a remake). If it finds nothing that
+qualifies today, say so in one line and go on.
 
-- **Morning picks:** every day, three short videos from the last 7 days that match the confirmed
-  pillars and beat their own author's typical views by at least 2 times, each with why it fits and
-  what to do next with it. Uses data allowance once a day.
-- **Daily review:** once a day, a recap of the account (followers, the last 7 days against typical,
-  each pillar) and a review of every post that has passed 24 hours. Uses data allowance once a day.
+## 6. Offer three daily jobs, with times already filled in
 
-Ask for the time of day and the time zone. Read `references/host-schedules.md`, use the section for
-this host, and create the tasks with the host's own scheduled tasks only after the creator agrees.
-If the host offers a test run, offer it. Never say a schedule exists unless the host confirmed it,
-and tell the creator the next run time the host gave. If the host has no scheduled tasks, give the
-two phrases from the reference instead. Record the outcome:
+Propose all three in one short message, with a time each and the creator's time zone already
+filled in. Take the time zone from the host (its settings, or the computer's own zone); do not ask
+for it. Defaults:
+
+- **Daily picks**, 8:00: three breakout videos that match the pillars.
+- **New-post review**, 12:00: a review of each post that has passed 24 hours; one line when there
+  is none. A post is reviewed at the first check after its 24 hours, not at that exact minute.
+- **Daily account review**, 20:00: followers, the last 7 days against typical, each pillar, one
+  recommendation.
+
+Each run uses data allowance. One question with options: create all three at these times, change
+the times, or skip. Read `references/host-schedules.md`, use the section for this host, and create
+the tasks with the host's own scheduled tasks only after the creator agrees. Never say a schedule
+exists unless the host confirmed it, and tell the creator the next run time the host gave. If the
+host has no scheduled tasks, give the phrases from the reference instead. Record the outcome:
 
 ```sh
 cat > '<run directory>/schedule.json' <<'JSON'
-{"schedule": {"daily_picks": "<time and time zone, or none>", "daily_review": "<time and time zone, or none>"}}
+{"schedule": {"daily_picks": "<time and time zone, or none>", "new_post_review": "<time and time zone, or none>", "daily_review": "<time and time zone, or none>"}}
 JSON
 cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' set-profile --library '<library directory>' --profile schedule.json
 ```
 
-## 6. Deliver and offer today's picks
+## 7. Close in four lines
 
-One message, in the creator's language:
-
-1. The account bound, how many posts were read, how many transcripts, and whether it is saved in
-   Kabo.
-2. The confirmed niche and pillars, each with its evidence.
-3. The schedules agreed (or the two phrases), and that Kabo only reads: the creator posts, or
-   approves each post in a posting tool of their host.
-4. The limits: X is not supported, public metrics only, the library lives in this workspace and is
-   not shown in the Kabo web app.
-5. Close with the library path and one question: "Want today's picks now?" If yes, use the
-   `pick-daily-viral-videos` skill. If the creator asks to rebuild later, run steps 3 and 4 again
-   on the same library: the binding time stays and new observations are added.
+One short message, four lines at most: the account that is bound, the pillar names, the three jobs
+with their times (or that none was created), and what the creator can say next. No library path,
+no list of limits, nothing already said above. If the creator asks to rebuild later, run steps 3
+and 4 again on the same library: the binding time stays and new observations are added.
 
 ## Hosts without saved files
 
