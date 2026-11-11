@@ -32,6 +32,9 @@ every host.
   host: never read credentials or ask for tokens in chat.
 - If a step fails, say which part is missing and why in one line, and go on with the steps that do
   not need it.
+- **Questions.** Ask only the questions written in the steps below: the account, whether to link it,
+  the creator's niche when Kabo asks for it, the pillars and the schedule. The steps are the same for
+  every platform and every host.
 - **Choices.** Whenever the creator has to choose, give 2 to 4 options with the recommended one
   first, and ask one question per message. Use the host's own choice control when it has one (in
   Claude Code the ask-the-user question tool; Grok Bot turns a short closing question followed by
@@ -92,7 +95,8 @@ Every command here is complete as written: do not run scripts with `--help` or r
 Quote paths.
 
 Call `prepare_creator_profile` with `{"account_id": "<id>"}`. It is free, and it starts building only
-when the account has no profile yet. Save the complete result, as returned, to
+when the account has no profile yet: Kabo first works out the account's niche from its public posts,
+then builds the profile. Save the complete result, as returned, to
 `<run directory>/prepare-1.json` with the host's file-write tool (never as a command-line argument),
 then:
 
@@ -106,11 +110,21 @@ Do what its `action` says:
 - `wait`: send `tell_creator_now`, wait `wait_seconds` (for example `sleep <wait_seconds>` in the
   shell), call `prepare_creator_profile` again with the same arguments, save the result to
   `prepare-<n>.json` (the next number) and run `profile-status` on it with the `--attempt` and
-  `--waited` values from `next_flags`. The script caps the waiting: at most 4 more calls and at most
-  5 minutes in all, whichever comes first.
-- `continue_without_profile`: send `tell_creator_now` (not enough posts, the profile could not be
-  built, or it is still not ready when the waiting ends), skip step 4 and go to step 5. A `status`
-  this Skill does not know is handled the same way; `reported` holds what Kabo answered.
+  `--waited` values from `next_flags` (add `--niche-sent` when the niche was sent). Wait exactly
+  `wait_seconds`, which is Kabo's `retry_after_seconds`. The script caps the waiting: at most 8 more
+  calls and at most 8 minutes of waiting in all, whichever comes first.
+- `ask_niche`: Kabo could not work out the creator's niche from their posts. Send `tell_creator_now`
+  and ask `question`, as one question with no options. When the creator answers, call
+  `prepare_creator_profile` again with `{"account_id": "<id>", "niche": "<the creator's answer, in their
+  own words>"}`, save the result to the next `prepare-<n>.json` and run `profile-status` on it with
+  `--attempt 1 --waited 0 --niche-sent`; then follow its `action` as above. Never write the niche
+  yourself, from the posts or a guess. If the creator does not want to answer, say in one line that
+  there are no content pillars for now, skip step 4 and go to step 5. Ask this only once.
+- `continue_without_profile`: send `tell_creator_now` (not enough posts, the niche still could not be
+  placed after the creator's answer, the profile could not be built, or it is still not ready when
+  the waiting ends), skip step 4 and go to step 5. For a failure, `failure_code` says why: mention it
+  in plain words. A `status` this Skill does not know is handled the same way; `reported` holds what
+  Kabo answered. A tool error instead of a result (for example `not_found`) is a failure too.
 
 When the host cannot save files, read `status` and `retry_after_seconds` from the result yourself
 and keep to the same limits.

@@ -58,8 +58,9 @@ without calling Kabo; when that list is empty, say in one line that there were n
 
 ## 2. Ask Kabo for today's list
 
-Call `get_for_you_videos` with `{"account_id": "<id>"}`. Kabo pays for it; it uses none of the
-creator's allowance. Save the complete result, as returned, to `<run directory>/for-you-1.json` with
+Call `get_for_you_videos` with `{"account_id": "<id>"}`; always pass the id, because with several
+linked accounts and no id Kabo answers with a tool error (`validation_error`). Kabo pays for it; it
+uses none of the creator's allowance. Save the complete result, as returned, to `<run directory>/for-you-1.json` with
 the host's file-write tool (never as a command-line argument), then:
 
 ```sh
@@ -69,16 +70,20 @@ python3 '<skill directory>/scripts/creator_library.py' for-you --library '<libra
 Do what its `action` says:
 
 - `deliver`: go to step 3. The day is now recorded, even when no pick was left.
-- `wait`: Kabo is still preparing the list (this includes building the creator's profile). Wait
-  `wait_seconds` (for example `sleep <wait_seconds>` in the shell), call `get_for_you_videos` again
-  with the same arguments, save the result to `for-you-<n>.json` (the next number) and run `for-you`
-  on it with the `--attempt` and `--waited` values from `next_flags`. The script caps the waiting: at
-  most 4 more calls and at most 5 minutes in all, whichever comes first. Send `progress_line` only
+- `wait`: Kabo is still preparing the list (about 2 minutes, or 5 while it also builds the creator's
+  profile). Wait exactly `wait_seconds`, which is Kabo's `retry_after_seconds` (for example
+  `sleep <wait_seconds>` in the shell), call `get_for_you_videos` again with the same arguments, save
+  the result to `for-you-<n>.json` (the next number) and run `for-you` on it with the `--attempt` and
+  `--waited` values from `next_flags`. The script caps the waiting, in scheduled runs too: at most 3
+  more calls and at most 10 minutes of waiting in all, whichever comes first. Send `progress_line` only
   when the creator is in the conversation; a scheduled run sends nothing until the end.
 - `stop`: send `message`, in the creator's language, as the whole reply and end the run. It covers
   a list that is still not ready when the waiting ends ("the next run will bring them"), an account
-  Kabo cannot make picks for (`reason`) and a failed call. A `status` this Skill does not know is
-  treated as a failure; `reported` holds what Kabo answered, word for word.
+  Kabo cannot make picks for (`reason`: no linked account, no public videos, not enough known about
+  the niche, unknown language, or daily picks not available for this account) and a failed call
+  (`failure_code` says why; when `retryable` is true, it can be tried again later). A `status` or
+  `reason` this Skill does not know is reported as it is; `reported` holds what Kabo answered, word
+  for word. A tool error instead of a result (`validation_error`, `not_found`) is a failure too.
 
 A call that returns no result at all (the host or the network refused it) gets one retry with the
 same arguments; if that fails too, report the failed step in one short message and stop.
@@ -99,7 +104,7 @@ same arguments; if that fails too, report the failed step in one short message a
 
 One message in the creator's language. For each pick:
 
-1. The link, the author and the title (from `title`).
+1. The link, the author and the title (from `title`, which is the caption when the video has no title).
 2. The proof in plain words, from the output only: "1.2M views, #2 in Kabo's list of the last 7
    days for your niche". `window` is `7d`, `30d` or `24h` (the last 7 days, 30 days or 24 hours);
    leave out a number that is missing.
@@ -113,10 +118,11 @@ One message in the creator's language. For each pick:
    - **Write my version:** ask for `create-script-and-packaging` to write the script and packaging
      for their platform.
    - **Remake it with me in it:** `remake-viral-video` can remake a talking-head or voice-over video
-     of 10 minutes or less with their face and voice. Use `remake`: when it says "checked first", say
-     that before a remake Kabo checks whether this video qualifies, before any charge, and generation
-     starts only after they confirm; when it says not possible or not supported, say in a few words
-     that this one cannot be remade and offer the first two steps only.
+     of 10 minutes or less with their face and voice. Kabo's list gives no video length, so never
+     guess whether this one qualifies. Use `remake`: when it says "checked first", say that before a
+     remake Kabo checks whether this video qualifies, before any charge, and generation starts only
+     after they confirm; when it says not supported, say in a few words that this one cannot be
+     remade and offer the first two steps only.
    - **When you post it:** Kabo never publishes. The creator posts it themselves, or approves each
      post in a posting tool of their host. `review-new-posts` reviews the new post 24 hours after it
      is published.
@@ -129,7 +135,8 @@ and, in a host that keeps no files, that a video shown on an earlier day can com
 
 - Kabo's list holds public videos in the creator's niche and language, ranked by public views. It
   does not compare a video with its author's usual views and does not sort videos by content pillar.
-- Kabo refreshes the list about once a day. It stops refreshing after three days without a read; the
-  next call starts it again, and the picks may then take a few minutes.
+- Kabo makes the list at most once in any 24 hours and refreshes it on its own every 24 hours. It
+  stops refreshing after three days without a read; the next call starts it again, and the picks may
+  then take a few minutes.
 - You read titles and numbers; to see how a pick actually opens, `analyze-content-video` can analyze
   it.

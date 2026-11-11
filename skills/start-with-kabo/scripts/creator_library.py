@@ -43,8 +43,6 @@ LATE_AFTER_HOURS = 48.0
 SETTLED_HOURS = 72.0
 # 画像里的主打内容最多取 4 项作为支柱（与后台画像的上限一致）。
 MAX_PILLARS = 4
-# 复刻只接 10 分钟以内的口播或旁白视频（与 remake-viral-video 自己的上限一致）。
-REMAKE_MAX_SECONDS = 600
 # 照片、图文不是视频，没有播放量，不进素材库。
 NON_VIDEO_FORMATS = {"instagram_feed", "tiktok_photo"}
 USABLE_STATUSES = {"completed", "completed_partial"}
@@ -454,34 +452,50 @@ def cmd_profile_pillars(args):
 
 # ---------------------------------------------------------------- waiting on Kabo
 
-# 后台还在生成（画像或每日推荐）时按 retry_after_seconds 再查；总等待有上限，先到者为准：
-# 首次调用之后最多再查 4 次、累计等待最多 300 秒。宿主的单次命令与整次运行都有时限，不能无限等。
-POLL_MAX_RETRIES = 4
-POLL_MAX_WAIT_SECONDS = 300
-POLL_DEFAULT_WAIT = 60
-POLL_MIN_WAIT = 5
+# 后台还在生成时严格按 retry_after_seconds 再查，不缩短也不加长；总等待有上限，先到者为准。
+# 宿主的单次命令与整次运行都有时限，不能无限等。两处上限按后台的真实节奏定（kabo#2176）：
+# - 每日推荐：后台通常给 120 秒，补画像阶段给 300 秒。首次之后最多再查 3 次、累计最多 600 秒，
+#   正好容得下两次 300 秒的补画像等待；定时运行也用这个上限，超限就随下次运行送达。
+# - 画像：后台一档 60 秒，推断赛道加生成画像整条链路要几分钟。首次之后最多再查 8 次、累计最多 480 秒；
+#   超限就说稍后再看，引导对话继续往下走。
+# 下一次要等的时间会超出剩余额度时直接停，不提前去查（提前查只会再拿到一次 generating）。
+POLL_LIMITS = {"for_you": {"max_retries": 3, "max_wait": 600, "default_wait": 120},
+               "profile": {"max_retries": 8, "max_wait": 480, "default_wait": 60}}
 
 
-def poll_decision(payload, attempt, waited):
+def seconds(value):
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0 else None
+
+
+def poll_decision(payload, attempt, waited, limits):
     """Whether to call the tool again after a `generating` answer, and how long to wait first."""
     if attempt < 1 or waited < 0:
         fail("--attempt starts at 1 and --waited at 0")
-    retry_after = payload.get("retry_after_seconds")
-    wait = retry_after if isinstance(retry_after, (int, float)) and not isinstance(retry_after, bool) and retry_after > 0 else POLL_DEFAULT_WAIT
-    remaining = POLL_MAX_WAIT_SECONDS - waited
-    if attempt > POLL_MAX_RETRIES or remaining < POLL_MIN_WAIT:
+    wait = int(round(seconds(payload.get("retry_after_seconds")) or limits["default_wait"]))
+    if attempt > limits["max_retries"] or waited + wait > limits["max_wait"]:
         return {"action": "stop", "waited_seconds": waited, "calls": attempt}
-    wait = int(round(min(max(wait, POLL_MIN_WAIT), remaining)))
     return {"action": "wait", "wait_seconds": wait, "then": "call the same tool again with the same arguments",
             "next_flags": {"--attempt": attempt + 1, "--waited": waited + wait}}
 
 
 def status_of(payload, is_error):
-    # 宿主标了 isError、没有 status 或 status 不是字符串的，一律按失败处理，并把原样内容带回去报告。
+    # 宿主标了 isError（工具错误，如 validation_error、not_found）、没有 status 或 status 不是字符串的，
+    # 一律按失败处理，并把原样内容带回去报告。
     status = payload.get("status")
     if is_error or not isinstance(status, str) or not status:
         return "failed"
     return status
+
+
+def failure_detail(payload):
+    # failure_code 是契约字段；工具错误只有 message / error，宽容读取。
+    return (first_text(payload.get("failure_code")) or first_text(payload.get("message"))
+            or first_text(payload.get("error")))
+
+
+def reported(payload):
+    keys = ("status", "failure_code", "retryable", "retry_after_seconds", "reason", "error", "message")
+    return {key: payload.get(key) for key in keys if key in payload} or payload
 
 
 PROFILE_STATUS_LINES = {
@@ -491,12 +505,17 @@ PROFILE_STATUS_LINES = {
                 "ask me for your content pillars later."),
     "insufficient_posts": ("You don't have enough videos yet for Kabo to find your content pillars, so there are none for "
                            "now. I'll go on with the rest."),
+    "niche_required": "Kabo can't tell your niche from your public videos yet.",
+    "niche_question": "In one sentence, what is your content about?",
+    "niche_still_required": ("Kabo still can't place your content, so there are no content pillars for now. "
+                             "I'll go on with the rest."),
     "failed": "Kabo could not build your profile this time, so I can't show your content pillars now. I'll go on with the rest.",
+    "retryable": "This can be tried again later.",
 }
 
 
 def cmd_profile_status(args):
-    """What to do with a saved prepare_creator_profile result: read the profile, wait and ask again, or go on without it."""
+    """What to do with a saved prepare_creator_profile result: read the profile, wait, ask the niche, or go on without it."""
     payload, is_error = tool_payload(read_json(args.result))
     status = status_of(payload, is_error)
     result = {"status": status}
@@ -504,19 +523,30 @@ def cmd_profile_status(args):
         result.update({"action": "read_profile",
                        "then": "call get_creator_profile with include content_profile and effective true"})
     elif status == "generating":
-        decision = poll_decision(payload, args.attempt, args.waited)
+        decision = poll_decision(payload, args.attempt, args.waited, POLL_LIMITS["profile"])
         result.update(decision)
         if decision["action"] == "wait":
             result["tell_creator_now"] = PROFILE_STATUS_LINES["first_wait" if args.attempt == 1 else "wait"]
         else:
             result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["gave_up"]})
+    elif status == "niche_required" and not args.niche_sent:
+        # 后台从公开内容推断不出赛道：问创作者一句话，原话作为 niche 重试一次。模型不能替创作者编。
+        result.update({"action": "ask_niche", "tell_creator_now": PROFILE_STATUS_LINES["niche_required"],
+                       "question": PROFILE_STATUS_LINES["niche_question"],
+                       "then": "call prepare_creator_profile again with the same account_id and niche set to the "
+                               "creator's own words, then run profile-status with --attempt 1 --waited 0 --niche-sent"})
+    elif status == "niche_required":
+        result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["niche_still_required"]})
     elif status == "insufficient_posts":
-        result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["insufficient_posts"]})
+        result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["insufficient_posts"],
+                       "retry_after_seconds": seconds(payload.get("retry_after_seconds"))})
     else:
         # failed，以及契约之外的任何 status：按失败处理，原样带回，不自己推导画像。
-        result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["failed"],
-                       "reported": {key: payload.get(key) for key in ("status", "retryable", "error", "message", "reason")
-                                    if key in payload} or payload})
+        line = PROFILE_STATUS_LINES["failed"]
+        if payload.get("retryable") is True:
+            line += " " + PROFILE_STATUS_LINES["retryable"]
+        result.update({"action": "continue_without_profile", "tell_creator_now": line,
+                       "failure_code": failure_detail(payload), "reported": reported(payload)})
     say(result)
 
 
@@ -860,18 +890,11 @@ def cmd_evidence(args):
 
 # ---------------------------------------------------------------- daily picks
 
-def remake_note(platform, duration):
-    # 复刻只接 10 分钟以内的口播或旁白视频；是不是口播、多长，由复刻自己在收费前检查。
-    # 后台推荐不保证给时长：没有时长就只说「复刻前会先检查」，不臆测能不能复刻。
-    if platform is None:
+def remake_note(platform):
+    # 复刻只接 10 分钟以内的口播或旁白视频；后台推荐不给时长，是否符合条件由复刻自己在收费前检查，这里不臆测。
+    if platform is None or platform in ("instagram", "youtube", "tiktok"):
         return "checked first: before a remake, Kabo checks whether this video qualifies"
-    if platform not in ("instagram", "youtube", "tiktok"):
-        return "not supported for this platform"
-    if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration > REMAKE_MAX_SECONDS:
-        return f"not possible: longer than {REMAKE_MAX_SECONDS // 60} minutes"
-    if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration > 0:
-        return f"possible only if it is a talking-head or voice-over video ({int(duration)} seconds long); checked before any charge"
-    return "checked first: before a remake, Kabo checks whether this video qualifies"
+    return "not supported for this platform"
 
 
 # 每日推荐只取后台 get_for_you_videos 的结果：后台按「与账号同领域、语言匹配」筛选并按公开播放量排序，
@@ -885,6 +908,7 @@ FOR_YOU_NOT_ELIGIBLE = {
     "no_public_videos": "Kabo found no public videos on your account yet, so it can't pick videos in your niche. Picks start once you have posted.",
     "profile_insufficient": "Kabo doesn't know your niche well enough yet to pick videos for you; it needs more of your posts.",
     "language_unknown": "Kabo couldn't tell which language your videos are in, so it can't match picks to your audience yet.",
+    "unavailable": "Daily picks are not available for this account yet.",
 }
 
 
@@ -993,7 +1017,7 @@ def select_picks(payload, shown, own_handle, count):
                     "title": (first_text(row.get("title")) or first_text(row.get("caption")) or "")[:300],
                     "author_handle": first_text(row.get("author_handle")), "published_at": first_text(row.get("published_at")),
                     "content_id": str(row["content_id"]) if row.get("content_id") not in (None, "") else None,
-                    "remake": remake_note(platform_of(row), row.get("duration_seconds")),
+                    "remake": remake_note(platform_of(row)),
                     "keys": sorted(keys)})
     return chosen, skipped, sizes
 
@@ -1028,7 +1052,7 @@ def cmd_for_you(args):
             write_json(directory / "picks.json", history)
             result["recorded"] = True
     elif status == "generating":
-        decision = poll_decision(payload, args.attempt, args.waited)
+        decision = poll_decision(payload, args.attempt, args.waited, POLL_LIMITS["for_you"])
         result.update(decision)
         if decision["action"] == "wait":
             result["progress_line"] = "Kabo is still preparing today's picks for you."
@@ -1037,20 +1061,21 @@ def cmd_for_you(args):
     elif status == "not_eligible":
         reason = first_text(payload.get("reason")) or "unknown"
         result.update({"action": "stop", "reason": reason,
+                       # 距离可再次触发的秒数；没有绑定账号时为 null。
+                       "retry_after_seconds": seconds(payload.get("retry_after_seconds")),
                        "message": FOR_YOU_NOT_ELIGIBLE.get(reason, f"Kabo can't make picks for this account right now (reason: {reason}).")})
     else:
-        # failed，以及契约之外的任何 status：按失败处理，原样报告，不搜索、不兜底。
+        # failed、工具错误（validation_error、not_found），以及契约之外的任何 status：按失败处理，原样报告，不搜索、不兜底。
         retryable = payload.get("retryable") is True
-        detail = first_text(payload.get("message")) or first_text(payload.get("error")) or first_text(payload.get("reason"))
+        detail = failure_detail(payload)
         if status != "failed":
             message = f"Kabo returned an answer this Skill does not know (status: {status}), so there are no picks today."
-        elif retryable:
-            message = "Kabo could not make today's picks because of a temporary error; the next run will try again."
         else:
             message = "Kabo could not make today's picks" + (f" ({detail})." if detail else ".")
-        result.update({"action": "stop", "retryable": retryable, "message": message,
-                       "reported": {key: payload.get(key) for key in ("status", "retryable", "error", "message", "reason")
-                                    if key in payload} or payload})
+            if retryable:
+                message += " It can be tried again later; the next run will try again."
+        result.update({"action": "stop", "retryable": retryable, "failure_code": detail, "message": message,
+                       "reported": reported(payload)})
     say(result)
 
 
@@ -1075,6 +1100,7 @@ def build_parser():
     command.add_argument("--result", required=True)
     command.add_argument("--attempt", type=int, default=1)
     command.add_argument("--waited", type=int, default=0)
+    command.add_argument("--niche-sent", action="store_true")
     command = commands.add_parser("profile-pillars")
     command.add_argument("--profile", required=True)
     command = commands.add_parser("for-you")

@@ -7,7 +7,9 @@
 - 新增三个 Skill，组成创作者的日常流程（本仓原创，不是从 creator-skills 搬运；Skill 总数 18 → 21）：
   - `start-with-kabo`：创作者第一次用 Kabo。开场两条短消息加一个问题（问账号）；先看 `get_kabo_info` 与
     `list_connected_accounts`，未绑定的账号**先问一次**再用 `connect_public_account` 绑定；随后 `prepare_creator_profile`
-    让后台生成画像（生成中按 `retry_after_seconds` 等，首次之后最多再查 4 次、总等待不超过 5 分钟，等待时告诉创作者在做什么），
+    让后台推断赛道并生成画像（生成中严格按 `retry_after_seconds` 等，首次之后最多再查 8 次、总等待不超过 8 分钟，等待时告诉
+    创作者在做什么；后台推断不出赛道返回 `niche_required` 时，只问创作者一次、让其用一句话说明领域，原话作为 `niche` 重试，
+    模型不替创作者编；不愿回答或仍失败就说暂时没有支柱、继续往下走），
     就绪后用 `get_creator_profile`（`include: ["content_profile"]`、`effective: true`）读出赛道与支柱、整理成提案请创作者确认；
     改名、删除、合并用 `update_content_preferences` 存回 Kabo（暂不能新增支柱，如实说明）。作品不够或画像生成失败时如实说一句，
     流程照常往下走。之后给今天的推荐，再提三件宿主自己的定时任务（每日推荐 8:00、新内容 24 小时复盘 12:00、每日账号回顾 20:00，
@@ -16,7 +18,9 @@
     12 条）。插件只做展示上的限制：先 7 天窗按后台排名取，不够再用 30 天、24 小时补；跳过以前某天展示过的、创作者本人的、
     同一作者的第二条；不够就有几条给几条，不凑数。跨天去重靠库目录里的 `picks.json`，后台结果就绪的日子（含零条）都记下，
     同一天再跑原样重放。证据只用后台口径：播放量、所在时间窗的排名、后台给的理由。后台还在生成时有上限地等，仍未就绪、
-    `not_eligible`、`failed` 或未知 `status` 都一句话说明并结束，不搜索、不兜底。可无人值守。
+    `not_eligible`（含 `unavailable`：推荐暂未对该账号开放）、`failed`（转述 `failure_code`，`retryable` 时说明可稍后重试）、
+    工具错误或未知 `status` 都一句话说明并结束，不搜索、不兜底。生成中严格按 `retry_after_seconds` 等（通常 120 秒，后台补画像
+    时 300 秒），首次之后最多再查 3 次、总等待不超过 10 分钟，定时运行同样适用。可无人值守。
   - `review-new-posts`：一天一次（也可随时叫）。绑定时间之后发布、已满 24 小时、还没有 24 小时复盘的作品各复盘一次，与创作者自己
     更早的作品在同一年龄的读数比（至少 3 条才比）；1 小时与 7 天复盘可选。每份日报都带账号回顾：粉丝变化（有读数时）、近 7 天
     作品对比常规播放、每个支柱的表现（有支柱时）、一条具体建议。只用公开指标。没有本地库时自己建库（`bootstrap` 加首次
@@ -34,8 +38,9 @@
     0.8 倍与 20% 规则、`save-pillars` 本地保存支柱）与本地的每日推荐（`pick-request` / `candidates` / `pick`，即
     `collect_*_trend_candidates` 加 `enrich_*_shortlist` 与「作者常规播放 2 倍」筛选），改为调用后台的 `prepare_creator_profile`
     与 `get_for_you_videos`。同时删除 `posts`、`media-request`、`transcripts`、`set-profile` 命令，`path` 不再夹带开场白。
-  - **依赖尚未上线的后台工具**：`get_for_you_videos`、`prepare_creator_profile` 由 kabo 仓的 draft PR（分支
-    `feat/mcp-for-you-profile-20261111`）实现，目前不在 `/mcp-pub`，也不在本仓钉住的 `contracts/directory-mcp/` 里；
+  - **依赖尚未上线的后台工具**：`get_for_you_videos`（`workspace:read`）、`prepare_creator_profile`（`workspace:write`）由
+    kabo 仓的 draft PR #2176（分支 `feat/mcp-for-you-profile-20261111`）实现，插件已按其定稿契约对接（内联结果、字段固定全出现，
+    推荐条目没有时长字段，多账号未指定是工具错误 `validation_error`），目前不在 `/mcp-pub`，也不在本仓钉住的 `contracts/directory-mcp/` 里；
     因此它们只出现在两个 Skill 的 `allowed-tools`（`skills:lint` 会报「不在 /mcp-pub 工具清单中」，门禁未启用），还没有进
     `runtime-contract.json`（包检查要求它与钉住的契约一致）。后台上线后需要重新钉住契约、把两者加进 `runtime-contract.json`，
     并在真实宿主里验证，之后才能发布。插件按约定契约宽容读取：缺字段不崩，未知 `status` 按失败并原样报告。

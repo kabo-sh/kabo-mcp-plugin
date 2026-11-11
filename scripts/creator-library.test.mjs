@@ -109,6 +109,13 @@ test("三个 Skill 的说明不再引用已删除的命令、文件与本地推�
   assert.equal(run("opening").tell_creator_now.length, 2);
   assert.match(texts["start-with-kabo"], /two short messages and one question/);
   assert.doesNotMatch(texts["start-with-kabo"], /within about a minute|three short messages/);
+  // 后台推断不出赛道时只问创作者一次，原话带 niche 重试，模型不替创作者编。
+  assert.match(texts["start-with-kabo"], /"niche": "<the creator's answer, in their\s+own words>"/);
+  assert.match(texts["start-with-kabo"], /Never write the niche\s+yourself/);
+  assert.match(texts["start-with-kabo"], /--niche-sent/);
+  // 两处等待上限写在说明里，与脚本一致。
+  assert.match(texts["start-with-kabo"], /at most 8 more\s+calls and at most 8 minutes/);
+  assert.match(texts["pick-daily-viral-videos"], /at most 3\s+more calls and at most 10 minutes/);
   // 绑定前明确问一次。
   assert.match(texts["start-with-kabo"], /Ask before linking/);
   assert.doesNotMatch(texts["start-with-kabo"], /unless the creator objected/);
@@ -254,42 +261,71 @@ test("画像只整理后台结果：可见的主打内容按占比成为支柱�
   assert.match(refuse("profile-pillars", "--profile", empty).stderr, /refused/);
 });
 
-test("prepare_creator_profile：ready 去读画像；generating 按 retry_after 等、首次后最多再查 4 次且总等待不超过 300 秒；其余照常往下走", async t => {
+// prepare_creator_profile 的定稿出参（kabo#2176）：字段固定全出现，不适用时为 null。
+const prepared = (status, extra = {}) => ({ structuredContent: { status, account_id: "00000000-0000-4000-8000-000000000001",
+  job_id: null, failure_code: null, retryable: null, retry_after_seconds: null, ...extra } });
+
+test("prepare_creator_profile：ready 去读画像；generating 严格按 retry_after 等，首次后最多再查 8 次、总等待不超过 480 秒；niche_required 问一次领域后带 niche 重试；其余照常往下走", async t => {
   const temp = await workspace(t);
   const file = path.join(temp, "prepare.json");
   const status = async (value, ...flags) => { await writeFile(file, JSON.stringify(value)); return run("profile-status", "--result", file, ...flags); };
-  assert.equal((await status({ structuredContent: { status: "ready" } })).action, "read_profile");
-  const first = await status({ structuredContent: { status: "generating", retry_after_seconds: 45 } });
-  assert.deepEqual([first.action, first.wait_seconds, first.next_flags], ["wait", 45, { "--attempt": 2, "--waited": 45 }]);
+  assert.equal((await status(prepared("ready"))).action, "read_profile");
+  const first = await status(prepared("generating", { job_id: "job-1", retry_after_seconds: 60 }));
+  assert.deepEqual([first.action, first.wait_seconds, first.next_flags], ["wait", 60, { "--attempt": 2, "--waited": 60 }]);
   assert.match(first.tell_creator_now, /few minutes/);
-  // 没给 retry_after 时等 60 秒；剩余时间不够就只等剩下的。
-  assert.equal((await status({ status: "generating" }, "--attempt", "2", "--waited", "45")).wait_seconds, 60);
-  assert.equal((await status({ status: "generating", retry_after_seconds: 120 }, "--attempt", "3", "--waited", "250")).wait_seconds, 50);
-  // 第 5 次调用（首次之后已查 4 次）或总等待满 300 秒：不再等，带一句话往下走。
-  for (const flags of [["--attempt", "5", "--waited", "200"], ["--attempt", "2", "--waited", "298"]]) {
-    const stop = await status({ status: "generating", retry_after_seconds: 30 }, ...flags);
-    assert.equal(stop.action, "continue_without_profile");
-    assert.match(stop.tell_creator_now, /not ready yet/);
+  // 后台一档 60 秒：8 次再查正好 480 秒，第 8 次之后停。
+  let flags = { attempt: 1, waited: 0 }, waits = 0;
+  for (;;) {
+    const step = await status(prepared("generating", { retry_after_seconds: 60 }), "--attempt", String(flags.attempt), "--waited", String(flags.waited));
+    if (step.action !== "wait") { assert.equal(step.action, "continue_without_profile"); assert.match(step.tell_creator_now, /not ready yet/); break; }
+    waits += 1;
+    flags = { attempt: step.next_flags["--attempt"], waited: step.next_flags["--waited"] };
   }
-  const thin = await status({ status: "insufficient_posts" });
+  assert.deepEqual([waits, flags.waited], [8, 480]);
+  // 不缩短后台给的等待：剩余额度装不下下一次等待就停，不提前去查。
+  assert.equal((await status(prepared("generating", { retry_after_seconds: 120 }), "--attempt", "3", "--waited", "400")).action, "continue_without_profile");
+  // 没给 retry_after 时按 60 秒。
+  assert.equal((await status(prepared("generating"), "--attempt", "2", "--waited", "60")).wait_seconds, 60);
+
+  // niche_required：问一个问题；带了 niche 之后再遇到就不再问，往下走。
+  const ask = await status(prepared("niche_required"));
+  assert.equal(ask.action, "ask_niche");
+  assert.match(ask.tell_creator_now, /can't tell your niche/);
+  assert.match(ask.question, /one sentence/);
+  assert.match(ask.then, /niche set to the creator's own words.*--niche-sent/);
+  const again = await status(prepared("niche_required"), "--niche-sent");
+  assert.equal(again.action, "continue_without_profile");
+  assert.match(again.tell_creator_now, /no content pillars for now/);
+  // 带 niche 重试后又进入 generating：从头计数，照常轮询。
+  assert.equal((await status(prepared("generating", { retry_after_seconds: 60 }), "--attempt", "1", "--waited", "0", "--niche-sent")).action, "wait");
+
+  const thin = await status(prepared("insufficient_posts", { retry_after_seconds: 86000 }));
   assert.equal(thin.action, "continue_without_profile");
   assert.match(thin.tell_creator_now, /enough videos/);
-  const failed = await status({ status: "failed", retryable: true });
+  assert.equal(thin.retry_after_seconds, 86000);
+  const failed = await status(prepared("failed", { failure_code: "profile_build_failed", retryable: true, retry_after_seconds: 300 }));
   assert.equal(failed.action, "continue_without_profile");
-  assert.deepEqual(failed.reported, { status: "failed", retryable: true });
-  // 契约之外的 status 与宿主报错都按失败处理，原样带回。
+  assert.equal(failed.failure_code, "profile_build_failed");
+  assert.match(failed.tell_creator_now, /tried again later/);
+  assert.equal(failed.reported.failure_code, "profile_build_failed");
+  // 契约之外的 status 与工具错误都按失败处理，原样带回。
   const odd = await status({ status: "queued_somewhere" });
   assert.deepEqual([odd.status, odd.action, odd.reported.status], ["queued_somewhere", "continue_without_profile", "queued_somewhere"]);
-  assert.equal((await status({ isError: true, content: [{ type: "text", text: "boom" }] })).status, "failed");
+  const notFound = await status({ isError: true, content: [{ type: "text", text: "not_found: account is not yours" }] });
+  assert.deepEqual([notFound.status, notFound.failure_code], ["failed", "not_found: account is not yours"]);
 });
 
 // ---- 每日推荐：只读 get_for_you_videos 的结果，按 SKILL.md 写明的限制选 3 条。
 
 const video = (id, author, rank, extra = {}) => ({ content_id: id, url: `https://www.instagram.com/reel/${id}/`, platform: "instagram",
-  format: "reel", title: `title ${id}`, author_handle: author, published_at: "2026-11-05T10:00:00Z", views: 100000 - rank * 1000, rank,
+  format: "reel", title: `title ${id}`, caption: null, author_handle: author, published_at: "2026-11-05T10:00:00Z", views: 100000 - rank * 1000, rank,
   reason: `Popular in your niche (${id})`, ...extra });
-const ready = (windows, extra = {}) => ({ structuredContent: { status: "ready", windows, generated_at: "2026-11-11T00:00:00Z",
-  expires_at: "2026-11-12T00:00:00Z", next_refresh_at: "2026-11-12T00:00:00Z", ...extra } });
+// get_for_you_videos 的定稿出参（kabo#2176）：字段固定全出现，不适用时为 null；windows 三个键都在。
+const forYouResult = (status, extra = {}) => ({ structuredContent: { status, account_id: "00000000-0000-4000-8000-000000000001",
+  platform: "instagram", reason: null, failure_code: null, retryable: null, retry_after_seconds: null, generated_at: null,
+  expires_at: null, next_refresh_at: null, windows: null, ...extra } });
+const ready = (windows, extra = {}) => forYouResult("ready", { windows: { "7d": [], "30d": [], "24h": [], ...windows },
+  generated_at: "2026-11-11T00:00:00Z", expires_at: "2026-11-12T00:00:00Z", next_refresh_at: "2026-11-12T00:00:00Z", ...extra });
 
 test("每日推荐：7 天窗按排名优先，再用 30 天、24 小时补；跳过本人、同一作者、以前展示过的与跨窗重复；不凑数；零条的日子也记下", async t => {
   const temp = await workspace(t);
@@ -348,14 +384,14 @@ test("每日推荐：7 天窗按排名优先，再用 30 天、24 小时补；�
   const day4 = await forYou(ready({ "7d": [video("f", "phi", 1, { content_id: "" })] }), "2026-11-14");
   assert.deepEqual(day4.picks.map(pick => pick.url), ["https://www.instagram.com/reel/f/"]);
   assert.deepEqual(day4.picks[0].keys, ["url:instagram.com/reel/f"]);
-  // 有时长的才说长度；超过 10 分钟的说不能复刻；缺 platform 时从链接认。
-  const day5 = await forYou(ready({ "7d": [video("g", "g1", 1, { duration_seconds: 40, platform: undefined }), video("h", "h1", 2, { duration_seconds: 900 })] }), "2026-11-15");
+  // 契约没有时长：复刻一律「会先检查」；缺 platform 时从链接认；没有 title 时用 caption。
+  const day5 = await forYou(ready({ "7d": [video("g", "g1", 1, { platform: null, title: null, caption: "caption g" })] }), "2026-11-15");
   assert.equal(day5.picks[0].platform, "instagram");
-  assert.match(day5.picks[0].remake, /40 seconds long/);
-  assert.match(day5.picks[1].remake, /longer than 10 minutes/);
+  assert.equal(day5.picks[0].title, "caption g");
+  assert.match(day5.picks[0].remake, /checks whether this video qualifies/);
 });
 
-test("每日推荐的各 status：generating 有上限地等，not_eligible 与 failed 一句话结束；未知 status 按失败；都不记当天", async t => {
+test("每日推荐的各 status：generating 严格按 retry_after 有上限地等，not_eligible（含 unavailable）与 failed（转述 failure_code）一句话结束；工具错误与未知 status 按失败；都不记当天", async t => {
   const temp = await workspace(t);
   const library = path.join(temp, "lib");
   const result = path.join(temp, "for-you.json");
@@ -363,42 +399,49 @@ test("每日推荐的各 status：generating 有上限地等，not_eligible 与 
     await writeFile(result, JSON.stringify(value));
     return run("for-you", "--library", library, "--result", result, "--handle", "maker", "--date", "2026-11-11", "--write", ...flags);
   };
-  const waiting = await forYou({ structuredContent: { status: "generating", retry_after_seconds: 90 } });
-  assert.deepEqual([waiting.action, waiting.wait_seconds, waiting.next_flags], ["wait", 90, { "--attempt": 2, "--waited": 90 }]);
+  // 推荐：通常 120 秒，补画像时 300 秒；首次后最多再查 3 次、总等待不超过 600 秒。
+  const waiting = await forYou(forYouResult("generating", { retry_after_seconds: 120 }));
+  assert.deepEqual([waiting.action, waiting.wait_seconds, waiting.next_flags], ["wait", 120, { "--attempt": 2, "--waited": 120 }]);
   assert.match(waiting.progress_line, /still preparing/);
-  const gaveUp = await forYou({ status: "generating", retry_after_seconds: 90 }, "--attempt", "5", "--waited", "270");
+  // 两次 300 秒的补画像等待装得下，第三次装不下就停。
+  assert.equal((await forYou(forYouResult("generating", { retry_after_seconds: 300 }), "--attempt", "2", "--waited", "300")).wait_seconds, 300);
+  const overBudget = await forYou(forYouResult("generating", { retry_after_seconds: 300 }), "--attempt", "3", "--waited", "600");
+  assert.equal(overBudget.action, "stop");
+  const gaveUp = await forYou(forYouResult("generating", { retry_after_seconds: 120 }), "--attempt", "4", "--waited", "360");
   assert.equal(gaveUp.action, "stop");
   assert.match(gaveUp.message, /next run will bring them/);
-  const capped = await forYou({ status: "generating", retry_after_seconds: 90 }, "--attempt", "3", "--waited", "270");
-  assert.equal(capped.wait_seconds, 30);
 
   const expected = {
     no_linked_account: /No account is linked/, no_public_videos: /no public videos/, profile_insufficient: /more of your posts/,
-    language_unknown: /which language/, brand_new_reason: /reason: brand_new_reason/,
+    language_unknown: /which language/, unavailable: /not available for this account/, brand_new_reason: /reason: brand_new_reason/,
   };
   for (const [reason, pattern] of Object.entries(expected)) {
-    const answer = await forYou({ structuredContent: { status: "not_eligible", reason } });
+    const answer = await forYou(forYouResult("not_eligible", { reason, retry_after_seconds: reason === "no_linked_account" ? null : 3600 }));
     assert.deepEqual([answer.action, answer.reason], ["stop", reason]);
     assert.match(answer.message, pattern);
+    assert.equal(answer.retry_after_seconds, reason === "no_linked_account" ? null : 3600);
   }
-  const retryable = await forYou({ structuredContent: { status: "failed", retryable: true } });
-  assert.match(retryable.message, /temporary error/);
+  const retryable = await forYou(forYouResult("failed", { failure_code: "upstream_timeout", retryable: true, retry_after_seconds: 600 }));
+  assert.equal(retryable.failure_code, "upstream_timeout");
+  assert.match(retryable.message, /upstream_timeout.*tried again later/);
   const final = await forYou({ structuredContent: { status: "failed", retryable: false, message: "provider quota" } });
   assert.match(final.message, /provider quota/);
+  assert.doesNotMatch(final.message, /tried again/);
+  // 多账号未指定是工具错误 validation_error，不是某个 status。
+  const ambiguous = await forYou({ isError: true, content: [{ type: "text", text: "validation_error: account_id is required (acc-1, acc-2)" }] });
+  assert.deepEqual([ambiguous.status, ambiguous.action], ["failed", "stop"]);
+  assert.match(ambiguous.message, /validation_error/);
   const odd = await forYou({ structuredContent: { status: "paused", detail: 1 } });
   assert.deepEqual([odd.status, odd.action], ["paused", "stop"]);
   assert.match(odd.message, /status: paused/);
   assert.deepEqual(odd.reported, { status: "paused" });
-  const refused = await forYou({ isError: true, content: [{ type: "text", text: "Internal error" }] });
-  assert.equal(refused.status, "failed");
-  assert.match(refused.message, /Internal error/);
   const blank = await forYou({});
   assert.equal(blank.status, "failed");
   // 以上都不是 ready：今天没有记录，下次运行会再问后台。
   assert.equal(run("picks", "--library", library, "--date", "2026-11-11").checked, false);
   await assert.rejects(access(path.join(library, "picks.json")));
-  // ready 但窗口缺失：零条，照样记下今天。
-  const empty = await forYou({ status: "ready" });
+  // ready 但 windows 为 null：零条，照样记下今天。
+  const empty = await forYou(forYouResult("ready"));
   assert.deepEqual([empty.found, empty.recorded, empty.window_sizes], [0, true, { "7d": 0, "30d": 0, "24h": 0 }]);
 });
 

@@ -319,8 +319,8 @@ which were shown. `review-new-posts` builds its own library from the account's p
 Skills are written to run unattended from a host's own scheduled tasks and never post, comment or message anyone.
 Host-specific scheduling notes live in `skills/start-with-kabo/references/host-schedules.md`.
 
-`get_for_you_videos` and `prepare_creator_profile` are not yet on `/mcp-pub` or in the pinned tool list
-(`contracts/directory-mcp/`). Until Kabo releases them and the contract is pinned again, `start-with-kabo` cannot
+`get_for_you_videos` and `prepare_creator_profile` (kabo-sh/kabo#2176) are not yet on `/mcp-pub` or in the pinned
+tool list (`contracts/directory-mcp/`). Until Kabo releases them and the contract is pinned again, `start-with-kabo` cannot
 show pillars or picks and `pick-daily-viral-videos` cannot run; these Skills have been tested offline only for this
 change.
 
