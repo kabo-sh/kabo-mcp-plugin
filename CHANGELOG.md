@@ -2,6 +2,16 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.41（2026-11-12；GitHub Release）
+
+- `remake-viral-video` 支持用户给的**本地**视频与照片（mp4/mov/m4v/webm ≤200 MB、JPEG/PNG ≤10 MB）：`upload-call` 生成
+  `upload_file` 入参（文件名按内容摘要命名，不外传用户文件名）→ `upload` 把字节传到 `upload_file` 返回的签名存储链接（一次 POST
+  开可续传会话、一次 PUT 传完；只照发签名头）→ `upload_file` 只带 `file_id` 核对，得到 `kabo-file:<id>`，可放在参考、本人视频、
+  照片、参考视频与参考图任一链接位置。依赖 kabo#2184（`/mcp-pub` 新增 `upload_file`，`start_remake_video` / `start_video_project`
+  收 `kabo-file:` 引用）；`contracts/directory-mcp` 重新钉到 kabo da94908。新增 `references/local-files.md`，Skills 规范 KS7.3 补上传这一条网络路径。
+- 验收：Pre 上 Codex 0.163 端到端实测——本地照片 + 本地视频 → 逐步项目 → 免费 trim → 交付 MP4 通过；本地参考 + 本地本人视频 →
+  整条复刻到 waiting_script、简报（含参考片 ASR 原文）落盘通过。
+
 ## 1.0.40（2026-11-12；GitHub Release）
 
 - `start-with-kabo` 恢复本地提议支柱，创作者确认后**整份同步到 Kabo 一次**，Kabo 成为支柱的唯一存放处：
