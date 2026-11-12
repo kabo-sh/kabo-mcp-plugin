@@ -188,10 +188,11 @@ Place scripts in `scripts/`. There are no strict general constraints, but script
   and state the limitations honestly, as required by KS2.3.
 - **KS7.3** (audit): Network access is limited to Kabo's own domains and signed download URLs on
   `storage.googleapis.com` returned by Kabo tools (GET only, exact hostname match, no redirects).
+  The one exception is the upload of a local file the user gave (below).
   - The latter is a server-side design decision: GCS signed URLs need no additional IAM setup and
     reuse the signing approach already in production. Routing downloads through a Kabo domain would
     require new keys and gateway changes, with the sole benefit of keeping network access on Kabo domains.
-  - Network access occurs in only two places, both in each skill's `scripts/static_host.py`:
+  - Network access occurs in only these places, all in each skill's `scripts/static_host.py`:
     - `fetch --input`: read signed URLs only from tool results (a file or stdin, never argv). Match
       the scheme and hostname exactly, treat 3xx responses as failures, cap reads at the declared
       `bytes` and verify sha256 while streaming. Write nothing if verification fails. Errors and
@@ -211,8 +212,15 @@ Place scripts in `scripts/`. There are no strict general constraints, but script
     re-signing itself fails (`not_found` / `service_unavailable`) should the original tool be called
     again with `"delivery": "download"` (which reruns the operation). Re-signing does not introduce
     another network access path: it still uses a signed URL returned by a Kabo tool.
+  - `upload --file --input` (remake-viral-video only, 2026-11-12): sends one local video or photo the
+    user gave to the signed `storage.googleapis.com` upload link a `start_file_upload` result returned
+    (read from a file or stdin, never argv). One POST opens the resumable session with exactly the
+    signed headers (any other header, such as Authorization, is refused), then one PUT sends the file's
+    bytes to the session link, which must also be on `storage.googleapis.com`. No redirects. Errors and
+    output must not repeat URLs, signatures or object names; the user's file name is never sent (the
+    upload is named by the file's sha256). `finish_file_upload` then checks size and type on the server.
   - Lint flags network-library usage for audit but does not check hostnames. PR review must verify
-    that there is no network access beyond the two paths above.
+    that there is no network access beyond the paths above.
 - **KS7.4** (audit): Keep executable scripts under `scripts/`.
 
 ### KS8 Data ingestion (guidance, not validated by scripts)

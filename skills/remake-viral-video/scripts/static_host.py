@@ -16,9 +16,14 @@ Commands:
   finish-call    print the finish_video_project arguments for one finished handle
   fetch-step     save the file the last step produced (its preview), from a get_remake_video result with project
   fetch-revision save the newest revision of the finished video (after an edit or finish_video_project)
+  upload-call    check one local video or photo the user gave and print the start_file_upload arguments
+  upload         send that file's bytes to the signed upload link a start_file_upload result returned, then
+                 print the finish_file_upload arguments
 
-The only network access is `fetch` / `fetch-preview` / `fetch-step` / `fetch-revision`: one GET per signed storage.googleapis.com link that a Kabo tool
-result returned, checked against the declared bytes and sha256 before anything is kept.
+Network access: `fetch` / `fetch-preview` / `fetch-step` / `fetch-revision` make one GET per signed storage.googleapis.com
+link that a Kabo tool result returned, checked against the declared bytes and sha256 before anything is kept;
+`upload` makes one POST (opens the resumable session) and one PUT (the file's bytes) to the signed
+storage.googleapis.com link a start_file_upload result returned.
 """
 from __future__ import annotations
 
@@ -83,6 +88,15 @@ TIKTOK_CODE = re.compile(r"^[A-Za-z0-9]{5,20}$")
 CREATOR_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 LANGUAGE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 HANDLE = re.compile(r"^@?[A-Za-z0-9._]{1,30}$")
+FILE_REF_RE = re.compile(r"^kabo-file:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", re.IGNORECASE)
+# 本地文件上传（start_file_upload / finish_file_upload）：类型与上限同 Kabo 用户文件策略；照片只收复刻认的 JPEG / PNG。
+UPLOAD_VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".m4v": "video/x-m4v", ".webm": "video/webm"}
+UPLOAD_IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+UPLOAD_VIDEO_MAX_BYTES = 200 * 1000 * 1000
+UPLOAD_IMAGE_MAX_BYTES = 10 * 1000 * 1000
+# 签名上传只照发服务端签进去的这几个头；多出任何头（尤其 Authorization）都拒绝。
+UPLOAD_HEADERS = frozenset({"content-type", "x-goog-resumable", "x-goog-if-generation-match", "x-goog-content-length-range"})
+UPLOAD_TIMEOUT = 900
 KEY_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:._-")
 KEY_LIMIT = 128
 
@@ -132,15 +146,26 @@ def write_new(path, body):
 
 # ---------------------------------------------------------------- start-call
 
+def _file_ref(raw):
+    """kabo-file:<uuid>（finish_file_upload 给的已传完的本地文件）规范成小写；不是这种写法返回 None。"""
+    value = (raw or "").strip() if isinstance(raw, str) else ""
+    match = FILE_REF_RE.match(value)
+    return f"kabo-file:{match.group(1).lower()}" if match else None
+
+
 def _url(raw, role):
     if not isinstance(raw, str) or not raw.strip():
         raise ValueError(f"{role} link is empty")
+    ref = _file_ref(raw)
+    if ref:
+        return ref
     url = raw.strip()
     parts = urlsplit(url)
     host = (parts.hostname or "").lower()
     if parts.scheme != "https" or host not in YOUTUBE_HOSTS | INSTAGRAM_HOSTS | TIKTOK_HOSTS | TIKTOK_SHORT_HOSTS \
             or parts.username or parts.port:
-        raise ValueError(f"{role} must be an https YouTube, Instagram or TikTok video link")
+        raise ValueError(f"{role} must be an https YouTube, Instagram or TikTok video link, or kabo-file:<id> "
+                         "from finish_file_upload for a local file (run upload-call first)")
     if not parts.path.strip("/"):
         raise ValueError(f"{role} must link to one video, not a home page")
     if any(ord(char) <= 32 or ord(char) == 127 for char in url):
@@ -162,6 +187,9 @@ def _url(raw, role):
 
 def _same_video(a, b):
     # 同一条视频不能同时当参考和创作者素材；按主机族、路径与 YouTube 的 v 参数比较。
+    if a.startswith("kabo-file:") or b.startswith("kabo-file:"):
+        return a == b
+
     def key(url):
         parts = urlsplit(url)
         host = (parts.hostname or "").lower()
@@ -204,10 +232,14 @@ VOICE_PRESETS = {
 
 
 def _photo_url(raw):
+    ref = _file_ref(raw)
+    if ref:
+        return ref
     url = (raw or "").strip()
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https") or not parts.hostname or parts.username or parts.password:
-        raise ValueError("Each --creator-photo must be a public http(s) link to a JPEG or PNG image")
+        raise ValueError("Each --creator-photo must be a public http(s) link to a JPEG or PNG image, or kabo-file:<id> "
+                         "from finish_file_upload for a local photo (run upload-call first)")
     if any(ord(char) <= 32 or ord(char) == 127 for char in url):
         raise ValueError("A --creator-photo link contains spaces or control characters")
     return url
@@ -1344,6 +1376,133 @@ def fetch_review(run, bundle):
             "files": {name: str(target / "brief" / name) for name in REVIEW_FILES}}
 
 
+# ---------------------------------------------------------------- local files
+# 用户给的本地视频 / 照片：start_file_upload 拿一条签名上传链接，upload 把字节传上去，finish_file_upload 核对后
+# 给出 kabo-file:<id>，它能放在任何收链接的位置（参考、本人视频、照片、参考图）。文件名不外传，只用摘要命名。
+
+
+def _local_file(path):
+    file = Path(path).expanduser()
+    if not file.is_file():
+        raise ValueError(f"--file is not a readable file: {path}")
+    ext = file.suffix.lower()
+    if ext in UPLOAD_VIDEO_TYPES:
+        kind, limit = "video", UPLOAD_VIDEO_MAX_BYTES
+    elif ext in UPLOAD_IMAGE_TYPES:
+        kind, limit = "image", UPLOAD_IMAGE_MAX_BYTES
+    else:
+        raise ValueError("--file must be a video (" + ", ".join(sorted(UPLOAD_VIDEO_TYPES)) + ") or a JPEG / PNG photo")
+    size = file.stat().st_size
+    if size <= 0:
+        raise ValueError("--file is empty")
+    if size > limit:
+        raise ValueError(f"--file is {size / 1e6:.1f} MB; Kabo takes {kind}s of at most {limit // 1000000} MB. "
+                         "Ask the user for a shorter or smaller file, or a public link")
+    hasher = hashlib.sha256()
+    with file.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return file, ext, kind, size, hasher.hexdigest()
+
+
+def upload_call(path, attempt):
+    """start_file_upload 的入参：文件名用内容摘要命名（不外传用户的文件名），幂等键绑定文件内容。"""
+    _file, ext, kind, size, digest = _local_file(path)
+    arguments = {"filename": f"{kind}-{digest[:16]}{ext}", "size_bytes": size}
+    key = _key("start_file_upload", {**arguments, "sha256": digest}, attempt)
+    return {"tool": "start_file_upload", "arguments": {**arguments, "idempotency_key": key}}
+
+
+def _structured(raw, tool):
+    if len(raw) > MAX_RESULT_BYTES:
+        raise ValueError(f"The {tool} result is larger than expected")
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError(f"The complete {tool} result must be a JSON object")
+    if value.get("isError") and "structuredContent" not in value:
+        blocks = value.get("content") if isinstance(value.get("content"), list) else []
+        text = " ".join(b["text"] for b in blocks if isinstance(b, dict) and isinstance(b.get("text"), str))
+        raise ValueError(f"{tool} returned an error: " + (text.strip()[:300] or "no message"))
+    structured = value.get("structuredContent", value)
+    if "content" in value and "structuredContent" not in value:
+        blocks = value["content"]
+        if not isinstance(blocks, list) or not blocks or not isinstance(blocks[0], dict) \
+                or not isinstance(blocks[0].get("text"), str):
+            raise ValueError(f"The complete structured {tool} result is required")
+        structured = json.loads(blocks[0]["text"])
+    if not isinstance(structured, dict):
+        raise ValueError(f"This is not a {tool} result")
+    return structured
+
+
+def _signed_storage(url):
+    return (isinstance(url, str) and url.startswith(DOWNLOAD_PREFIX) and urlsplit(url).netloc == DOWNLOAD_HOST
+            and not any(ord(char) <= 32 or ord(char) == 127 for char in url))
+
+
+UPLOAD_RESIGN = ("Call start_file_upload again with the same arguments (that signs a new link; the upload is not "
+                 "duplicated), save its complete result and run upload on it right away")
+
+
+def upload(raw, path):
+    """把本地文件传到 start_file_upload 给的签名链接：一次 POST 开可续传会话，一次 PUT 传完整字节。"""
+    structured = _structured(raw, "start_file_upload")
+    file_id = structured.get("file_id")
+    if not isinstance(file_id, str) or not JOB_ID_RE.match(file_id):
+        raise ValueError("This start_file_upload result has no file_id")
+    file, _ext, _kind, size, _digest = _local_file(path)
+    ref = f"kabo-file:{file_id.lower()}"
+    if structured.get("status") == "ready":
+        # 同一个文件已经传完并核对过（同键重放），不用再传。
+        return {"status": "ready", "file_ref": ref,
+                "next": f"Use {ref} wherever this file goes (a reference, creator video or photo, or reference image)"}
+    instruction = structured.get("upload")
+    if structured.get("status") != "upload_required" or not isinstance(instruction, dict):
+        raise ValueError("This start_file_upload result has no upload instruction")
+    url, headers = instruction.get("url"), instruction.get("headers") or {}
+    if str(instruction.get("method", "")).upper() != "POST" or not _signed_storage(url):
+        raise ValueError("The upload link is not a Kabo signed storage link; refusing to use it")
+    if not isinstance(headers, dict) or any(not isinstance(k, str) or not isinstance(v, str)
+                                            or k.lower() not in UPLOAD_HEADERS for k, v in headers.items()):
+        raise ValueError("The upload instruction asks for headers other than the signed ones; refusing to use it")
+    if expired({"expires_at": instruction.get("expires_at")}):
+        raise ValueError("The upload link expired. " + UPLOAD_RESIGN)
+    opener = build_opener()
+    # 报错只说类别与状态码：异常文本可能带链接、签名或对象名，一律不转述。
+    try:
+        with opener.open(urllib.request.Request(url, data=b"", method="POST", headers=headers),
+                         timeout=DOWNLOAD_TIMEOUT) as response:
+            status, session = response.status, response.headers.get("Location")
+    except urllib.error.HTTPError as error:
+        status, session = error.code, None
+        error.close()
+    except Exception as error:
+        raise ValueError(f"Opening the upload failed ({type(error).__name__}). If this host blocks network access "
+                         "for scripts, say the local file cannot be sent from here and ask for a public link") from None
+    if status in (400, 401, 403):
+        raise ValueError(f"The upload link expired or was refused (HTTP {status}). " + UPLOAD_RESIGN)
+    if status == 412:
+        raise ValueError("This upload was already sent. Call finish_file_upload with this file_id")
+    if status not in (200, 201) or not _signed_storage(session):
+        raise ValueError(f"Opening the upload failed (HTTP {status}). " + UPLOAD_RESIGN)
+    try:
+        with file.open("rb") as stream:
+            request = urllib.request.Request(session, data=stream, method="PUT",
+                                             headers={"Content-Length": str(size)})
+            with opener.open(request, timeout=UPLOAD_TIMEOUT) as response:
+                status = response.status
+    except urllib.error.HTTPError as error:
+        status = error.code
+        error.close()
+    except Exception as error:
+        raise ValueError(f"Sending the file failed ({type(error).__name__}). " + UPLOAD_RESIGN) from None
+    if status not in (200, 201):
+        raise ValueError(f"Sending the file failed (HTTP {status}). " + UPLOAD_RESIGN)
+    return {"status": "uploaded", "tool": "finish_file_upload", "arguments": {"file_id": file_id.lower()},
+            "next": f"Call finish_file_upload with these arguments; once it says ready, use {ref} wherever this "
+                    "file goes"}
+
+
 def fetch(raw):
     run = run_dir()
     structured = tool_result(raw)
@@ -1399,6 +1558,13 @@ def main():
     command.add_argument("--job-id", required=True)
     command.add_argument("--handle", required=True)
     command.add_argument("--attempt", type=int, default=1)
+    command = commands.add_parser("upload-call")
+    command.add_argument("--file", required=True)
+    command.add_argument("--attempt", type=int, default=1)
+    # 签名上传链接只从完整结果文件或 stdin 读，不进 argv。
+    command = commands.add_parser("upload")
+    command.add_argument("--file", required=True)
+    command.add_argument("--input", default="-")
     args = parser.parse_args()
     if args.command == "init":
         print(init(args.workspace))
@@ -1417,13 +1583,17 @@ def main():
         print(json.dumps(edit_call(args.job_id, args.edits, args.attempt), ensure_ascii=False))
     elif args.command == "finish-call":
         print(json.dumps(finish_call(args.job_id, args.handle, args.attempt), ensure_ascii=False))
+    elif args.command == "upload-call":
+        print(json.dumps(upload_call(args.file, args.attempt), ensure_ascii=False))
     else:
         if args.input == "-":
             raw = sys.stdin.buffer.read(MAX_RESULT_BYTES + 1)
         else:
             with open(args.input, "rb") as stream:
                 raw = stream.read(MAX_RESULT_BYTES + 1)
-        if args.command == "fetch-preview":
+        if args.command == "upload":
+            print(json.dumps(upload(raw, args.file), ensure_ascii=False))
+        elif args.command == "fetch-preview":
             print(json.dumps(fetch_preview(run_dir(), tool_result(raw)), ensure_ascii=False))
         elif args.command == "fetch-step":
             print(json.dumps(fetch_step(run_dir(), tool_result(raw)), ensure_ascii=False))
