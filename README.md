@@ -2,7 +2,7 @@
 
 Kabo helps you research public creator accounts, compare competitors, find trends, analyze videos,
 develop content ideas and scripts, and remake a viral talking-head video with you in it. This
-repository contains one plugin: a `kabo` MCP connection, eighteen bundled Skills, and the metadata
+repository contains one plugin: a `kabo` MCP connection, twenty-one bundled Skills, and the metadata
 needed by each host. The AI host runs the workflows and writes
 reports; Kabo provides the data tools. The plugin does not hand work to Kabo's web agent, download
 Skills at runtime, or register lifecycle hooks.
@@ -16,8 +16,9 @@ review and production acceptance remain separate from this GitHub release.
 
 | Your setup | Install |
 | --- | --- |
-| You already connected Kabo MCP in your AI host | [Skills only](#skills-only): use Git, ZIP or the optional skills CLI to add the eighteen workflows and keep your existing connection. |
+| You already connected Kabo MCP in your AI host | [Skills only](#skills-only): use Git, ZIP or the optional skills CLI to add the twenty-one workflows and keep your existing connection. |
 | You want the MCP connection and workflows together | [Full plugin](#installation-and-authentication): use your host's plugin installer. |
+| You want your AI assistant to install Kabo for you (Grok Bot, Muse and other assistants without a plugin installer) | Paste this to the assistant: "Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable/INSTALL.md, then get me started." See [INSTALL.md](INSTALL.md). |
 
 [MCP setup and Skills guide](https://kabo.sh/docs/mcp#skills) ·
 [Latest release and ZIP download](https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest)
@@ -264,7 +265,7 @@ Normal update commands:
 
 The connection and OAuth resource stay at `/mcp-pub` when moving from the old 3.0.1 or 3.1.x versions.
 Renumbering alone does not change authorization. Older installations using `/mcp-directory` must
-reauthorize for `/mcp-pub`. The current package has eighteen fixed Skills, downloads full evidence, and
+reauthorize for `/mcp-pub`. The current package has twenty-one fixed Skills, downloads full evidence, and
 stores raw tool results in each run's `host-results/` directory. The old dynamic menu, channel switch,
 download cache and Node runner are no longer included. Validate in a separate workspace before
 updating the existing `kabo` entry. Old research directories are not migrated or deleted automatically.
@@ -283,17 +284,22 @@ mcp.json                        # Production MCP connection
 .claude-plugin/marketplace.json  # Claude Code marketplace (not included in the ZIP)
 .agents/plugins/marketplace.json # Codex marketplace (not included in the ZIP)
 .mcp.json                       # Claude Code HTTP MCP configuration
-skills/                         # Eighteen complete Skills and their resources
+skills/                         # Twenty-one complete Skills and their resources
 skills.lock.json                # Original Skill source and versions
 runtime-contract.json           # Fixed tool and Skill inventory
+INSTALL.md                      # Installation steps written for an AI assistant to follow
 CHANGELOG.md                    # Version history (Chinese)
 ```
 
-The eighteen Skills cover video analysis, standard and deep account reviews, scripts and packaging,
+The twenty-one Skills cover video analysis, standard and deep account reviews, scripts and packaging,
 content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor research, reach-drop
 diagnosis, publish-timing recommendations, platform monetization plans, official platform rule checks,
-brand identity options and media kits, content calendars, brand-deal pricing, and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 90 seconds or less
-(talking videos may cut to screen recordings or show a product) with the creator in it. See
+brand identity options and media kits, content calendars, brand-deal pricing, and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 10 minutes or less
+(talking videos may cut to screen recordings or show a product) with the creator in it. Three more form a daily routine
+for a creator: `start-with-kabo` (first session: link one public account, have Kabo build the creator's profile and confirm the
+niche and content pillars it found, give today's picks, offer three daily jobs), `pick-daily-viral-videos` (three picks a day
+from Kabo's daily "for you" list, never repeated) and `review-new-posts` (a 24-hour review of each new post plus a daily
+account recap). See
 [skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
 same Skills.
 
@@ -303,6 +309,20 @@ Current release acceptance focuses on short-window content-language checks and u
 `verify-platform-rule` needs the `official_page_render_page` tool on `/mcp-pub` (restored by kabo#1817).
 `optimize-creator-brand`, `plan-content-calendar` and `price-creator-brand-deals` are ported from
 creator-skills; their cross-host acceptance is pending.
+
+`start-with-kabo`, `pick-daily-viral-videos` and `review-new-posts` keep their state in the workspace
+(`kabo-library/<platform>-<handle>/`) through a shared `creator_library.py`; the three copies are identical. The
+creator's profile (niche and content pillars) and the daily picks come only from Kabo: `prepare_creator_profile` and
+`get_creator_profile` for the profile, `get_for_you_videos` for the picks. The Skills do not derive pillars or search for
+picks themselves; `pick-daily-viral-videos` only chooses which three of Kabo's videos to show each day and remembers
+which were shown. `review-new-posts` builds its own library from the account's public posts on its first run. The
+Skills are written to run unattended from a host's own scheduled tasks and never post, comment or message anyone.
+Host-specific scheduling notes live in `skills/start-with-kabo/references/host-schedules.md`.
+
+`get_for_you_videos` (`workspace:read`) and `prepare_creator_profile` (`workspace:write`) come from kabo-sh/kabo#2176
+and are pinned in `contracts/directory-mcp/`. Building the profile needs write access to the creator's Kabo account,
+so it happens only in the first session; the scheduled jobs run only `pick-daily-viral-videos` and `review-new-posts`.
+The new flow has been tested offline; real-host acceptance is still pending.
 
 `remake-viral-video` uses the `start_remake_video`, `get_remake_video` and `render_remake_video`
 tools on `/mcp-pub`, plus `edit_remake_video` to change a delivered video and `start_video_project`,
@@ -369,10 +389,13 @@ grant workspace access. `get_kabo_info` shows basic identity and permissions wit
 Ask the agent to save a completed script or update an existing one; it keeps the saved version
 and rejects conflicting edits. You can also ask to connect a public Instagram, TikTok or YouTube
 account. Public Connect uses data allowance and does not start official social OAuth or analysis.
-Connecting Kabo asks only for read access. The first time you save a script or connect an account,
-your host asks you to approve write access. Existing connections may need authorization for the
-new workspace permissions. If these tools are unavailable, the original public research and local
-drafting workflows remain usable.
+Connecting Kabo asks for read and write access to your Kabo workspace (`workspace:read` and
+`workspace:write`), because the first session links your account, has Kabo build your profile and
+saves your pillar edits. Connections made before this change have read access only: sign in to Kabo
+again once to get write access (in Codex:
+`codex mcp login kabo --scopes openid,profile,email,offline_access,data,video,workspace:read,workspace:write`;
+in other hosts, disconnect and reconnect Kabo). Until then, a Skill that needs to write tells you to
+reconnect, and the original public research and local drafting workflows remain usable.
 
 The three trends Skills can also start from your saved account profile. When you ask for trends for
 your own linked account, the agent reads the account's saved content profile (your signature
@@ -395,6 +418,6 @@ read, in this plugin and in Kabo's web app; the profile Kabo computed stays as i
 reset your edits. A plain, unambiguous change is saved and repeated back to you in one sentence; a
 guess, a removal, a merge or a reset is restated for you to confirm first. Your market is only the
 default search region (Instagram search takes none); it never filters results by region.
-Content-language checks follow the short-window rules above. An edit applies from the next trend run. Saving needs write access, which your host asks
-you to approve the first time; without it, or when Kabo does not offer the tool yet, nothing is
-saved and the research runs as before.
+Content-language checks follow the short-window rules above. An edit applies from the next trend run. Saving needs write access, which a
+connection made before this plugin asked for it lacks until you sign in again; without it, or when Kabo does not offer the
+tool yet, nothing is saved and the research runs as before.

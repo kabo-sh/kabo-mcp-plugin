@@ -13,6 +13,7 @@
   "defaultScopes": [
     "data",
     "video",
-    "workspace:read"
+    "workspace:read",
+    "workspace:write"
   ]
 }

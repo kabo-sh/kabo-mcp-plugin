@@ -39,8 +39,10 @@ const mcpSchema = ajv.compile(
 const publicEndpoint = "https://kabo.sh/mcp-pub";
 const scopesByResource = new Map([
   ["https://kabo.sh/mcp", ["account:read", "registry", "telemetry", "data"]],
-  // workspace:write 不在首次授权里：写工具缺权时由 /mcp-pub 的 403 challenge 按需补权（kabo#1837）。
-  [publicEndpoint, ["data", "video", "workspace:read"]],
+  // workspace:write 进首次授权（2026-11-11 用户决定，推翻 e2801c0 的按需补权）：真实宿主里 Codex 按
+  // host-auth.json 的 defaultScopes 授权，不会按 403 challenge 补权，start-with-kabo 绑定账号、生成画像、
+  // 保存支柱修改都拿不到写权限。旧授权用户仍由各 Skill 的 insufficient_scope 兜底提示重新授权。
+  [publicEndpoint, ["data", "video", "workspace:read", "workspace:write"]],
 ]);
 
 function object(value) {

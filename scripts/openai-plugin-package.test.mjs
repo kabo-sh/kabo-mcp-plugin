@@ -97,14 +97,17 @@ test("MCP-only 包可构建且不强制 Skills；ZIP 不受传入顺序影响", 
   assert.equal(validatePackage(files).version, "1.0.0");
 });
 
-test("公开 OAuth 首次只声明身份、研究与个人资产读权限，写权限按需补权", () => {
+test("公开 OAuth 首次声明身份、研究与个人资产读写权限；多一项或少一项都拒收", () => {
   const files = packageFiles();
   const record = files.find(file => file.name === "host-auth.json");
   const auth = JSON.parse(record.bytes);
   assert.deepEqual(auth.baseScopes, ["openid", "profile", "email", "offline_access"]);
-  assert.deepEqual(auth.defaultScopes, ["data", "video", "workspace:read"]);
-  record.bytes = Buffer.from(JSON.stringify({ ...auth, defaultScopes: [...auth.defaultScopes, "workspace:write"] }));
-  assert.throws(() => validatePackage(files), /OAuth 配置/);
+  // Codex 按 defaultScopes 授权、不按 403 challenge 补权：引导要绑定账号、生成画像与保存支柱修改，写权限须在首次授权里。
+  assert.deepEqual(auth.defaultScopes, ["data", "video", "workspace:read", "workspace:write"]);
+  for (const scopes of [["data", "video", "workspace:read"], [...auth.defaultScopes, "registry"]]) {
+    record.bytes = Buffer.from(JSON.stringify({ ...auth, defaultScopes: scopes }));
+    assert.throws(() => validatePackage(files), /OAuth 配置/);
+  }
   for (const scopes of [["openid", "offline_access"], [...auth.baseScopes, "profile"]]) {
     record.bytes = Buffer.from(JSON.stringify({ ...auth, baseScopes: scopes }));
     assert.throws(() => validatePackage(files), /OAuth 配置/);

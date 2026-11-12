@@ -118,6 +118,21 @@
       "derivedFromVersion": "0.4.12",
       "sourcePath": "creator-skills/runtime/price-creator-brand-deals",
       "derivedFromCommit": "b6a65d4201d60d999075d2c5fe1038643cf724c7"
+    },
+    {
+      "id": "start-with-kabo",
+      "derivedFromVersion": "0.1.0",
+      "sourcePath": "kabo-mcp-plugin/skills/start-with-kabo"
+    },
+    {
+      "id": "pick-daily-viral-videos",
+      "derivedFromVersion": "0.1.0",
+      "sourcePath": "kabo-mcp-plugin/skills/pick-daily-viral-videos"
+    },
+    {
+      "id": "review-new-posts",
+      "derivedFromVersion": "0.1.0",
+      "sourcePath": "kabo-mcp-plugin/skills/review-new-posts"
     }
   ]
 }
