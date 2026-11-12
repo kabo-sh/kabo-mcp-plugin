@@ -14,6 +14,8 @@ LIMITS = {
     "missing_requested_metric": "Some requested measurements are missing, not zero or another metric.",
     "missing_same_format_comparator": "Some formats lack a usable comparator.",
     "single_observation_not_repeatability_evidence": "A single observation does not establish repeatability.",
+    "approximate_supplied_value": "A group's value is a rough figure for the whole group, not per-post measurements; any change from it is approximate.",
+    "no_comparison_group": "One group only: these values are observations, not a comparison.",
     "different_observation_ages": "The known observation ages differ; those records have age information, but the cumulative-count difference is not an age-matched performance change.",
     "unknown_observation_ages": "Some observation ages are unknown; age matching is unverified.",
     "excluded_unknown_age_under_explicit_policy": "Posts with unknown ages were excluded under the explicit age policy.",
@@ -91,7 +93,8 @@ def snapshot_context(value, _language=None):
 
 def group_label(group):
     dates = group["publication_range"]
-    return f"{dates[0][:10]} → {dates[1][:10]}" if dates else group["label"]
+    label = f"{dates[0][:10]} → {dates[1][:10]}" if dates else group["label"]
+    return label + (" (approximate)" if group.get("approximate") else "")
 
 
 def coverage_gaps(value: dict) -> list[str]:
@@ -102,6 +105,12 @@ def coverage_gaps(value: dict) -> list[str]:
     require(isinstance(authored, list) and isinstance(source, list)
             and all(isinstance(gap, str) for gap in [*authored, *source]), "coverage gaps must be text arrays")
     return list(dict.fromkeys([*authored, *source]))
+
+
+SOURCE_LABELS = {
+    "user_supplied": "Source: user-supplied, not verified.",
+    "owner_export": "Source: owner export supplied by the user.",
+}
 
 
 def render(value: dict, language: str = "en") -> str:
@@ -115,6 +124,7 @@ def render(value: dict, language: str = "en") -> str:
     if coverage:
         lines += ["", "## 样本与证据限制" if language == "zh-CN" else "## Coverage gaps"]
         lines += ["- " + item for item in coverage]
+    source_kinds = {source["id"]: source["kind"] for source in value.get("sources", [])}
     for question in value["questions"]:
         lines += ["", "## " + question["ask"], ""]
         target = question.get("audience_target")
@@ -144,7 +154,12 @@ def render(value: dict, language: str = "en") -> str:
             lines.append("These measurements are not missing. Confirm matching contents, population and window, then obtain the missing source counts or shares; these values alone are not source traffic.")
         for fact in question["facts"]:
             if fact["type"] == "performance":
-                lines += [f"{fact['format']} · {fact['metric']}", "",
+                lines += [f"{fact['format']} · {fact['metric']}", ""]
+                # 非公开来源（用户口述、自导出）逐条标出，读者分得清哪些数字没经过核验。
+                kind = source_kinds.get(fact.get("source_ref"))
+                if kind in SOURCE_LABELS:
+                    lines += [SOURCE_LABELS[kind], ""]
+                lines += [
                           "| Group | Measured/selected | Median | Peak | Observation age (hours) |",
                           "|---|---:|---:|---:|---|"]
                 for group in fact["groups"]:

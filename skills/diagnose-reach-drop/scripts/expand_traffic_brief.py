@@ -192,43 +192,58 @@ def add_performance(case: dict, question: dict, result: dict, source_id: str) ->
         finite(common_age)
     case.setdefault("performance", [])
     for group_index, group in enumerate(groups, 1):
-        allowed_group = {
-            "label", "values", "content_ids", "date_labels", "published_at", "observed_at",
-            "published_on", "observed_on", "post_age_hours",
+        try:
+            add_value_group(case, result, group, group_index, metric, format_, common_age, source_id)
+        except ValueError as error:
+            raise ValueError(f"groups[{group_index - 1}]: {error}") from None
+
+
+def add_value_group(case: dict, result: dict, group: dict, group_index: int, metric: str, format_: str,
+                    common_age: Any, source_id: str) -> None:
+    allowed_group = {
+        "label", "values", "content_ids", "date_labels", "published_at", "observed_at",
+        "published_on", "observed_on", "post_age_hours", "approximate",
+    }
+    fields(group, {"label", "values"}, allowed_group - {"label", "values"})
+    size = group_size(group, ("values",))
+    # 用户对整组给的约数（如"之前大概 60%"）只记一次，不能拆成逐条的精确值。
+    approximate = group.get("approximate", False)
+    require(isinstance(approximate, bool), "brief group approximate must be true or false")
+    require(not approximate or size == 1,
+            "an approximate group is one rough figure for the whole group: give it once in values")
+    values = aligned(group, "values", size, optional=False)
+    content_ids = aligned(group, "content_ids", size)
+    age = group.get("post_age_hours")
+    if age is not None and not isinstance(age, list):
+        group = {**group, "post_age_hours": [finite(age)] * size}
+    dates = {key: aligned(group, key, size) for key in (
+        "date_labels", "published_at", "observed_at", "published_on", "observed_on", "post_age_hours"
+    )}
+    refs = []
+    for row_index, value in enumerate(values, 1):
+        row_id = f"{result['id']}-g{group_index}-r{row_index}"
+        content_id = content_ids[row_index - 1] if content_ids else row_id
+        row = {
+            "id": row_id,
+            "source_ref": source_id,
+            "content_id": text(content_id),
+            "format": format_,
+            "metrics": {metric: finite(value, allow_none=True)},
         }
-        fields(group, {"label", "values"}, allowed_group - {"label", "values"})
-        size = group_size(group, ("values",))
-        values = aligned(group, "values", size, optional=False)
-        content_ids = aligned(group, "content_ids", size)
-        age = group.get("post_age_hours")
-        if age is not None and not isinstance(age, list):
-            group = {**group, "post_age_hours": [finite(age)] * size}
-        dates = {key: aligned(group, key, size) for key in (
-            "date_labels", "published_at", "observed_at", "published_on", "observed_on", "post_age_hours"
-        )}
-        refs = []
-        for row_index, value in enumerate(values, 1):
-            row_id = f"{result['id']}-g{group_index}-r{row_index}"
-            content_id = content_ids[row_index - 1] if content_ids else row_id
-            row = {
-                "id": row_id,
-                "source_ref": source_id,
-                "content_id": text(content_id),
-                "format": format_,
-                "metrics": {metric: finite(value, allow_none=True)},
-            }
-            if common_age is not None:
-                row["post_age_hours"] = common_age
-            for key, entries in dates.items():
-                if entries is not None:
-                    target_key = "date_label" if key == "date_labels" else key
-                    if key == "post_age_hours" and common_age is not None:
-                        require(entries[row_index - 1] == common_age,
-                                "group post age conflicts with the common post age")
-                    row[target_key] = entries[row_index - 1]
-            case["performance"].append(row)
-            refs.append(row_id)
-        result["groups"].append({"label": text(group["label"]), "record_ids": refs})
+        if approximate:
+            row["approximate"] = True
+        if common_age is not None:
+            row["post_age_hours"] = common_age
+        for key, entries in dates.items():
+            if entries is not None:
+                target_key = "date_label" if key == "date_labels" else key
+                if key == "post_age_hours" and common_age is not None:
+                    require(entries[row_index - 1] == common_age,
+                            "group post age conflicts with the common post age")
+                row[target_key] = entries[row_index - 1]
+        case["performance"].append(row)
+        refs.append(row_id)
+    result["groups"].append({"label": text(group["label"]), "record_ids": refs})
 
 
 def add_period_totals(case: dict, question: dict, result: dict, source_id: str) -> None:
@@ -372,9 +387,18 @@ def expand_case(payload: dict, language: str = "zh-CN") -> tuple[dict, dict]:
         require(isinstance(question, dict), "brief question must be an object")
         question = copied(question)
         question.pop("target_source_text", None)
+        own_source = question.pop("source", None)
         result = common_question(question)
         require(result["id"] not in ids, "duplicate brief question id")
         ids.add(result["id"])
+        # 一个问题可以有自己的来源（例如用户口述的数字）：各来源各自成条，不再整份共用一个。
+        question_source = source_id
+        if own_source is not None:
+            require(isinstance(own_source, dict), "question source must be an object")
+            fields(own_source, {"kind", "locator"})
+            question_source = f"question:{result['id']}:source"
+            case["sources"].append({"id": question_source, "kind": source_kind(own_source["kind"]),
+                                    "locator": own_source["locator"]})
         if result["kind"] in {"recent_drop", "growth"}:
             groups = question.get("groups", [])
             period_shape = bool(groups) and all(
@@ -382,13 +406,13 @@ def expand_case(payload: dict, language: str = "zh-CN") -> tuple[dict, dict]:
                 and "values" not in group for group in groups
             )
             if result["kind"] == "growth" and period_shape:
-                add_period_totals(case, question, result, source_id)
+                add_period_totals(case, question, result, question_source)
             else:
-                add_performance(case, question, result, source_id)
+                add_performance(case, question, result, question_source)
         elif result["kind"] == "traffic_sources":
-            add_sources(case, question, result, source_id)
+            add_sources(case, question, result, question_source)
         else:
-            add_audience(case, question, result, source_id)
+            add_audience(case, question, result, question_source)
         case["questions"].append(result)
     return payload, case
 

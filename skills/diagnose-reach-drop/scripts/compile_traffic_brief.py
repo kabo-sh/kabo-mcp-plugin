@@ -31,6 +31,7 @@ def question_defaults(question: dict, index: int, language: str) -> dict:
         "post_age_hours", "minimum_age_hours", "age_policy_reason", "target",
         "target_basis", "growth_basis", "groups", "population", "total_metric",
         "source_name", "window", "dimension", "calendar", "ask", "selection_reason", "target_source_text",
+        "source",
     }
     fields(question, {"kind", "groups"}, allowed - {"kind", "groups"})
     kind = question["kind"]
