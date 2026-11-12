@@ -38,6 +38,8 @@ test("首个会话输出一次 start-with-kabo 提示，之后静默", async t =
   assert.equal(first.hookSpecificOutput.hookEventName, "SessionStart");
   const note = first.hookSpecificOutput.additionalContext;
   assert.match(note, /kabo:start-with-kabo/);
+  // 当场没接话的用户也要知道以后怎么自己开始，所以提示里必须给出可直接输入的命令。
+  assert.match(note, /typing \/kabo:start-with-kabo/);
   // 提示只能让模型征求同意，不能替创作者开跑；无人值守的定时任务里不能发起。
   assert.match(note, /Never start the setup without the user's agreement/);
   assert.match(note, /scheduled or unattended runs/);
