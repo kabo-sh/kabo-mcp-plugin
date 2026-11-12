@@ -25,14 +25,19 @@ claim's `statement` (and `scope` or `inference` where those are allowed), never 
   same topic without the asserted requirement: an assertion that the platform requires something,
   checked against pages that never state it, is `no_official_text`, not `refuted`.
 - `not_checked`: name the relevant unread page in `unreached_source`.
-Only `no_official_text` and `not_checked` claims may carry `inference`, with no evidence. Explain
+`no_official_text` and `not_checked` claims carry `inference` and no evidence. A quoted claim may
+add an `inference` for what reasonably follows from its evidence but the page does not say; write
+it as a possibility, never as a certain effect. Explain
 uncertainty and practical implications separately from platform facts. For an unsupported
 benefit, explain why not to prioritize it solely for the unestablished benefit, without claiming
 it can never help. Account-specific strategy beyond the established facts remains outside this
 Skill.
 
 Operational claims need quotes supporting the specific path, choice or step, not merely its
-effect. Split independently supported controls without expanding into unrelated advice.
+effect. A step the user asserts stays its own claim, `no_official_text` when the read pages do not
+state it; a step you add that the quotes do not state goes in a quoted claim's `inference`, never
+in its `statement`.
+Split independently supported controls without expanding into unrelated advice.
 Use `unreachable_sources` to explain failed or navigation-only pages in the user's language;
 recorded fetch failures cannot be dropped. The driver binds metadata and exact original passages,
 then runs `validate_sources.py`, `validate_rule_check.py` including snapshot checks and
@@ -44,6 +49,6 @@ Both are ordinary `rule-check.v1` claims, so the Standard validator and renderer
 their statements and evidence without inventing a second advice schema. If continuing a supplied
 Light check, retain those claims and their evidence as the original check; add new findings
 separately. Do not rewrite its operational claim as unsupported strategy or silently replace its
-original evidence. If only the explanation is supported, omit the action rather than inventing it.
+original evidence. If only the explanation is supported, offer the action at most as its `inference`.
 Exact quotation validation establishes source matching, not semantic entailment: the analyst must
 still check the full assertion, necessary conditions and action path against that quotation.

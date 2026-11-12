@@ -105,7 +105,7 @@
             "string",
             "null"
           ],
-          "description": "Required when the verdict is no_official_text or not_checked, forbidden otherwise. This is where a mechanism with no published rule - or none this run could reach - gets explained: separately, labelled, and never in the same list as a quote."
+          "description": "Required when the verdict is no_official_text or not_checked; optional on a quoted claim for what follows from its quotes but the page does not say. Always rendered separately and labelled as interpretation, never as a quote or platform fact."
         },
         "scope": {
           "type": [
