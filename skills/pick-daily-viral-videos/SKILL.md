@@ -58,8 +58,13 @@ without calling Kabo; when that list is empty, say in one line that there were n
 
 ## 2. Ask Kabo for today's list
 
-Call `get_for_you_videos` with `{"account_id": "<id>"}`; always pass the id, because with several
-linked accounts and no id Kabo answers with a tool error (`validation_error`). Kabo pays for it; it
+Call `get_for_you_videos` with `{"account_id": "<id>", "include": ["author_id"]}`; always pass the
+id, because with several linked accounts and no id Kabo answers with a tool error
+(`validation_error`). `include` adds each video's `author_id`, which keeps one pick per author. If
+that call is refused as invalid input because of `include` (an older Kabo or host that does not know
+it), call once more with `{"account_id": "<id>"}` only and go on; author checks then fall back to
+`author_handle`. Drop `include` for no other error, and only once. Every later call in this run uses
+the same arguments as the call that worked. Kabo pays for it; it
 uses none of the creator's allowance. Save the complete result, as returned, to `<run directory>/for-you-1.json` with
 the host's file-write tool (never as a command-line argument), then:
 
@@ -87,8 +92,8 @@ Do what its `action` says:
   `reason` this Skill does not know is reported as it is; `reported` holds what Kabo answered, word
   for word. A tool error instead of a result (`validation_error`, `not_found`) is a failure too.
 
-A call that returns no result at all (the host or the network refused it) gets one retry with the
-same arguments; if that fails too, report the failed step in one short message and stop.
+Apart from dropping `include` as above, a call that returns no result at all (the host or the
+network refused it) gets one retry with the same arguments; if that fails too, report the failed step in one short message and stop.
 
 **The rules the script applies**, for checking its output and for a host that cannot save files
 (then apply them yourself to the result, and record nothing):
@@ -117,7 +122,9 @@ same arguments; if that fails too, report the failed step in one short message a
 One message in the creator's language. For each pick:
 
 1. The link, the author and the title (from `title`, which is the caption when the video has no title).
-   When `author_handle` is null, write "author not supplied"; never write "@None" or an empty "@".
+   Write the author exactly as the `author` field gives it: a YouTube channel name with no `@` (YouTube
+   gives a channel name, not a handle, and names can repeat), `@handle` for Instagram and TikTok, or
+   "author not supplied" when Kabo gave none. Never write "@None" or an empty "@".
    When `format` is `long`, say it is a long-form video (Kabo's list can include them; this Skill does
    not filter them out); never call it a short. `reel` and `short` are short videos; `video` is a
    video whose length Kabo did not classify.

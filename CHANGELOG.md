@@ -4,6 +4,13 @@
 
 ## 未发布
 
+- 配合 kabo#2181（kabo main `80e7d5263`）：`contracts/directory-mcp/` 按 `pin.json` 记录的命令在该 commit 重新导出并钉住
+  （`tools-list.json` 与后台 golden 逐字节相同；`annotations.md`、`data-tool-bindings.json` 未变）。`get_for_you_videos` 新增可选入参
+  `include: ["author_id"]`，只有带上时每条视频才多出门控出参 `author_id`；`pick-daily-viral-videos`（以及 `start-with-kabo` 第 5 步）
+  调用时带上它，同作者判断优先用 `author_id`。若 `include` 被当成无效入参拒绝，去掉它重调一次（只这一种错误、只一次）。
+  YouTube 的 `author_handle` 现在是频道名称（不是唯一标识）：`for-you` 输出可直接展示的 `author` 字段——YouTube 写频道名不加 `@`，
+  Instagram / TikTok 写 `@handle`，没有作者写 "author not supplied"。
+
 - `pick-daily-viral-videos` 加按窗口的相对播放量门槛（常量 `VIEWS_FLOOR_SHARE = 0.10`）：一个窗口里低于该窗口榜首播放 10% 的、
   或没有播放量的不选，各窗口用自己的榜首；先 7d、再 30d、再 24h 的顺序与去重规则不变，过门槛的不足 3 条不凑数，并说明其余明显
   低于榜首。跳过计数新增 `below_views_floor`，输出带 `views_floor`（各窗 `top_views` 与 `min_views`）。理由：真实宿主里 YouTube

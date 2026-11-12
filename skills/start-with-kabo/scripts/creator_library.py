@@ -1142,6 +1142,19 @@ def author_of(item):
     return "handle:" + handle if handle else None
 
 
+def author_label(item):
+    """The author as the creator should see it: a channel name for YouTube, @handle elsewhere.
+
+    kabo#2181 起 YouTube 的 author_handle 是频道名称（视频接口不给 @handle，可能重名），不能加 @；
+    Instagram / TikTok 是平台 handle，加 @。由脚本给出，模型不必自己判断加不加 @。"""
+    handle = first_text(item.get("author_handle"))
+    if not handle:
+        return "author not supplied"
+    if platform_of(item) == "youtube":
+        return handle
+    return "@" + handle.lstrip("@")
+
+
 def own_handle_of(item):
     # 本人作品后台已排除；这里只是在给了作者名时再核一次。作者未知时不判。
     handle = first_text(item.get("author_handle"))
@@ -1208,7 +1221,7 @@ def select_picks(payload, shown, own_handle, count):
                     "reason": first_text(row.get("reason")), "url": first_text(row.get("url")),
                     "platform": platform_of(row), "format": first_text(row.get("format")),
                     "title": (first_text(row.get("title")) or first_text(row.get("caption")) or "")[:300],
-                    "author_handle": first_text(row.get("author_handle")),
+                    "author": author_label(row), "author_handle": first_text(row.get("author_handle")),
                     "author_id": str(row["author_id"]) if row.get("author_id") not in (None, "") else None,
                     "published_at": first_text(row.get("published_at")),
                     "content_id": str(row["content_id"]) if row.get("content_id") not in (None, "") else None,

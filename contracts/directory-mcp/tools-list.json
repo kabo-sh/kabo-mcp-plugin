@@ -6346,7 +6346,7 @@
         "openWorldHint": false,
         "readOnlyHint": false
       },
-      "description": "For you list of a linked account: on-niche public videos by public views (24h/7d/30d). Free; Kabo pays. None today: starts one run (max 1/day), generating; retry after retry_after_seconds. not_eligible/failed say why. 3 days unread pauses refresh.",
+      "description": "For you list: on-niche public videos by views (24h/7d/30d). Free; Kabo pays. None today: starts one run (max 1/day), generating; retry after retry_after_seconds. not_eligible/failed say why. Unread 3 days pauses refresh.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -6355,10 +6355,22 @@
         "additionalProperties": false,
         "properties": {
           "account_id": {
-            "description": "Needed if several are linked.",
+            "description": "Needed if several linked.",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
+          },
+          "include": {
+            "description": "[\"author_id\"]: add author_id.",
+            "items": {
+              "enum": [
+                "author_id"
+              ],
+              "type": "string"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "type": "array"
           }
         },
         "type": "object"
@@ -6507,6 +6519,16 @@
                             }
                           ]
                         },
+                        "author_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "caption": {
                           "anyOf": [
                             {
@@ -6609,6 +6631,16 @@
                             }
                           ]
                         },
+                        "author_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "caption": {
                           "anyOf": [
                             {
@@ -6702,6 +6734,16 @@
                       "additionalProperties": false,
                       "properties": {
                         "author_handle": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "author_id": {
                           "anyOf": [
                             {
                               "type": "string"

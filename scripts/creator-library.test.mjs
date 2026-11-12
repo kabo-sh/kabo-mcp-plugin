@@ -141,6 +141,19 @@ test("三个 Skill 的说明不再引用已删除的命令、文件与本地推�
   assert.match(texts["pick-daily-viral-videos"], /`format` is `long`/);
   assert.match(texts["pick-daily-viral-videos"], /same_video_in_another_window/);
   assert.match(texts["pick-daily-viral-videos"], /below_views_floor/);
+  // kabo#2181：带 include 取 author_id；只在 include 被当成无效入参拒绝时去掉它重调一次。
+  assert.match(texts["pick-daily-viral-videos"], /`\{"account_id": "<id>", "include": \["author_id"\]\}`/);
+  assert.match(texts["pick-daily-viral-videos"], /refused as invalid input because of `include`[\s\S]*call once more with `\{"account_id": "<id>"\}` only[\s\S]*Drop `include` for no other error, and only once/);
+  assert.match(texts["start-with-kabo"], /"include": \["author_id"\]/);
+  assert.match(texts["pick-daily-viral-videos"], /exactly as the `author` field gives it/);
+  {
+    const forYouTool = JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools.find(tool => tool.name === "get_for_you_videos");
+    assert.deepEqual(forYouTool.inputSchema.properties.include.items.enum, ["author_id"]);
+    assert.deepEqual(Object.keys(forYouTool.inputSchema.properties).sort(), ["account_id", "include"]);
+    const item = forYouTool.outputSchema.properties.windows.anyOf[0].properties["7d"].items;
+    assert.ok(item.properties.author_id, "author_id 在钉住的出参里");
+    assert.equal(item.required.includes("author_id"), false, "author_id 是门控出参，不是必有字段");
+  }
   assert.match(texts["pick-daily-viral-videos"], /10% of the views of that list's top video/);
   assert.match(texts["pick-daily-viral-videos"], /last-30-days list/);
   // 绑定前明确问一次。
@@ -500,6 +513,25 @@ test("每日推荐：作者全为空的 YouTube 结果也能选满 3 条；作�
     ytVideo("q3", 3, { author_id: "UC2", author_handle: "one" }), ytVideo("q4", 4, { author_id: "UC3" })] }), "2026-11-15");
   assert.deepEqual(byId.picks.map(pick => [pick.content_id, pick.author_id]), [["q1", "UC1"], ["q3", "UC2"], ["q4", "UC3"]]);
   assert.equal(byId.skipped.same_author, 1);
+});
+
+test("每日推荐的作者展示：YouTube 是频道名不加 @，Instagram 与 TikTok 加 @，没有作者写 author not supplied；author_id 优先去重", async t => {
+  const temp = await workspace(t);
+  const result = path.join(temp, "for-you.json");
+  await writeFile(result, JSON.stringify(ready({ "7d": [
+    ytVideo("y1", 1, { author_handle: "MrBeast", author_id: "UCX6OQ3DkcsbYNE6H8uQQuVA" }),
+    ytVideo("y2", 2, { author_handle: "MrBeast", author_id: "UCother" }),
+    ytVideo("y3", 3, { author_handle: "Some Channel", author_id: "UCX6OQ3DkcsbYNE6H8uQQuVA" }),
+    { ...video("ig1", "@creator.one", 4), author_id: "178414" },
+    { ...video("tt1", "dancer", 5, { platform: "tiktok", url: "https://www.tiktok.com/@dancer/video/1" }), author_id: null },
+    ytVideo("y4", 6),
+  ] }, { platform: "youtube" })));
+  const picked = run("for-you", "--library", path.join(temp, "lib"), "--result", result, "--date", "2026-11-12", "--count", "5");
+  assert.deepEqual(picked.picks.map(pick => [pick.content_id, pick.author]),
+    [["y1", "MrBeast"], ["y2", "MrBeast"], ["ig1", "@creator.one"], ["tt1", "@dancer"], ["y4", "author not supplied"]]);
+  // 同一频道 id、不同名称算同一作者；同名不同 id 不算。
+  assert.equal(picked.skipped.same_author, 1);
+  for (const pick of picked.picks) assert.doesNotMatch(pick.author, /^@(None|null)?$/);
 });
 
 // 按窗口的相对播放量门槛（榜首的 10%）：用真实宿主里看到的两组数字核对。

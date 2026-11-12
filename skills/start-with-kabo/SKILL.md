@@ -171,7 +171,8 @@ pillars as they are. When write access is refused, say the edits were not saved.
 ## 5. Today's picks
 
 Before offering anything recurring, give the creator one real result: follow the
-`pick-daily-viral-videos` Skill now, from its step 2, for this account, the run directory and the
+`pick-daily-viral-videos` Skill now, from its step 2 (the same `get_for_you_videos` call with
+`"include": ["author_id"]`, and the same single fallback without it), for this account, the run directory and the
 library directory above. The creator is here, so send each `progress_line` it prints while Kabo is
 still preparing the picks. With the picks, name in one line each what the creator can ask for next (a
 breakdown, a script, a remake). If there are none today, send its one line and go on.
