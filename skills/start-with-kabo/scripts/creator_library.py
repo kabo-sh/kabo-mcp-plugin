@@ -8,15 +8,17 @@ One directory per account (`<workspace>/kabo-library/<platform>-<handle>/`) keep
   reviews/      the 24 h review reports (and the optional 1 h / 7 d ones)
   recaps/       the daily account recaps
 
-The script reshapes and counts; it never judges. The creator's profile (niche and content pillars) and
-the daily "for you" videos come from Kabo's own tools (prepare_creator_profile, get_creator_profile,
-get_for_you_videos); this script only reads their saved results and never derives either on its own.
+The script reshapes and counts; it never judges. In the first session the assistant proposes content
+pillars from the posts, the creator confirms them, and they are declared to Kabo once
+(update_content_preferences, declare_pillars); from then on Kabo holds them and this library is only a
+cache. The daily "for you" videos come only from get_for_you_videos.
 Review wording and recommendations belong to the model. Metrics come only from
 public-content-snapshot.v1 files that build_public_snapshot.py assembled from staged Kabo evidence.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -156,6 +158,29 @@ def median(values):
     return statistics.median(values) if values else None
 
 
+def views_words(value):
+    """Views as the creator should read them: a whole number with thousands separators (1,231,293,530)."""
+    return f"{int(round(value)):,}" if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def times_words(value):
+    """A multiple with at most two decimals and no trailing zeros (1.8, 2, 0.45)."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    return f"{round(value, 2):.2f}".rstrip("0").rstrip(".")
+
+
+def share_words(share):
+    # 占比说成创作者听得懂的话：接近常见分数时用分数，否则用百分比。
+    if not isinstance(share, (int, float)) or isinstance(share, bool) or share <= 0:
+        return None
+    for value, words in ((0.25, "about a quarter"), (1 / 3, "about a third"), (0.5, "about half"),
+                         (2 / 3, "about two thirds"), (0.75, "about three quarters")):
+        if abs(share - value) <= 0.03:
+            return words
+    return f"about {round(share * 100)}%"
+
+
 def ratio(value, base):
     if value is None or not base:
         return None
@@ -168,6 +193,53 @@ def cmd_path(args):
     # 只打印目录：三个 Skill 都会调用它，其中两个无人值守，这里不能带任何要对创作者说的话。
     directory = library_path(args.workspace, args.platform, args.handle)
     say({"library": str(directory), "exists": (directory / "library.json").exists()})
+
+
+def connect_key(platform, handle, binding_version):
+    """Idempotency key for connect_public_account: the same for a retry of one request, different for another request.
+
+    键 = library:<平台>:<小写 handle>:<被替换绑定的 binding_version，首次绑定为 new>。只把账号放进键时，
+    「绑 A → 换成 B → 再换回 A」会拿同一个键发不同的请求，后台按 conflict 永久拒绝（Codex 实测 @MrBeast）。
+    长度最多 8+9+1+64+1+36=119，契约上限 128；字符集 A-Za-z0-9._:-。"""
+    version = str(binding_version or "new").lower()
+    if version != "new" and not re.fullmatch(r"[0-9a-f-]{36}", version):
+        fail("--expected-binding-version must be the bindingVersion uuid from list_connected_accounts")
+    key = f"library:{platform}:{normalize_handle(handle)}:{version}"
+    if not (8 <= len(key) <= 128 and re.fullmatch(r"[A-Za-z0-9._:-]+", key)):
+        fail("The handle cannot form a valid idempotency key")
+    return key
+
+
+def cmd_connect_request(args):
+    """The exact connect_public_account arguments; pass them to the tool unchanged (retry with the same ones)."""
+    if bool(args.expected_account_id) != bool(args.expected_binding_version):
+        fail("Replacing a link needs both --expected-account-id and --expected-binding-version")
+    handle = normalize_handle(args.handle)
+    request = {"platform": args.platform, "handle_or_url": args.url or handle,
+               "idempotency_key": connect_key(args.platform, handle, args.expected_binding_version)}
+    if args.expected_account_id:
+        request.update({"expected_account_id": args.expected_account_id,
+                        "expected_binding_version": args.expected_binding_version})
+    say(request)
+
+
+def cmd_connect_result(args):
+    """What to tell the creator after connect_public_account; the raw error stays in `reported` for the assistant."""
+    payload, is_error = tool_payload(read_json(args.result))
+    handle = "@" + normalize_handle(args.handle)
+    # 成功的出参是 {"account": {...}}（钉住契约），账号 id 在 account.id。
+    account = payload.get("account") if isinstance(payload.get("account"), dict) else {}
+    if not is_error and first_text(account.get("id")):
+        say({"linked": True, "account_id": account["id"], "binding_version": account.get("bindingVersion"),
+             "tell_creator_now": f"{handle} is now linked to your Kabo."})
+        return
+    if needs_write_access(payload, is_error):
+        line = (f"Kabo needs your permission to save to your account before I can link {handle}. Reconnect Kabo in this "
+                "app and approve it. Meanwhile I'll read its videos and propose pillars.")
+    else:
+        line = (f"I couldn't link {handle} to your Kabo just now. I'll still read its videos and propose pillars; we can "
+                "try linking again in a moment.")
+    say({"linked": False, "tell_creator_now": line, "reported": reported(payload)})
 
 
 def cmd_history_request(args):
@@ -344,17 +416,272 @@ def post_row(post, typical):
 
 
 # 开场两句由脚本给出，模型换成创作者的语言后各发一条，再问一个问题（账号）。说的必须是这次真会发生的事：
-# 画像由后台生成，要几分钟；推荐来自后台的「为你推荐」。
+# 先读作品、一起定支柱（本地提议、创作者确认后同步到 Kabo），推荐来自后台的「为你推荐」。
 OPENING = [
     "I'm Kabo. I find the most-watched recent videos in your kind of content and help you make your own version.",
-    "First I link your account and Kabo builds your profile, which takes a few minutes. Then I show you your "
-    "content pillars and today's three picks.",
+    "First I link your account and read your recent videos. Then we agree on your content pillars, and I show you "
+    "today's three picks.",
 ]
 
 
 def cmd_opening(args):
     """The two opening messages of the first session, to be relayed as they are in the creator's language."""
     say({"tell_creator_now": OPENING, "then": "ask one question: the account (or name the one you will use)"})
+
+
+def cmd_posts(args):
+    library, store = load_library(args.library)
+    posts = store["posts"]
+    typical = median([views for _, views in settled_views(posts)])
+    ordered = sorted(posts.values(), key=lambda post: post.get("published_at") or "", reverse=True)[: args.limit]
+    # 读完作品马上要对创作者说的话：条数、常规播放、最好的一条。模型只负责换成对方的语言原样转述。
+    best = max(settled_views(posts), key=lambda row: row[1], default=None)
+    tell = f"I read {len(posts)} of your videos."
+    if typical:
+        tell += f" A typical one gets about {views_words(typical)} views."
+    if best and typical:
+        title = (best[0].get("title") or "").strip().splitlines()[0][:60] if (best[0].get("title") or "").strip() else "your best one"
+        tell += f" Your best so far, \"{title}\", has {views_words(best[1])} views, {times_words(ratio(best[1], typical))} times that."
+    result = {"handle": library["handle"], "platform": library["platform"],
+              "typical_settled_views": typical, "settled_posts": len(settled_views(posts)),
+              "posts": [post_row(post, typical) for post in ordered]}
+    # 这句只在读完作品后说一次（--tell）；之后再列作品不重复（实测里同一句被发了两遍）。
+    if args.tell:
+        result = {"tell_creator_now": tell, **result}
+    say(result)
+
+
+def cmd_media_request(args):
+    """The collect_video_media arguments that fetch transcripts for the posts worth reading."""
+    sys.path.insert(0, str(HERE))
+    import static_host
+    library, store = load_library(args.library)
+    posts = store["posts"]
+    ids = list(args.content_id or [])
+    if not ids:
+        # 播放最高的 4 条稳定作品，再补最近发布的、没选过的，凑满上限；一条也不重复。
+        top = [row[0]["content_id"] for row in sorted(settled_views(posts), key=lambda row: -row[1])[:4]]
+        recent = [post["content_id"] for post in sorted(posts.values(), key=lambda post: post.get("published_at") or "", reverse=True)]
+        ids = top + [cid for cid in recent if cid not in top]
+    unique = list(dict.fromkeys(ids))[: args.limit]
+    requests = [{"content_id": cid, "operation": "fetch_transcript", "parameters": {"url": posts[cid]["url"]}}
+                for cid in unique if cid in posts and posts[cid].get("url")]
+    if not requests:
+        fail("No post with a link to read a transcript from")
+    run_key = "lib:" + hashlib.sha256(str(static_host.run_dir()).encode()).hexdigest()[:24]
+    say({"requests": requests, "run_key": run_key, "wait_s": 100, "delivery": "download"})
+
+
+def transcript_text(envelope):
+    data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
+    cues = [str(cue.get("text")).strip() for cue in data.get("cues") or []
+            if isinstance(cue, dict) and isinstance(cue.get("text"), str) and cue["text"].strip()]
+    if cues:
+        return " ".join(cues)
+    for key in ("plain_text", "text"):
+        if isinstance(data.get(key), str) and data[key].strip():
+            return data[key].strip()
+    rows = [str(row.get("text")) for row in data.get("rows") or [] if isinstance(row, dict) and row.get("text")]
+    return " ".join(rows).strip()
+
+
+def cmd_transcripts(args):
+    """Transcript text of the newest staged collect_video_media result, one entry per post."""
+    sys.path.insert(0, str(HERE))
+    import static_host
+    records = static_host.composite_records("collect_video_media")
+    if not records:
+        fail("No staged collect_video_media result in this run; fetch it with static_host.py first")
+    record = records[-1]
+    out = []
+    for call in record["calls"]:
+        if call.get("tool") != "public_video_fetch_transcript":
+            continue
+        envelope = staged_envelope(call)
+        text = transcript_text(envelope) if envelope.get("status") in USABLE_STATUSES else ""
+        content_id = str(call.get("group") or "").rsplit("/", 1)[0]
+        data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
+        out.append({"content_id": content_id, "status": envelope.get("status"), "language": data.get("language"),
+                    "text": text[: args.chars], "has_speech": bool(text)})
+    coverage = record.get("coverage") if isinstance(record.get("coverage"), dict) else {}
+    say({"status": record.get("status"), "pending": coverage.get("pending"), "transcripts": out})
+
+
+# ---------------------------------------------------------------- local pillar proposal（本地提议，创作者确认后同步到 Kabo）
+
+# 支柱的形状与长度上限照后台 update_content_preferences 的 declare_pillars（kabo#2185）：在这里先查，超限就让助手改短，
+# 不等后台拒。
+DECLARED_LIMITS = {"name": 60, "definition": 200, "phrase": 60, "phrases": 3}
+
+
+def pillar_problems(entry, label):
+    problems = []
+    name = entry.get("name")
+    if not isinstance(name, str) or not 1 <= len(name.strip()) <= DECLARED_LIMITS["name"]:
+        problems.append(f"{label}: name must be 1 to {DECLARED_LIMITS['name']} characters")
+    definition = entry.get("definition")
+    if not isinstance(definition, str) or not 1 <= len(definition.strip()) <= DECLARED_LIMITS["definition"]:
+        problems.append(f"{label}: definition must be 1 to {DECLARED_LIMITS['definition']} characters")
+    phrases = entry.get("search_phrases")
+    if not isinstance(phrases, list) or not 1 <= len(phrases) <= DECLARED_LIMITS["phrases"] or not all(
+            isinstance(phrase, str) and 1 <= len(phrase.strip()) <= DECLARED_LIMITS["phrase"] for phrase in phrases):
+        problems.append(f"{label}: search_phrases must be 1 to {DECLARED_LIMITS['phrases']} phrases of 1 to "
+                        f"{DECLARED_LIMITS['phrase']} characters")
+    return problems
+
+
+def check_pillar_set(pillars, posts, require_ids=True):
+    if not isinstance(pillars, list) or not 1 <= len(pillars) <= MAX_PILLARS:
+        fail(f"List 1 to {MAX_PILLARS} pillars")
+    problems, names = [], set()
+    for index, entry in enumerate(pillars, 1):
+        if not isinstance(entry, dict):
+            fail(f"Pillar {index} must be an object")
+        label = f"Pillar {index} ({entry.get('name')!r})"
+        problems += pillar_problems(entry, label)
+        key = str(entry.get("name") or "").strip().casefold()
+        if key in names:
+            problems.append(f"{label}: two pillars have the same name (case is ignored)")
+        names.add(key)
+        for content_id in entry.get("content_ids") or []:
+            if content_id not in posts:
+                problems.append(f"{label}: unknown content_id {content_id}; use ids from creator_library.py posts")
+    if problems:
+        fail("Fix these before showing or saving the pillars: " + "; ".join(problems))
+
+
+def cmd_propose_pillars(args):
+    """Numbers for the assistant's own grouping of the posts. Writes nothing and recommends nothing.
+
+    原来写死的「中位播放 ≥ 0.8 倍、第二支柱 ≥ 20% 播放」不再由脚本裁定：这里只给各组的条数、中位播放、
+    播放占比作参考，决定权在创作者；这些数字是本地对这次读到的作品的计算，不是 Kabo 的统计结论。"""
+    library, store = load_library(args.library)
+    posts = store["posts"]
+    raw = read_json(args.clusters)
+    clusters = raw.get("clusters") if isinstance(raw, dict) else None
+    check_pillar_set(clusters, posts)
+    seen = set()
+    for cluster in clusters:
+        for content_id in cluster.get("content_ids") or []:
+            if content_id in seen:
+                fail(f"Post {content_id} is in more than one group")
+            seen.add(content_id)
+    settled = settled_views(posts)
+    total = sum(views for _, views in settled)
+    typical = median([views for _, views in settled])
+    rows = []
+    for cluster in clusters:
+        members = [posts[cid] for cid in cluster.get("content_ids") or []]
+        views = [latest(post)["views"] for post in members if latest(post) and latest(post).get("views") is not None
+                 and (latest(post).get("age_hours") or 0) >= SETTLED_HOURS]
+        best = sorted((post for post in members if latest(post) and latest(post).get("views") is not None),
+                      key=lambda post: -latest(post)["views"])[:2]
+        rows.append({"name": cluster["name"].strip(), "definition": cluster["definition"].strip(),
+                     "search_phrases": [phrase.strip() for phrase in cluster["search_phrases"]],
+                     "posts": len(members), "settled_posts": len(views), "median_views": median(views),
+                     "median_multiple_of_typical": ratio(median(views), typical),
+                     "share_of_views": round(sum(views) / total, 3) if total and views else None,
+                     "say_line": (f"{len(members)} of your videos"
+                                  + (f", about {times_words(ratio(median(views), typical))} times your usual views"
+                                     if times_words(ratio(median(views), typical)) else "") + "."),
+                     "example_posts": [{"url": post.get("url"), "title": (post.get("title") or "")[:120],
+                                        "views": latest(post)["views"]} for post in best]})
+    say({"typical_settled_views": typical, "settled_posts": len(settled), "groups": rows,
+         "unassigned_posts": len(posts) - len(seen),
+         "note": ("Reference numbers from the posts read in this run, not Kabo's statistics and not a verdict. A group "
+                  "whose median is well under the account's typical views, or that holds a small share of views, may "
+                  "be weaker; say so once if it helps, and let the creator decide.")})
+
+
+def pillar_key(name):
+    return str(name or "").strip().casefold()
+
+
+def cmd_save_pillars(args):
+    """Save the pillars the creator confirmed to the library, marked as not yet synced to Kabo."""
+    directory = Path(args.library)
+    library, store = load_library(directory)
+    posts = store["posts"]
+    raw = read_json(args.file)
+    if raw.get("confirmed") is not True:
+        fail("The creator has not confirmed these pillars: write confirmed: true only after they agreed")
+    pillars = raw.get("pillars")
+    check_pillar_set(pillars, posts)
+    old_ids = {pillar_key(row.get("name")): row["id"] for row in library.get("pillars") or []}
+    taken, saved = set(), []
+    for entry in pillars:
+        local = old_ids.get(pillar_key(entry["name"])) or slug_of(entry["name"], taken | set(old_ids.values()))
+        taken.add(local)
+        saved.append({"id": local, "name": entry["name"].strip(), "definition": entry["definition"].strip(),
+                      "search_phrases": [phrase.strip() for phrase in entry["search_phrases"]],
+                      "source": "creator_declared"})
+    keep = {row["id"] for row in saved}
+    for post in posts.values():
+        if post.get("pillar_id") not in (None, "other") and post["pillar_id"] not in keep:
+            post["pillar_id"] = None
+    by_name = {pillar_key(row["name"]): row["id"] for row in saved}
+    for entry in pillars:
+        for content_id in entry.get("content_ids") or []:
+            posts[content_id]["pillar_id"] = by_name[pillar_key(entry["name"])]
+    when = iso(now_utc())
+    library.update({"pillars": saved, "pillars_source": "local_unsynced", "pillars_read_at": when,
+                    "pillars_sync": {"state": "pending", "at": when}, "updated_at": when})
+    write_json(directory / "library.json", library)
+    write_json(directory / "posts.json", store)
+    say({"saved": True, "pillars": [row["id"] for row in saved], "sync": "pending",
+         "then": "sync to Kabo: get_creator_profile with pillars true, then declare-request and update_content_preferences"})
+
+
+def cmd_declare_request(args):
+    """The exact update_content_preferences arguments that save the library's pillars to Kabo (whole-set replace)."""
+    library, _ = load_library(args.library)
+    profile = read_profile(args.profile)
+    context = profile["update_context"]
+    if not context.get("account_id"):
+        fail("The profile result names no account; read get_creator_profile for the linked account first")
+    pillars = library.get("pillars") or []
+    if library.get("pillars_source") not in ("local_unsynced", "kabo_declared"):
+        fail("The library holds no pillars the creator declared; nothing to sync")
+    say({"account_id": context["account_id"], "expected_version": context["expected_version"],
+         "action": "declare_pillars",
+         "pillars": [{"name": row["name"], "definition": row["definition"], "searchPhrases": row["search_phrases"]}
+                     for row in pillars]})
+
+
+SYNC_LINES = {
+    "synced": "Your content pillars are saved in your Kabo account.",
+    "failed": "Your content pillars are saved on this computer for now; I couldn't save them to your Kabo account yet.",
+    "no_write_access": (" Kabo needs your permission to save to your account: reconnect Kabo in this app and approve "
+                        "it, and I'll save them next time."),
+}
+
+
+def cmd_record_sync(args):
+    """Record the update_content_preferences result: synced, retry once after a conflict, or still only local."""
+    directory = Path(args.library)
+    library, _ = load_library(directory)
+    payload, is_error = tool_payload(read_json(args.result))
+    when = iso(now_utc())
+    text = json.dumps(payload, ensure_ascii=False).lower()
+    if not is_error and isinstance(payload.get("effectiveContentProfile"), dict):
+        library.update({"pillars_source": "kabo_declared", "pillars_sync": {"state": "synced", "at": when},
+                        "updated_at": when})
+        write_json(directory / "library.json", library)
+        say({"sync": "synced", "tell_creator_now": SYNC_LINES["synced"]})
+        return
+    if ("conflict" in text or "preferences_changed" in text) and not args.retried:
+        # 版本冲突：重读 get_creator_profile 拿新版本，再交一次（只一次）。整份替换，重交不会叠加。
+        say({"sync": "conflict", "action": "reread_and_retry",
+             "then": "read get_creator_profile again, rerun declare-request, call update_content_preferences once more, "
+                     "then record-sync with --retried"})
+        return
+    reason = failure_detail(payload) or ("tool error" if is_error else "unexpected answer")
+    library["pillars_sync"] = {"state": "pending", "at": when, "reason": reason[:300]}
+    library["pillars_source"] = "local_unsynced"
+    library["updated_at"] = when
+    write_json(directory / "library.json", library)
+    line = SYNC_LINES["failed"] + (SYNC_LINES["no_write_access"] if needs_write_access(payload, is_error) else "")
+    say({"sync": "pending", "reason": reason[:300], "tell_creator_now": line})
 
 
 def first_text(value):
@@ -389,6 +716,33 @@ def tool_payload(value):
             return parsed, is_error
         return ({"message": text} if text else {}), is_error
     return value, is_error
+
+
+def reference_line(name, count, share, multiple):
+    """One plain line for the "What your numbers show" block, e.g. 'Hooks: 15 of your recent videos, about a third;
+    they get about 1.8 times your usual views.' 不用 sample / baseline 这类词，数字由这里格式化好。"""
+    parts = []
+    if isinstance(count, int) and not isinstance(count, bool) and count > 0:
+        parts.append(f"{count} of your recent videos" + (f", {share_words(share)}" if share_words(share) else ""))
+    elif share_words(share):
+        parts.append(f"{share_words(share)} of your recent videos")
+    if times_words(multiple):
+        parts.append(f"they get about {times_words(multiple)} times your usual views")
+    return f"{name}: " + "; ".join(parts) + "." if parts else f"{name}."
+
+
+def declared_pillars(structured):
+    rows = structured.get("declaredPillars")
+    if not isinstance(rows, list):
+        return None
+    out = []
+    for row in rows:
+        if not isinstance(row, dict) or not first_text(row.get("name")):
+            continue
+        phrases = [phrase.strip() for phrase in row.get("searchPhrases") or [] if isinstance(phrase, str) and phrase.strip()]
+        out.append({"name": row["name"].strip(), "definition": first_text(row.get("definition")) or row["name"].strip(),
+                    "search_phrases": phrases, "source": "creator_declared"})
+    return out
 
 
 def read_profile(path):
@@ -428,6 +782,7 @@ def read_profile(path):
             "profile_base_ids": [str(base) for base in ((item.get("origin") or {}).get("baseIds") or [item.get("id")])
                                  if isinstance(base, (str, int)) and str(base)],
             # 画像的 share 是条数占比（contentCount / 进了格式的作品数），不是播放占比。
+            "say_line": reference_line(name[:60], item.get("contentCount"), share, item.get("medianMultiplier")),
             "evidence": {"share_of_posts": share, "median_multiple": item.get("medianMultiplier"),
                          "content_count": item.get("contentCount"),
                          "examples": [{"url": row.get("sourceUrl"), "title": row.get("title"), "views": row.get("views"),
@@ -447,7 +802,9 @@ def read_profile(path):
             "language": (source or {}).get("language", {}).get("primary") if isinstance((source or {}).get("language"), dict) else None,
             "candidates": candidates,
             "hidden_by_creator": [row.get("name") for row in (effective or {}).get("hiddenSignatureContent") or [] if isinstance(row, dict)],
-            "update_context": {"account_id": account.get("id"), "expected_version": preferences.get("version", 0),
+            # 创作者声明的支柱（get_creator_profile 带 pillars: true 时才有这个键；没带或旧后台时为 None，不当成「没有」）。
+            "declared_pillars": declared_pillars(structured),
+            "update_context": {"account_id": account.get("id"), "expected_version": preferences.get("version") or 0,
                                "basis": first_text(generated or (base or {}).get("generatedAt"))},
             "note": None if candidates else ("Kabo has no content pillars for this account yet (too few comparable posts). "
                                              "Tell the creator so in one line and go on; never group the posts yourself.")}
@@ -483,6 +840,19 @@ def poll_decision(payload, attempt, waited, limits):
         return {"action": "stop", "waited_seconds": waited, "calls": attempt}
     return {"action": "wait", "wait_seconds": wait, "then": "call the same tool again with the same arguments",
             "next_flags": {"--attempt": attempt + 1, "--waited": waited + wait}}
+
+
+# 等待时对创作者说的话：进入等待说一次，第 3 次调用（等得明显变长）时最多再补一句，总共不超过两句。
+# 其余轮询不出话，并用 say_to_creator: false 明确告诉助手这次不用说（实测里同一句被发了 6 遍）。
+STILL_WORKING = "Still working on it."
+
+
+def wait_line(attempt, first):
+    if attempt == 1:
+        return first
+    if attempt == 3:
+        return STILL_WORKING
+    return None
 
 
 def status_of(payload, is_error):
@@ -525,7 +895,6 @@ def reported(payload):
 
 PROFILE_STATUS_LINES = {
     "first_wait": "Kabo is building your profile from your public videos. This usually takes a few minutes.",
-    "wait": "Still building your profile.",
     "gave_up": ("Your profile is not ready yet, so I can't show your content pillars now. I'll go on with the rest; "
                 "ask me for your content pillars later."),
     "insufficient_posts": ("You don't have enough videos yet for Kabo to find your content pillars, so there are none for "
@@ -539,11 +908,10 @@ PROFILE_STATUS_LINES = {
     "retrying": "Kabo didn't finish organizing your profile this time and is trying again.",
     "classification_unavailable": ("Kabo read your videos but couldn't sort them into content pillars this time; "
                                    "it is trying again."),
-    "needs_write_access": ("To build your content profile, Kabo needs permission to save to your Kabo account, and this "
-                           "app has not granted it. Reconnect Kabo in this app and approve write access, then tell me "
-                           "to try again."),
-    "no_write_access": ("Without that permission there are no content pillars for now. I'll go on with the rest; daily "
-                        "picks only need read access."),
+    "needs_write_access": ("Kabo needs your permission to save to your account, and this app hasn't given it yet. "
+                           "Reconnect Kabo in this app and approve it, then tell me to try again."),
+    "no_write_access": ("Without that permission I can't save your content pillars to Kabo for now. I'll go on with "
+                        "the rest; today's picks don't need it."),
 }
 
 
@@ -570,7 +938,8 @@ def cmd_profile_status(args):
         decision = poll_decision(payload, args.attempt, args.waited, POLL_LIMITS["profile"])
         result.update(decision)
         if decision["action"] == "wait":
-            result["tell_creator_now"] = PROFILE_STATUS_LINES["first_wait" if args.attempt == 1 else "wait"]
+            line = wait_line(args.attempt, PROFILE_STATUS_LINES["first_wait"])
+            result.update({"tell_creator_now": line} if line else {"say_to_creator": False})
         else:
             result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["gave_up"]})
     elif status == "niche_required" and not args.niche_sent:
@@ -596,8 +965,9 @@ def cmd_profile_status(args):
         result.update(decision)
         result["failure_code"] = code
         if decision["action"] == "wait":
+            # 失败码只放在 failure_code 字段给助手看，不进对创作者说的话。
             line = PROFILE_STATUS_LINES["classification_unavailable"] if code == "classification_unavailable" else (
-                PROFILE_STATUS_LINES["retrying"][:-1] + (f" ({code})." if code else "."))
+                PROFILE_STATUS_LINES["retrying"])
             result["tell_creator_now"] = line
         else:
             result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["gave_up"],
@@ -623,11 +993,18 @@ def cmd_bootstrap(args):
     if (directory / "library.json").exists():
         fail("This library already exists; use it instead of rebuilding it")
     proposal = read_profile(args.profile) if args.profile else None
-    candidates = (proposal or {}).get("candidates") or []
+    # 与 refresh-pillars 同一优先级：创作者声明的支柱 → 后台统计的主打内容 → 没有。
+    declared = (proposal or {}).get("declared_pillars") or []
+    candidates = declared or (proposal or {}).get("candidates") or []
     handle, when = normalize_handle(args.handle), now_utc()
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "reviews").mkdir(exist_ok=True)
-    pillars = [pillar_record(row) for row in candidates]
+    taken = set()
+    pillars = []
+    for row in candidates:
+        local = row.get("id") or slug_of(row["name"], taken)
+        taken.add(local)
+        pillars.append(pillar_record({**row, "id": local}))
     niche = (proposal or {}).get("niche")
     language = (proposal or {}).get("language")
     # 回看 48 小时：第一次读历史时按那次的抓取时间定绑定时间，让每条作品恰好在 24–48 小时的那一天进入一次复盘。
@@ -636,22 +1013,23 @@ def cmd_bootstrap(args):
         "format": LIBRARY_FORMAT, "platform": args.platform, "handle": handle, "creator_id": None,
         "bound_at": None, "lookback_hours": 48, "fresh": True,
         "niche": {"text": niche, "source": "kabo_profile"} if niche else None, "pillars": pillars,
-        "pillars_read_at": iso(when) if pillars else None, "pillars_source": "kabo_profile" if pillars else None,
+        "pillars_read_at": iso(when) if pillars else None,
+        "pillars_source": ("kabo_declared" if declared else "kabo_profile") if pillars else None,
+        **({"pillars_sync": {"state": "synced", "at": iso(when)}} if declared else {}),
         "pillars_refresh": {"ok": proposal is not None, "at": iso(when),
                             **({} if proposal is not None else {"reason": "no profile result"})},
         "followers": [], "profile": {"language": language} if language else {},
         "updated_at": iso(when)})
     write_json(directory / "posts.json", {"posts": {}})
     result = {"library": str(directory), "fresh": True, "pillars": [row["id"] for row in pillars],
-              "limit": ("This library starts with this run's reading: no same-age comparison and no follower change yet. "
-                        "In a host that keeps no files every run starts like this.")}
+              "limit": FIRST_READING_LINE}
     if not pillars:
         result["note"] = ("No content pillars from Kabo for this account, so the reviews and the recap have no pillar "
                           "section. Do not make pillars up.")
     say(result)
 
 
-PILLAR_KEYS = ("id", "name", "definition", "source", "profile_item_id", "profile_base_ids", "evidence")
+PILLAR_KEYS = ("id", "name", "definition", "search_phrases", "source", "profile_item_id", "profile_base_ids", "evidence")
 
 
 def pillar_record(row):
@@ -688,6 +1066,24 @@ def align_pillars(old_pillars, candidates):
     return pillars, moves
 
 
+def align_declared(old_pillars, declared):
+    """Declared pillars have no stable id: match by name, ignoring case. A renamed pillar's posts become unassigned.
+
+    声明的支柱没有后台 id，只按名称（忽略大小写、去首尾空白）对齐；名称变了就置未归类，不做模糊匹配。"""
+    by_name = {pillar_key(row.get("name")): row["id"] for row in old_pillars}
+    taken, pillars = set(), []
+    for row in declared:
+        local = by_name.get(pillar_key(row["name"]))
+        if local in taken:
+            local = None
+        local = local or slug_of(row["name"], taken | set(by_name.values()))
+        taken.add(local)
+        pillars.append({"id": local, **{key: row[key] for key in ("name", "definition", "search_phrases", "source")}})
+    names = {pillar_key(row["name"]): row["id"] for row in pillars}
+    moves = {row["id"]: names.get(pillar_key(row.get("name"))) for row in old_pillars}
+    return pillars, moves
+
+
 def cmd_refresh_pillars(args):
     """Refresh the library's niche and pillars from this run's get_creator_profile result (Kabo's profile wins)."""
     directory = Path(args.library)
@@ -707,7 +1103,25 @@ def cmd_refresh_pillars(args):
              "pillars": [row["id"] for row in library.get("pillars") or []], "pillars_read_at": library.get("pillars_read_at")})
         return
     old = library.get("pillars") or []
-    pillars, moves = align_pillars(old, proposal["candidates"])
+    sync = library.get("pillars_sync") or {}
+    if sync.get("state") == "pending":
+        # 本地有创作者确认、还没同步到 Kabo 的支柱：不拿后台的结果盖掉它，只补赛道；等补同步成功再以后台为准。
+        niche = proposal.get("niche")
+        if niche:
+            library["niche"] = {"text": niche, "source": "kabo_profile"}
+        library.update({"pillars_refresh": {"ok": True, "at": when}, "updated_at": when})
+        write_json(directory / "library.json", library)
+        say({"refreshed": False, "reason": "local pillars not yet synced to Kabo; kept as they are",
+             "pillars": [row["id"] for row in old], "sync": "pending"})
+        return
+    # 支柱来源的优先级：创作者声明的（declaredPillars 非空）→ 后台统计的主打内容 → 没有。
+    declared = proposal.get("declared_pillars")
+    if declared:
+        pillars, moves = align_declared(old, declared)
+        source = "kabo_declared"
+    else:
+        pillars, moves = align_pillars(old, proposal["candidates"])
+        source = "kabo_profile" if pillars else None
     moved = {"kept": 0, "moved": 0, "unassigned": 0}
     for post in store.get("posts", {}).values():
         current = post.get("pillar_id")
@@ -723,8 +1137,10 @@ def cmd_refresh_pillars(args):
         post["pillar_id"] = target
     niche = proposal.get("niche")
     library.update({"niche": {"text": niche, "source": "kabo_profile"} if niche else None, "pillars": pillars,
-                    "pillars_read_at": when, "pillars_source": "kabo_profile" if pillars else None,
+                    "pillars_read_at": when, "pillars_source": source,
                     "pillars_refresh": {"ok": True, "at": when}, "updated_at": when})
+    if source == "kabo_declared":
+        library["pillars_sync"] = {"state": "synced", "at": (library.get("pillars_sync") or {}).get("at") or when}
     if proposal.get("language"):
         library.setdefault("profile", {})["language"] = proposal["language"]
     write_json(directory / "library.json", library)
@@ -733,12 +1149,21 @@ def cmd_refresh_pillars(args):
          "pillar_moves": {old_id: target for old_id, target in moves.items() if target != old_id}})
 
 
+# 会写进复盘与回顾、转述给创作者的话：不出现 library、run、host 之类的词。
+AGE_WORDS = {"1h": "1 hour", "24h": "24 hours", "7d": "7 days"}
+FIRST_READING_LINE = ("This is the first time I've read your account here, so there is no earlier reading to compare "
+                      "with yet (no follower change either). If this app doesn't keep files between days, every report "
+                      "starts like this, and a post may be reviewed again.")
+
+
 def pillar_refresh_limit(library):
     state = library.get("pillars_refresh") or {}
+    # 对创作者说的话：原因（state["reason"]）只留在库里给助手排障，不念出来。
     if state.get("ok") is False:
-        return ("Content pillars could not be refreshed from Kabo this run (" + str(state.get("reason")) + "); "
-                + (f"using the ones read at {library.get('pillars_read_at')}." if library.get("pillars")
-                   else "there are none in this library."))
+        if library.get("pillars"):
+            day = str(library.get("pillars_read_at") or "")[:10]
+            return "I couldn't get your latest content pillars from Kabo today, so this uses the ones from " + (day or "last time") + "."
+        return "I couldn't get your content pillars from Kabo today."
     return None
 
 
@@ -764,6 +1189,7 @@ def cmd_show(args):
          "fresh": bool(library.get("fresh")), "niche": library.get("niche"),
          "pillars": library.get("pillars"), "pillars_source": library.get("pillars_source"),
          "pillars_read_at": library.get("pillars_read_at"), "pillars_refresh": library.get("pillars_refresh"),
+         "pillars_sync": library.get("pillars_sync"),
          "profile": library.get("profile"), "posts_in_library": len(posts),
          "typical_settled_views": median([v for _, v in settled_views(posts)]),
          "followers_now": followers[-1] if followers else None,
@@ -863,25 +1289,23 @@ def cmd_review_facts(args):
         "limits": [],
     }
     if len(same_age) < 3:
-        facts["limits"].append(f"Fewer than 3 earlier posts were measured at the {args.checkpoint} mark, so "
-                               "there is no same-age comparison yet; typical_settled compares against lifetime "
-                               "views of posts at least 72 hours old, which is not the same age.")
+        facts["limits"].append(f"Fewer than 3 of your earlier posts were checked at {AGE_WORDS[args.checkpoint]} old, "
+                               "so this compares with the total views of your posts that are at least 3 days old, "
+                               "not with posts at the same age.")
     elif not at_mark:
-        facts["limits"].append(f"This post was not measured at the {args.checkpoint} mark (its first reading came "
-                               "later), so the same-age comparison is not possible; say the review is late.")
+        facts["limits"].append(f"This post was first checked after it was {AGE_WORDS[args.checkpoint]} old, so it "
+                               "can't be compared with your other posts at the same age; this review is late.")
     if args.checkpoint == "24h" and last.get("age_hours", 0) >= LATE_AFTER_HOURS:
         facts["limits"].append("This review is late: the post is already past 48 hours old.")
     if last.get("age_from") == "first_seen":
-        facts["limits"].append("The platform gave a publish date without a time; age is counted from when the "
-                               "post was first seen, so it can be up to one check interval late.")
+        facts["limits"].append("The platform shows only the day this was posted, not the time, so its age is counted "
+                               "from when I first saw it and can be up to a day off.")
     if last.get("views") is None:
         facts["limits"].append("The platform does not show this post's views publicly.")
     if pillar_refresh_limit(library):
         facts["limits"].append(pillar_refresh_limit(library))
     if library.get("fresh"):
-        facts["limits"].append("This library has only this run's reading of the creator's posts (its first run, or a "
-                               "host that keeps no files between runs): no same-age comparison yet. In a host that "
-                               "keeps no files a post may be reviewed again on a later day.")
+        facts["limits"].append(FIRST_READING_LINE)
     say(facts)
 
 
@@ -921,8 +1345,7 @@ def cmd_recap(args):
     if pillar_refresh_limit(library):
         limits.append(pillar_refresh_limit(library))
     if library.get("fresh"):
-        limits.append("This library has only this run's reading (its first run, or a host that keeps no files between "
-                      "runs): no follower change and no history beyond this read.")
+        limits.append(FIRST_READING_LINE)
     readings = library.get("followers") or []
     followers = {"available": False, "now": readings[-1]["value"] if readings else None}
     if len(readings) >= 2:
@@ -966,7 +1389,7 @@ def cmd_recap(args):
             "latest_three_median_views": median(recent_three) if len(recent_three) == 3 else None,
             "earlier_median_views": median(earlier) if len(earlier) >= 3 else None})
     if not library.get("pillars"):
-        limits.append("This library has no content pillars from Kabo, so there is no per-pillar reading.")
+        limits.append("You have no content pillars saved yet, so there is no section per pillar.")
     unassigned = sum(1 for row in recent if not row["pillar_id"])
     say({"date": day, "handle": library["handle"], "platform": library["platform"], "followers": followers,
          "typical_settled_views": typical, "settled_posts": len(settled),
@@ -1070,7 +1493,7 @@ PICKS_PER_DAY = 3
 VIEWS_FLOOR_SHARE = 0.10
 
 FOR_YOU_NOT_ELIGIBLE = {
-    "no_linked_account": "No account is linked in Kabo yet, so there are no picks. Link one with start-with-kabo.",
+    "no_linked_account": "No account is linked in Kabo yet, so there are no picks. Ask me to get you started to link one.",
     "no_public_videos": "Kabo found no public videos on your account yet, so it can't pick videos in your niche. Picks start once you have posted.",
     "profile_insufficient": "Kabo doesn't know your niche well enough yet to pick videos for you; it needs more of your posts.",
     "language_unknown": "Kabo couldn't tell which language your videos are in, so it can't match picks to your audience yet.",
@@ -1270,15 +1693,17 @@ def cmd_for_you(args):
         decision = poll_decision(payload, args.attempt, args.waited, POLL_LIMITS["for_you"])
         result.update(decision)
         if decision["action"] == "wait":
-            result["progress_line"] = "Kabo is still preparing today's picks for you."
+            line = wait_line(args.attempt, "Kabo is preparing today's picks for you. This can take a few minutes.")
+            result.update({"progress_line": line} if line else {"say_to_creator": False})
         else:
-            result["message"] = "Kabo is still preparing today's picks; the next run will bring them."
+            result["message"] = "Kabo is still preparing today's picks; you'll get them next time."
     elif status == "not_eligible":
         reason = first_text(payload.get("reason")) or "unknown"
         result.update({"action": "stop", "reason": reason,
                        # 距离可再次触发的秒数；没有绑定账号时为 null。
                        "retry_after_seconds": seconds(payload.get("retry_after_seconds")),
-                       "message": FOR_YOU_NOT_ELIGIBLE.get(reason, f"Kabo can't make picks for this account right now (reason: {reason}).")})
+                       # 未知原因码只在 reason 字段里，不念给创作者。
+                       "message": FOR_YOU_NOT_ELIGIBLE.get(reason, "Kabo can't make picks for this account right now.")})
     else:
         # failed、工具错误（validation_error、not_found），以及契约之外的任何 status：按失败处理，原样报告，不搜索、不兜底。
         # failed 不轮询（kabo#2180 起一律 retryable=false；能立即重来的情形后台直接回 generating）。
@@ -1287,10 +1712,10 @@ def cmd_for_you(args):
         detail = failure_detail(payload)
         when = about_time(payload.get("retry_after_seconds"))
         if status != "failed":
-            message = f"Kabo returned an answer this Skill does not know (status: {status}), so there are no picks today."
+            message = "Kabo couldn't make today's picks."
         else:
-            message = "Kabo could not make today's picks" + (f" ({detail})." if detail else ".")
-            message += f" New picks can be made in {when}." if when else " The next run will try again."
+            message = "Kabo couldn't make today's picks."
+            message += f" New picks can be made in {when}." if when else " I'll try again next time."
         result.update({"action": "stop", "retryable": retryable, "failure_code": detail, "retry_in": when,
                        "message": message, "reported": reported(payload)})
     say(result)
@@ -1319,6 +1744,38 @@ def build_parser():
     command.add_argument("--waited", type=int, default=0)
     command.add_argument("--niche-sent", action="store_true")
     command.add_argument("--write-retried", action="store_true")
+    command = commands.add_parser("posts")
+    command.add_argument("--library", required=True)
+    command.add_argument("--limit", type=int, default=40)
+    command.add_argument("--tell", action="store_true")
+    command = commands.add_parser("connect-request")
+    command.add_argument("--platform", required=True, choices=PLATFORMS)
+    command.add_argument("--handle", required=True)
+    command.add_argument("--url")
+    command.add_argument("--expected-account-id")
+    command.add_argument("--expected-binding-version")
+    command = commands.add_parser("connect-result")
+    command.add_argument("--result", required=True)
+    command.add_argument("--handle", required=True)
+    command = commands.add_parser("media-request")
+    command.add_argument("--library", required=True)
+    command.add_argument("--content-id", action="append")
+    command.add_argument("--limit", type=int, default=8)
+    command = commands.add_parser("transcripts")
+    command.add_argument("--chars", type=int, default=1500)
+    command = commands.add_parser("propose-pillars")
+    command.add_argument("--library", required=True)
+    command.add_argument("--clusters", required=True)
+    command = commands.add_parser("save-pillars")
+    command.add_argument("--library", required=True)
+    command.add_argument("--file", required=True)
+    command = commands.add_parser("declare-request")
+    command.add_argument("--library", required=True)
+    command.add_argument("--profile", required=True)
+    command = commands.add_parser("record-sync")
+    command.add_argument("--library", required=True)
+    command.add_argument("--result", required=True)
+    command.add_argument("--retried", action="store_true")
     command = commands.add_parser("profile-pillars")
     command.add_argument("--profile", required=True)
     command = commands.add_parser("for-you")
@@ -1388,7 +1845,10 @@ def build_parser():
     return parser
 
 
-HANDLERS = {"path": cmd_path, "opening": cmd_opening, "profile-status": cmd_profile_status,
+HANDLERS = {"path": cmd_path, "opening": cmd_opening, "posts": cmd_posts, "connect-request": cmd_connect_request,
+            "connect-result": cmd_connect_result, "media-request": cmd_media_request,
+            "transcripts": cmd_transcripts, "propose-pillars": cmd_propose_pillars, "save-pillars": cmd_save_pillars,
+            "declare-request": cmd_declare_request, "record-sync": cmd_record_sync, "profile-status": cmd_profile_status,
             "profile-pillars": cmd_profile_pillars, "for-you": cmd_for_you, "picks": cmd_picks,
             "history-request": cmd_history_request, "snapshot": cmd_snapshot, "bootstrap": cmd_bootstrap,
             "ingest": cmd_ingest, "refresh-pillars": cmd_refresh_pillars, "set-pillar": cmd_set_pillar, "show": cmd_show, "due": cmd_due,

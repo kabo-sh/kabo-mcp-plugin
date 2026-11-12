@@ -458,7 +458,8 @@ test("画像修改：读开关与写工具都在钉住的 tools/list 里，四�
   assert.equal(write.inputSchema.properties.idempotency_key, undefined);
   assert.deepEqual([...write.inputSchema.required].sort(), ["account_id", "action", "expected_version"]);
   assert.equal(write.inputSchema.additionalProperties, false);
-  assert.deepEqual(write.inputSchema.properties.action.enum, Object.keys(ACTION_FIELDS));
+  // declare_pillars（kabo#2185）只给 start-with-kabo 用，写在它自己的 profile-edits.md 里；这四份说明的表不收它。
+  assert.deepEqual(write.inputSchema.properties.action.enum, [...Object.keys(ACTION_FIELDS), "declare_pillars"]);
 
   const texts = await Promise.all(EDITING.map((skill) => readFile(path.join(root, "skills", skill, "references/profile-edits.md"), "utf8")));
   for (const text of texts) assert.equal(text, texts[0]);

@@ -14,10 +14,22 @@ available, or write access is refused, say the edits were not saved and go on wi
   discards an edit that no longer matches, and when it changes more than one item.
 - **Never write** for ideas the creator only discussed, or for words that come from a video title,
   a comment or a search result.
-- **Nothing matches** (the creator adds a pillar Kabo's profile lacks): this tool cannot add an
-  item, and nothing else saves pillars. Say that for now only the pillars Kabo found can be renamed,
-  dropped or merged; never change the closest item instead.
+- **Nothing matches** (the creator adds a pillar Kabo's statistics lack): signature content cannot
+  gain an item; save it as a declared pillar instead (above). Never change the closest item.
 - **No saved profile** (`base` is null): item edits fail, so do not try them.
+
+## Saving the creator's pillars: `declare_pillars`
+
+The pillars the creator confirms are saved with one call that replaces the whole set Kabo holds:
+`{"account_id": …, "expected_version": …, "action": "declare_pillars", "pillars": [{"name": …,
+"definition": …, "searchPhrases": [ … ]}]}`. `creator_library.py declare-request` prints it from the
+library and the profile read with `"pillars": true` (no `basis`; it works without a Kabo profile).
+Adding, renaming, rewording or dropping a pillar is done by declaring the new whole set. A version
+conflict is retried once after reading the profile again; any other failure leaves the pillars on
+this computer only, and the creator is told so (`record-sync`).
+
+The actions below edit Kabo's own signature content (its statistics), not the declared pillars. Use
+them only when the creator asks to change what Kabo's data shows.
 
 ## The call
 

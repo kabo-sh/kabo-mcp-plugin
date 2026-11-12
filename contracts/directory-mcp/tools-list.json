@@ -311,6 +311,10 @@
             "maxItems": 1,
             "minItems": 1,
             "type": "array"
+          },
+          "pillars": {
+            "description": "true adds declaredPillars.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -914,6 +918,40 @@
                 "type": "null"
               }
             ]
+          },
+          "declaredPillars": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "definition": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "name": {
+                  "maxLength": 60,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "searchPhrases": {
+                  "items": {
+                    "maxLength": 60,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 3,
+                  "minItems": 1,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "name",
+                "definition",
+                "searchPhrases"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           },
           "diagnosis": {
             "anyOf": [
@@ -5598,7 +5636,8 @@
               "set_language",
               "set_market",
               "discard_unresolved",
-              "reset"
+              "reset",
+              "declare_pillars"
             ],
             "type": "string"
           },
@@ -5642,6 +5681,31 @@
             "maxLength": 60,
             "minLength": 1,
             "type": "string"
+          },
+          "pillars": {
+            "items": {
+              "properties": {
+                "definition": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "searchPhrases": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "name",
+                "definition",
+                "searchPhrases"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           },
           "primary": {
             "type": "boolean"
@@ -6346,7 +6410,7 @@
         "openWorldHint": false,
         "readOnlyHint": false
       },
-      "description": "For you list: on-niche public videos by views (24h/7d/30d). Free; Kabo pays. None today: starts one run (max 1/day), generating; retry after retry_after_seconds. not_eligible/failed say why. Unread 3 days pauses refresh.",
+      "description": "For you: on-niche public videos by views (24h/7d/30d). Free. None today: starts one run (1/day), generating; retry after retry_after_seconds. not_eligible/failed say why. Unread 3 days pauses refresh.",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -6897,7 +6961,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Free review building a missing content profile; unset niche is inferred. Then get_creator_profile include [\"content_profile\"].",
+      "description": "Free review that builds a missing profile, inferring an unset niche. Then read get_creator_profile.",
       "execution": {
         "taskSupport": "forbidden"
       },
