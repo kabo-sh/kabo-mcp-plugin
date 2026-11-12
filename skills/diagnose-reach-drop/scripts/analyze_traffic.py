@@ -86,7 +86,8 @@ def digest(value: Any) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-# 只有随时间累积的计数适用；平均值、比率可能涨也可能跌，退回原来的年龄受限结论。
+# Only counts that accumulate over time qualify; averages and ratios may rise or fall, so fall back to the
+# original age-limited conclusion.
 CUMULATIVE_METRICS = frozenset(("views", "view_count", "plays", "play_count", "likes", "comments", "shares", "saves",
                                 "reach", "impressions"))
 
@@ -316,8 +317,9 @@ def from_analysis(case: dict, analysis: dict) -> dict:
             f"plan account {account_identity(case['account'])!r} on {case['platform']} does not match the "
             f"AccountAnalysis account {actual!r} on {analysis.get('platform')}; set the plan's account and "
             "platform to the analysis's")
-    # 计划里的数字可以和导入的公开数据一起进来，但要挂问题自己声明的来源：落在整份计划默认的
-    # 公开来源上，就成了冒充这份导入数据。各来源各自成行，比较只在同一来源内做（见 performance）。
+    # Numbers in the plan may arrive together with imported public data, but they must be attached to the source the
+    # question itself declares: landing on the plan's default public source would pass them off as that imported
+    # data. Each source gets its own row, and comparisons are made only within the same source (see performance).
     default_public = any(source["id"] == "brief-source" and source["kind"] == "public"
                          for source in case.get("sources", []))
     require(not default_public or all(row.get("source_ref") != "brief-source"
@@ -366,7 +368,8 @@ def performance(q: dict, groups: list) -> tuple[list, list, list]:
         return facts, limits, ["earlier_and_recent_performance_records"]
     require(len({r["source_ref"] for _, rows in groups for r in rows}) == 1,
             "a comparison uses one source: split this question into one question per source")
-    # 只有一组时照样把数值作为观察交出去（没有对比，也不出变化结论），而不是整题当作没数据。
+    # With only one group, still deliver the values as observations (no comparison and no change conclusion),
+    # rather than treating the whole question as having no data.
     single = len(groups) == 1
     if q["kind"] == "recent_drop" and not single:
         require(len(groups) == 2, "recent_drop requires earlier and recent groups")

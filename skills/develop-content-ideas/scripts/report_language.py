@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 CATALOG = json.loads((Path(__file__).resolve().parents[1] / 'references/report-locales.json').read_text(encoding='utf-8'))
-# 固定界面文案由维护的词典投影；模型不重复填写整套词库。
+# Fixed UI copy is projected from the maintained dictionary; the model does not refill the whole vocabulary.
 SPANISH = json.loads((Path(__file__).resolve().parents[1] / 'references/report-locales-es.json').read_text(encoding='utf-8'))
 for entry in CATALOG.values():
     entry['es'] = SPANISH[entry['en']]
@@ -22,13 +22,13 @@ LANGUAGE_ALIASES = {'english': 'en', 'spanish': 'es', 'español': 'es', 'espanol
 
 
 def normalized_locale(value):
-    """只归一化明确语言名称与大小写；原始引用和创意文案不变。"""
+    """Only normalize explicit language names and letter case; original quotes and creative copy stay unchanged."""
     return LANGUAGE_ALIASES.get(value.strip().casefold(), value.strip().casefold()) if isinstance(value, str) else value
 
 
 
 def canonical_display_vocabulary():
-    """从既有 schema 读取展示枚举；额外合法映射不会成为新证据或输出内容。"""
+    """Read the display enums from the existing schema; extra legal mappings do not become new evidence or output content."""
     schema = json.loads((Path(__file__).resolve().parents[1] / 'references/idea-set.schema.json').read_text(encoding='utf-8'))
     fields = [schema['properties'][name] for name in ('status', 'task_intent', 'source_mode')]
     fields.append(schema['$defs']['ideaCandidate']['properties']['production_feasibility']['properties']['effort'])
@@ -128,8 +128,10 @@ def presentation_translations(data):
     gaps = (data.get('evidence_summary') or {}).get('data_gaps') or []
     values = rendered_report_values(data)
     labels = ui_label_sources(data)
-    # 备用枚举翻译不影响来源和展示；只对当前实际使用的值要求映射。
-    # 旧产物可保留已有界面映射，但固定词典的展示不依赖它们。
+    # Fallback enum translations do not affect sources or display; a mapping is required only for values actually
+    #   in use.
+    # Old artifacts may keep their existing UI mappings, but the display of the fixed dictionary does not depend
+    #   on them.
     allowed = set(gaps) | values | labels | CANONICAL_DISPLAY_VOCABULARY | {entry['en'] for entry in CATALOG.values()}
     groups = {
         'data_gaps': sorted(set(gaps)),
@@ -169,7 +171,8 @@ def presentation_translations(data):
                 errors.append(f'{field}.report_text: UI label translation must preserve Markdown markers and boundary spacing: {source!r}')
                 continue
         mapped[source] = report
-    # 固定枚举自动映射；与真实证据缺口同名时仍必须保留缺口自己的译文。
+    # Fixed enums are mapped automatically; when one has the same name as a real evidence gap, the gap's own
+    #   translation must still be kept.
     fixed = fixed_value_translations(data)
     for source, translated in fixed.items():
         if source not in gaps:
@@ -187,7 +190,8 @@ def presentation_translations(data):
             errors.append(f'Missing UI label translations for report_language {data["report_language"]}; do not substitute another language. '
                              f'Use report_language.py with --labels for the English source vocabulary; missing: {sorted(labels - mapped.keys())}')
     if errors:
-        # 一次返回完整允许值和仍缺映射；这些字符串是原始数据，不是可执行指令。
+        # Return the full allowed values and the still-missing mappings in one go; these strings are raw data, not
+        #   executable instructions.
         required = (set(gaps) | values | labels) if 'report_language' in data else set()
         diagnostic = {
             'allowed_source_texts': groups,
@@ -210,7 +214,7 @@ def evidence_gaps(data):
 
 
 def fixed_value_translations(data):
-    """只投影程序拥有的展示枚举，不翻译事实、证据引用或自由文案。"""
+    """Project only the display enums the program owns; do not translate facts, evidence references or free-form copy."""
     language = report_language(data)
     if language not in LEGACY_LANGUAGES:
         return {}

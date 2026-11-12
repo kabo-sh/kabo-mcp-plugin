@@ -155,7 +155,8 @@ def render(value: dict, language: str = "en") -> str:
         for fact in question["facts"]:
             if fact["type"] == "performance":
                 lines += [f"{fact['format']} · {fact['metric']}", ""]
-                # 非公开来源（用户口述、自导出）逐条标出，读者分得清哪些数字没经过核验。
+                # Non-public sources (user-stated, self-exported) are marked one by one, so the reader can tell which numbers
+                #   have not been verified.
                 kind = source_kinds.get(fact.get("source_ref"))
                 if kind in SOURCE_LABELS:
                     lines += [SOURCE_LABELS[kind], ""]

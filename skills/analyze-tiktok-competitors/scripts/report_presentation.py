@@ -99,7 +99,7 @@ class Display:
         if problem:
             # A rejected translation is shown in its source text, which carries every fact as
             # given; the report is still delivered instead of failing on one title (plugins,
-            # 2026-10-28: "Oct 15" translated as "10 月 {fact_0} 日" added the literal 10).
+            # 2026-10-28: "Oct 15" translated into Chinese as "month 10, day {fact_0}" added the literal 10).
             self.kept_source[slot_id] = problem
             return source
         if text == template:

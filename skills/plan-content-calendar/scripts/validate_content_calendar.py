@@ -1120,12 +1120,12 @@ def validate_calendar(
     exports = calendar.get("exports") or []
     if exports:
         require(len(exports) == 2 and sorted(export.get("format") for export in exports) == ["csv", "ics"], "exports must contain exactly one CSV and one ICS projection", errors)
-    # `path` 下面是 `.resolve()` 过的,所以越界判定的另一端也必须是解析态:macOS 上 `/var` 是
-    # `/private/var` 的符号链接,调用方传进来的临时目录是 `/var/...`,而 `path` 是
-    # `/private/var/...`,两端形态不一致会让一条完全合法的导出被判成
-    # `export path escapes run root`。生产入口(main)本来就 `.resolve()` 过 run_root,所以线上
-    # 不触发;直接调 `validate_calendar()` 的调用方(测试、生成脚本)传原始临时目录时才会炸。
-    # 在循环外解析一次,与 calendar_common.py 的 safe_artifact_path / safe_output_path 同一约定。
+    # `path` below has been `.resolve()`d, so the other end of the out-of-bounds check must also be in resolved form: on macOS `/var` is a
+    # symlink to `/private/var`, the temp directory passed in by the caller is `/var/...` while `path` is
+    # `/private/var/...`, and the mismatch between the two ends would make a perfectly legal export be judged as
+    # `export path escapes run root`. The production entry point (main) already `.resolve()`s run_root, so this does not
+    # trigger in production; it blows up only when callers that invoke `validate_calendar()` directly (tests, generator scripts) pass a raw temp directory.
+    # Resolve once outside the loop, the same convention as safe_artifact_path / safe_output_path in calendar_common.py.
     resolved_run_root = run_root.resolve()
     for export in exports:
         try:

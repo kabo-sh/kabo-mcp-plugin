@@ -32,7 +32,7 @@ TASKS = {
         "pattern": re.compile(r"^[a-z0-9._]{2,24}$"),
     },
 }
-# delivery_language is a BCP-47 tag. English and 中文 are the v1 values and stay valid, so kits and
+# delivery_language is a BCP-47 tag. English and 中文 (Chinese) are the v1 values and stay valid, so kits and
 # briefs written before tags were accepted still validate.
 LEGACY_DELIVERY_LANGUAGES = {"English", "中文"}
 LANGUAGE_TAG = re.compile(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*")

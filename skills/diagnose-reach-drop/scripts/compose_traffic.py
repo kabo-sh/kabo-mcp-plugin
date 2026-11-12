@@ -53,7 +53,8 @@ def answer_text(finding, answer, zh=False):
             age_limited = bool(limits & {"different_observation_ages", "unknown_observation_ages"})
             reading = fact.get("age_reading") or {}
             if age_limited and reading:
-                # 交付时模型不一定翻译脚本原句，所以和相邻结论一样给中英两版。
+                # At delivery the model does not necessarily translate the script's original sentence, so, like the adjacent
+                # conclusions, give both a Chinese and an English version.
                 if reading["basis"] == "recent_younger_not_lower":
                     return ("近期内容发布时间更短，当前累计中位数却不低于前期，所以没有下降迹象；这不能说明原因或平台状态。"
                             if zh else
