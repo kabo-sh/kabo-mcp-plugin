@@ -335,6 +335,29 @@ test("短链只导出逐字稿：链接读不出 id，取后台解析出的 vide
   assert.match(other.built.out, /identify a douyin video, but the request names 'tiktok'/);
 });
 
+test("只要字幕、只有一条 cue：用字幕结果带回的平台申报时长收尾，SRT 照常导出；没带时长照旧拒绝", async (t) => {
+  // 开发机第四轮实录：快手一条 5.5 秒视频听写只回一条 cue，单独的元数据在这三家上不取，
+  // 证据里没有任何时长，SRT 被拒（final_cue_end_unavailable）。
+  const oneCue = (extra) => ({ cues: [{ text: "Only line.", start_ms: 400, end_ms: null }], cue_count: 1,
+    origin: "speech_recognition", video_identity: DOUYIN_IDENTITY, artifacts: [], ...extra });
+  const withDuration = await buildOnly(t, "douyin-one-cue", { platform: "douyin", url: `https://www.douyin.com/video/${DOUYIN_ID}`, content_id: DOUYIN_ID },
+    [mediaEnvelope("fetch_transcript", uuid(2), oneCue({ duration_seconds: 5.5, duration_source: "platform_declared" }))]);
+  assert.equal(withDuration.built.code, 0, withDuration.built.out);
+  assert.equal(withDuration.evidence.media.duration_s, 5.5);
+  assert.equal(withDuration.evidence.media.duration_source, "connector_transcript");
+  const exported = python([path.join(scripts, "export_transcript.py"), "analysis/content_evidence.json", "report/", "--formats", "srt"], { cwd: withDuration.run });
+  assert.equal(exported.code, 0, exported.out);
+  assert.match(await readFile(path.join(withDuration.run, "report/transcript.srt"), "utf8"),
+    /00:00:00,400 --> 00:00:05,500\r?\nOnly line\./);
+
+  const without = await buildOnly(t, "douyin-one-cue-none", { platform: "douyin", url: `https://www.douyin.com/video/${DOUYIN_ID}`, content_id: DOUYIN_ID },
+    [mediaEnvelope("fetch_transcript", uuid(2), oneCue({}))]);
+  assert.equal(without.built.code, 0, without.built.out);
+  assert.equal(without.evidence.media.duration_source, "unavailable");
+  const refused = python([path.join(scripts, "export_transcript.py"), "analysis/content_evidence.json", "report/", "--formats", "srt"], { cwd: without.run });
+  assert.match(refused.out, /final_cue_end_unavailable/);
+});
+
 test("Facebook 播放数读不到（withheld）时为 null：不收进公开计数，不当 0，说明照传", async (t) => {
   const withheld = "The view count was withheld: the only figure this path could read does not match what the page shows, so treat views as unknown rather than zero.";
   const { built, evidence } = await buildOnly(t, "facebook-withheld", { platform: "facebook", url: `https://www.facebook.com/reel/${FACEBOOK_ID}`, content_id: FACEBOOK_ID }, [
