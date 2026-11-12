@@ -15,8 +15,10 @@ when the user mentions authorization or revenue share.
 **Delivery.** `drive.py report` is the final step; it prints `creator_report:` and then the
 validated `report/RULE_CHECK.md`, which is the answer. Reply from it in the user's language; you may
 translate or condense it, but never tell the user more than it supports: each claim keeps its
-verdict and its quote, an inference stays labelled as our inference and a possibility, and you add
-no rule, action or effect of your own. Attach the absolute path where the host supports files.
+verdict and its quote, an inference stays labelled as our inference and a possibility, and pages
+that did not say something mean only that the pages read are silent, not that the platform is.
+Anything beyond the report, such as a suggestion the user asked for, is marked as yours, not the
+platform's. Attach the absolute path where the host supports files.
 Validation failure produces no deliverable; never state a rule from memory instead.
 
 When the host supports one, run this Skill in a foreground sub-agent, because a check reads several
