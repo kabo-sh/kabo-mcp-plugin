@@ -209,15 +209,21 @@ encontrar dos dois e depois mostra os passos de login que faltam:
 npx kabo-sh install
 ```
 
-Acrescente `--dry-run` para ver o que ele executaria sem alterar nada. O Grok Bot e o Muse continuam
-usando a mensagem acima.
+Acrescente `--dry-run` para ver o que ele executaria sem alterar nada.
+
+**Usa o Grok Bot ou o Muse?** Eles executam o mesmo instalador no próprio computador. Cole isto no chat
+(a mensagem deve ficar em inglês) e depois clique no cartão de conexão que aparecer para fazer login:
+
+```text
+Install Kabo for me: run `npx -y kabo-sh@latest install` on your computer, read its full output (do not cut it), and do every step it prints. When you need me to sign in, show me the Connect card.
+```
 
 | Assistente | Status | Instalar manualmente |
 | --- | :---: | --- |
 | **Claude** (Claude Code 2.1.275 ou mais recente) | ✅ Compatível | `claude plugin marketplace add kabo-sh/kabo-mcp-plugin`, depois `claude plugin install kabo@kabo-mcp-plugin`. Execute `/mcp` e entre no Kabo. |
 | **ChatGPT e Codex** (Codex 0.163 ou mais recente) | ✅ Compatível | Abra Plugins, encontre o Kabo e adicione. Pelo terminal: `codex plugin marketplace add kabo-sh/kabo-mcp-plugin`, depois `codex plugin add kabo@kabo-plugin-openai`. |
-| **Grok Bot** | ✅ Compatível | Cole a mensagem acima no Bot. Ele adiciona o Kabo como app e carrega as Skills no computador do Bot. |
-| **Muse** | ✅ Compatível | Cole a mensagem acima. O Muse adiciona o Kabo como conector personalizado e carrega as Skills no computador dele. |
+| **Grok Bot** | ✅ Compatível | Cole no Bot a mensagem para Grok Bot e Muse acima. Ele instala as Skills no próprio computador e adiciona a conexão do Kabo; você faz login no cartão de conexão. |
+| **Muse** | ✅ Compatível | Cole a mensagem para Grok Bot e Muse acima. O Muse instala as Skills nas Skills personalizadas dele e adiciona o Kabo como conector personalizado; você faz login no cartão de conexão. |
 | **Cursor e outros clientes MCP** | Ainda não testado | Adicione `https://kabo.sh/mcp-pub` como servidor MCP remoto com OAuth e depois adicione as Skills. |
 
 Você precisa de uma conta do Kabo; entrar com o Google já cria uma. Os fluxos de trabalho precisam de Python 3 e de um

@@ -203,15 +203,21 @@ the two it finds, then tells you the sign-in steps that are left:
 npx kabo-sh install
 ```
 
-Add `--dry-run` to see what it would run without changing anything. Grok Bot and Muse use the message
-above instead.
+Add `--dry-run` to see what it would run without changing anything.
+
+**Using Grok Bot or Muse?** They run the same installer on their own computer. Paste this into the
+chat, then click the Connect card it shows you to sign in:
+
+```text
+Install Kabo for me: run `npx -y kabo-sh@latest install` on your computer, read its full output (do not cut it), and do every step it prints. When you need me to sign in, show me the Connect card.
+```
 
 | Assistant | Status | Install by hand |
 | --- | :---: | --- |
 | **Claude** (Claude Code 2.1.275 or later) | ✅ Supported | `claude plugin marketplace add kabo-sh/kabo-mcp-plugin`, then `claude plugin install kabo@kabo-mcp-plugin`. Run `/mcp` and sign in to Kabo. |
 | **ChatGPT and Codex** (Codex 0.163 or later) | ✅ Supported | Open Plugins, find Kabo and add it. From a terminal: `codex plugin marketplace add kabo-sh/kabo-mcp-plugin`, then `codex plugin add kabo@kabo-plugin-openai`. |
-| **Grok Bot** | ✅ Supported | Paste the message above into the Bot. It adds Kabo as an app and loads the Skills on the Bot's computer. |
-| **Muse** | ✅ Supported | Paste the message above. Muse adds Kabo as a custom connector and loads the Skills on its computer. |
+| **Grok Bot** | ✅ Supported | Paste the Grok Bot and Muse message above into the Bot. It installs the Skills on its computer and adds the Kabo connection; you sign in on the Connect card. |
+| **Muse** | ✅ Supported | Paste the Grok Bot and Muse message above. Muse installs the Skills into its custom Skills and adds Kabo as a custom connector; you sign in on the Connect card. |
 | **Cursor and other MCP clients** | Not yet tested | Add `https://kabo.sh/mcp-pub` as a remote MCP server with OAuth, then add the Skills. |
 
 You need a Kabo account; signing in with Google creates one. The workflows need Python 3 and a

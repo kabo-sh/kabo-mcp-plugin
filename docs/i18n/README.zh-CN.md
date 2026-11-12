@@ -206,14 +206,21 @@ Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable
 npx kabo-sh install
 ```
 
-加上 `--dry-run` 可以只看它会执行什么、不做任何改动。Grok Bot 和 Muse 请继续用上面那句话。
+加上 `--dry-run` 可以只看它会执行什么、不做任何改动。
+
+**用 Grok Bot 或 Muse？** 它们会在自己的电脑上运行同一个安装程序。把下面这句话粘贴到对话里（请保持英文原文），
+然后点它弹出的连接卡片登录：
+
+```text
+Install Kabo for me: run `npx -y kabo-sh@latest install` on your computer, read its full output (do not cut it), and do every step it prints. When you need me to sign in, show me the Connect card.
+```
 
 | 助手 | 状态 | 手动安装 |
 | --- | :---: | --- |
 | **Claude**（Claude Code 2.1.275 或更高版本） | ✅ 已支持 | `claude plugin marketplace add kabo-sh/kabo-mcp-plugin`，然后 `claude plugin install kabo@kabo-mcp-plugin`。运行 `/mcp`，登录 Kabo。 |
 | **ChatGPT 和 Codex**（Codex 0.163 或更高版本） | ✅ 已支持 | 打开插件，找到 Kabo 并添加。从终端安装：`codex plugin marketplace add kabo-sh/kabo-mcp-plugin`，然后 `codex plugin add kabo@kabo-plugin-openai`。 |
-| **Grok Bot** | ✅ 已支持 | 把上面的消息粘贴给 Bot。它会把 Kabo 作为应用添加进去，并在 Bot 的电脑上加载技能。 |
-| **Muse** | ✅ 已支持 | 粘贴上面的消息。Muse 会把 Kabo 添加为自定义连接器，并在它的电脑上加载技能。 |
+| **Grok Bot** | ✅ 已支持 | 把上面给 Grok Bot 和 Muse 的那句话粘贴给 Bot。它会在自己的电脑上装好技能、加上 Kabo 连接，你在连接卡片上登录。 |
+| **Muse** | ✅ 已支持 | 粘贴上面给 Grok Bot 和 Muse 的那句话。Muse 会把技能装进它的自定义技能，并把 Kabo 添加为自定义连接器，你在连接卡片上登录。 |
 | **Cursor 和其他 MCP 客户端** | 尚未测试 | 把 `https://kabo.sh/mcp-pub` 作为支持 OAuth 的远程 MCP 服务器添加进去，再添加技能。 |
 
 你需要一个 Kabo 账号；用 Google 登录就会自动创建。这些工作流需要 Python 3，以及一个助手可以读写的工作区。
