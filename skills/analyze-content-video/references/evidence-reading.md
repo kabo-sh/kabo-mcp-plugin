@@ -148,11 +148,13 @@ connector evidence"): record it with `--limitation` on the evidence-building com
 
 The media jobs (transcript, frames, measurements) are deferred and take minutes. The backend waits
 for them inside `collect_video_media`; `collect_media.py` prints the same call again while any is
-still running, and nothing is queued or charged twice. Keep making that call within this turn until
+still running, for up to about 15 minutes in all (a long video's transcript can take ten), and
+nothing is queued or charged twice. Keep making that call within this turn until
 the script reports `status: collected`: ending the turn to wait throws the jobs away. A job still
 unfinished when the script stops waiting comes back as `--deferred-incomplete <operation>=<job id>`
 for the evidence builder (recorded `deferred_incomplete`), never as `failed`; it carries no media
-evidence and keeps the affected stages unassessed.
+evidence and keeps the affected stages unassessed. Say that step was still running; never call it a
+backend error or `service_unavailable`.
 
 When the window closes with frames still outstanding, deliver; a reply that only says the analysis
 is still processing is not a delivery. With no keyframe envelope the builder records `frames.status` as `not_attempted`; list the visual dimensions in

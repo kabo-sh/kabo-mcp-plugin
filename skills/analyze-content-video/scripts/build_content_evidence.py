@@ -1105,6 +1105,11 @@ def build(
     # returned: taking it unconditionally would throw away what a viewer with captions on actually
     # reads, and relabel the creator's own published wording as a file they handed over.
     transcript = transcript_block(captions, request)
+    unfinished = {entry["operation"]: entry for entry in pending_entries}
+    if captions is None and "fetch_transcript" in unfinished:
+        # 等待到上限时转写 job 还在跑：它没跑完，不是失败；说清楚，免得被读成后台出错。
+        transcript["status_basis"] = (f"the fetch_transcript job {unfinished['fetch_transcript']['connector_request_id']} "
+                                      "was still running when waiting stopped: unfinished, not failed")
     if local_transcript is not None and transcript["status"] != "available":
         transcript = local_transcript_block(local_transcript, request)
         used_local_transcript = True

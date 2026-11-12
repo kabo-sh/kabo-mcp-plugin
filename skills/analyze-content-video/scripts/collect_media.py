@@ -8,8 +8,9 @@ Run it from the run directory.
   queues every job itself and waits for them; nothing is polled job by job.
 - `--placed --id=<id>`: fetches that result. While the backend still reports running jobs
   (`coverage.pending` above 0) it prints the same call again: nothing is queued or charged twice.
-  Once every job is terminal (or after `MAX_ROUNDS` results) it persists each terminal envelope as
-  `snapshot/envelope-NN.json`, prints the `--envelope` / `--pending` arguments for
+  Once every job is terminal (or about `WAIT_BUDGET_S` after the first hand-over, `MAX_ROUNDS` results at
+  most) it persists each terminal envelope as `snapshot/envelope-NN.json`, prints the `--envelope` /
+  `--deferred-incomplete` arguments for
   `build_content_evidence.py`, and the one `read_research_data_artifacts` call that brings the
   frames into the run.
 
@@ -36,8 +37,15 @@ import public_video_sources  # noqa: E402
 TOOL = "collect_video_media"
 CONNECTOR = "public-video-media"
 STATE = Path("collect-media.json")
-# 一次调用后台最多等 45 秒（Codex 工具超时 60 秒以内）；媒体一轮常要两三分钟，6 份结果够等满。
-MAX_ROUNDS = 6
+# 等媒体按墙钟算，不按轮数算。一次调用后台最多等 45 秒（Codex 工具超时 60 秒以内），以前固定 6 轮、约 338 秒就收手；
+# 长视频的转写（语音识别加平台限流退避）合理地要 5–10 分钟：B 站 31 分钟视频的转写在 370 秒才完成，插件已经放弃，
+# 模型还把「仍在跑」说成了后台 service_unavailable（11-12 开发机 Codex 实测）。后台单个 job 的期限是 fetch_transcript
+# 的 600 秒加排队，所以从第一次交接起最多等约 15 分钟；全部终态就立刻收尾。
+WAIT_BUDGET_S = 15 * 60
+# 墙钟之外的硬上限：正常每轮约 45–60 秒，15 分钟约 15–20 轮；宿主若每次立刻返回，靠它收住，不无限交接。
+MAX_ROUNDS = 40
+# 一次交接里，结果还有在跑的 job 时模型可以原地再调的次数（只省步数；等多久仍由上面的墙钟决定）。
+CALLS_PER_HAND_OVER = 6
 # 选项名 → collect_video_media 的操作。元数据只在支持清单里 metadata_route 为 media_call 的平台走媒体工具
 # （YouTube 用 youtube_get_video）。
 OPERATIONS = {
@@ -118,6 +126,7 @@ def hand_over_media(args: argparse.Namespace, note: str = "") -> None:
     file = results / f"{first:02d}-{TOOL}.json"
     current.setdefault("awaiting", []).append(str(file))
     current["handed_at"] = datetime.now(timezone.utc).isoformat()
+    current.setdefault("started_at", current["handed_at"])
     save_state(current)
     wanted = ", ".join(args.operations)
     if note:
@@ -127,12 +136,21 @@ def hand_over_media(args: argparse.Namespace, note: str = "") -> None:
     say(f"Hand-over: make this one call now with the arguments verbatim; the backend queues this video's {wanted} "
         f"jobs and waits for them. If its result still reports running jobs (coverage.pending above 0), make the "
         f"same call again right away with the same arguments (nothing is queued or charged twice) until pending is "
-        f"0 or you have made it {MAX_ROUNDS} times; only the last result counts. The media is not ready until this "
+        f"0 or you have made it {CALLS_PER_HAND_OVER} times; only the last result counts. The media is not ready until this "
         f"script says so: the run is not over while jobs are running. " + SAVE_RULE)
     say("call: " + json.dumps({"tool": TOOL, "arguments": call_arguments(args)}, ensure_ascii=False))
     say(f"  result {file.name.split('-', 1)[0]}  (fallback file, only if the result has no download url: {file})")
     say("Then run this one command right away, <id> replaced by the last result's id (ids expire in 10 "
         "minutes): " + resume_command(args))
+
+
+def waited_s(current: dict[str, Any]) -> float:
+    """Seconds since this run first handed the media call over."""
+    try:
+        started = datetime.fromisoformat(str(current.get("started_at") or current.get("handed_at")))
+    except ValueError:
+        return 0.0
+    return max(0.0, (datetime.now(timezone.utc) - started).total_seconds())
 
 
 def staged_since(moment: str | None) -> bool:
@@ -219,6 +237,13 @@ def finish(record: dict[str, Any]) -> None:
         if operation not in placed and job.get("job_id") and job.get("status") in static_host.PENDING:
             pending.append(f"{operation}={job['job_id']}")
     say(json.dumps({"status": "collected", "envelopes": envelopes, "pending": pending}, ensure_ascii=False))
+    if pending:
+        # 到了等待上限还在跑的 job 是「没跑完」，不是失败：后台没有为它报任何错。模型以前把它说成 service_unavailable。
+        say(f"{len(pending)} media job(s) were still running when waiting stopped after about "
+            f"{round(waited_s(current) / 60)} min ({', '.join(item.split('=', 1)[0] for item in pending)}). They are "
+            "unfinished, not failed: the backend reported no error for them. Pass each as --deferred-incomplete "
+            "(below) and say in the report that this step was still running when the analysis was written; never "
+            "describe it as a backend failure, service_unavailable or a network problem.")
     flags = " ".join(f"--envelope {path}" for path in envelopes)
     flags += "".join(f" --deferred-incomplete {flag}" for flag in pending)
     say("Pass these to build_content_evidence.py, beside the run's other envelopes: " + flags)
@@ -275,8 +300,10 @@ def main(argv: list[str] | None = None) -> int:
         current = state()
         current["rounds"] = int(current.get("rounds") or 0) + 1
         save_state(current)
-        if pending and current["rounds"] < MAX_ROUNDS:
-            hand_over_media(args, note=f"{pending} media job(s) are still running.")
+        waited = waited_s(current)
+        if pending and waited < WAIT_BUDGET_S and current["rounds"] < MAX_ROUNDS:
+            hand_over_media(args, note=f"{pending} media job(s) are still running ({round(waited / 60)} of up to "
+                                       f"{WAIT_BUDGET_S // 60} min waited); keep waiting.")
             return 0
         finish(latest)
         return 0
