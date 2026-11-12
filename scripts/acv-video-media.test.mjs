@@ -254,3 +254,72 @@ test("只导出逐字稿：请求不带 content_id 时从原始链接取，证�
   assert.equal(exported.code, 0, exported.out);
   assert.match(await readFile(path.join(run, "report/transcript.txt"), "utf8"), /Here is the one thing you need/);
 });
+
+// 等媒体按墙钟算（约 15 分钟），不按 6 轮：长视频转写合理地要 5–10 分钟，开发机 Codex 实测 B 站 31 分钟视频的转写
+// 在 370 秒完成，插件 338 秒（6 轮）就收手，模型还把「仍在跑」说成了后台 service_unavailable。
+test("collect_media.py：job 还在跑时按墙钟继续等（超过以前的 6 轮），到上限才收尾，没跑完的记成 deferred-incomplete 而不是失败", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
+  t.after(() => rm(workspace, { recursive: true, force: true }));
+  const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  let out = python("collect_media.py", ["--url", URL_, "--operations", "transcript,keyframes,measure"], { cwd: run, run }).out;
+  const args = calls(out)[0].arguments;
+  const transcriptPending = new Set(["video/fetch_transcript"]);
+  // 十轮都还有转写在跑：在墙钟上限之内，每一轮都再交同一个调用，不收手。
+  for (let round = 1; round <= 10; round += 1) {
+    await save(saveOf(out), composite(args, transcriptPending));
+    const resumed = shell(resumeOf(out));
+    assert.equal(resumed.code, 0, resumed.out);
+    assert.match(resumed.out, /1 media job\(s\) are still running \(\d+ of up to 15 min waited\); keep waiting\./, `round ${round}`);
+    assert.deepEqual(calls(resumed.out)[0].arguments, args);
+    assert.doesNotMatch(resumed.out, /"status": "collected"/);
+    out = resumed.out;
+  }
+  // 墙钟用完（第一次交接在 16 分钟前）仍在跑：收尾，转写记成没跑完，说清楚不是后台失败。
+  const stateFile = path.join(run, "collect-media.json");
+  const saved = JSON.parse(await readFile(stateFile, "utf8"));
+  saved.started_at = new Date(Date.now() - 16 * 60 * 1000).toISOString();
+  await writeFile(stateFile, JSON.stringify(saved));
+  await save(saveOf(out), composite(args, transcriptPending));
+  const last = shell(resumeOf(out));
+  assert.equal(last.code, 0, last.out);
+  assert.match(last.out, /"status": "collected"/);
+  assert.equal(calls(last.out).length, 0);
+  assert.match(last.out, /"pending": \["fetch_transcript=00000000-0000-4000-8000-000000000001"\]/);
+  assert.match(last.out, /1 media job\(s\) were still running when waiting stopped after about 16 min \(fetch_transcript\)\. They are unfinished, not failed/);
+  assert.match(last.out, /never describe it as a backend failure, service_unavailable or a network problem/);
+  const flags = last.out.split("\n").find((line) => line.startsWith("Pass these to build_content_evidence.py")).split(": ")[1];
+  assert.match(flags, /--deferred-incomplete fetch_transcript=00000000-0000-4000-8000-000000000001/);
+
+  await writeFile(path.join(run, "analysis/video-analysis-request.json"), JSON.stringify({
+    schema_version: "video-analysis-request.v1", request_id: "req-long",
+    source: { acquisition: "public_url", subject_state: "unknown", platform: "youtube", url: URL_, content_id: "fixture0001", declared_format: "video", owner_data: null },
+    acquire: { media: "best_effort", transcript: "best_effort", frames: "best_effort", owner_metrics: "skip" },
+    budget: { max_connector_calls: 10, max_provider_credits: null, confirmed_by_user: true, per_call: { timeout_seconds: 60, max_response_bytes: 50000000 } },
+    failure_policy: { on_missing_capability: "return_partial", fatal_capabilities: [] },
+  }));
+  const built = shell(`cd '${run}' && python3 '${path.join(scripts, "build_content_evidence.py")}' --request analysis/video-analysis-request.json `
+    + `${flags} --snapshot-root snapshot --output analysis/content_evidence.json`);
+  assert.equal(built.code, 0, built.out);
+  const evidence = JSON.parse(await readFile(path.join(run, "analysis/content_evidence.json"), "utf8"));
+  assert.equal(evidence.transcript.status, "not_attempted");
+  assert.match(evidence.transcript.status_basis, /was still running when waiting stopped: unfinished, not failed/);
+  assert.deepEqual(evidence.acquisition.filter((entry) => entry.operation === "fetch_transcript").map((entry) => entry.status), ["deferred_incomplete"]);
+  assert.equal(evidence.frames.status, "available");
+});
+
+test("collect_media.py：墙钟之外还有轮数硬上限，宿主每次立刻返回在跑也不会无限交接", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
+  t.after(() => rm(workspace, { recursive: true, force: true }));
+  const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  const out = python("collect_media.py", ["--url", URL_, "--operations", "transcript"], { cwd: run, run }).out;
+  const args = calls(out)[0].arguments;
+  const stateFile = path.join(run, "collect-media.json");
+  const saved = JSON.parse(await readFile(stateFile, "utf8"));
+  saved.rounds = 39;
+  await writeFile(stateFile, JSON.stringify(saved));
+  await save(saveOf(out), composite(args, new Set(["video/fetch_transcript"])));
+  const last = shell(resumeOf(out));
+  assert.equal(last.code, 0, last.out);
+  assert.match(last.out, /"status": "collected"/);
+  assert.match(last.out, /unfinished, not failed/);
+});
