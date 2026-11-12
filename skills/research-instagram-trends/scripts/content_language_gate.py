@@ -31,14 +31,16 @@ def scope(value: Any) -> dict:
 
 
 def evidence(raw: dict, platform: str) -> list[dict]:
-    # 只投影内容语言证据；作者国籍、地区、音乐名、搜索词和报告译文均不是视频语言。
+    # Project only the content-language evidence; the author's nationality, region, music name, search term,
+    # and report translation are all not the video language.
     result = []
     for field in ("title", "caption", "description", "transcript"):
         text = raw.get(field)
         if isinstance(text, dict):
             text = text.get("text")
         if isinstance(text, str) and text.strip():
-            # TikTok 采集器把上游 desc 投影为 title；保留原文并显式区分 YouTube 标题。
+            # The TikTok collector projects the upstream desc as title; keep the original text and distinguish it
+            # explicitly from the YouTube title.
             source = "tiktok_caption" if platform == "tiktok" and field == "title" else field
             result.append({"source": source, "text": text.strip()})
     signals = raw.get("content_signals")
@@ -93,7 +95,8 @@ def validate(value: Any, item: dict, language_scope: dict) -> bool:
             raise ValueError("language match contradicts the source's declared audio language")
         return True
     if decision == "not_applicable":
-        # zxx 是来源明确声明的无语言内容，不从英语标题或缺字幕推断没有口播。
+        # zxx is content the source explicitly declares as having no language; do not infer no speech from an
+        # English title or missing subtitles.
         if languages:
             raise ValueError("no-language content cannot also have detected linguistic content; resolve the conflict")
         if (not any(s == {"source": "audio_language", "text": "zxx"} for s in sources)

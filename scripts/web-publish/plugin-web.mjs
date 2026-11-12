@@ -1,21 +1,29 @@
 #!/usr/bin/env node
-// 插件 skill 的 Web 通道（kabo-agent-service DEPLOY.md「插件 skill 的 Web 通道」）。由本仓
-// .github/workflows/web-publish.yml 在发版时调用（2026-11-06 从 creator-skills scripts/skill-registry/ 搬来，逻辑不变）。
+// The Web channel for plugin skills (kabo-agent-service DEPLOY.md, "Web channel for plugin skills"). Called at
+//   release time by this repo's
+// .github/workflows/web-publish.yml (moved here on 2026-11-06 from creator-skills scripts/skill-registry/,
+//   logic unchanged).
 //
-// 2026-11-05 用户裁定：桌面端与 kabo-alpha 冻结在 production 频道的旧版本，只有 Web 改跑
-// kabo-mcp-plugin 的 skill。所以这里**从不改任何频道 index**：插件包只写进 bundles/（按内容寻址、
-// 只新建），再写 Web 专用的可变 overlay：
-//   - channels/production/overlays/web-plugin/index.json  生产 Web（插件发版时 CI 自动写）
-//   - channels/production/overlays/web-plugin/test.json   pre 上登记的测试账号看的那份
-//   - channels/production/overlays/web-plugin/test-accounts.json  pre 测试账号名单
-// 每次写 overlay 前先把新内容存一份 history/<sha256>.json（只新建），`restore` 按摘要回到任一历史版本。
+// 2026-11-05 user ruling: desktop and kabo-alpha are frozen on the old version in the production channel, and
+//   only Web runs the skills of
+// kabo-mcp-plugin. So this script **never changes any channel index**: plugin packages are only written into
+//   bundles/ (content-addressed,
+// create-only), and then a Web-specific mutable overlay is written:
+//   - channels/production/overlays/web-plugin/index.json  production Web (written automatically by CI on
+//   plugin release)
+//   - channels/production/overlays/web-plugin/test.json   the copy seen by test accounts registered on pre
+//   - channels/production/overlays/web-plugin/test-accounts.json  the list of pre test accounts
+// Before each overlay write, the new content is saved to history/<sha256>.json (create-only), and `restore`
+//   goes back to any historical version by digest.
 //
-// 子命令：
+// Subcommands:
 //   publish      --plugin-root <dir> --plugin-commit <sha> [--target index|test] [--skills a,b] [--hold a,b]
-//   restore      --sha <history 摘要> [--target index|test]
-//   clear        [--target index|test]          写一份空 overlay（Web 回到只读实时索引）
+//   restore      --sha <history digest> [--target index|test]
+//   clear        [--target index|test]          write an empty overlay (Web goes back to reading only the live
+//   index)
 //   show         [--target index|test]
-//   released                                   打印生产 overlay 当前对应的插件 commit
+//   released                                   print the plugin commit the production overlay currently
+//   corresponds to
 //   test-accounts add <user_id> [--note text] | remove <user_id> | list
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,11 +36,14 @@ import { GcsObjectStore, validateIndex } from './store.mjs';
 export const OVERLAY_PREFIX = 'channels/production/overlays/web-plugin/';
 export const TARGETS = { index: `${OVERLAY_PREFIX}index.json`, test: `${OVERLAY_PREFIX}test.json` };
 export const TEST_ACCOUNTS_OBJECT = `${OVERLAY_PREFIX}test-accounts.json`;
-// 每个 skill 在任一 overlay 上用过的最高版本。overlay 被 clear、某个 skill 被暂扣再放回、或先发到 test 目标时，
-// 只看「频道 + 当前 overlay」会把用过的版本号再发一次（内容却不同），/health 就分不出新旧。
+// The highest version each skill has used on any overlay. If an overlay is cleared, a skill is held back and
+//   then put back, or a release goes to the test target first,
+// looking only at "channel + current overlay" would issue a version number that was already used (with
+//   different content), and /health could not tell old from new.
 export const VERSIONS_OBJECT = `${OVERLAY_PREFIX}versions.json`;
 const historyObject = (sha) => `${OVERLAY_PREFIX}history/${sha}.json`;
-// 复刻在 Web 上由 creator-remake-web（production 频道）承担；插件的 remake-viral-video 走别的工具面，不进 Web。
+// Remake on Web is handled by creator-remake-web (production channel); the plugin's remake-viral-video uses a
+//   different tool surface and does not go to Web.
 export const EXCLUDED = new Set(['remake-viral-video']);
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
@@ -63,7 +74,7 @@ async function readIndex(store, object, channel = 'production') {
   return { index: validateIndex(JSON.parse(raw.bytes), channel), generation: raw.generation };
 }
 
-/** 可读到的频道里该 skill 的最大版本（Internal 发布身份读不到 production 时只看读得到的那份）。 */
+/** Highest version of this skill in the readable channels (when the Internal publishing identity cannot read production, only the readable one counts). */
 function liveVersion(id, indexes) {
   const versions = indexes
     .map((index) => index?.skills?.[id])
@@ -73,19 +84,21 @@ function liveVersion(id, indexes) {
 }
 
 /**
- * 版本：内容和 overlay 里现有条目相同就原样沿用；变了就取「频道现行版本」与「overlay 现有版本」中
- * 较大的那个，补丁号 +1。所以 Web 上的版本号接着线上往上走，每次插件发版只给真正变了的 skill 升版。
+ * Version: if the content equals the existing overlay entry, keep it as-is; if changed, take the larger of the "current channel version" and the "existing overlay version"
+ * and bump the patch number by 1. So Web version numbers continue upward from production, and each plugin release bumps only the skills that really changed.
  */
 export function versionFor(id, checksum, liveIndexes, current, declared = null, used = []) {
   const existing = current?.skills?.[id];
   if (existing && existing.content_checksum === checksum) return existing.version;
-  // used：别的 overlay 目标与 versions.json 里记下的该 skill 版本；只抬高下限，不让一个频道里没有的 skill 首发。
+  // used: the versions of this skill recorded in other overlay targets and in versions.json; it only raises the
+  //   floor and does not let a skill that is not in the channel debut.
   const live = [liveVersion(id, liveIndexes), existing?.version].filter(Boolean);
   if (!live.length) return null;
   const candidates = [...live, ...used.filter((version) => SEMVER.test(version ?? ''))];
   if (!candidates.length) return null;
   const latest = candidates.sort(compare).at(-1);
-  // SKILL.md 声明了 metadata.version（脚本会读它，例如内容日历）：用它，但必须高于线上与 overlay 的版本。
+  // SKILL.md declares metadata.version (scripts read it, e.g. the content calendar): use it, but it must be
+  //   higher than the versions live and on the overlay.
   if (declared) {
     if (!SEMVER.test(declared) || compare(declared, latest) <= 0)
       fail(`${id}: SKILL.md metadata.version ${declared} must be above the live version ${latest}; bump it in kabo-mcp-plugin`);
@@ -95,7 +108,9 @@ export function versionFor(id, checksum, liveIndexes, current, declared = null, 
   return `${major}.${minor}.${patch + 1}`;
 }
 
-// expectedGeneration：publish 读 overlay 时的那一代（0 = 当时不存在）；中间被别人改过就报错重跑，不拿旧条目盖掉新写入。
+// expectedGeneration: the generation of the overlay when publish read it (0 = did not exist then); if someone
+//   else changed it in between, error out and rerun, rather than overwriting their newer write with old
+//   entries.
 async function writeOverlay(store, object, overlay, expectedGeneration) {
   const bytes = Buffer.from(stableJson(validateIndex(overlay, 'production')));
   const digest = sha256(bytes);
@@ -117,12 +132,12 @@ async function writeOverlay(store, object, overlay, expectedGeneration) {
   return { object, sha256: digest, generation: readback.generation, unchanged: false };
 }
 
-/** 插件仓某个 commit 的 skill → 插件包（bundles/，只新建）→ 写 overlay。不碰任何频道 index。 */
+/** A skill at a plugin repository commit -> plugin package (bundles/, create-only) -> write the overlay. No channel index is touched. */
 export const RELEASE_OBJECT = `${OVERLAY_PREFIX}release.json`;
 
 /**
- * `bundleStore` 写 bundles/（CI 里是 Internal 发布身份，只有它能写 bundles/）；`store` 读频道、写
- * overlay（CI 里是 Production 发布身份，能写 channels/production/ 而不能写 bundles/）。本地两者同一个。
+ * `bundleStore` writes bundles/ (in CI this is the Internal publishing identity, the only one that can write bundles/); `store` reads channels and writes
+ * the overlay (in CI this is the Production publishing identity, which can write channels/production/ but not bundles/). Locally both are the same.
  */
 export async function publish({ store, bundleStore = store, pluginRoot, pluginCommit, pluginTag = null, targetName = 'index', skills, hold = [], now = new Date() }) {
   if (!COMMIT.test(pluginCommit ?? '')) fail('plugin commit must be 40 lowercase hex characters');
@@ -139,18 +154,21 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
   if (!live.some(Boolean)) fail('cannot read any live channel index');
   const currentRead = await readIndex(store, object);
   const current = currentRead?.index ?? null;
-  // 另一个目标（生产 / test）的 overlay：同一份内容在那边已经有版本号，就用同一个号和同一个包。
+  // The overlay of the other target (production / test): if the same content already has a version number there,
+  //   use the same number and the same package.
   const others = await Promise.all(Object.entries(TARGETS).filter(([name]) => name !== targetName)
     .map(async ([, other]) => (await readIndex(store, other))?.index ?? null));
   const versionsRaw = await store.read(VERSIONS_OBJECT);
   const highwater = versionsRaw ? JSON.parse(versionsRaw.bytes) : { format_version: 1, skills: {} };
   const available = fs.readdirSync(path.join(pluginRoot, 'skills'))
     .filter((id) => SKILL_ID.test(id) && fs.existsSync(path.join(pluginRoot, 'skills', id, 'SKILL.md')));
-  // hold：本次不进 overlay 的 skill（Web 继续用 Registry 原版本），由工作流的 PLUGIN_WEB_HOLD 传入。
+  // hold: skills that do not go into the overlay this time (Web keeps using the original Registry version),
+  //   passed in by the workflow's PLUGIN_WEB_HOLD.
   const wanted = (skills?.length ? skills : available.filter((id) => !EXCLUDED.has(id))).filter((id) => !hold.includes(id));
   const unknown = wanted.filter((id) => !available.includes(id));
   if (unknown.length) fail(`not in the plugin at ${pluginCommit}: ${unknown.join(', ')}`);
-  // 先全部打包、算版本，任何一个不合格整批不写。
+  // Package everything and compute versions first; if any one fails the checks, write nothing for the whole
+  //   batch.
   const skipped = [];
   const bundles = [];
   const kept = {};
@@ -158,19 +176,22 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
     const directory = path.join(pluginRoot, 'skills', id);
     const probe = buildPluginBundle({ skillDirectory: directory, sourceCommit: pluginCommit, version: '0.0.1', probe: true });
     const existing = current?.skills?.[id];
-    // 内容没变：原样沿用 overlay 里那一条（包已在桶里，source.commit 记的是首次发它的那个 commit）。
+    // Content unchanged: reuse the existing overlay entry as is (the package is already in the bucket, and
+    //   source.commit records the commit that first released it).
     if (existing && existing.content_checksum === probe.content_checksum) { kept[id] = existing; continue; }
     const twin = others.map((index) => index?.skills?.[id]).find((entry) => entry?.content_checksum === probe.content_checksum);
     if (twin && (await bundleStore.read(twin.object))) { kept[id] = twin; continue; }
     const used = [...others.map((index) => index?.skills?.[id]?.version), highwater.skills?.[id]].filter(Boolean);
     const version = versionFor(id, probe.content_checksum, live, current, probe.declared_version, used);
-    // 频道里从没有过的 skill（如插件独有的）不在这里首发：Web 上没有它的入口与 chip 策略。
+    // A skill that has never been in the channel (e.g. plugin-only ones) does not debut here: Web has no entry
+    //   point or chip policy for it.
     if (!version) { skipped.push({ id, reason: 'not live on any channel' }); continue; }
     bundles.push(buildPluginBundle({ skillDirectory: directory, sourceCommit: pluginCommit, version }));
   }
   if (!bundles.length && !Object.keys(kept).length) fail('nothing to publish');
-  // test 目标多人共用：本插件 commit 产不出的条目（别的分支按别名发上来的 skill 等）原样保留，
-  // 否则每次发版顺手刷一遍 test 都会把别人正在测的版本冲掉。
+  // The test target is shared by several people: entries this plugin commit cannot produce (skills that other
+  //   branches released under an alias, etc.) are kept as is,
+  // otherwise every release's incidental refresh of test would wipe out versions others are testing.
   if (targetName === 'test')
     for (const [id, entry] of Object.entries(current?.skills ?? {}))
       if (!available.includes(id) && !hold.includes(id) && !kept[id]) kept[id] = entry;
@@ -179,8 +200,9 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
     const bytes = Buffer.from(stableJson(bundle));
     await bundleStore.write(objectName, bytes, 0);
     const saved = await bundleStore.read(objectName);
-    // 同名对象已在桶里：名字里已经有 id、版本与内容校验和，所以只要信封里这三项一致就是同一份内容
-    // （别的 commit 先打过同样的文件，source.commit 不同而已），沿用桶里那份。
+    // An object with the same name is already in the bucket: the name already contains the id, the version and the
+    //   content checksum, so if these three in the envelope match it is the same content
+    // (another commit packaged the same files first, and only source.commit differs); reuse the one in the bucket.
     const same = saved && (saved.bytes.equals(bytes) || (() => {
       const existing = JSON.parse(saved.bytes);
       return existing.id === bundle.id && existing.version === bundle.version &&
@@ -202,7 +224,7 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
     ].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
   };
   const written = await writeOverlay(store, object, overlay, currentRead?.generation ?? 0);
-  // 记下每个 skill 用过的最高版本（只升不降）。
+  // Record the highest version each skill has used (only goes up, never down).
   const nextHighwater = { format_version: 1, skills: { ...(highwater.skills ?? {}) } };
   for (const [id, entry] of Object.entries(overlay.skills)) {
     const prior = nextHighwater.skills[id];
@@ -213,7 +235,8 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
     if (!saved.ok) fail(`${VERSIONS_OBJECT} changed while writing; rerun`);
   }
   if (targetName === 'index') {
-    // 记下这份生产 overlay 来自插件的哪个发版：定时任务据此判断「新发版还没上 Web」。
+    // Record which plugin release this production overlay comes from: the scheduled task uses it to decide whether
+    //   a new release has not yet reached Web.
     const record = Buffer.from(stableJson({ plugin_commit: pluginCommit, plugin_tag: pluginTag, overlay_sha256: written.sha256, published_at: now.toISOString() }));
     const previous = await store.read(RELEASE_OBJECT);
     const saved = await store.write(RELEASE_OBJECT, record, previous?.generation ?? 0);
@@ -278,7 +301,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
       const hold = (option('--hold') ?? '').split(',').map((item) => item.trim()).filter(Boolean);
       result = await publish({ store, bundleStore, pluginRoot: option('--plugin-root'), pluginCommit: option('--plugin-commit'), pluginTag: option('--plugin-tag') ?? null, targetName, skills, hold });
     } else if (command === 'released') {
-      // 定时任务用：打印生产 overlay 当前对应的插件 commit（没有就空串）。
+      // For the scheduled task: print the plugin commit the production overlay currently corresponds to (empty
+      //   string if none).
       const raw = await store.read(RELEASE_OBJECT);
       console.log(raw ? JSON.parse(raw.bytes).plugin_commit : '');
       process.exit(0);

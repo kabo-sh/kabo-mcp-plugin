@@ -311,8 +311,9 @@ def entailed_assumptions(evidence: dict[str, Any]) -> list[str]:
     lines: list[str] = []
     metrics = {m.get("native_name"): m.get("value") for m in evidence.get("public_metrics") or []
                if isinstance(m, dict)}
-    # 旧信封的 GraphQL 名，或 lookup_instagram_post 投影的字段路径（build_content_evidence 的 native_name）。
-    # 只有 IG+FB 合并播放数时同样不是触达；分母取 IG 自身的播放数优先。
+    # The GraphQL name from the old envelope, or the field path of the lookup_instagram_post projection
+    # (native_name in build_content_evidence). A combined IG+FB view count alone is likewise not reach; prefer IG's
+    # own view count as the denominator.
     plays = next((metrics[name] for name in ("video_play_count", "metrics.plays_instagram", "metrics.plays_combined")
                   if isinstance(metrics.get(name), (int, float))), None)
     likes = metrics.get("edge_media_preview_like.count", metrics.get("metrics.likes"))

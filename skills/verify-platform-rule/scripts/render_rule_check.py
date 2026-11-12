@@ -132,9 +132,11 @@ def render(value: dict) -> str:
                 lines.append(f"— [{item['url']}]({item['url']}) · {authority} · "
                              f"{item['retrieved_at'][:10]}{effective}")
                 lines.append("")
-            # 推测放在全部引文之后、带固定标签，读者一眼分得清哪句是平台说的、哪句是推出来的。
+            # The inference goes after all quotations with a fixed label, so the reader can tell at a glance which
+            #   sentence the platform said and which was inferred.
             if claim.get("inference"):
-                # 压成一段：多行推测里的标题或判定词不能在标签外长成一条独立结论。
+                # Compressed into one paragraph: a heading or verdict word inside a multi-line inference must not grow into a
+                #   standalone conclusion outside the label.
                 lines += [f"**{words['implication'].strip()}** {' '.join(claim['inference'].split())}", ""]
 
     if unwritten:

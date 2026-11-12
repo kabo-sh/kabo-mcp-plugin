@@ -72,15 +72,19 @@ def platform_of(request: dict[str, Any]) -> str:
     return platforms[0]
 
 
-# 10-29 plugins K2：中文问居家健身、没点名市场，SKILL.md 已写明 locale 只取用户点名的市场或内容语言，
-# 模型仍把问句语言写成 locale.language=zh-CN，YouTube 搜索被偏到中文结果。只靠文字守不住，改成确定性
-# 核对：region / language 非空时，locale.named_in_ask 必须逐字摘自用户原话。三个趋势通道共用这一份字节。
+# 10-29 plugins K2: a Chinese question about home workouts that named no market; SKILL.md already says
+# locale takes only the market the user named or the content language,
+# yet the model still wrote the question's language as locale.language=zh-CN and YouTube search was skewed
+# toward Chinese results. Text alone cannot hold the line, so use a deterministic
+# check: when region / language is non-empty, locale.named_in_ask must be taken verbatim from the user's
+# exact words. The three trend channels share these same bytes.
 LOCALE_NOT_NAMED = ("No market or content language was named in the ask; set locale.region and locale.language "
                     "to null, or quote the words that name them in locale.named_in_ask.")
 
 
 def _folded(text: str) -> str:
-    # NFKC 统一全角/半角与兼容字符，casefold 忽略大小写，连续空白算一个，避免排版差异误判。
+    # NFKC unifies full-width/half-width and compatibility characters, casefold ignores case, and consecutive
+    # whitespace counts as one, so formatting differences do not cause false rejections.
     return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", text).casefold()).strip()
 
 

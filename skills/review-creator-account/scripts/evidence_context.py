@@ -8,7 +8,8 @@ from account_analyzers import parse_time
 
 def baseline_maturity_context(analysis: dict[str, Any]) -> dict[str, Any] | None:
     """Expose the analyzer's existing per-format minimum-age cutoffs."""
-    # 与 Analyzer 同口径：发布当天算第 1 天，不能解释成已满 N 个 24 小时。
+    # Same basis as the Analyzer: the publish day counts as day 1, and must not be read as N full 24-hour
+    # periods having elapsed.
     if not analysis["baselines"]:
         return None
     scope = analysis["scope"]
@@ -56,7 +57,7 @@ def evidence_age(row: dict[str, Any], policies: dict[str, dict[str, Any]]) -> di
 
 
 def public_snapshot_comparison(analysis: dict[str, Any]) -> dict[str, Any] | None:
-    """区分公开累计快照与等长观测，不从成熟门槛推定可比性。"""
+    """Distinguish public cumulative snapshots from equal-length observations; do not infer comparability from the maturity threshold."""
     if not analysis["source_mode"].startswith("public"):
         return None
     return {

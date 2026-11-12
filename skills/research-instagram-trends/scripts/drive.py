@@ -69,16 +69,18 @@ import build_relevance_gate as gate_builder  # authored score validation, never 
 
 IG = "instagram-discovery"
 REQUEST = "trend-research-request.json"
-# 用户原话逐字存在 run 里，冻结 Request 时据此核对 locale.named_in_ask。
+# The user's exact words are stored verbatim in the run; use them to check locale.named_in_ask when
+# freezing the Request.
 QUESTION = Path("analysis") / "original-question.txt"
 PLAN = "trend-query-plan.json"
 CANDIDATE_SCHEMA = "trend-candidate-set.v1"
 ENRICHMENT_SCHEMA = "trend-enrichment.v1"
 SOURCE_POST = "source-post.json"
-# lookup_instagram_post 给源帖 data 的固定投影，与作答路线无关。
+# Fixed projection of lookup_instagram_post for the source post data, independent of which route answered.
 POST_PROJECTION = "kabo.instagram_post.v1"
-# 源 Reel 要读的四组补充字段：评论预览、标记用户、地点，
-# 以及合作者与付费合作标记。只有请求了的组才出现在投影里，不额外计费。
+# The four extra field groups to read for the source Reel: comment preview, tagged users, location,
+# and collaborators plus the paid-partnership flag. Only requested groups appear in the projection, with
+# no extra billing.
 SOURCE_INCLUDE = ["comments_preview", "tagged_users", "location", "collaboration"]
 SOURCE_TRANSCRIPT = "source-transcript.json"
 GATE_SCORES = "trend-relevance-gate.tsv"
@@ -198,27 +200,27 @@ def standard_input(wait: bool) -> str:
     """What standard input holds: all of it when `wait`, else only what is already there."""
     stream = sys.stdin
     if stream is None or stream.isatty():
-        return ""  # 漏了 heredoc 的终端，绝不等待
+        return ""  # A terminal missing its heredoc must never wait
     if not wait:
         try:
             import select
 
             ready, _, _ = select.select([stream], [], [], 0)
         except (OSError, ValueError, TypeError, AttributeError):
-            ready = [stream]  # 内存流（测试）读取不会阻塞
+            ready = [stream]  # Reading an in-memory stream (tests) does not block
         if not ready:
             return ""
     return stream.read().rstrip("\r\n")
 
 
 def original_question(args: argparse.Namespace) -> str | None:
-    """用户原话：本次 `--question-file` 给的优先，否则沿用本 run 已存的；都没有时返回 None（旧调用方）。
+    """The user's exact words: the one given by this call's `--question-file` wins, otherwise the one already stored in this run; returns None when there is neither (old callers).
 
-    与 review-creator-account `fetch --question-file` 同一约定：`-` 从标准输入读（同一命令的 heredoc），
-    否则读该文件。heredoc 末尾的换行不是用户打的字，去掉。
+    Same convention as review-creator-account `fetch --question-file`: `-` reads from stdin (the heredoc of the same command),
+    otherwise read the file. The trailing newline of a heredoc is not typed by the user, so strip it.
     """
     source = getattr(args, "question_file", None)
-    source = source if isinstance(source, str) else None  # 直接调用阶段函数的旧调用方没有这个参数
+    source = source if isinstance(source, str) else None  # Old callers that invoke the stage function directly do not have this parameter
     given = ""
     if source == "-":
         given = standard_input(wait=not getattr(args, "placed", False))
@@ -237,17 +239,17 @@ def original_question(args: argparse.Namespace) -> str | None:
 
 
 def _locale_preflight(args: argparse.Namespace, originals: dict[str, bytes]) -> bool:
-    """region / language 非空时，`locale.named_in_ask` 必须逐字出自用户原话；否则在任何取数前要求改一次。
+    """When region / language is non-empty, `locale.named_in_ask` must come verbatim from the user's exact words; otherwise ask for one correction before any fetch.
 
-    10-29 plugins K2：中文问句、没点名市场，模型仍写 language=zh-CN，搜索被偏到中文。核对通过后把引语
-    从 Request 移到 state：下游 Report 的 scope.locale 只有 region/language 两项，Request 其余字节不变。
-    宿主没给原话（旧调用方）时保持原行为，只打印一行警告。
+    10-29 plugins K2: a Chinese-language question that named no market still got language=zh-CN from the model, which skewed the search toward Chinese. After the check passes, the quote
+    moves from the Request to state: the downstream Report's scope.locale has only the region/language fields, and the rest of the Request bytes are unchanged.
+    When the host did not supply the exact words (old callers), keep the previous behavior and print only a warning line.
     """
     question = original_question(args)
     request = cd.load(REQUEST)
     locale = request.get("locale") if isinstance(request, dict) else None
     if not isinstance(locale, dict):
-        return True  # Request 自身的形状校验会指出
+        return True  # The Request's own shape validation will point it out
     if question is None:
         cd.say("[drive] warning: no --question-file was given, so locale.region / locale.language were not "
                "checked against the user's ask")
@@ -255,10 +257,10 @@ def _locale_preflight(args: argparse.Namespace, originals: dict[str, bytes]) -> 
     error = window_input_validator.locale_named_error(request, question)
     checked = cd.state().get("locale_named_in_ask") or {}
     if error and "named_in_ask" not in locale and checked.get("locale") == key:
-        error = None  # 同一 locale 本 run 已核对过，引语已移进 state（重跑 / --placed）
+        error = None  # This locale was already checked in this run and the quote moved into state (rerun / --placed)
     if error:
         try:
-            # 同一次改正要看到全部可独立发现的 plan 错误
+            # A single correction must show all the plan errors that can be found independently.
             query_input_validator.validate(cd.load(PLAN), request)
             query_input_validator.validate_against_request(cd.load(PLAN), request)
         except ValueError as plan_error:
@@ -330,7 +332,8 @@ def need_authored(*names: str) -> bool:
     except (FileNotFoundError, json.JSONDecodeError):
         receipt = {}
     state = cd.state()
-    # 静态运行没有 run-manifest.json，以 static_host.py init 写下的 .static-run.json 作为预留凭据。
+    # A static run has no run-manifest.json; use the .static-run.json written by static_host.py init as the
+    # reservation credential.
     reserved = receipt.get("status") == "running" or Path(".static-run.json").is_file()
     if (not reserved or cd.in_skill_directory(Path.cwd())
             or state.get("missing_authored_inputs") or (state.get("frozen") or {}).get("sha")):
@@ -395,9 +398,12 @@ def values_at(edges: Any, path: tuple[str, ...]) -> list[str]:
 
 def projected_source_fields(data: dict[str, Any]) -> dict[str, Any]:
     """`source_fields` for lookup_instagram_post's fixed projection, under the same printed names."""
-    # null 表示拿不到：省略并在 unavailable 里列出，不当 0。plays_instagram 只是 IG 自身播放数，
-    # IG+FB 合并值单列，不顶替 play_count。点赞被隐藏时没有 like_count，只标 likes_hidden。
-    # thumbnail_url 是会过期的 CDN 链接，与旧路径一样不打印媒体地址。评论预览只有正文，不带评论者身份。
+    # null means unavailable: omit it and list it under unavailable, never treat it as 0. plays_instagram is
+    # only IG's own view count;
+    # the combined IG+FB value is listed separately and never replaces play_count. When likes are hidden there
+    # is no like_count, only likes_hidden is set.
+    # thumbnail_url is a CDN link that expires, so, as on the old path, no media address is printed. The
+    # comment preview has only the text, with no commenter identity.
     post = data.get("post") or {}
     owner = post.get("owner") or {}
     metrics = post.get("metrics") or {}
@@ -467,7 +473,8 @@ def print_source() -> None:
                f"{str(envelope.get('error') or envelope.get('summary') or '')[:200]})")
     else:
         handle = ((post.get("owner") or {}).get("username")) or "?"
-        # 投影与旧 GraphQL 形状并存（旧运行的快照、重签读回的原始信封）：按 data.projection 分支读。
+        # The projection coexists with the old GraphQL shape (snapshots of old runs, raw envelopes read back after
+        # re-signing): branch on data.projection when reading.
         fields = projected_source_fields(data) if data.get("projection") == POST_PROJECTION else source_fields(post)
         cd.say(f"source Reel (the Creator is its author: creator_profile.handle is @{handle}, its owner.username): "
                + json.dumps(fields, ensure_ascii=False))
@@ -529,13 +536,15 @@ def stage_start(args: argparse.Namespace) -> None:
         url = post_url_of(args.post)
         # One batch: both reads go out together, and a host that takes only one of them hands the
         # pair to the model in one call — the same call the manual workflow made.
-        # get_post 交接成 lookup_instagram_post（include 由 static_host.public_calls 原样带上）。
+        # get_post is handed over as lookup_instagram_post (include is carried over unchanged by
+        # static_host.public_calls).
         requests = [{"connector_id": IG, "operation": "get_post", "params": {"url": url, "include": SOURCE_INCLUDE}},
                     {"connector_id": IG, "operation": "get_transcript", "params": {"url": url}}]
 
         def place() -> None:
-            # lookup 的信封记实际作答的路线（主源拒绝时是 instagram-detail-proxy），所以只按 operation
-            # 放置；本 Skill 没有别的 get_post 操作。
+            # The lookup envelope records the route that actually answered (instagram-detail-proxy when the primary
+            # source rejects), so place by operation
+            # only; this Skill has no other get_post operation.
             cd.place_record("get_post", SOURCE_POST, lambda: persist(
                 "--operation", "get_post", "--any-status", "--dest", SOURCE_POST))
             cd.place_record("get_transcript", SOURCE_TRANSCRIPT, lambda: persist(
@@ -546,8 +555,10 @@ def stage_start(args: argparse.Namespace) -> None:
     cd.show_schema("trend-research-request.schema.json", "trend-query-plan.schema.json")
     if profile is not None:
         placed = Path(PROFILE_SOURCE)
-        # 用户可能在本轮中途改了画像。冻结后的 Request 已经带着旧画像的字段，换文件会让同一轮前后两半口径
-        # 不一致，所以字节不同就停下，让模型开一个新 run；同一份文件重跑 start 照常。
+        # The user may have changed the profile midway through this round. The frozen Request already carries
+        # fields from the old profile, and swapping the file would make the two halves of the same round
+        # use different bases, so stop when the bytes differ and have the model open a new run; rerunning start
+        # with the same file works as usual.
         if placed.is_file() and placed.read_bytes() != profile:
             raise cd.StageError("the profile file differs from the one this run started with: the profile changed "
                                 "during the run. Start a new run with the new file")
@@ -707,14 +718,21 @@ def stage_discover(args: argparse.Namespace) -> None:
                                                  "gate" if "reach" in names else "rank", __file__), ensure_ascii=False))
 
 
-# 每条车道最多交给模型打分的候选数。enrich 每条车道只取 HANDED_PER_LANE（6）条，可一条车道回来 90 多条时
-# Gate 表要翻三页；线上（2026-11-05..08）模型面对 94 + 90 行没写分就结束了回合。先按确定规则留 30 条：
-# 搜索排名靠前的与发现热度最高的交替入选（lane_pick 的「两条看意思、四条看热度」两头都留得住），保持原顺序。
-# 收集按更宽的发现窗口召回，Request 窗口（例如「这周」）之外的条目到 Snapshot 才被排除：实测 103 条里
-# 30 条在七天窗口内，不分先后地收只留下 9 条在窗口内，最后只剩 8 条进分析。所以先收窗口内的，再收没有
-# 发布时间的（判不了，留给后面），窗口外的最后才补。
-# 写进 eligible 那个位置（与画像过滤同一种子集：items 缩减、其余字段与 candidate_set_id 不变），之后
-# Gate、排序、Snapshot 都读同一份；收集到的总数仍在 coverage 里，报告照实写。
+# Maximum number of candidates per lane handed to the model for scoring. enrich takes only HANDED_PER_LANE
+# (6) items per lane, but when one lane returns 90+ items
+# the Gate table spans three pages; in production (2026-11-05..08) the model faced 94 + 90 rows and ended
+# its turn without writing any scores. First keep 30 by a deterministic rule:
+# alternate between the top search-ranked items and the hottest by discovery heat (so lane_pick's "two by
+# meaning, four by heat" keeps both ends), preserving the original order.
+# Collection recalls over a wider discovery window, and items outside the Request window (for example
+# "this week") are only excluded at the Snapshot: measured, 30 of 103 items
+# were inside the seven-day window, and collecting in no particular order kept only 9 inside the window,
+# leaving just 8 for analysis. So collect in-window items first, then those
+# with no publish time (cannot be judged, left for later), and fill in out-of-window items last.
+# Write into the eligible slot (the same kind of subset as the profile filter: items shrink, other fields
+# and candidate_set_id unchanged), after which
+# the Gate, ranking and Snapshot all read the same copy; the total collected still stays in coverage, and
+# the report states it as is.
 GATE_ITEMS_PER_LANE = 30
 
 
@@ -735,7 +753,7 @@ def _instant(value: Any) -> datetime | None:
 
 
 def window_tier(item: dict[str, Any], since: datetime | None, until: datetime | None) -> int:
-    """0：发布时间在 Request 窗口内；1：没有发布时间或没有窗口；2：确知在窗口外。"""
+    """0: publish time inside the Request window; 1: no publish time or no window; 2: known to be outside the window."""
     published = _instant(item.get("published_at"))
     if published is None or since is None or until is None:
         return 1
@@ -883,7 +901,8 @@ def multiset_arguments(lean: dict[str, Any]) -> dict[str, Any] | None:
 
 def hand_over_lean(call: dict[str, Any]) -> None:
     """Print the lean inline enrichment arguments (six of each lane) for the model, and stop."""
-    # 与 public_calls 交出的调用一致：带 delivery:"download"，脚本凭下载副本拿到完整补全结果。
+    # Same call as the one public_calls hands over: it carries delivery:"download", and the script gets the
+    # complete result from the downloaded copy.
     call = {**call, "delivery": "download"}
     Path(ENRICH_CALL).write_text(json.dumps(call, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     cd.say(json.dumps(call, ensure_ascii=False, separators=(",", ":")))
@@ -970,8 +989,10 @@ def lean_item(item: dict[str, Any]) -> dict[str, Any]:
     return kept
 
 
-# Which six of a lane go to enrichment: two by meaning, four by heat ("三分准、七分热"). The Gate scores
-# in steps of five and ties widely — on 2026-09-19 (one benchmark niche, 0.3.49) eleven relevance items tied at
+# Which six of a lane go to enrichment: two by meaning, four by heat ("three parts relevance, seven parts
+# heat"). The Gate scores
+# in steps of five and ties widely — on 2026-09-19 (one benchmark niche, 0.3.49) eleven relevance items
+# tied at
 # 95, and the builder broke the tie by search rank, so a 1.04M-play and an 8.1M-play Reel of the
 # format sat 11th and 12th while four items under 6K plays went. Within the lane's semantic head
 # (every item within HANDED_HEAD_BAND points of its top score) the first HANDED_BY_MEANING stay in
@@ -1091,8 +1112,9 @@ def stage_rank(args: argparse.Namespace) -> None:
         need(ENRICHMENT_RESPONSE)
         cd.script("build_trend_workflow_snapshot.py", *base, "--enrichment", ENRICHMENT_RESPONSE,
                   "--merged-enrichment-output", ENRICHMENT, "--output", SNAPSHOT)
-    # 带画像时在服务端 enrich 定下的条目上按主打内容分名额；双车道时分配的是两条车道的并集。
-    # 不带画像时命令与参数和原来一样。
+    # With a profile, allocate quota by main content over the items settled by server-side enrich; with two
+    # lanes, what is allocated is the union of the two lanes.
+    # Without a profile, the command and parameters are the same as before.
     profiled = intake.attached(cd.load(REQUEST))
     if profiled:
         cd.say(cd.script("allocate_signature_content.py", "--platform", PLATFORM, "--request", REQUEST,
@@ -1123,7 +1145,8 @@ def language_option(args: argparse.Namespace) -> tuple[str, ...]:
 
 
 def reference_args() -> list[str]:
-    # 只读本次运行已有的候选；交付兜底不再触发采集或改写原 Gate。
+    # Read only the candidates this run already has; the delivery fallback no longer triggers collection or
+    # rewrites the original Gate.
     args = []
     for flag, paths in (("--reference-candidates", [lane["candidates"] for lane in LANES.values()]), ("--reference-gate", [lane["gate"] for lane in LANES.values()])):
         for name in paths:
@@ -1201,7 +1224,8 @@ def stage_report(args: argparse.Namespace) -> None:
     # Deliver by this path where the host can send a file as one block; its text follows unchanged.
     cd.say(f"creator_report: {report}")
     cd.say(report.read_text(encoding="utf-8").rstrip())
-    # 交付方式紧跟报告打印：实测里短问题的回复常被模型改写成摘要。
+    # Print the delivery instructions right after the report: in real runs the model often rewrote short
+    # replies into a summary.
     cd.say('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says), then this creator_report line.')
 
 

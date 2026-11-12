@@ -1,7 +1,9 @@
-// optimize-creator-brand 与 price-creator-brand-deals 没有驱动：模型直接调一次组合取数工具（KS9），
-// static_host.py 按编号取回并拆开落盘，place_composite.py 按调用顺序逐字节放进 snapshot/。两份
-// place_composite.py 逐字相同，两份都在这里跑一遍；再接上各自的下游（价格的账号事实、品牌包的投影、
-// 视觉规范按 source_id 放页面），确认放好的文件就是下游要的输入。不联网：走 stage 回退落盘。
+// optimize-creator-brand and price-creator-brand-deals have no driver: the model calls the composite fetch tool
+// (KS9) once directly, static_host.py retrieves by id and splits it to disk, and place_composite.py places the
+// files byte for byte into snapshot/ in call order. The two copies of place_composite.py are identical, and both
+// are run here; then each is wired to its own downstream (pricing's account facts, the brand pack's projection,
+// the visual spec placing pages by source_id), confirming the placed files are exactly the input the downstream
+// needs. No network: goes to disk through the stage fallback.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -73,13 +75,13 @@ async function stage(skill, run, tool, result) {
   assert.equal(staged.code, 0, staged.out);
 }
 
-test("两份 place_composite.py 逐字相同", async () => {
+test("the two place_composite.py copies are identical", async () => {
   const [a, b] = await Promise.all(SKILLS.map((skill) => readFile(path.join(scripts(skill), "place_composite.py"))));
   assert.ok(a.equals(b));
 });
 
 for (const skill of SKILLS) {
-  test(`${skill}：账号组合结果按调用顺序逐字节放进 snapshot/，失败项跳过并报出，同一份不放第二次`, async (t) => {
+  test(`${skill}: account composite results are placed byte-for-byte into snapshot/ in call order, failed items are skipped and reported, and the same one is not placed twice`, async (t) => {
     const run = await newRun(t, skill);
     const failedCall = ["instagram_list_reels", { handle: "neutral.creator", cursor: "c2" },
       { ...envelope("instagram-discovery", "list_reels", undefined), status: "failed", error_code: "provider_error", summary: "failed" }];
@@ -102,7 +104,7 @@ for (const skill of SKILLS) {
   });
 }
 
-test("price-creator-brand-deals：放好的文件直接喂给互动率与账号事实", async (t) => {
+test("price-creator-brand-deals: placed files feed directly into the engagement rate and account facts", async (t) => {
   const skill = "price-creator-brand-deals";
   const run = await newRun(t, skill);
   await stage(skill, run, "collect_account_history", accountComposite());
@@ -119,7 +121,7 @@ test("price-creator-brand-deals：放好的文件直接喂给互动率与账号�
   assert.equal(JSON.stringify(derived).includes("12000"), true, JSON.stringify(derived));
 });
 
-test("optimize-creator-brand：品牌包从放好的文件投影账号事实", async (t) => {
+test("optimize-creator-brand: the brand pack projects account facts from the placed files", async (t) => {
   const skill = "optimize-creator-brand";
   const run = await newRun(t, skill);
   await stage(skill, run, "collect_account_history", accountComposite());
@@ -135,7 +137,7 @@ test("optimize-creator-brand：品牌包从放好的文件投影账号事实", a
   assert.ok(JSON.stringify(facts).includes("resolved_public"), JSON.stringify(facts));
 });
 
-test("optimize-creator-brand：官方页组合结果按 source_id 放成 <source_id>.envelope.json", async (t) => {
+test("optimize-creator-brand: official-page composite results are placed as <source_id>.envelope.json by source_id", async (t) => {
   const skill = "optimize-creator-brand";
   const run = await newRun(t, skill);
   const pages = [

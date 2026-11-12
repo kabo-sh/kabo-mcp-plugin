@@ -73,7 +73,8 @@ def make_basis(payload: dict[str, Any], output: Path, paths: dict[str, Path]) ->
         actual = path.resolve(strict=True)
         if name != "account_analysis" and not _inside(actual, directory):
             raise ValueError(f"{name} must belong to the current run")
-        # 本 run 内的来源记相对路径：Web 每条命令挂在不同的绝对目录下，同一个 run 的绝对路径会变。
+        # Record sources inside this run as relative paths: on Web each command sits under a different absolute
+        # directory, so the absolute path of the same run changes.
         stored = str(actual.relative_to(directory)) if _inside(actual, directory) else str(actual)
         sources[name] = {"path": stored, "sha256": _digest(actual)}
         originals[name] = load_strict(actual)
@@ -110,7 +111,8 @@ def bound_sources(source_path: Path, source: dict[str, Any], *, evidence_path: P
     if not isinstance(basis, dict) or set(basis) != {"schema_version", "run_dir", "projection_sha256", "sources"}:
         raise ValueError("new authoring requires a complete generated authoring_basis")
     directory = require_open_current_run()
-    # run 按名字认（新写法）或按旧的绝对路径认；字节与投影仍逐项核对。
+    # The run is identified by name (new form) or by the old absolute path; bytes and projections are still
+    # checked item by item.
     if basis["schema_version"] != BASIS_VERSION or basis["run_dir"] not in (directory.name, str(directory)):
         raise ValueError("authoring_basis is not bound to this current run")
     if not _inside(source_path.resolve(strict=True), directory):

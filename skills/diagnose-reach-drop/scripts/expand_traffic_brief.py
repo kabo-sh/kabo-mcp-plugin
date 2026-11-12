@@ -206,7 +206,8 @@ def add_value_group(case: dict, result: dict, group: dict, group_index: int, met
     }
     fields(group, {"label", "values"}, allowed_group - {"label", "values"})
     size = group_size(group, ("values",))
-    # 用户对整组给的约数（如"之前大概 60%"）只记一次，不能拆成逐条的精确值。
+    # Record an approximate figure the user gave for the whole group (such as "about 60% before") only once;
+    # do not split it into exact per-item values.
     approximate = group.get("approximate", False)
     require(isinstance(approximate, bool), "brief group approximate must be true or false")
     require(not approximate or size == 1,
@@ -391,7 +392,8 @@ def expand_case(payload: dict, language: str = "zh-CN") -> tuple[dict, dict]:
         result = common_question(question)
         require(result["id"] not in ids, "duplicate brief question id")
         ids.add(result["id"])
-        # 一个问题可以有自己的来源（例如用户口述的数字）：各来源各自成条，不再整份共用一个。
+        # A question can have its own source (for example a number the user stated): each source becomes its own
+        # entry, instead of one source shared by the whole set.
         question_source = source_id
         if own_source is not None:
             require(isinstance(own_source, dict), "question source must be an object")

@@ -190,8 +190,9 @@ def build(intent: dict[str, Any], output: Path, *, creator_profile: Path | None 
             request["conversation_context"] = bound_conversation_context(retained_conversation, base)
         except ValueError as error:
             raise RequestInputError(str(error), field="conversation_context") from error
-    # 输入模式是已提供证据的事实，不能要求模型在投影生成前猜；复用 validator 的唯一判据。
-    # 兼容旧 intent 中的 source_mode，但绝不让它提升证据完整度或绕过后续生成门。
+    # The input mode is a fact about the evidence already provided, and the model cannot be required to guess it
+    # before the projection is generated; reuse the validator's single criterion. Stay compatible with source_mode
+    # in old intents, but never let it raise evidence completeness or bypass the later generation gates.
     request["source_mode"] = derive_source_mode(request)
     return request
 

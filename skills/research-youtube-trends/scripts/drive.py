@@ -77,7 +77,8 @@ SYNTHESIS = "trend-research-synthesis.json"
 REPORT = "trend-research-report.json"
 CREATOR_REPORT = "creator-report.md"
 SOURCE_VIDEO = "source-video.json"
-# 用户原话逐字存在 run 里，冻结 Request 时据此核对 locale.named_in_ask。
+# The user's exact words are stored verbatim in the run; use them to check locale.named_in_ask when
+# freezing the Request.
 QUESTION = Path("analysis") / "original-question.txt"
 
 # The collection budget of the longer-window scan. `results_per_route` is never omitted: the
@@ -215,27 +216,27 @@ def standard_input(wait: bool) -> str:
     """What standard input holds: all of it when `wait`, else only what is already there."""
     stream = sys.stdin
     if stream is None or stream.isatty():
-        return ""  # 漏了 heredoc 的终端，绝不等待
+        return ""  # A terminal missing its heredoc must never wait
     if not wait:
         try:
             import select
 
             ready, _, _ = select.select([stream], [], [], 0)
         except (OSError, ValueError, TypeError, AttributeError):
-            ready = [stream]  # 内存流（测试）读取不会阻塞
+            ready = [stream]  # Reading an in-memory stream (tests) does not block
         if not ready:
             return ""
     return stream.read().rstrip("\r\n")
 
 
 def original_question(args: argparse.Namespace) -> str | None:
-    """用户原话：本次 `--question-file` 给的优先，否则沿用本 run 已存的；都没有时返回 None（旧调用方）。
+    """The user's exact words: the one given by this call's `--question-file` wins, otherwise the one already stored in this run; returns None when there is neither (old callers).
 
-    与 review-creator-account `fetch --question-file` 同一约定：`-` 从标准输入读（同一命令的 heredoc），
-    否则读该文件。heredoc 末尾的换行不是用户打的字，去掉。
+    Same convention as review-creator-account `fetch --question-file`: `-` reads from stdin (the heredoc of the same command),
+    otherwise read the file. The trailing newline of a heredoc is not typed by the user, so strip it.
     """
     source = getattr(args, "question_file", None)
-    source = source if isinstance(source, str) else None  # 直接调用阶段函数的旧调用方没有这个参数
+    source = source if isinstance(source, str) else None  # Old callers that invoke the stage function directly do not have this parameter
     given = ""
     if source == "-":
         given = standard_input(wait=not getattr(args, "placed", False))
@@ -254,17 +255,17 @@ def original_question(args: argparse.Namespace) -> str | None:
 
 
 def _locale_preflight(args: argparse.Namespace, originals: dict[str, bytes]) -> bool:
-    """region / language 非空时，`locale.named_in_ask` 必须逐字出自用户原话；否则在任何取数前要求改一次。
+    """When region / language is non-empty, `locale.named_in_ask` must come verbatim from the user's exact words; otherwise ask for one correction before any fetch.
 
-    10-29 plugins K2：中文问句、没点名市场，模型仍写 language=zh-CN，搜索被偏到中文。核对通过后把引语
-    从 Request 移到 state：下游 Report 的 scope.locale 只有 region/language 两项，Request 其余字节不变。
-    宿主没给原话（旧调用方）时保持原行为，只打印一行警告。
+    10-29 plugins K2: a Chinese-language question that named no market still got language=zh-CN from the model, which skewed the search toward Chinese. After the check passes, the quote
+    moves from the Request to state: the downstream Report's scope.locale has only the region/language fields, and the rest of the Request bytes are unchanged.
+    When the host did not supply the exact words (old callers), keep the previous behavior and print only a warning line.
     """
     question = original_question(args)
     request = cd.load(REQUEST)
     locale = request.get("locale") if isinstance(request, dict) else None
     if not isinstance(locale, dict):
-        return True  # Request 自身的形状校验会指出
+        return True  # The Request's own shape validation will point it out
     if question is None:
         cd.say("[drive] warning: no --question-file was given, so locale.region / locale.language were not "
                "checked against the user's ask")
@@ -272,7 +273,7 @@ def _locale_preflight(args: argparse.Namespace, originals: dict[str, bytes]) -> 
     error = window_input_validator.locale_named_error(request, question)
     checked = cd.state().get("locale_named_in_ask") or {}
     if error and "named_in_ask" not in locale and checked.get("locale") == key:
-        error = None  # 同一 locale 本 run 已核对过，引语已移进 state（重跑 / --placed）
+        error = None  # This locale was already checked in this run and the quote moved into state (rerun / --placed)
     if error:
         return _window_error(args, originals, ValueError(error))
     if question is not None and any(key):
@@ -334,7 +335,8 @@ def need_authored(*names: str) -> bool:
     except (FileNotFoundError, json.JSONDecodeError):
         receipt = {}
     state = cd.state()
-    # 静态运行没有 run-manifest.json，以 static_host.py init 写下的 .static-run.json 作为预留凭据。
+    # A static run has no run-manifest.json; use the .static-run.json written by static_host.py init as the
+    # reservation credential.
     reserved = receipt.get("status") == "running" or Path(".static-run.json").is_file()
     if (not reserved or cd.in_skill_directory(Path.cwd())
             or state.get("missing_authored_inputs") or (state.get("frozen") or {}).get("sha")):
@@ -432,8 +434,10 @@ def stage_start(args: argparse.Namespace) -> None:
     cd.show_schema("trend-research-request.schema.json", "trend-query-plan.schema.json")
     if profile is not None:
         placed = Path(PROFILE_SOURCE)
-        # 用户可能在本轮中途改了画像。冻结后的 Request 已经带着旧画像的字段，换文件会让同一轮前后两半口径
-        # 不一致，所以字节不同就停下，让模型开一个新 run；同一份文件重跑 start 照常。
+        # The user may have changed the profile midway through this round. The frozen Request already carries
+        # fields from the old profile, and swapping the file would make the two halves of the same round
+        # use different bases, so stop when the bytes differ and have the model open a new run; rerunning start
+        # with the same file works as usual.
         if placed.is_file() and placed.read_bytes() != profile:
             raise cd.StageError("the profile file differs from the one this run started with: the profile changed "
                                 "during the run. Start a new run with the new file")
@@ -499,8 +503,10 @@ def collect_call(request: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any
         "published_before": window["until"],
         "budget": dict(COLLECT_BUDGET),
     }
-    # language 只取 Request 的 locale：collect 把它当搜索语言过滤传出去，是硬过滤，画像里的语言只是检索标签，
-    # 绝不进这里。region 在 locale 没给时退到创作者自己设的市场，那只是缺省检索地区。
+    # language is taken only from the Request's locale: collect passes it out as a search-language filter,
+    # which is a hard filter; the language in the profile is only a retrieval tag
+    # and must never get in here. When locale gives no region, region falls back to the market the creator set
+    # themselves, which is only a default retrieval region.
     if locale.get("language"):
         arguments["language"] = locale["language"]
     creator = request.get("creator_profile") if isinstance(request.get("creator_profile"), dict) else {}
@@ -693,7 +699,8 @@ def stage_rank(args: argparse.Namespace) -> None:
         need(ENRICHMENT_RESPONSE)
         cd.script("build_trend_workflow_snapshot.py", *base, "--enrichment", ENRICHMENT_RESPONSE,
                   "--merged-enrichment-output", ENRICHMENT, "--output", SNAPSHOT)
-    # 带画像时在服务端 enrich 定下的条目上按主打内容分名额；不带画像时命令与参数和原来一样。
+    # With a profile, allocate quota by main content over the items settled by server-side enrich; without a
+    # profile, the command and parameters are the same as before.
     profiled = intake.attached(cd.load(REQUEST))
     if profiled:
         cd.say(cd.script("allocate_signature_content.py", "--platform", PLATFORM, "--request", REQUEST,
@@ -724,7 +731,8 @@ def language_option(args: argparse.Namespace) -> tuple[str, ...]:
 
 
 def reference_args() -> list[str]:
-    # 只读本次运行已有的候选；交付兜底不再触发采集或改写原 Gate。
+    # Read only the candidates this run already has; the delivery fallback no longer triggers collection or
+    # rewrites the original Gate.
     args = []
     for flag, paths in (("--reference-candidates", [CANDIDATES, FIRST_CANDIDATES]), ("--reference-gate", [GATE])):
         for name in paths:
@@ -802,7 +810,8 @@ def stage_report(args: argparse.Namespace) -> None:
     # Deliver by this path where the host can send a file as one block; its text follows unchanged.
     cd.say(f"creator_report: {report}")
     cd.say(report.read_text(encoding="utf-8").rstrip())
-    # 交付方式紧跟报告打印：实测里短问题的回复常被模型改写成摘要。
+    # Print the delivery instructions right after the report: in real runs the model often rewrote short
+    # replies into a summary.
     cd.say('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says), then this creator_report line.')
 
 

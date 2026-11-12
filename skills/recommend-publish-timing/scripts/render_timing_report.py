@@ -195,7 +195,7 @@ def link_handles(text: str, rec: dict) -> str:
 
 def recheck_line(rec: dict, code: str) -> str | None:
     """A recommendation about timing can only be confirmed by later posts, so the document says
-    what to compare against rather than leaving `再攒十几条之后重跑一次` unmeasurable."""
+    what to compare against rather than leaving `再攒十几条之后重跑一次` (literal Chinese phrase, "collect a dozen or so more posts, then rerun once") unmeasurable."""
     text = SCOPE_STRINGS[code]
     base = rec.get("evidence_base") or {}
     cohort = base.get("cohort") or {}
@@ -233,8 +233,9 @@ def creator_view(result: dict, rec: dict | None = None) -> str:
     out = [f"# {view.get('headline', '')}".rstrip()]
     if view.get("summary"):
         out += ["", view["summary"]]
-    # 备用钟点的说明紧跟在答案后面：模型用创作者的语言写进 clock_note，validate_creator_shape.py 在
-    # 时区来源是 not_supplied / zone_unresolved 时要求它存在。
+    # The note on the fallback clock time follows right after the answer: the model writes it into clock_note in
+    #   the creator's language, and validate_creator_shape.py requires it to be present
+    # when the time zone source is not_supplied / zone_unresolved.
     note = view.get("clock_note")
     if isinstance(note, str) and note.strip():
         out += ["", f"> {note.strip()}"]

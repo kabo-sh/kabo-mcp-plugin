@@ -37,7 +37,8 @@ def visible_text(raw: dict[str, Any]) -> str:
 
 
 def project(payload: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
-    # 复用同目录的解析器，避免审核池和实际排序池从同一个原始行读出不同编号。
+    # Reuse the parser in the same directory, so the review pool and the actual ranking pool do not read different
+    #   numbers from the same raw row.
     import build_short_window_layers as layers
     if not isinstance(payload, dict) or not isinstance(request, dict):
         raise ValueError("topic input and request must be objects")
@@ -61,7 +62,8 @@ def project(payload: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
         for entry in language_gate.evidence(raw, payload["platform"]):
             if entry not in row["language_evidence"]:
                 row["language_evidence"].append(entry)
-    # 不交给模型播放量、日期、来源排名或搜索词；搜到该帖本身不是领域相关的证据。
+    # Do not give the model views, dates, source rank or search terms; the fact that the post was found by search
+    #   is not evidence that it is domain-relevant.
     return {"schema_version": "short-window-topic-input.v2", "source_sha256": digest(payload),
             "platform": payload["platform"], "request": request,
             "items": [rows[identifier] for identifier in sorted(rows)]}

@@ -257,7 +257,7 @@ Skills do not read the host's session or `tool-results` directories.
 ## Updating, uninstalling and rollback
 
 Moving from a development version to 1.0.0 resets the version numbering while keeping the latest
-implementation; see [CHANGELOG](CHANGELOG.md) (Chinese). SemVer ranks `1.0.0` below the former `3.x`
+implementation; see [CHANGELOG](CHANGELOG.md). SemVer ranks `1.0.0` below the former `3.x`
 versions, so do not rely on automatic upgrade detection. Refresh the marketplace, update the
 installation, and confirm that the host loads `1.0.0` or later. If it retains the old version, uninstall the
 plugin through the host and reinstall it. Keep research files and credentials intact. Host behavior
@@ -295,7 +295,7 @@ skills/                         # Twenty-one complete Skills and their resources
 skills.lock.json                # Original Skill source and versions
 runtime-contract.json           # Fixed tool and Skill inventory
 INSTALL.md                      # Installation steps written for an AI assistant to follow
-CHANGELOG.md                    # Version history (Chinese)
+CHANGELOG.md                    # Version history
 ```
 
 The twenty-one Skills cover video analysis, standard and deep account reviews, scripts and packaging,

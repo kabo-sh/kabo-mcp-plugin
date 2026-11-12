@@ -84,7 +84,7 @@ FIELD_LIMITS = {
     "hook.purpose": 160, "hook.visual_direction": 240,
 }
 
-# Digits only. Chinese numerals in "前三秒" are prose, not a claim about a measured quantity.
+# Digits only. Chinese numerals in "前三秒" ("the first three seconds") are prose, not a claim about a measured quantity.
 NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
 
 
@@ -158,20 +158,20 @@ def quotes_the_video(line: str, cues: list[dict]) -> str | None:
 #
 # The rounding rule is ported from `compare_rounds.py`, which learned it the hard way: exact token
 # matching called `3.1` invented when the object held `3.1043`, and one stability round wrote
-# "3 倍多" purely to get past the check — the measuring instrument changing the thing it measured.
+# "3 倍多" ("more than 3x") purely to get past the check — the measuring instrument changing the thing it measured.
 #
 # Magnitude words are part of the same problem, in every script the reports are written in. A
-# localized report writes "261 万播放" for 2,605,682 and an English one writes "2.6M views" for the
+# localized report writes "261 万播放" ("2.61 million views") for 2,605,682 and an English one writes "2.6M views" for the
 # same number; a check that reads only the token `261` or `2.6` calls a correctly rounded figure a
 # fabrication. The unit is a scale on the source, so it is divided out before comparing. Both sets
 # are accepted at once because the model may reach for either — the report's language does not
 # decide which notation a figure arrives in.
 #
 # The single letters need the lookahead: without it "5 km" reads as five thousand and "3 more"
-# reads as three million. "万亿" is listed before "万" so "5万亿" reads as five trillion, not
-# 5万 followed by a stray 亿, and ".5B" reads as 0.5B, not 5B. A dot after a letter, digit or dot
+# reads as three million. "万亿" (10^12) is listed before "万" (10^4) so "5万亿" reads as five trillion, not
+# 5万 followed by a stray 亿 (10^8), and ".5B" reads as 0.5B, not 5B. A dot after a letter, digit or dot
 # is not a leading-dot decimal: "obs.14" in a reference stays 14, as it always read.
-# "千" before a measurement unit (千米, 千克, 千瓦, 千卡) is part of the unit, not a scale.
+# "千" (thousand) before a measurement unit (千米 km, 千克 kg, 千瓦 kW, 千卡 kcal) is part of the unit, not a scale.
 MAGNITUDES = {
     "": 1,
     "千": 1_000, "万": 10_000, "百万": 1_000_000, "千万": 10_000_000,
@@ -251,7 +251,7 @@ def is_grounded(token: str, unit: str, values: set) -> bool:
     scale = MAGNITUDES.get((unit or "").lower(), 1)
     decimals = len(plain.split(".")[1]) if "." in plain else 0
     # Rounding a count to a few significant figures is how people write it: 18,067,177 views is
-    # "1800 万" or "1,800 万+" in a Chinese report, and 2,689,000 is "2.6M+" ("over 2.6M") as often
+    # "1800 万" (18 million) or "1,800 万+" in a Chinese report, and 2,689,000 is "2.6M+" ("over 2.6M") as often
     # as "2.7M". Rounding only at the written decimal place called both invented, and a production
     # run of this Skill stopped on exactly that. So trailing zeros in a large written count are a
     # precision, not digits the source must hold, and cutting at the written precision counts the
@@ -508,7 +508,7 @@ def check(result: dict, analysis: dict, evidence: dict) -> list[str]:
                     )
 
     # Figures were checked only on hooks[].spoken_line until now, so a headline or a summary could
-    # state anything. A real run opened with "261 万播放" and nothing looked at it.
+    # state anything. A real run opened with "261 万播放" (2.61 million views) and nothing looked at it.
     authored_view = dict(view)
     if video_note:
         # Its exact canonical value was checked above; do not add derived counts to the

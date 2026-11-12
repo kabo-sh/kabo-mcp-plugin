@@ -32,7 +32,7 @@ async function liveStore() {
   return { store, production, internal };
 }
 
-test('publish：只写 bundles 与 Web overlay，频道 index 一个字节不动；版本接着线上往上走；频道里没有的不首发', async () => {
+test('publish: writes only bundles and the Web overlay, leaves the channel index byte-for-byte untouched; versions continue upward from production; skills absent from the channel are not first-published', async () => {
   const { store } = await liveStore();
   const before = (await store.read('channels/production/index.json')).bytes;
   const root = pluginRepo({ 'alpha-skill': '# a1', 'beta-skill': '# b1', 'new-skill': '# n', 'remake-viral-video': '# r' });
@@ -46,14 +46,14 @@ test('publish：只写 bundles 与 Web overlay，频道 index 一个字节不动
     assert.equal(bundle.source.repository, 'kabo-sh/kabo-mcp-plugin');
     assert.equal(bundle.manifest, null);
   }
-  // 再发一次：没变的 skill 版本不动；变了的才 +1
+  // Publish again: unchanged skill versions stay put; only changed ones get +1
   fs.writeFileSync(path.join(root, 'skills', 'beta-skill', 'SKILL.md'), '---\nname: beta-skill\ndescription: "A beta-skill fixture"\n---\n# b2\n');
   const second = await publish({ store, pluginRoot: root, pluginCommit: 'd'.repeat(40) });
   assert.equal(second.skills['alpha-skill'].version, '1.2.6');
   assert.equal(second.skills['beta-skill'].version, '0.4.12');
 });
 
-test('restore 回到任一历史版本；clear 写空 overlay；test 目标与生产目标互不影响', async () => {
+test('restore returns to any historical version; clear writes an empty overlay; the test target and the production target do not affect each other', async () => {
   const { store } = await liveStore();
   const root = pluginRepo({ 'alpha-skill': '# a1' });
   const first = await publish({ store, pluginRoot: root, pluginCommit: COMMIT });
@@ -68,7 +68,7 @@ test('restore 回到任一历史版本；clear 写空 overlay；test 目标与�
   assert.equal(Object.keys(JSON.parse((await store.read(TARGETS.test)).bytes).skills).length, 1);
 });
 
-test('版本号不复用：clear 或暂扣后再发接着用过的最高号往上走；test 目标已有同内容就沿用同号同包', async () => {
+test('version numbers are never reused: after clear or hold, the next publish continues above the highest used number; the test target reuses the same number and package when it already has identical content', async () => {
   const { store } = await liveStore();
   const root = pluginRepo({ 'beta-skill': '# b1' });
   const first = await publish({ store, pluginRoot: root, pluginCommit: COMMIT });
@@ -80,11 +80,11 @@ test('版本号不复用：clear 或暂扣后再发接着用过的最高号往�
   const prod = await publish({ store, pluginRoot: root, pluginCommit: 'e'.repeat(40) });
   assert.deepEqual(prod.skills['beta-skill'], test1.skills['beta-skill']);
   assert.equal(JSON.parse((await store.read(VERSIONS_OBJECT)).bytes).skills['beta-skill'], '0.4.12');
-  // 频道里没有的 skill 仍不首发，即使 versions.json 里有记录
+  // Skills not in the channel are still not published for the first time, even if versions.json has a record
   assert.equal(versionFor('new-skill', 'sha256:z', [], null, null, ['9.9.9']), null);
 });
 
-test('测试账号名单：add / remove / list，重复 add 只留一条', async () => {
+test('test account list: add / remove / list; a duplicate add keeps only one entry', async () => {
   const { store } = await liveStore();
   await testAccounts({ store, action: 'add', userId: 'u1', note: 'rose' });
   await testAccounts({ store, action: 'add', userId: 'u1', note: 'rose' });
@@ -93,7 +93,7 @@ test('测试账号名单：add / remove / list，重复 add 只留一条', async
   assert.deepEqual(JSON.parse((await store.read(TEST_ACCOUNTS_OBJECT)).bytes), { format_version: 1, accounts: [{ user_id: 'u1', note: 'rose' }] });
 });
 
-test('versionFor：内容相同沿用，变了取线上与 overlay 较大者 +1，两边都没有为 null', () => {
+test('versionFor: identical content keeps the version; changed content takes the larger of production and overlay, plus 1; null when neither has it', () => {
   const live = [{ skills: { a: { version: '1.0.0' } } }];
   assert.equal(versionFor('a', 'sha256:x', live, { skills: { a: { version: '1.0.4', content_checksum: 'sha256:x' } } }), '1.0.4');
   assert.equal(versionFor('a', 'sha256:y', live, { skills: { a: { version: '1.0.4', content_checksum: 'sha256:x' } } }), '1.0.5');
@@ -101,7 +101,7 @@ test('versionFor：内容相同沿用，变了取线上与 overlay 较大者 +1�
   assert.equal(versionFor('b', 'sha256:y', live, null), null);
 });
 
-test('publish --hold：被扣下的 skill 不进 overlay（Web 用 Registry 原版本），其余照发', async () => {
+test('publish --hold: a held skill stays out of the overlay (Web uses the original Registry version) and the rest publish as usual', async () => {
   const { store } = await liveStore();
   const root = pluginRepo({ 'alpha-skill': '# a1', 'beta-skill': '# b1' });
   const result = await publish({ store, pluginRoot: root, pluginCommit: COMMIT, hold: ['beta-skill'] });
@@ -110,7 +110,7 @@ test('publish --hold：被扣下的 skill 不进 overlay（Web 用 Registry 原�
   assert.deepEqual(Object.keys(overlay.skills), ['alpha-skill']);
 });
 
-test('test 目标：本插件产不出的条目（别名发上来的）原样保留；生产目标不保留', async () => {
+test('test target: entries this plugin cannot produce (published via an alias) are preserved as-is; the production target does not preserve them', async () => {
   const { store } = await liveStore();
   const foreign = { version: '0.1.52', object: `bundles/creator-remake-web/0.1.52/${'b'.repeat(64)}.json`, content_checksum: `sha256:${'b'.repeat(64)}` };
   const seed = { format_version: 1, channel: 'production', updated_at: '2026-11-05T00:00:00.000Z', skills: { 'creator-remake-web': foreign } };
@@ -124,7 +124,7 @@ test('test 目标：本插件产不出的条目（别名发上来的）原样保
   assert.equal(prod.skills['creator-remake-web'], undefined);
 });
 
-test('publish：读 overlay 之后别人改过它，就报错重跑，不拿旧条目盖掉', async () => {
+test('publish: if someone changed the overlay after it was read, error out and rerun instead of overwriting with stale entries', async () => {
   const { store } = await liveStore();
   const root = pluginRepo({ 'alpha-skill': '# a1' });
   const seed = { format_version: 1, channel: 'production', updated_at: '2026-11-05T00:00:00.000Z', skills: {} };

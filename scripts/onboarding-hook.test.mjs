@@ -17,10 +17,11 @@ async function temp(t) {
   return dir;
 }
 
-// 钩子只拿到宿主给的环境；其余变量清空，避免开发机上的 CLAUDE_PLUGIN_DATA 混进来。
+// The hook gets only the environment the host provides; other variables are cleared so that a CLAUDE_PLUGIN_DATA set
+// on the development machine cannot leak in.
 const run = env => execFileSync("sh", [script], { env: { PATH: process.env.PATH, ...env }, encoding: "utf8" });
 
-test("hooks.json 只在 startup 会话调用仓内脚本，路径经 CLAUDE_PLUGIN_ROOT 解析", async () => {
+test("hooks.json calls the in-repo script only in startup sessions, with the path resolved through CLAUDE_PLUGIN_ROOT", async () => {
   const config = JSON.parse(await readFile(path.join(root, "hooks/hooks.json"), "utf8"));
   assert.deepEqual(Object.keys(config.hooks), ["SessionStart"]);
   const [entry] = config.hooks.SessionStart;
@@ -32,35 +33,37 @@ test("hooks.json 只在 startup 会话调用仓内脚本，路径经 CLAUDE_PLUG
   assert.ok(hook.timeout <= 10);
 });
 
-test("首个会话输出一次 start-with-kabo 提示，之后静默", async t => {
+test("the first session prints the start-with-kabo offer once, then stays silent", async t => {
   const data = path.join(await temp(t), "plugin-data");
   const first = JSON.parse(run({ CLAUDE_PLUGIN_DATA: data }));
   assert.equal(first.hookSpecificOutput.hookEventName, "SessionStart");
   const note = first.hookSpecificOutput.additionalContext;
   assert.match(note, /kabo:start-with-kabo/);
-  // 当场没接话的用户也要知道以后怎么自己开始，所以提示里必须给出可直接输入的命令。
+  // A user who does not take the offer right away must still know how to start later, so the note has to give a
+  // command that can be typed directly.
   assert.match(note, /typing \/kabo:start-with-kabo/);
-  // 提示只能让模型征求同意，不能替创作者开跑；无人值守的定时任务里不能发起。
+  // The note may only have the model ask for consent, never start for the creator; it must not be started in
+  // unattended scheduled tasks.
   assert.match(note, /Never start the setup without the user's agreement/);
   assert.match(note, /scheduled or unattended runs/);
   assert.ok(existsSync(path.join(data, "onboarding-offered")));
   assert.equal(run({ CLAUDE_PLUGIN_DATA: data }), "");
 });
 
-test("旧版宿主没有 CLAUDE_PLUGIN_DATA 时退回 ~/.kabo", async t => {
+test("falls back to ~/.kabo when an older host has no CLAUDE_PLUGIN_DATA", async t => {
   const home = await temp(t);
   assert.match(run({ HOME: home }), /start-with-kabo/);
   assert.ok(existsSync(path.join(home, ".kabo/onboarding-offered")));
   assert.equal(run({ HOME: home }), "");
 });
 
-test("标记写不进去时静默退出，不在每个会话反复提示", async t => {
+test("exits silently when the marker cannot be written, instead of offering in every session", async t => {
   const blocker = path.join(await temp(t), "not-a-directory");
   await writeFile(blocker, "");
   assert.equal(run({ CLAUDE_PLUGIN_DATA: path.join(blocker, "data") }), "");
 });
 
-test("hooks/ 留在 Claude Code 的仓库安装里，不进发布 ZIP", async () => {
+test("hooks/ stays in the Claude Code repository install and is not in the release ZIP", async () => {
   assert.ok(existsSync(path.join(root, "hooks/hooks.json")));
   assert.equal((await packageFiles()).some(file => file.name.startsWith("hooks/")), false);
 });

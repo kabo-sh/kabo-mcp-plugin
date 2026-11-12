@@ -299,7 +299,8 @@ def place(run: Path, result_id: str | None = None) -> dict[str, Any]:
     import static_host  # the record and the envelopes static_host.py fetch/stage wrote, never model text
 
     if result_id:
-        # 结果编号（下载链接路径里的 22 个字符）：脚本按编号自己取，模型不存结果。
+        # Result id (the 22 characters in the download-link path): the script fetches by id itself, and the model does
+        # not save the result.
         static_host.fetch_id(COLLECT_TOOL, result_id)
     else:
         take_saved(run)

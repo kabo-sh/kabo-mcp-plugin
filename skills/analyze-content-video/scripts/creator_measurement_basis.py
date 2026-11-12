@@ -43,8 +43,10 @@ def measurement_basis(evidence: dict, analysis: dict, view: dict) -> dict:
         facts.update(frame_kind="extracted", extracted_frames=len(frame_ids))
         plan = record(frames.get("sampling_plan"))
         count = plan.get("frames")
-        # 计划帧数是请求量：provider 解不出个别时间点（如末帧越过时长）时会少返回，
-        # 少于计划照实记录缺口；多于计划才说明帧记录与这份计划对不上。
+        # The planned frame count is the amount requested: when the provider cannot resolve some timestamps (e.g.
+        # the last frame falls past the duration), it returns fewer;
+        # fewer than planned is recorded honestly as a gap; more than planned means the frame records do not match
+        # this plan.
         if count is not None and (isinstance(count, bool) or not isinstance(count, int) or count < len(frame_ids)):
             raise ValueError("cannot derive data_note: sampling-plan frame count disagrees with frame records")
         if count is not None and count > len(frame_ids):
@@ -116,8 +118,10 @@ def measurement_basis(evidence: dict, analysis: dict, view: dict) -> dict:
     return facts
 
 
-# 这一行随报告原样转述：中文视图写中文，其余语言仍写英文、由宿主按 SKILL.md 本地化。
-# 两种写法是同一组事实、同一组数字；英文措辞保持原样逐字不变，校验器按视图语言逐字比对。
+# This line is relayed as is with the report: the zh view is written in Chinese, and other languages are
+# still written in English and localized by the host per SKILL.md.
+# The two wordings carry the same facts and the same numbers; the English wording stays unchanged character
+# for character, and the validator compares it character by character per view language.
 ZH_WORDS = {
     "source": {"YouTube video": "YouTube 视频", "Instagram video": "Instagram 视频",
                "TikTok video": "TikTok 视频", "Local video file": "本地视频文件"},
@@ -146,9 +150,9 @@ def display_width(text: str) -> int:
 def measurement_note(facts: dict, language: str = "en") -> str:
     """One measurement line, with fixed rounding.
 
-    只陈述可数的事实：抽了多少帧、报告引用了多少帧、转写与后台数据从哪来。以前末尾固定写
-    「画面查看未核实 / viewing unverified」，帧明明送到了模型面前、报告也逐条引用，创作者却读成
-    「画面没看过」（11-06 群反馈）。帧数与引用数本身就说明了是抽样画面，不再加这句。"""
+    States only countable facts: how many frames were sampled, how many the report cited, and where the transcript and backend data came from. It used to end with a fixed
+    "viewing unverified" note, even though the frames had been put in front of the model and the report cited them one by one, and creators still read it as
+    "the picture was never looked at" (group feedback, 11-06). The frame count and citation count already show that sampled frames were used, so that note is no longer added."""
     if language == "zh":
         note = _zh_note(facts)
     else:
@@ -195,8 +199,8 @@ def canonical_note(evidence: dict, analysis: dict, view: dict) -> str:
 
 
 def note_matches(note, evidence: dict, analysis: dict, view: dict) -> bool:
-    """新结果按视图语言写 data_note；更早版本给 zh 视图写的是英文行，回放时两种都认。
-    1.0.32 之前的行末尾多一段「画面查看未核实 / viewing unverified」，回放旧结果时同样认。"""
+    """New results write data_note in the view language; earlier versions wrote an English line for the zh view, and replay accepts both.
+    Lines from before 1.0.32 had an extra trailing "viewing unverified" segment (Chinese and English forms), which replay of old results accepts as well."""
     facts = measurement_basis(evidence, analysis, view)
     current = {measurement_note(facts, note_language(view))}
     if note_language(view) != "en":
