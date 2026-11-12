@@ -1,5 +1,7 @@
 <h1 align="center">Kabo: your creator partner inside Claude, ChatGPT, Grok Bot and Muse</h1>
 
+> ✨ **AI video generation is free for a limited time.** Remake a viral video with you on camera, at no charge while the offer lasts. [See videos made with Kabo](https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_promo).
+
 <p align="center">
   <a href="https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_hero">
     <img src="docs/readme/hero.gif" alt="Kabo. See which videos take off. Learn why. Make yours. Daily picks, account reviews and viral-video remakes with you on camera, in the AI assistant you already use, on your computer or your phone. 4 AI assistants (Claude, ChatGPT, Grok Bot, Muse), 21 creator skills, 3 platforms (YouTube, Instagram, TikTok)." width="100%" />
@@ -34,14 +36,16 @@ Two things set it apart:
   video is made on Kabo's servers, so you can start it from an assistant's mobile app and come back
   for the result.
 
-**AI video generation is free for a limited time.** New Kabo accounts also get 100 daily credits for
-their first 7 days. Details are on the [pricing page](https://kabo.sh/pricing?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_free).
+New Kabo accounts get 100 daily credits for their first 7 days. Details are on the [pricing page](https://kabo.sh/pricing?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_free).
 
 **Install in one message.** Paste this to your assistant:
 
 ```text
 Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable/INSTALL.md, then get me started.
 ```
+
+> **Are you an AI assistant?** Read [INSTALL.md](INSTALL.md) to install Kabo for your user: it is the
+> whole procedure. For a map of the product, read [kabo.sh/llms.txt](https://kabo.sh/llms.txt).
 
 ## See it in action
 
@@ -76,6 +80,20 @@ Kabo  Scanned Instagram Reels from the last 7 days against your two confirmed pi
 ```
 
 <sub>Condensed from a real session. Titles are shortened and account names removed; the multiples are the ones Kabo reported.</sub>
+
+## Without Kabo, with Kabo
+
+**Without Kabo**
+
+- ❌ You scroll for an hour to guess what is working in your niche this week.
+- ❌ You ask a chatbot for ideas and get generic ones, with no numbers and no sources.
+- ❌ You find a video worth copying, then lose a day scripting, filming and editing your version.
+
+**With Kabo**
+
+- ✅ Three picks every morning, matched to your own content pillars, each measured against its author's typical views.
+- ✅ Every finding carries its source links, time window and sample size, and says what could not be measured.
+- ✅ Send the link and get a finished remake with you on camera, from the assistant you already use.
 
 ## The daily loop
 
@@ -217,6 +235,64 @@ workspace so that it can link your account and save your pillars, scripts and pr
 - **[Kabo in the browser](https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_more_web)**: the full workspace, no setup.
 - **Kabo for [iPhone](https://apps.apple.com/us/app/kabo-ai-creator-coach/id6800972386) and [Android](https://play.google.com/store/apps/details?id=com.dealism.kabo)**: pre-publish video feedback on the go.
 - **[Free creator tools](https://kabo.sh/tools?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_more_tools)**: calculators, checkers and generators. No account needed.
+
+## What's new
+
+New in November 2026:
+
+- **The daily loop.** `start-with-kabo`, `pick-daily-viral-videos` and `review-new-posts` set you up once, then bring picks and post reviews every day.
+- **Remake from your own files.** `remake-viral-video` now accepts videos and photos from your device as well as public links.
+- **One-message install for any assistant.** [INSTALL.md](INSTALL.md) lets Grok Bot, Muse and other assistants install Kabo for you.
+
+Every release is listed on the [releases page](https://github.com/kabo-sh/kabo-mcp-plugin/releases).
+
+## FAQ
+
+<details>
+<summary><b>What is Kabo?</b></summary>
+
+Kabo is an AI partner for creators. You ask in plain language; it researches public creator data,
+explains what is working, and turns that evidence into videos you can make. This plugin brings Kabo
+into the AI assistant you already use. Kabo also runs [in the browser](https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_faq_web).
+</details>
+
+<details>
+<summary><b>Which assistants and platforms does it support?</b></summary>
+
+Assistants: Claude (Claude Code), ChatGPT and Codex, Grok Bot and Muse. Other assistants that support
+remote MCP servers with OAuth can connect too; see [Install](#install). Platforms: YouTube, Instagram
+and TikTok.
+</details>
+
+<details>
+<summary><b>Is it free?</b></summary>
+
+AI video generation is free for a limited time. New accounts get 100 daily credits for their first
+7 days. After that, see the [pricing page](https://kabo.sh/pricing?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_faq_pricing). The
+plugin itself is open source under the MIT license.
+</details>
+
+<details>
+<summary><b>Can I really remake a video from my phone?</b></summary>
+
+Yes. The video is made on Kabo's servers, not on your device. Ask for the remake in your assistant's
+mobile app, approve the model and the estimate, and come back for the finished MP4.
+</details>
+
+<details>
+<summary><b>What does "evidence attached" mean?</b></summary>
+
+Kabo keeps the source links, the comparison window and the timestamps behind a conclusion next to the
+answer. When the evidence is thin, it says so instead of presenting a guess as fact. Its analysis
+cannot guarantee reach, views or growth.
+</details>
+
+<details>
+<summary><b>Does Kabo post for me or change my account?</b></summary>
+
+No. Kabo researches, drafts and makes the video. Publishing stays with you, and Kabo works from public
+data: it does not read your private analytics.
+</details>
 
 ## For maintainers
 
