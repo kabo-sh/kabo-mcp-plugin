@@ -746,7 +746,7 @@ test("每日推荐的各 status：generating 严格按 retry_after 有上限地�
   // 推荐：通常 120 秒，补画像时 300 秒；首次后最多再查 3 次、总等待不超过 600 秒。
   const waiting = await forYou(forYouResult("generating", { retry_after_seconds: 120 }));
   assert.deepEqual([waiting.action, waiting.wait_seconds, waiting.next_flags], ["wait", 120, { "--attempt": 2, "--waited": 120 }]);
-  assert.match(waiting.progress_line, /still preparing/);
+  assert.match(waiting.progress_line, /preparing today's picks for you. This can take a few minutes/);
   // 两次 300 秒的补画像等待装得下，第三次装不下就停。
   assert.equal((await forYou(forYouResult("generating", { retry_after_seconds: 300 }), "--attempt", "2", "--waited", "300")).wait_seconds, 300);
   const overBudget = await forYou(forYouResult("generating", { retry_after_seconds: 300 }), "--attempt", "3", "--waited", "600");
@@ -1237,4 +1237,38 @@ test("给创作者的数字：播放量取整加千分位，倍数至多两位�
   const clusters = path.join(temp, "clusters.json");
   await writeFile(clusters, JSON.stringify({ clusters: [cluster("Big ones", ["b0", "b1"])] }));
   assert.equal(run("propose-pillars", "--library", library, "--clusters", clusters).groups[0].say_line, "2 of your videos, about 6.04 times your usual views.");
+});
+
+test("等待时的话最多两句、不重复：进入等待说一次，第 3 次调用补一句，其余轮询明确不出话（推荐与画像都一样）", async t => {
+  const temp = await workspace(t);
+  const file = path.join(temp, "wait.json");
+  const as = async (value) => { await writeFile(file, JSON.stringify(value)); return file; };
+  const said = (output) => output.progress_line ?? output.tell_creator_now ?? null;
+  // 推荐：首次后最多再查 3 次（每次 120 秒），第 4 次调用时停下。
+  const picks = [];
+  let flags = { attempt: 1, waited: 0 };
+  for (;;) {
+    const out = run("for-you", "--library", path.join(temp, "lib"), "--result", await as(forYouResult("generating", { retry_after_seconds: 120 })),
+      "--date", "2026-11-12", "--attempt", String(flags.attempt), "--waited", String(flags.waited));
+    if (out.action !== "wait") break;
+    picks.push(said(out));
+    if (!said(out)) assert.equal(out.say_to_creator, false);
+    flags = { attempt: out.next_flags["--attempt"], waited: out.next_flags["--waited"] };
+  }
+  assert.deepEqual(picks, ["Kabo is preparing today's picks for you. This can take a few minutes.", null, "Still working on it."]);
+  // 画像：首次后最多再查 8 次（每次 60 秒），整个等待里只出两句。
+  const profile = [];
+  flags = { attempt: 1, waited: 0 };
+  for (;;) {
+    const out = run("profile-status", "--result", await as(prepared("generating", { retry_after_seconds: 60 })), "--attempt", String(flags.attempt), "--waited", String(flags.waited));
+    if (out.action !== "wait") break;
+    profile.push(said(out));
+    if (!said(out)) assert.equal(out.say_to_creator, false);
+    flags = { attempt: out.next_flags["--attempt"], waited: out.next_flags["--waited"] };
+  }
+  assert.equal(profile.length, 8);
+  const lines = profile.filter(Boolean);
+  assert.deepEqual(lines, ["Kabo is building your profile from your public videos. This usually takes a few minutes.", "Still working on it."]);
+  // 守卫：连续轮询输出里同一句不重复。
+  for (const sequence of [picks.filter(Boolean), lines]) assert.equal(new Set(sequence).size, sequence.length);
 });

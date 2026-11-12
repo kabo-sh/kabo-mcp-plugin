@@ -102,8 +102,11 @@ Do what its `action` says:
   `sleep <wait_seconds>` in the shell), call `get_for_you_videos` again with the same arguments, save
   the result to `for-you-<n>.json` (the next number) and run `for-you` on it with the `--attempt` and
   `--waited` values from `next_flags`. The script caps the waiting, in scheduled runs too: at most 3
-  more calls and at most 10 minutes of waiting in all, whichever comes first. Send `progress_line` only
-  when the creator is in the conversation; a scheduled run sends nothing until the end.
+  more calls and at most 10 minutes of waiting in all, whichever comes first. The script gives a
+  `progress_line` on the first wait and at most once more when the wait grows long; on the other
+  waits it gives `say_to_creator: false`: say nothing then. Send `progress_line` only when the
+  creator is in the conversation; a scheduled run sends nothing until the end. Never repeat a line
+  you already sent.
 - `stop`: send `message`, in the creator's language, as the whole reply and end the run. It covers
   a list that is still not ready when the waiting ends ("you'll get them next time"), an account
   Kabo cannot make picks for (`reason`: no linked account, no public videos, not enough known about

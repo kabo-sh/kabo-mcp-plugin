@@ -842,6 +842,19 @@ def poll_decision(payload, attempt, waited, limits):
             "next_flags": {"--attempt": attempt + 1, "--waited": waited + wait}}
 
 
+# 等待时对创作者说的话：进入等待说一次，第 3 次调用（等得明显变长）时最多再补一句，总共不超过两句。
+# 其余轮询不出话，并用 say_to_creator: false 明确告诉助手这次不用说（实测里同一句被发了 6 遍）。
+STILL_WORKING = "Still working on it."
+
+
+def wait_line(attempt, first):
+    if attempt == 1:
+        return first
+    if attempt == 3:
+        return STILL_WORKING
+    return None
+
+
 def status_of(payload, is_error):
     # 宿主标了 isError（工具错误，如 validation_error、not_found）、没有 status 或 status 不是字符串的，
     # 一律按失败处理，并把原样内容带回去报告。
@@ -882,7 +895,6 @@ def reported(payload):
 
 PROFILE_STATUS_LINES = {
     "first_wait": "Kabo is building your profile from your public videos. This usually takes a few minutes.",
-    "wait": "Still building your profile.",
     "gave_up": ("Your profile is not ready yet, so I can't show your content pillars now. I'll go on with the rest; "
                 "ask me for your content pillars later."),
     "insufficient_posts": ("You don't have enough videos yet for Kabo to find your content pillars, so there are none for "
@@ -926,7 +938,8 @@ def cmd_profile_status(args):
         decision = poll_decision(payload, args.attempt, args.waited, POLL_LIMITS["profile"])
         result.update(decision)
         if decision["action"] == "wait":
-            result["tell_creator_now"] = PROFILE_STATUS_LINES["first_wait" if args.attempt == 1 else "wait"]
+            line = wait_line(args.attempt, PROFILE_STATUS_LINES["first_wait"])
+            result.update({"tell_creator_now": line} if line else {"say_to_creator": False})
         else:
             result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["gave_up"]})
     elif status == "niche_required" and not args.niche_sent:
@@ -1680,7 +1693,8 @@ def cmd_for_you(args):
         decision = poll_decision(payload, args.attempt, args.waited, POLL_LIMITS["for_you"])
         result.update(decision)
         if decision["action"] == "wait":
-            result["progress_line"] = "Kabo is still preparing today's picks for you."
+            line = wait_line(args.attempt, "Kabo is preparing today's picks for you. This can take a few minutes.")
+            result.update({"progress_line": line} if line else {"say_to_creator": False})
         else:
             result["message"] = "Kabo is still preparing today's picks; you'll get them next time."
     elif status == "not_eligible":

@@ -143,7 +143,8 @@ Act on two of its actions only:
   `prepare_creator_profile` once more with `"niche"` set to the creator's own words (3 to 200
   characters; shorten only by cutting, never by rewording). Never write the niche yourself. If the
   creator does not want to answer, go on.
-Any other answer (including `wait`): go on now; do not wait for the profile.
+Any other answer (including `wait`): go on now; do not wait for the profile. Whenever a script
+prints `say_to_creator: false`, there is nothing to tell the creator for that step.
 
 **Posts.** Print the request and make one call with it, unchanged:
 
@@ -281,8 +282,9 @@ python3 '<skill directory>/scripts/creator_library.py' record-sync --library '<l
 Before offering anything recurring, give the creator one real result: follow the
 `pick-daily-viral-videos` Skill now, from its step 2 (the same `get_for_you_videos` call with
 `"include": ["author_id"]`, and the same single fallback without it), for this account, the run directory and the
-library directory above. The creator is here, so send each `progress_line` it prints while Kabo is
-still preparing the picks. Describe the picks only by what Kabo returned (views, rank, Kabo's reason):
+library directory above. The creator is here, so send `progress_line` when the script gives one (at
+most twice while Kabo prepares the picks); when it says `say_to_creator: false`, wait without a
+message. Never repeat a line you already sent. Describe the picks only by what Kabo returned (views, rank, Kabo's reason):
 Kabo may still be using a list made before the pillars were saved, so never say they were chosen for
 the pillars just confirmed. With the picks, name in one line each what the creator can ask for next (a
 breakdown, a script, a remake). If there are none today, send its one line and go on.

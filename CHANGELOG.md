@@ -39,6 +39,8 @@
     每行句子由 `profile-pillars` / `propose-pillars` 的 `say_line` 直接给出，不再让模型把 `share_of_posts`、`medianMultiplier` 翻成话
     （实测出现过 "about 32% of its sample"、"1.48 times its comparison baseline"）。
   - 「I read N of your videos…」只在读完作品时说一次（`posts --tell`），之后再列作品不重复。
+  - 等待推荐或画像时的话最多两句、不重复：进入等待说一次（推荐带上「可能要几分钟」），第 3 次调用时补一句 "Still working on it."，
+    其余轮询输出 `say_to_creator: false`（实测里 "Kabo is still preparing today's picks for you." 被发了 6 遍）。
   - 推荐只按 Kabo 返回的内容描述，不说「按刚确认的支柱选的」（保存支柱后，Kabo 可能仍给保存前生成的那一份）。
   - 文案守卫加上：不得出现 sample / baseline / reference groups，不得出现 `\d+.0 views` 与 8 位以上不分隔的整数。
 - 验收：`@leohuan.fang`（Instagram）、`@veritasium`（YouTube）在 Codex 加生产 `/mcp-pub` 上走通本地提议 → `declare_pillars`
