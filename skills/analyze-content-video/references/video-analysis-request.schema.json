@@ -43,7 +43,7 @@
           "description": "Whose content this is and whether it is published. It cannot be inferred from the media or from the acquisition path: the same file may be the creator's unreleased draft or a competitor's post. For a public URL without an ownership statement, explicitly declare unknown and use public-only evidence; never infer own or third_party. Unknown permits neither owner data nor a baseline."
         },
         "platform": {
-          "enum": ["instagram", "youtube", "tiktok", "unknown"],
+          "enum": ["instagram", "youtube", "tiktok", "douyin", "xiaohongshu", "kuaishou", "facebook", "bilibili", "unknown"],
           "description": "For an unpublished draft this is the intended platform; use `unknown` only when the creator genuinely has not decided."
         },
         "url": { "type": ["string", "null"], "format": "uri" },
