@@ -24,7 +24,11 @@
 - The only production MCP connection is `/mcp-pub`. Each data operation is pinned and must match the
   provider's artifacts. Do not introduce a registry, a general-purpose executor or remote end-to-end
   research tasks. The provider keeps the old dynamic server protocol compatible.
-- No lifecycle hooks. Save complete MCP responses explicitly and verify digests, run ownership and
+- One lifecycle hook only: `hooks/hooks.json` runs `SessionStart` (`startup`) in Claude Code to offer
+  `start-with-kabo` once after install, because the host has no install-time event. It only adds a note to
+  the model's context: it never starts a Skill, calls Kabo, or saves results for the model. It is not a
+  package component, so the release ZIP excludes it and the OpenAI package check still rejects `hooks/`.
+  Add no other hooks. Save complete MCP responses explicitly and verify digests, run ownership and
   reports; do not read host session records. The static package version and the source Skills'
   business versions are maintained separately, and packaged content never updates itself at run time.
 - The package must not contain apps, `.app.json`, a private registry, real local paths, test URLs or

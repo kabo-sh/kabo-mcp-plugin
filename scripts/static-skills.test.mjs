@@ -36,8 +36,12 @@ test("二十一个固定 Skills 完整解包；根目录、宿主身份与唯一
   assert.equal(files.some(file => /^(plugin|bin|hooks)\//.test(file.name)), false);
   for (const id of ids) assert.ok((await readFile(path.join(root, "skills", id, "SKILL.md"))).length);
   assert.deepEqual(deterministicZip(files), deterministicZip([...files].reverse()));
+  // hooks/ 是 Claude Code 从仓库安装时才读的组件：留在根目录不报错，但不进包。
   await mkdir(path.join(root, "hooks"));
   await writeFile(path.join(root, "hooks/hooks.json"), "{}");
+  assert.equal((await packageFiles(root)).some(file => file.name.startsWith("hooks/")), false);
+  await mkdir(path.join(root, "commands"));
+  await writeFile(path.join(root, "commands/start.md"), "start");
   await assert.rejects(checkPackage(root), /过滤器/);
 });
 
