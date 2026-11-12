@@ -248,10 +248,11 @@
           "enum": [
             "connector_extract_keyframes",
             "connector_metadata",
+            "connector_transcript",
             "local_probe",
             "unavailable"
           ],
-          "description": "extract_keyframes probes the downloaded file; collect_public_metadata returns the platform-declared duration and was observed to be null for Instagram. local_probe is the creator's own file, probed on the machine this run executed on - it is the master they exported, not the copy a platform re-encoded and delivered, and the same is true of every other field in this block on that path."
+          "description": "extract_keyframes probes the downloaded file; collect_public_metadata returns the platform-declared duration and was observed to be null for Instagram. connector_transcript is the platform-declared duration that fetch_transcript carries on Douyin, Xiaohongshu and Kuaishou, used only when neither of the first two gave one. local_probe is the creator's own file, probed on the machine this run executed on - it is the master they exported, not the copy a platform re-encoded and delivered, and the same is true of every other field in this block on that path."
         },
         "width": {
           "type": [

@@ -640,7 +640,8 @@ def post_facts(post: dict[str, Any] | None) -> dict[str, Any]:
 
 def media_block(frames: dict[str, Any] | None, metadata: dict[str, Any] | None,
                 local: dict[str, Any] | None = None,
-                measurements: dict[str, Any] | None = None) -> dict[str, Any]:
+                measurements: dict[str, Any] | None = None,
+                captions: dict[str, Any] | None = None) -> dict[str, Any]:
     if local is not None:
         facts = as_record(local.get("media"))
         duration = facts.get("duration_s")
@@ -669,10 +670,17 @@ def media_block(frames: dict[str, Any] | None, metadata: dict[str, Any] | None,
     declared = as_record(as_record(metadata.get("data")).get("video")).get("duration_seconds") if usable(metadata) else None
     observed = observed if isinstance(observed, (int, float)) and observed > 0 else None
     declared = declared if isinstance(declared, (int, float)) and declared > 0 else None
+    # Douyin, Xiaohongshu and Kuaishou make no separate metadata call, so a transcript-only run had
+    # no duration at all and a one-cue transcript could not be closed as a subtitle file. The
+    # transcript response carries the platform-declared duration for them; it ranks last.
+    spoken = as_record(captions.get("data")).get("duration_seconds") if usable(captions) else None
+    spoken = spoken if isinstance(spoken, (int, float)) and spoken > 0 else None
     if observed is not None:
         duration, source = float(observed), "connector_extract_keyframes"
     elif declared is not None:
         duration, source = float(declared), "connector_metadata"
+    elif spoken is not None:
+        duration, source = float(spoken), "connector_transcript"
     else:
         duration, source = None, "unavailable"
     block: dict[str, Any] = {
@@ -1197,7 +1205,7 @@ def build(
                for step in local_steps]
             + pending_entries
         ),
-        "media": media_block(frames, metadata, local_media, measurements),
+        "media": media_block(frames, metadata, local_media, measurements, captions),
         "transcript": transcript,
         "frames": frame_block,
         "owner_metrics": owner_metrics or {"status": "unavailable", "source_mode": "unavailable",
