@@ -2,8 +2,8 @@
 name: remake-viral-video
 description: "Have Kabo produce a finished MP4: remake a viral talking-head or voice-over video (up to 10 min) with the creator, make one from an approved script, build one from steps (new words on the creator's own video, the creator in a reference's shot, B-roll, or nobody on camera: animation, narration), or change a delivered one. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all nine tools: remakes, edits of delivered videos, step-by-step projects and local file uploads)."
-allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project start_file_upload finish_file_upload
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all eight tools: remakes, edits of delivered videos, step-by-step projects and local file uploads)."
+allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project upload_file
 ---
 
 # Remake Viral Video
@@ -149,7 +149,7 @@ gate (step 4), not a stop before it.
 webm up to 200 MB; JPEG or PNG up to 10 MB) works in any of these roles, and in steps and
 project inputs: send it with `references/local-files.md`, then pass the `kabo-file:<id>` it gives
 wherever a link goes (`--reference-url`, `--creator-video`, `--creator-photo`, `--reference-video`,
-`--reference-image`). If this connection has no `start_file_upload` tool, say local files cannot be
+`--reference-image`). If this connection has no `upload_file` tool, say local files cannot be
 sent from here and ask for a link. TikTok photo posts and other sites are not supported: ask for a
 YouTube, Instagram or TikTok video link instead. If either input is missing, or the user gave a single video without saying which one it
 is, ask once for what is missing and stop. Use

@@ -6,7 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-// remake-viral-video 的本地文件：upload-call / upload 把本地视频或照片传到 start_file_upload 给的签名链接，
+// remake-viral-video 的本地文件：upload-call / upload 把本地视频或照片传到 upload_file 给的签名链接，
 // 之后 kabo-file:<id> 可以放在任何收链接的位置。上传经进程内的假 HTTPS 处理器，测试不联网。
 const root = fileURLToPath(new URL("..", import.meta.url));
 const script = path.join(root, "skills/remake-viral-video/scripts/static_host.py");
@@ -54,7 +54,7 @@ test("upload-call：只收视频与 JPEG/PNG，文件名按内容摘要命名，
   const first = call(dir, ["upload-call", "--file", video]);
   assert.equal(first.status, 0, first.stderr);
   const parsed = JSON.parse(first.stdout);
-  assert.equal(parsed.tool, "start_file_upload");
+  assert.equal(parsed.tool, "upload_file");
   assert.match(parsed.arguments.filename, /^video-[0-9a-f]{16}\.mov$/);
   assert.equal(parsed.arguments.size_bytes, 2048);
   assert.equal(JSON.parse(call(dir, ["upload-call", "--file", video]).stdout).arguments.idempotency_key,
@@ -129,7 +129,7 @@ test("upload：一次 POST 开会话、一次 PUT 传完整字节，只认签名
   const result = spawnSync("python3", ["-c", PY, scripts, workspace, media], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
   const out = JSON.parse(result.stdout);
-  assert.equal(out.uploaded.tool, "finish_file_upload");
+  assert.equal(out.uploaded.tool, "upload_file");
   assert.deepEqual(out.uploaded.arguments, { file_id: FILE });
   assert.equal(out.calls.length, 2);
   assert.equal(out.calls[0].method, "POST");

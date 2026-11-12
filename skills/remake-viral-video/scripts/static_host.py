@@ -16,14 +16,14 @@ Commands:
   finish-call    print the finish_video_project arguments for one finished handle
   fetch-step     save the file the last step produced (its preview), from a get_remake_video result with project
   fetch-revision save the newest revision of the finished video (after an edit or finish_video_project)
-  upload-call    check one local video or photo the user gave and print the start_file_upload arguments
-  upload         send that file's bytes to the signed upload link a start_file_upload result returned, then
-                 print the finish_file_upload arguments
+  upload-call    check one local video or photo the user gave and print the upload_file arguments
+  upload         send that file's bytes to the signed upload link an upload_file result returned, then
+                 print the upload_file arguments that verify it
 
 Network access: `fetch` / `fetch-preview` / `fetch-step` / `fetch-revision` make one GET per signed storage.googleapis.com
 link that a Kabo tool result returned, checked against the declared bytes and sha256 before anything is kept;
 `upload` makes one POST (opens the resumable session) and one PUT (the file's bytes) to the signed
-storage.googleapis.com link a start_file_upload result returned.
+storage.googleapis.com link an upload_file result returned.
 """
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ CREATOR_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 LANGUAGE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 HANDLE = re.compile(r"^@?[A-Za-z0-9._]{1,30}$")
 FILE_REF_RE = re.compile(r"^kabo-file:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", re.IGNORECASE)
-# 本地文件上传（start_file_upload / finish_file_upload）：类型与上限同 Kabo 用户文件策略；照片只收复刻认的 JPEG / PNG。
+# 本地文件上传（upload_file 登记 + 核对）：类型与上限同 Kabo 用户文件策略；照片只收复刻认的 JPEG / PNG。
 UPLOAD_VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".m4v": "video/x-m4v", ".webm": "video/webm"}
 UPLOAD_IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 UPLOAD_VIDEO_MAX_BYTES = 200 * 1000 * 1000
@@ -147,7 +147,7 @@ def write_new(path, body):
 # ---------------------------------------------------------------- start-call
 
 def _file_ref(raw):
-    """kabo-file:<uuid>（finish_file_upload 给的已传完的本地文件）规范成小写；不是这种写法返回 None。"""
+    """kabo-file:<uuid>（upload_file 核对后给的已传完的本地文件）规范成小写；不是这种写法返回 None。"""
     value = (raw or "").strip() if isinstance(raw, str) else ""
     match = FILE_REF_RE.match(value)
     return f"kabo-file:{match.group(1).lower()}" if match else None
@@ -165,7 +165,7 @@ def _url(raw, role):
     if parts.scheme != "https" or host not in YOUTUBE_HOSTS | INSTAGRAM_HOSTS | TIKTOK_HOSTS | TIKTOK_SHORT_HOSTS \
             or parts.username or parts.port:
         raise ValueError(f"{role} must be an https YouTube, Instagram or TikTok video link, or kabo-file:<id> "
-                         "from finish_file_upload for a local file (run upload-call first)")
+                         "from upload_file for a local file (run upload-call first)")
     if not parts.path.strip("/"):
         raise ValueError(f"{role} must link to one video, not a home page")
     if any(ord(char) <= 32 or ord(char) == 127 for char in url):
@@ -239,7 +239,7 @@ def _photo_url(raw):
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https") or not parts.hostname or parts.username or parts.password:
         raise ValueError("Each --creator-photo must be a public http(s) link to a JPEG or PNG image, or kabo-file:<id> "
-                         "from finish_file_upload for a local photo (run upload-call first)")
+                         "from upload_file for a local photo (run upload-call first)")
     if any(ord(char) <= 32 or ord(char) == 127 for char in url):
         raise ValueError("A --creator-photo link contains spaces or control characters")
     return url
@@ -1377,7 +1377,7 @@ def fetch_review(run, bundle):
 
 
 # ---------------------------------------------------------------- local files
-# 用户给的本地视频 / 照片：start_file_upload 拿一条签名上传链接，upload 把字节传上去，finish_file_upload 核对后
+# 用户给的本地视频 / 照片：upload_file 登记拿一条签名上传链接，upload 把字节传上去，upload_file 只带 file_id 核对后
 # 给出 kabo-file:<id>，它能放在任何收链接的位置（参考、本人视频、照片、参考图）。文件名不外传，只用摘要命名。
 
 
@@ -1406,11 +1406,11 @@ def _local_file(path):
 
 
 def upload_call(path, attempt):
-    """start_file_upload 的入参：文件名用内容摘要命名（不外传用户的文件名），幂等键绑定文件内容。"""
+    """upload_file（登记）的入参：文件名用内容摘要命名（不外传用户的文件名），幂等键绑定文件内容。"""
     _file, ext, kind, size, digest = _local_file(path)
     arguments = {"filename": f"{kind}-{digest[:16]}{ext}", "size_bytes": size}
-    key = _key("start_file_upload", {**arguments, "sha256": digest}, attempt)
-    return {"tool": "start_file_upload", "arguments": {**arguments, "idempotency_key": key}}
+    key = _key("upload_file", {**arguments, "sha256": digest}, attempt)
+    return {"tool": "upload_file", "arguments": {**arguments, "idempotency_key": key}}
 
 
 def _structured(raw, tool):
@@ -1440,16 +1440,16 @@ def _signed_storage(url):
             and not any(ord(char) <= 32 or ord(char) == 127 for char in url))
 
 
-UPLOAD_RESIGN = ("Call start_file_upload again with the same arguments (that signs a new link; the upload is not "
+UPLOAD_RESIGN = ("Call upload_file again with the same upload-call arguments (that signs a new link; the upload is not "
                  "duplicated), save its complete result and run upload on it right away")
 
 
 def upload(raw, path):
-    """把本地文件传到 start_file_upload 给的签名链接：一次 POST 开可续传会话，一次 PUT 传完整字节。"""
-    structured = _structured(raw, "start_file_upload")
+    """把本地文件传到 upload_file 给的签名链接：一次 POST 开可续传会话，一次 PUT 传完整字节。"""
+    structured = _structured(raw, "upload_file")
     file_id = structured.get("file_id")
     if not isinstance(file_id, str) or not JOB_ID_RE.match(file_id):
-        raise ValueError("This start_file_upload result has no file_id")
+        raise ValueError("This upload_file result has no file_id")
     file, _ext, _kind, size, _digest = _local_file(path)
     ref = f"kabo-file:{file_id.lower()}"
     if structured.get("status") == "ready":
@@ -1458,7 +1458,7 @@ def upload(raw, path):
                 "next": f"Use {ref} wherever this file goes (a reference, creator video or photo, or reference image)"}
     instruction = structured.get("upload")
     if structured.get("status") != "upload_required" or not isinstance(instruction, dict):
-        raise ValueError("This start_file_upload result has no upload instruction")
+        raise ValueError("This upload_file result has no upload instruction")
     url, headers = instruction.get("url"), instruction.get("headers") or {}
     if str(instruction.get("method", "")).upper() != "POST" or not _signed_storage(url):
         raise ValueError("The upload link is not a Kabo signed storage link; refusing to use it")
@@ -1482,7 +1482,7 @@ def upload(raw, path):
     if status in (400, 401, 403):
         raise ValueError(f"The upload link expired or was refused (HTTP {status}). " + UPLOAD_RESIGN)
     if status == 412:
-        raise ValueError("This upload was already sent. Call finish_file_upload with this file_id")
+        raise ValueError("This upload was already sent. Call upload_file with only this file_id")
     if status not in (200, 201) or not _signed_storage(session):
         raise ValueError(f"Opening the upload failed (HTTP {status}). " + UPLOAD_RESIGN)
     try:
@@ -1498,8 +1498,8 @@ def upload(raw, path):
         raise ValueError(f"Sending the file failed ({type(error).__name__}). " + UPLOAD_RESIGN) from None
     if status not in (200, 201):
         raise ValueError(f"Sending the file failed (HTTP {status}). " + UPLOAD_RESIGN)
-    return {"status": "uploaded", "tool": "finish_file_upload", "arguments": {"file_id": file_id.lower()},
-            "next": f"Call finish_file_upload with these arguments; once it says ready, use {ref} wherever this "
+    return {"status": "uploaded", "tool": "upload_file", "arguments": {"file_id": file_id.lower()},
+            "next": f"Call upload_file with only this file_id; once it says ready, use {ref} wherever this "
                     "file goes"}
 
 

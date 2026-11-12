@@ -213,12 +213,12 @@ Place scripts in `scripts/`. There are no strict general constraints, but script
     again with `"delivery": "download"` (which reruns the operation). Re-signing does not introduce
     another network access path: it still uses a signed URL returned by a Kabo tool.
   - `upload --file --input` (remake-viral-video only, 2026-11-12): sends one local video or photo the
-    user gave to the signed `storage.googleapis.com` upload link a `start_file_upload` result returned
+    user gave to the signed `storage.googleapis.com` upload link an `upload_file` result returned
     (read from a file or stdin, never argv). One POST opens the resumable session with exactly the
     signed headers (any other header, such as Authorization, is refused), then one PUT sends the file's
     bytes to the session link, which must also be on `storage.googleapis.com`. No redirects. Errors and
     output must not repeat URLs, signatures or object names; the user's file name is never sent (the
-    upload is named by the file's sha256). `finish_file_upload` then checks size and type on the server.
+    upload is named by the file's sha256). `upload_file` with only the `file_id` then checks size and type on the server.
   - Lint flags network-library usage for audit but does not check hostnames. PR review must verify
     that there is no network access beyond the paths above.
 - **KS7.4** (audit): Keep executable scripts under `scripts/`.
