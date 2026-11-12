@@ -67,13 +67,19 @@ const profileResult = (items, { niche = "Short breakdowns of viral videos for sm
   },
 });
 
-test("三份 creator_library.py 逐字相同；复盘的快照拼装脚本与账号复盘的相同；引导与推荐不再带取数脚本", async () => {
+test("三份 creator_library.py 逐字相同；引导与复盘的快照拼装脚本与账号复盘的相同；每日推荐不带取数脚本", async () => {
   const copies = new Set(await Promise.all(owners.map(id => readFile(path.join(root, "skills", id, "scripts/creator_library.py"), "utf8"))));
   assert.equal(copies.size, 1);
   const reference = await readFile(path.join(root, "skills/review-creator-account/scripts/build_public_snapshot.py"), "utf8");
-  assert.equal(await readFile(path.join(root, "skills/review-new-posts/scripts/build_public_snapshot.py"), "utf8"), reference);
-  // 引导与每日推荐不读作品历史：不带快照拼装脚本，static_host 也不收任何取数结果，只建运行目录。
-  for (const id of ["start-with-kabo", "pick-daily-viral-videos"]) {
+  // 引导重新在本地读作品（1.0.40：本地提议支柱），与复盘一样带快照拼装脚本和取数白名单。
+  for (const id of ["review-new-posts", "start-with-kabo"])
+    assert.equal(await readFile(path.join(root, "skills", id, "scripts/build_public_snapshot.py"), "utf8"), reference, id);
+  const probe = "import json, runpy, sys\nm = runpy.run_path(sys.argv[1])\nprint(json.dumps([sorted(m['CONNECTOR_TOOLS'].values()), sorted(m['HANDED_COMPOSITES'])]))";
+  const startTables = JSON.parse(execFileSync("python3", ["-I", "-B", "-c", probe, path.join(root, "skills/start-with-kabo/scripts/static_host.py")], options));
+  assert.deepEqual(startTables[1], ["collect_account_history", "collect_video_media"]);
+  assert.ok(startTables[0].includes("public_video_fetch_transcript"));
+  // 每日推荐不读作品历史：不带快照拼装脚本，static_host 也不收任何取数结果，只建运行目录。
+  for (const id of ["pick-daily-viral-videos"]) {
     await assert.rejects(access(path.join(root, "skills", id, "scripts/build_public_snapshot.py")));
     const probe = "import json, runpy, sys\nm = runpy.run_path(sys.argv[1])\nprint(json.dumps([sorted(m['CONNECTOR_TOOLS']), sorted(m['AGGREGATE_TOOLS']), sorted(m['HANDED_COMPOSITES'])]))";
     const tables = JSON.parse(execFileSync("python3", ["-I", "-B", "-c", probe, path.join(root, "skills", id, "scripts/static_host.py")], options));
@@ -81,11 +87,13 @@ test("三份 creator_library.py 逐字相同；复盘的快照拼装脚本与账
   }
 });
 
-// 被删掉的本地推导与本地检索：三个 Skill 的说明里不得再引用这些命令、文件与工具。
-const REMOVED = ["propose-pillars", "save-pillars", "media-request", "transcripts", "pick-request", "candidates --", "clusters.json",
-  "confirmed.json", "schedule.json", "set-profile", "collect_video_media", "collect_instagram_trend_candidates",
-  "collect_youtube_trend_candidates", "enrich_instagram_shortlist", "enrich_youtube_shortlist", "evidence_strength", "0.8 times",
-  "creator_library.py' posts", "creator_library.py' pick "];
+// 被删掉的本地检索与旧命令：三个 Skill 的说明里不得再引用。1.0.40 起引导重新在本地提议支柱，
+// 所以支柱相关的命令只许出现在 start-with-kabo 里。
+const REMOVED = ["pick-request", "candidates --", "schedule.json", "set-profile", "collect_instagram_trend_candidates",
+  "collect_youtube_trend_candidates", "enrich_instagram_shortlist", "enrich_youtube_shortlist", "evidence_strength",
+  "creator_library.py' pick "];
+const LOCAL_PROPOSAL = ["propose-pillars", "save-pillars", "media-request", "transcripts", "clusters.json", "confirmed.json",
+  "collect_video_media", "creator_library.py' posts"];
 
 test("三个 Skill 的说明不再引用已删除的命令、文件与本地推导工具；推荐只用 get_for_you_videos，画像只经 prepare_creator_profile 与 get_creator_profile", async () => {
   const texts = {};
@@ -97,12 +105,34 @@ test("三个 Skill 的说明不再引用已删除的命令、文件与本地推�
     }
     texts[id] = (await Promise.all(files.map(file => readFile(file, "utf8")))).join("\n");
     for (const word of REMOVED) assert.equal(texts[id].includes(word), false, `${id} 仍引用 ${word}`);
+    if (id !== "start-with-kabo") for (const word of LOCAL_PROPOSAL) assert.equal(texts[id].includes(word), false, `${id} 引用了 ${word}`);
   }
   const allowed = (id) => texts[id].match(/^allowed-tools: (.*)$/m)[1].split(" ");
   assert.deepEqual(allowed("pick-daily-viral-videos").sort(), ["get_for_you_videos", "list_connected_accounts"]);
   for (const name of ["prepare_creator_profile", "get_creator_profile", "update_content_preferences", "get_for_you_videos", "connect_public_account"])
     assert.ok(allowed("start-with-kabo").includes(name), name);
-  assert.equal(allowed("start-with-kabo").includes("collect_account_history"), false);
+  for (const name of ["collect_account_history", "collect_video_media", "get_research_data_download"]) assert.ok(allowed("start-with-kabo").includes(name), name);
+  // kabo#2185 钉住后：declare_pillars 与 get_creator_profile 的 pillars 入参、declaredPillars 出参在契约里，形状与脚本一致。
+  {
+    const tools = new Map(JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools.map(tool => [tool.name, tool]));
+    const write = tools.get("update_content_preferences").inputSchema;
+    assert.ok(write.properties.action.enum.includes("declare_pillars"));
+    assert.deepEqual(write.properties.pillars.items.required.sort(), ["definition", "name", "searchPhrases"]);
+    assert.equal(tools.get("get_creator_profile").inputSchema.properties.pillars.type, "boolean");
+    const item = tools.get("get_creator_profile").outputSchema.properties.declaredPillars.items;
+    assert.deepEqual([item.properties.name.maxLength, item.properties.definition.maxLength, item.properties.searchPhrases.maxItems,
+      item.properties.searchPhrases.items.maxLength], [60, 200, 3, 60]);
+  }
+  // 本地提议、同步一次、整份替换、失败如实说、本地数字不是 Kabo 的统计结论。
+  assert.match(texts["start-with-kabo"], /## 5\. Save the pillars to Kabo, once/);
+  assert.match(texts["start-with-kabo"], /replaces the whole set Kabo holds/);
+  assert.match(texts["start-with-kabo"], /saved on this computer only, not in Kabo/);
+  assert.match(texts["start-with-kabo"], /\*\*not Kabo's statistics\*\*/);
+  assert.match(texts["start-with-kabo"], /it does not recommend or reject anything/);
+  assert.match(texts["start-with-kabo"], /"pillars": true/);
+  assert.match(texts["start-with-kabo"], /do not wait for the profile/);
+  assert.match(texts["review-new-posts"], /A scheduled run never\s+writes to Kabo/);
+  assert.ok(allowed("review-new-posts").includes("update_content_preferences"));
   // 复盘保持原样：自己读历史与评论，支柱从画像读。
   for (const name of ["collect_account_history", "get_creator_profile", "list_connected_accounts"]) assert.ok(allowed("review-new-posts").includes(name), name);
   // 开场：脚本两句，说明里也写两句加一个问题；不再承诺「一分钟内」看到账号事实。
@@ -110,15 +140,12 @@ test("三个 Skill 的说明不再引用已删除的命令、文件与本地推�
   assert.match(texts["start-with-kabo"], /two short messages and one question/);
   assert.doesNotMatch(texts["start-with-kabo"], /within about a minute|three short messages/);
   // 后台推断不出赛道时只问创作者一次，原话带 niche 重试，模型不替创作者编。
-  assert.match(texts["start-with-kabo"], /"niche": "<the creator's answer, in their\s+own words>"/);
+  assert.match(texts["start-with-kabo"], /set to the creator's own words/);
   assert.match(texts["start-with-kabo"], /Never write the niche\s+yourself/);
-  assert.match(texts["start-with-kabo"], /--niche-sent/);
-  // 两处等待上限写在说明里，与脚本一致。
-  assert.match(texts["start-with-kabo"], /at most 8 more\s+calls and at most 8 minutes/);
+  // 推荐的等待上限写在说明里，与脚本一致（引导不再等画像）。
   assert.match(texts["pick-daily-viral-videos"], /at most 3\s+more calls and at most 10 minutes/);
   // 写权限缺失时的处理写在说明里；定时任务只跑只读或取数的两个 Skill，不调写工具。
   assert.match(texts["start-with-kabo"], /`ask_write_access`/);
-  assert.match(texts["start-with-kabo"], /--write-retried/);
   assert.match(texts["start-with-kabo"], /The scheduled jobs run only `pick-daily-viral-videos` and `review-new-posts`/);
   for (const id of ["pick-daily-viral-videos", "review-new-posts"]) assert.equal(allowed(id).includes("prepare_creator_profile"), false, id);
   // 两个新工具已在钉住的 tools/list 里，scope 与 Skill 的 compatibility 一致；入参键都在 inputSchema 里。
@@ -197,7 +224,7 @@ test("建库记下绑定时间；之后发布的作品满 24 小时才复盘一�
   assert.equal(facts.age_hours, 25.67);
   assert.equal(facts.same_age_baseline.multiple, null);
   assert.equal(facts.typical_settled.posts, 10);
-  assert.match(facts.limits[0], /no same-age comparison/);
+  assert.match(facts.limits[0], /not with posts at the same age/);
   const report = path.join(temp, "r.md");
   await writeFile(report, "review");
   run("record-review", "--library", library, "--content-id", "new1", "--checkpoint", "24h", "--report", report);
@@ -386,7 +413,8 @@ test("prepare_creator_profile：ready 去读画像；generating 严格按 retry_
   assert.doesNotMatch(flaky.tell_creator_now, /enough videos/);
   const otherCode = await status(prepared("failed", { failure_code: "model_invalid_output", retryable: true, retry_after_seconds: 10 }), "--attempt", "2", "--waited", "42");
   assert.equal(otherCode.action, "wait");
-  assert.match(otherCode.tell_creator_now, /trying again \(model_invalid_output\)/);
+  assert.match(otherCode.tell_creator_now, /is trying again\.$/);
+  assert.equal(otherCode.failure_code, "model_invalid_output");
   // 自动重跑：回 generating（For you 在途时 job_id 为 null，照常轮询），再到 ready。
   const rerun = await status(prepared("generating", { job_id: null, retry_after_seconds: 60 }), "--attempt", "3", "--waited", "52");
   assert.deepEqual([rerun.action, rerun.wait_seconds], ["wait", 60]);
@@ -415,12 +443,12 @@ test("prepare_creator_profile：ready 去读画像；generating 严格按 retry_
   const noScope = { isError: true, content: [{ type: "text", text: "Insufficient scope: workspace:write is required" }] };
   const askWrite = await status(noScope);
   assert.deepEqual([askWrite.status, askWrite.action, askWrite.reason], ["failed", "ask_write_access", "insufficient_scope"]);
-  assert.match(askWrite.tell_creator_now, /Reconnect Kabo in this app and approve write access/);
-  assert.match(askWrite.no_write_access_line, /no content pillars for now.*picks only need read access/);
+  assert.match(askWrite.tell_creator_now, /Reconnect Kabo in this app and approve it/);
+  assert.match(askWrite.no_write_access_line, /can't save your content pillars to Kabo for now.*today's picks don't need it/);
   assert.match(askWrite.then, /--write-retried/);
   const stillNoScope = await status(noScope, "--write-retried");
   assert.equal(stillNoScope.action, "continue_without_profile");
-  assert.match(stillNoScope.tell_creator_now, /read access/);
+  assert.match(stillNoScope.tell_creator_now, /today's picks don't need it/);
   // niche_required 带的 failure_code（如 profile_private）只带出去说明，照样问一次领域。
   const privateProfile = await status(prepared("niche_required", { failure_code: "profile_private", retry_after_seconds: 86400 }));
   assert.deepEqual([privateProfile.action, privateProfile.failure_code], ["ask_niche", "profile_private"]);
@@ -428,6 +456,76 @@ test("prepare_creator_profile：ready 去读画像；generating 严格按 retry_
   assert.equal((await status(prepared("generating", { retry_after_seconds: 30 }))).wait_seconds, 30);
   const notFound = await status({ isError: true, content: [{ type: "text", text: "not_found: account is not yours" }] });
   assert.deepEqual([notFound.status, notFound.failure_code], ["failed", "not_found: account is not yours"]);
+});
+
+// ---- 对创作者说的话只用日常语言（1.0.40）：脚本里会被转述的固定文案与各分支的实际输出、
+// 以及 SKILL.md 里规定「这样对创作者说」的引号例句，都不得出现技术词、工具名、字段名、状态码与 Skill id。
+const PINNED_TOOL_NAMES = JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools.map(tool => tool.name);
+const JARGON = new RegExp(String.raw`\b(backend|server|sync\w*|api|mcp|database|scopes?|tools?|status|library|json|run directory|workspace:\w+|` +
+  [...PINNED_TOOL_NAMES, "classification_unavailable", "context_changed", "insufficient_posts", "not_eligible", "niche_required",
+   "model_invalid_output", "validation_error", "not_found", "failure_code", "retry_after_seconds", "declaredPillars", "declared_pillars",
+   "signatureContent", "signature content", "generating", ...owners, "analyze-content-video", "create-script-and-packaging",
+   "remake-viral-video"].map(word => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + String.raw`)\b`, "i");
+const plain = (label, text) => assert.doesNotMatch(String(text), JARGON, `${label}: ${text}`);
+
+test("对创作者说的话不含技术词：脚本固定文案、各分支实际输出、SKILL.md 的引号例句", async t => {
+  // 1. 固定文案常量。
+  const probe = "import json, runpy, sys\nm = runpy.run_path(sys.argv[1])\nprint(json.dumps({k: m[k] for k in ['OPENING', 'PROFILE_STATUS_LINES', 'SYNC_LINES', 'FOR_YOU_NOT_ELIGIBLE', 'FIRST_READING_LINE']}))";
+  const constants = JSON.parse(execFileSync("python3", ["-I", "-B", "-c", probe, cli], options));
+  const walk = (label, value) => typeof value === "string" ? plain(label, value)
+    : Object.entries(value).forEach(([key, inner]) => walk(`${label}.${key}`, inner));
+  walk("constants", constants);
+
+  // 2. 各分支的实际输出里转述给创作者的字段。
+  const temp = await workspace(t);
+  const said = [];
+  const collect = (output) => { for (const key of ["tell_creator_now", "message", "progress_line", "no_write_access_line", "question", "note_for_creator"])
+    if (output[key]) said.push(...[output[key]].flat()); for (const line of output.limits ?? []) said.push(line); return output; };
+  const file = path.join(temp, "x.json");
+  const as = async (value) => { await writeFile(file, JSON.stringify(value)); return file; };
+  for (const value of [prepared("generating", { retry_after_seconds: 60 }), prepared("niche_required", { failure_code: "profile_private" }),
+    prepared("insufficient_posts", { retry_after_seconds: 86400 }), prepared("failed", { failure_code: "model_invalid_output", retryable: true, retry_after_seconds: 30 }),
+    prepared("failed", { failure_code: "classification_unavailable", retryable: true, retry_after_seconds: 30 }),
+    prepared("failed", { failure_code: "profile_build_failed", retryable: false, retry_after_seconds: 7200 }), { status: "weird_status" },
+    { isError: true, content: [{ type: "text", text: "Insufficient scope: workspace:write" }] }])
+    collect(run("profile-status", "--result", await as(value)));
+  collect(run("profile-status", "--result", await as(prepared("niche_required")), "--niche-sent"));
+  const lib = path.join(temp, "lib");
+  for (const value of [forYouResult("generating", { retry_after_seconds: 120 }), forYouResult("not_eligible", { reason: "brand_new_reason" }),
+    forYouResult("not_eligible", { reason: "unavailable" }), forYouResult("failed", { failure_code: "collection_failed", retry_after_seconds: 3600 }),
+    forYouResult("weird_status"), { isError: true, content: [{ type: "text", text: "validation_error: account_id" }] }])
+    collect(run("for-you", "--library", lib, "--result", await as(value), "--date", "2026-11-12"));
+  collect(run("for-you", "--library", lib, "--result", await as(forYouResult("generating", { retry_after_seconds: 300 })), "--date", "2026-11-12", "--attempt", "4", "--waited", "500"));
+  // 支柱同步与复盘的 limits。
+  const t0 = "2026-10-20T08:00:00Z";
+  run("ingest", "--library", lib, "--snapshot", await snapshot(temp, "s0.json", t0, history(t0)), "--handle", "maker");
+  collect(run("posts", "--library", lib));
+  await writeFile(path.join(temp, "confirmed.json"), JSON.stringify({ confirmed: true, pillars: [{ name: "Breakdowns", definition: "Why one video worked", search_phrases: ["viral breakdown"], content_ids: ["old0"] }] }));
+  run("save-pillars", "--library", lib, "--file", path.join(temp, "confirmed.json"));
+  for (const value of [{ isError: true, content: [{ type: "text", text: "Insufficient scope: workspace:write" }] }, { isError: true, content: [{ type: "text", text: "invalid_input: action" }] },
+    { structuredContent: { effectiveContentProfile: {} } }])
+    collect(run("record-sync", "--library", lib, "--result", await as(value), "--retried"));
+  run("refresh-pillars", "--library", lib, "--unavailable", "get_creator_profile failed: not_found");
+  collect(run("recap", "--library", lib, "--date", "2026-10-21"));
+  collect(run("review-facts", "--library", lib, "--content-id", "old0", "--checkpoint", "24h"));
+  const bare = path.join(temp, "bare");
+  run("bootstrap", "--library", bare, "--platform", "instagram", "--handle", "maker");
+  collect(run("recap", "--library", bare, "--date", "2026-10-21"));
+  assert.ok(said.length > 25, String(said.length));
+  for (const line of said) plain("output", line);
+
+  // 3. SKILL.md 与 references 里规定对创作者说的引号例句（含空格的双引号句子）。
+  for (const id of owners) {
+    const dir = path.join(root, "skills", id);
+    const files = ["SKILL.md", ...["pillars.md", "profile-edits.md", "host-schedules.md", "review-format.md"].map(name => `references/${name}`)];
+    for (const name of files) {
+      let text;
+      try { text = await readFile(path.join(dir, name), "utf8"); } catch { continue; }
+      for (const [, quote] of text.replace(/^---\n[\s\S]*?\n---\n/, "").replace(/`[^`]*`/g, "``").matchAll(/"([^"\n]{12,})"/g))
+        // 唯一例外：说明里引用的工具报错原文，是给助手辨认失败用的，不对创作者说。
+        if (/\s/.test(quote) && !quote.startsWith("MCP error contains")) plain(`${id}/${name}`, quote);
+    }
+  }
 });
 
 // ---- 每日推荐：只读 get_for_you_videos 的结果，按 SKILL.md 写明的限制选 3 条。
@@ -643,11 +741,11 @@ test("每日推荐的各 status：generating 严格按 retry_after 有上限地�
   assert.equal(overBudget.action, "stop");
   const gaveUp = await forYou(forYouResult("generating", { retry_after_seconds: 120 }), "--attempt", "4", "--waited", "360");
   assert.equal(gaveUp.action, "stop");
-  assert.match(gaveUp.message, /next run will bring them/);
+  assert.match(gaveUp.message, /you'll get them next time/);
 
   const expected = {
     no_linked_account: /No account is linked/, no_public_videos: /no public videos/, profile_insufficient: /more of your posts/,
-    language_unknown: /which language/, unavailable: /not available for this account/, brand_new_reason: /reason: brand_new_reason/,
+    language_unknown: /which language/, unavailable: /not available for this account/, brand_new_reason: /can't make picks for this account right now\.$/,
   };
   for (const [reason, pattern] of Object.entries(expected)) {
     const answer = await forYou(forYouResult("not_eligible", { reason, retry_after_seconds: reason === "no_linked_account" ? null : 3600 }));
@@ -658,7 +756,8 @@ test("每日推荐的各 status：generating 严格按 retry_after 有上限地�
   // kabo#2180：failed 一律不轮询，按 retry_after_seconds 说大约多久后再来。
   const failedNow = await forYou(forYouResult("failed", { failure_code: "collection_failed", retryable: false, retry_after_seconds: 7200 }));
   assert.deepEqual([failedNow.action, failedNow.failure_code, failedNow.retry_in], ["stop", "collection_failed", "about 2 hours"]);
-  assert.match(failedNow.message, /collection_failed.*New picks can be made in about 2 hours/);
+  assert.match(failedNow.message, /New picks can be made in about 2 hours/);
+  assert.doesNotMatch(failedNow.message, /collection_failed/);
   assert.equal("wait_seconds" in failedNow, false);
   // 旧后台：context_changed 回 failed + retryable=true + 约 24 小时——同样不轮询，如实说时间。
   const oldStyle = await forYou(forYouResult("failed", { failure_code: "context_changed", retryable: true, retry_after_seconds: 86000 }));
@@ -666,14 +765,16 @@ test("每日推荐的各 status：generating 严格按 retry_after 有上限地�
   assert.equal("wait_seconds" in oldStyle, false);
   assert.match((await forYou(forYouResult("failed", { failure_code: "model_budget", retry_after_seconds: 1800 }))).message, /about 30 minutes/);
   const final = await forYou({ structuredContent: { status: "failed", retryable: false, message: "provider quota" } });
-  assert.match(final.message, /provider quota.*next run will try again/);
+  assert.match(final.message, /I'll try again next time/);
+  assert.equal(final.failure_code, "provider quota");
   // 多账号未指定是工具错误 validation_error，不是某个 status。
   const ambiguous = await forYou({ isError: true, content: [{ type: "text", text: "validation_error: account_id is required (acc-1, acc-2)" }] });
   assert.deepEqual([ambiguous.status, ambiguous.action], ["failed", "stop"]);
-  assert.match(ambiguous.message, /validation_error/);
+  assert.match(ambiguous.failure_code, /validation_error/);
+  assert.doesNotMatch(ambiguous.message, /validation_error/);
   const odd = await forYou({ structuredContent: { status: "paused", detail: 1 } });
   assert.deepEqual([odd.status, odd.action], ["paused", "stop"]);
-  assert.match(odd.message, /status: paused/);
+  assert.doesNotMatch(odd.message, /paused|status/);
   assert.deepEqual(odd.reported, { status: "paused" });
   const blank = await forYou({});
   assert.equal(blank.status, "failed");
@@ -699,12 +800,12 @@ test("每日回顾：粉丝变化、近 7 天对比常规水平、每个支柱�
   assert.equal(first.followers.available, false);
   assert.equal(first.followers.now, 1000);
   assert.ok(first.limits.some(line => /no follower change/.test(line)));
-  assert.ok(first.limits.some(line => /only this run's reading/.test(line)));
+  assert.ok(first.limits.some(line => /first time I've read your account/.test(line)));
   const t1 = "2026-10-21T10:00:00Z";
   run("ingest", "--library", library, "--snapshot", await snapshot(temp, "s1.json", t1, [...history(t0), item("new1", "2026-10-21T06:00:00Z", 700)], { followers: 1040 }));
   const recap = run("recap", "--library", library, "--date", "2026-10-21");
   // 第二次在同一个库上读到历史：宿主留住了文件，不再说「只有这一次读数」。
-  assert.equal(recap.limits.some(line => /only this run's reading/.test(line)), false);
+  assert.equal(recap.limits.some(line => /first time I've read your account/.test(line)), false);
   assert.equal(run("show", "--library", library).fresh, false);
   assert.deepEqual([recap.followers.available, recap.followers.change, recap.followers.previous, recap.followers.since_hours], [true, 40, 1000, 26]);
   assert.equal(recap.typical_settled_views, 1050);
@@ -754,14 +855,14 @@ test("复盘第一次运行：没有本地库时从 Kabo 画像建库，回看 4
     assert.match(refuse("set-pillar", "--library", bare, "--content-id", "fresh", "--pillar-id", "viral-breakdowns").stderr, /one of the library's pillars/);
     const facts = run("review-facts", "--library", bare, "--content-id", "fresh", "--checkpoint", "24h");
     assert.equal(facts.pillar_id, null);
-    assert.ok(facts.limits.some(line => /only this run's reading/.test(line)));
+    assert.ok(facts.limits.some(line => /first time I've read your account/.test(line)));
     const review = path.join(temp, `${name}-review.md`);
     await writeFile(review, "review");
     run("record-review", "--library", bare, "--content-id", "fresh", "--checkpoint", "24h", "--report", review);
     assert.deepEqual(run("due", "--library", bare).due, []);
     const recap = run("recap", "--library", bare, "--date", "2026-10-21");
     assert.deepEqual(recap.pillars, []);
-    assert.ok(recap.limits.some(line => /no confirmed pillars|no per-pillar reading/.test(line)));
+    assert.ok(recap.limits.some(line => /no content pillars saved yet/.test(line)));
     assert.equal(recap.followers.now, 500);
     // 常规水平取满 72 小时的作品：十条旧作品加上 stale，fresh 还在攒播放。
     assert.equal(recap.typical_settled_views, 1000);
@@ -804,8 +905,8 @@ test("复盘每次运行按 Kabo 画像刷新支柱：改名保持归属、合�
   // 2. 读不到画像：沿用上一次，复盘与回顾的 limits 说明；整次运行不失败。
   const failed = run("refresh-pillars", "--library", library, "--unavailable", "get_creator_profile failed: not_found");
   assert.deepEqual([failed.refreshed, failed.pillars], [false, ["viral-breakdowns", "talking-and-daily-life"]]);
-  assert.ok(run("recap", "--library", library, "--date", "2026-10-21").limits.some(line => /could not be refreshed.*not_found.*using the ones read at/.test(line)));
-  assert.ok(run("review-facts", "--library", library, "--content-id", "old0", "--checkpoint", "24h").limits.some(line => /could not be refreshed/.test(line)));
+  assert.ok(run("recap", "--library", library, "--date", "2026-10-21").limits.some(line => /couldn't get your latest content pillars from Kabo today, so this uses the ones from \d{4}-\d\d-\d\d/.test(line)));
+  assert.ok(run("review-facts", "--library", library, "--content-id", "old0", "--checkpoint", "24h").limits.some(line => /couldn't get your latest content pillars/.test(line)));
   await writeFile(path.join(temp, "refused.json"), JSON.stringify({ isError: true, content: [{ type: "text", text: "Internal error" }] }));
   assert.equal(run("refresh-pillars", "--library", library, "--profile", path.join(temp, "refused.json")).refreshed, false);
   assert.deepEqual(["old0", "old2"].map(owner), ["viral-breakdowns", "talking-and-daily-life"]);
@@ -816,7 +917,7 @@ test("复盘每次运行按 Kabo 画像刷新支柱：改名保持归属、合�
   assert.deepEqual(removed.pillars, ["viral-breakdowns"]);
   assert.deepEqual(removed.posts, { kept: 2, moved: 0, unassigned: 2 });
   assert.deepEqual(["old0", "old2", "old3", "old4"].map(owner), ["viral-breakdowns", null, null, "other"]);
-  assert.equal(run("recap", "--library", library, "--date", "2026-10-22").limits.some(line => /could not be refreshed/.test(line)), false);
+  assert.equal(run("recap", "--library", library, "--date", "2026-10-22").limits.some(line => /couldn't get your latest content pillars/.test(line)), false);
   const after = JSON.parse(await readFile(path.join(library, "posts.json"), "utf8")).posts;
   assert.deepEqual(after.old2.observations, before.old2.observations);
 
@@ -826,7 +927,7 @@ test("复盘每次运行按 Kabo 画像刷新支柱：改名保持归属、合�
   assert.deepEqual([none.pillars, none.posts.unassigned], [[], 2]);
   const recap = run("recap", "--library", library, "--date", "2026-10-23");
   assert.deepEqual(recap.pillars, []);
-  assert.ok(recap.limits.some(line => /no content pillars from Kabo/.test(line)));
+  assert.ok(recap.limits.some(line => /no content pillars saved yet/.test(line)));
   assert.equal(run("show", "--library", library).niche.text, "Short breakdowns of viral videos for small creators");
 });
 
@@ -896,5 +997,169 @@ test("history-request 的参数合 collect_account_history 的入参；暂存组
     { ...options, cwd: secondRun, env: { ...process.env, KABO_STATIC_RUN_DIR: secondRun } });
   assert.notEqual(failure.status, 0);
   assert.match(failure.stderr, /no public posts/);
+});
+
+// 转写只有引导会读：用 start-with-kabo 那份 static_host（白名单里有 public_video_fetch_transcript）。
+function startHost(args, { cwd, runDir, input } = {}) {
+  const result = spawnSync("python3", ["-I", "-B", path.join(root, "skills/start-with-kabo/scripts/static_host.py"), ...args], {
+    ...options, cwd, input, env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1", ...(runDir ? { KABO_STATIC_RUN_DIR: runDir } : {}) } });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  return result.stdout.trim();
+}
+
+test("media-request 只为有链接的作品要转写；暂存转写后 transcripts 按作品打印文本，没有台词的标明", async t => {
+  const temp = await workspace(t);
+  const runDir = startHost(["init", "--workspace", temp]);
+  const library = path.join(temp, "lib");
+  const t0 = "2026-10-20T08:00:00Z";
+  run("ingest", "--library", library, "--snapshot", await snapshot(temp, "s0.json", t0, history(t0)), "--handle", "maker");
+  const request = inRun(runDir, "media-request", "--library", library, "--limit", "3");
+  assert.equal(request.requests.length, 3);
+  assert.ok(request.requests.every(row => row.operation === "fetch_transcript" && row.parameters.url.startsWith("https://www.instagram.com/reel/")));
+  assert.equal(request.wait_s, 100);
+  assert.equal(request.delivery, "download");
+  assert.match(request.run_key, /^lib:[0-9a-f]{24}$/);
+  assert.deepEqual(inRun(runDir, "media-request", "--library", library).requests.length, 8);
+  assert.deepEqual(Object.keys(request).sort(), ["delivery", "requests", "run_key", "wait_s"]);
+
+  const transcript = (cues, plain) => envelope("public-video-media", "fetch_transcript", { origin: "captions", language: "en", cues, plain_text: plain });
+  const media = composite("collect_video_media", [
+    ["public_video_fetch_transcript", { url: "https://www.instagram.com/reel/old0/" }, transcript([{ start_ms: 0, text: "Hello there" }, { start_ms: 900, text: "today we break down a hook" }]), "old0/fetch_transcript"],
+    ["public_video_fetch_transcript", { url: "https://www.instagram.com/reel/old1/" }, transcript([], ""), "old1/fetch_transcript"]],
+  { jobs: [] });
+  media.coverage = { pending: 0 };
+  const file = path.join(temp, "media.json");
+  await writeFile(file, JSON.stringify(media));
+  startHost(["stage", "--tool", "collect_video_media", "--input", file], { cwd: runDir, runDir });
+  const read = inRun(runDir, "transcripts");
+  assert.equal(read.pending, 0);
+  assert.deepEqual(read.transcripts.map(row => [row.content_id, row.has_speech]), [["old0", true], ["old1", false]]);
+  assert.equal(read.transcripts[0].text, "Hello there today we break down a hook");
+});
+
+// ---- 1.0.40：引导在本地提议支柱，创作者确认后整份同步到 Kabo 一次（declare_pillars，kabo#2185）。
+
+const cluster = (name, ids, extra = {}) => ({ name, definition: `About ${name}`, search_phrases: [`${name} tips`], content_ids: ids, ...extra });
+const declared = (pillars, { version = 3, signature = [] } = {}) => {
+  const value = profileResult(signature, { version });
+  value.structuredContent.declaredPillars = pillars.map(([name, definition, phrases]) => ({ name, definition, searchPhrases: phrases }));
+  return value;
+};
+
+test("propose-pillars 只给参考数字、不裁定；按后台规则预检长度、重名与重复归组；save-pillars 只在确认后保存并标记未同步", async t => {
+  const temp = await workspace(t);
+  const library = path.join(temp, "lib");
+  const t0 = "2026-10-20T08:00:00Z";
+  run("ingest", "--library", library, "--snapshot", await snapshot(temp, "s0.json", t0, history(t0)), "--handle", "maker");
+  const posts = run("posts", "--library", library);
+  assert.match(posts.tell_creator_now, /I read 10 of your videos\. A typical one gets about 1050 views/);
+  const file = path.join(temp, "clusters.json");
+  await writeFile(file, JSON.stringify({ clusters: [cluster("Breakdowns", ["old0", "old1", "old2"]), cluster("Charisma", ["old6", "old7", "old8"])] }));
+  const proposal = run("propose-pillars", "--library", library, "--clusters", file);
+  assert.equal(proposal.typical_settled_views, 1050);
+  assert.deepEqual(proposal.groups.map(row => [row.name, row.posts, row.median_views, row.median_multiple_of_typical]), [["Breakdowns", 3, 1100, 1.05], ["Charisma", 3, 400, 0.38]]);
+  for (const row of proposal.groups) assert.equal("recommended" in row, false);
+  assert.match(proposal.note, /not Kabo's statistics and not a verdict/);
+  assert.equal(JSON.parse(await readFile(path.join(library, "library.json"), "utf8")).pillars.length, 0);
+  // 预检：名称超过 60 字、定义超过 200 字、检索短语 4 条、重名（忽略大小写）、同一作品进两组，都在展示前就报出来。
+  const bad = [[cluster("x".repeat(61), ["old0"])], [cluster("A", ["old0"], { definition: "d".repeat(201) })],
+    [cluster("A", ["old0"], { search_phrases: ["a", "b", "c", "d"] })], [cluster("Same", ["old0"]), cluster("same ", ["old1"])]];
+  for (const clusters of bad) {
+    await writeFile(file, JSON.stringify({ clusters }));
+    assert.match(refuse("propose-pillars", "--library", library, "--clusters", file).stderr, /Fix these before showing or saving/);
+  }
+  await writeFile(file, JSON.stringify({ clusters: [cluster("A", ["old0"]), cluster("B", ["old0"])] }));
+  assert.match(refuse("propose-pillars", "--library", library, "--clusters", file).stderr, /more than one group/);
+
+  const confirmed = path.join(temp, "confirmed.json");
+  await writeFile(confirmed, JSON.stringify({ pillars: [cluster("Breakdowns", ["old0", "old1"])] }));
+  assert.match(refuse("save-pillars", "--library", library, "--file", confirmed).stderr, /not confirmed/);
+  await writeFile(confirmed, JSON.stringify({ confirmed: true, pillars: [cluster("Breakdowns", ["old0", "old1"]), cluster("Charisma tips", ["old6"])] }));
+  const saved = run("save-pillars", "--library", library, "--file", confirmed);
+  assert.deepEqual([saved.pillars, saved.sync], [["breakdowns", "charisma-tips"], "pending"]);
+  const shown = run("show", "--library", library);
+  assert.equal(shown.pillars_source, "local_unsynced");
+  assert.equal(shown.pillars_sync.state, "pending");
+  assert.deepEqual(shown.pillars[0].search_phrases, ["Breakdowns tips"]);
+});
+
+test("同步：declare-request 带画像里的版本整份提交；成功标已同步；冲突重读后只重试一次；失败如实标未同步，之后补同步", async t => {
+  const temp = await workspace(t);
+  const library = path.join(temp, "lib");
+  const t0 = "2026-10-20T08:00:00Z";
+  run("ingest", "--library", library, "--snapshot", await snapshot(temp, "s0.json", t0, history(t0)), "--handle", "maker");
+  const profile = path.join(temp, "profile.json");
+  await writeFile(profile, JSON.stringify(declared([], { version: 3 })));
+  assert.match(refuse("declare-request", "--library", library, "--profile", profile).stderr, /no pillars the creator declared/);
+  const confirmed = path.join(temp, "confirmed.json");
+  await writeFile(confirmed, JSON.stringify({ confirmed: true, pillars: [cluster("Breakdowns", ["old0"]), cluster("Charisma", [])] }));
+  run("save-pillars", "--library", library, "--file", confirmed);
+  const request = run("declare-request", "--library", library, "--profile", profile);
+  assert.deepEqual(request, { account_id: "acc-1", expected_version: 3, action: "declare_pillars", pillars: [
+    { name: "Breakdowns", definition: "About Breakdowns", searchPhrases: ["Breakdowns tips"] },
+    { name: "Charisma", definition: "About Charisma", searchPhrases: ["Charisma tips"] }] });
+  // 从没写过偏好时 preferences 为 null：版本取 0。
+  const fresh = declared([]);
+  fresh.structuredContent.effectiveContentProfile.preferences = null;
+  await writeFile(profile, JSON.stringify(fresh));
+  assert.equal(run("declare-request", "--library", library, "--profile", profile).expected_version, 0);
+
+  const result = path.join(temp, "declare.json");
+  const record = async (value, ...flags) => { await writeFile(result, JSON.stringify(value)); return run("record-sync", "--library", library, "--result", result, ...flags); };
+  const conflict = { isError: true, content: [{ type: "text", text: "conflict: preferences_changed" }] };
+  assert.equal((await record(conflict)).action, "reread_and_retry");
+  const stillConflict = await record(conflict, "--retried");
+  assert.equal(stillConflict.sync, "pending");
+  assert.match(stillConflict.tell_creator_now, /saved on this computer for now; I couldn't save them to your Kabo account yet/);
+  const noScope = await record({ isError: true, content: [{ type: "text", text: "Insufficient scope: workspace:write" }] });
+  assert.match(noScope.tell_creator_now, /Kabo needs your permission to save to your account/);
+  assert.equal(run("show", "--library", library).pillars_sync.state, "pending");
+  // 补同步：下一次能写时成功，标为已同步，Kabo 成为支柱的存放处。
+  const ok = await record({ structuredContent: { effectiveContentProfile: { version: 1 } } });
+  assert.deepEqual([ok.sync, ok.tell_creator_now], ["synced", "Your content pillars are saved in your Kabo account."]);
+  const shown = run("show", "--library", library);
+  assert.deepEqual([shown.pillars_source, shown.pillars_sync.state], ["kabo_declared", "synced"]);
+});
+
+test("refresh-pillars 的来源优先级：声明的支柱 → 后台统计 → 没有；按名称（忽略大小写）对齐；本地未同步的支柱不被后台结果清掉", async t => {
+  const temp = await workspace(t);
+  const library = path.join(temp, "lib");
+  const t0 = "2026-10-20T08:00:00Z";
+  run("ingest", "--library", library, "--snapshot", await snapshot(temp, "s0.json", t0, history(t0)), "--handle", "maker");
+  const confirmed = path.join(temp, "confirmed.json");
+  await writeFile(confirmed, JSON.stringify({ confirmed: true, pillars: [cluster("Breakdowns", ["old0", "old1"]), cluster("Charisma", ["old6"])] }));
+  run("save-pillars", "--library", library, "--file", confirmed);
+  const owner = async (id) => JSON.parse(await readFile(path.join(library, "posts.json"), "utf8")).posts[id].pillar_id;
+  const profile = path.join(temp, "profile.json");
+  // 未同步：后台返回空的声明与别的统计项，也不清掉本地支柱。
+  await writeFile(profile, JSON.stringify(declared([], { signature: [signature("sc1", "Something else", 0.5)] })));
+  const kept = run("refresh-pillars", "--library", library, "--profile", profile);
+  assert.deepEqual([kept.refreshed, kept.sync, kept.pillars], [false, "pending", ["breakdowns", "charisma"]]);
+  // 同步成功后以后台为准：声明的支柱优先；名称只差大小写保持归属，改了名的置未归类。
+  await writeFile(path.join(temp, "ok.json"), JSON.stringify({ structuredContent: { effectiveContentProfile: {} } }));
+  run("record-sync", "--library", library, "--result", path.join(temp, "ok.json"));
+  await writeFile(profile, JSON.stringify(declared([["BREAKDOWNS ", "Why one video worked", ["viral breakdown"]], ["Camera confidence", "How to look calm on camera", ["camera tips"]]],
+    { signature: [signature("sc1", "Something else", 0.5)] })));
+  const fromDeclared = run("refresh-pillars", "--library", library, "--profile", profile);
+  assert.deepEqual(fromDeclared.pillars, ["breakdowns", "camera-confidence"]);
+  assert.deepEqual([await owner("old0"), await owner("old1"), await owner("old6")], ["breakdowns", "breakdowns", null]);
+  assert.equal(run("show", "--library", library).pillars_source, "kabo_declared");
+  // 声明为空时退到后台统计（按画像项 id 对齐，声明的支柱没有 id → 作品置未归类）。
+  await writeFile(profile, JSON.stringify(declared([], { signature: [signature("sc1", "Viral breakdowns", 0.5)] })));
+  const fromSignature = run("refresh-pillars", "--library", library, "--profile", profile);
+  assert.deepEqual(fromSignature.pillars, ["viral-breakdowns"]);
+  assert.equal(await owner("old0"), null);
+  assert.equal(run("show", "--library", library).pillars_source, "kabo_profile");
+  // 都没有：无支柱。没带 pillars: true（结果里没有 declaredPillars 键）时照统计读，不当成「声明为空」。
+  await writeFile(profile, JSON.stringify(declared([])));
+  assert.deepEqual(run("refresh-pillars", "--library", library, "--profile", profile).pillars, []);
+  const legacy = profileResult([signature("sc2", "Charisma tips", 0.4)]);
+  await writeFile(profile, JSON.stringify(legacy));
+  assert.deepEqual(run("refresh-pillars", "--library", library, "--profile", profile).pillars, ["charisma-tips"]);
+  // 不留文件的宿主：建库也按同一优先级取声明的支柱。
+  await writeFile(profile, JSON.stringify(declared([["Breakdowns", "Why one video worked", ["viral breakdown"]]], { signature: [signature("sc1", "Other", 0.5)] })));
+  const boot = run("bootstrap", "--library", path.join(temp, "boot"), "--platform", "instagram", "--handle", "maker", "--profile", profile);
+  assert.deepEqual(boot.pillars, ["breakdowns"]);
+  assert.equal(run("show", "--library", path.join(temp, "boot")).pillars_sync.state, "synced");
 });
 

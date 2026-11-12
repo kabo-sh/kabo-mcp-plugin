@@ -1,39 +1,80 @@
-# Presenting the niche and content pillars
+# Content pillars: propose, confirm, save to Kabo
 
 A content pillar is what the creator is known for on this account: a recurring subject plus the
-promise it makes to the viewer. The niche is one level above it. Reviews compare new posts within
-a pillar, so the creator should recognise each pillar as their own.
+promise it makes to the viewer, narrow enough that someone else could search for comparable videos.
+The niche is one level above it. Kabo uses the saved pillars for the daily picks, and reviews compare
+new posts within a pillar, so a vague pillar makes both worse.
 
-## Where they come from
+## Who decides
 
-Only from the creator's Kabo profile. `prepare_creator_profile` has Kabo build it from the account's
-public posts; `get_creator_profile` with `"effective": true` returns it with the creator's own
-earlier edits applied, and `profile-pillars` turns it into the proposal: `niche` and up to four
-`candidates`, each from one signature content item. Kabo decides which groups of posts qualify; this
-Skill never groups posts, never adds a pillar of its own and never ranks the items differently.
+You propose; the creator decides; Kabo keeps what the creator confirmed.
 
-## How to show them
+- Your proposal comes from reading this run's posts and transcripts. Its numbers (`propose-pillars`)
+  are a local reading of those posts, **not Kabo's statistics**. Never say "Kabo found" about it.
+- Kabo's own signature content (`candidates` from `profile-pillars`, when the account has a Kabo
+  profile) is shown next to your proposal as a reference, labelled "What your numbers show…". The creator
+  can take any of it, word it their way, or leave it.
+- Pillars the creator saved earlier (`declared_pillars`) are their current pillars; change them only
+  when they ask.
+- Once confirmed, the whole set is saved to Kabo in one `update_content_preferences` call with
+  `action: "declare_pillars"` (SKILL step 5). It replaces what Kabo held; an empty list would clear it.
 
-- The niche in one plain line, as `niche` gives it. When it is empty, leave the line out.
-- Each pillar: its `name`, one sentence of evidence and one example post as a link.
-  - Evidence comes from `evidence`: `content_count` ("9 of your videos"), `median_multiple` ("1.8
-    times your usual views") and `share_of_posts` ("about 30% of your posts"). `share_of_posts` is a
-    share of posts, never of views. Leave out any number that is missing.
-  - The example is the first of `evidence.examples` with a `url`.
-- Follow every line of `advice`.
-- `hidden_by_creator` lists items the creator removed earlier; do not show them as pillars. Mention
-  that one can be brought back only when the creator asks about it.
+## The shape Kabo stores
 
-## What the creator can change
+| Field | Rule |
+|---|---|
+| `name` | 1 to 60 characters; no two pillars share a name, ignoring case |
+| `definition` | one sentence of 1 to 200 characters: the subject and the promise |
+| `search_phrases` | 1 to 3 phrases a viewer would type, each 1 to 60 characters |
 
-Through `update_content_preferences` (see `references/profile-edits.md`): rename a pillar, drop it,
-merge two to four into one, or make one the main pillar. Adding a pillar Kabo has not found is not
-possible yet: say so plainly, and that Kabo may find it once there are more posts on that subject.
-Nothing about pillars is saved anywhere else.
+At most 4 pillars. `propose-pillars` and `save-pillars` check these limits first: shorten what they
+report, never send text that breaks them.
 
-## When there are none
+## What to read
 
-`status: no_signature_content`, a `prepare_creator_profile` answer of `insufficient_posts`, or a
-profile that could not be built: say in one line that there are not enough videos yet for content
-pillars (or that the profile could not be built), and go on with the rest of the session. Never
-propose pillars from the posts, the niche or the creator's description instead.
+- The `posts` table: title or caption, views, multiple of typical views, age.
+- The transcripts. The first sentence usually states the promise of the video.
+- Ignore hashtags unless the caption has nothing else; they describe reach hopes, not content.
+
+## How to group
+
+Ask of every post: **what is it about, and what does the viewer walk away with?**
+
+| Signal | Use it | Do not use it |
+|---|---|---|
+| Subject (a product category, a skill, a story type) | yes | |
+| Promise to the viewer (learn a technique, see a transformation, laugh at a situation) | yes | |
+| Format (talking head, voice-over, carousel, skit) | | it is how, not what |
+| Length, posting time, hashtags | | |
+| The broad niche ("fitness", "marketing", "food") | only as context | it is one level too high |
+
+Good pillars are one level below the niche:
+
+| Niche | Pillars |
+|---|---|
+| Fitness | "15-minute home workouts with no equipment"; "what I eat in a day while cutting" |
+| Content creation | "why one specific viral video worked"; "how to be more charismatic on camera" |
+| Personal finance | "first-job money mistakes"; "explaining one investing term with a real example" |
+| Food | "one-pan dinners under 20 minutes"; "rating viral recipes honestly" |
+
+## Reading the numbers
+
+`propose-pillars` prints, per pillar, how many posts it holds, their median views, that median as a
+multiple of the account's typical views (the median of posts at least 72 hours old) and its share of
+views. As a rough guide only: a group whose median is well under typical (below about 0.8 times) or
+that holds a small share of views (under about 20%) may be weaker. Mention it once when it helps the
+creator choose; never reject a pillar the creator wants.
+
+## Search phrases
+
+- Concrete enough to find videos like the creator's, broad enough to find more than a handful:
+  "viral hook breakdown" works; "hooks" is too broad; a single video's title is too narrow.
+- No hashtags, no handles, no brand names unless the pillar is about that brand.
+
+## Edge cases
+
+- **One-topic accounts.** One pillar is fine.
+- **Promotional posts.** Posts that mainly sell the creator's own product are rarely a pillar.
+- **Too few posts.** With fewer than about 5 posts, say the proposal is thin and let the creator's
+  own words decide the pillars.
+- **The creator disagrees.** Their choice wins. Mention the numbers once so the choice is informed.
