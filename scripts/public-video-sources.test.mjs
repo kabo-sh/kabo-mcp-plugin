@@ -120,6 +120,9 @@ const SAMPLES = {
   "https://www.youtube.com/watch?v=dQw4w9WgXcQ&v=aaaaaaaaaaa": null,
   "https://youtu.be/dQw4w9WgXcQ": ["youtube", "video", "dQw4w9WgXcQ"],
   "https://www.instagram.com/reel/DeZrE2phzDx/?igsh=abc": ["instagram", "video", "DeZrE2phzDx"],
+  "https://www.instagram.com/creator.name/reel/DeZrE2phzDx/?igsh=abc": ["instagram", "video", "DeZrE2phzDx"],
+  "https://www.tiktok.com/@someone/photo/7301234567890123456": ["tiktok", "video", "7301234567890123456"],
+  "https://www.youtube.com/v/dQw4w9WgXcQ": ["youtube", "video", "dQw4w9WgXcQ"],
   "https://www.tiktok.com/@someone/video/7301234567890123456?lang=en": ["tiktok", "video", "7301234567890123456"],
   "https://vm.tiktok.com/ZMabc/": ["tiktok", "short_link", null],
   // 主机名精确比较，不做后缀匹配；只认 https。

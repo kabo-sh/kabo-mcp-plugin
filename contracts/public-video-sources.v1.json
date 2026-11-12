@@ -15,6 +15,7 @@
       "url_patterns": [
         "^/watch$",
         "^/(?:shorts|embed|live)/([A-Za-z0-9_-]{11})/?$",
+        "^/v/([A-Za-z0-9_-]{11})/?$",
         "^/([A-Za-z0-9_-]{11})/?$"
       ],
       "query_id_params": [
@@ -42,7 +43,8 @@
       ],
       "short_link_hosts": [],
       "url_patterns": [
-        "^/(?:reel|reels|p|tv)/([A-Za-z0-9_-]{3,80})/?$"
+        "^/(?:reel|reels|p|tv)/([A-Za-z0-9_-]{3,80})/?$",
+        "^/[A-Za-z0-9._]{1,30}/(?:reels?|p|tv)/([A-Za-z0-9_-]{5,64})/?$"
       ],
       "canonical_url": "https://www.instagram.com/reel/{id}/",
       "metadata_route": "media_call",
@@ -69,7 +71,8 @@
         "vt.tiktok.com"
       ],
       "url_patterns": [
-        "^/@[A-Za-z0-9._]{1,64}/video/([0-9]{1,30})/?$"
+        "^/@[A-Za-z0-9._]{1,64}/video/([0-9]{1,30})/?$",
+        "^/@[A-Za-z0-9._]{1,64}/photo/([0-9]{8,25})/?$"
       ],
       "canonical_url": "https://www.tiktok.com/@/video/{id}",
       "metadata_route": "media_call",
