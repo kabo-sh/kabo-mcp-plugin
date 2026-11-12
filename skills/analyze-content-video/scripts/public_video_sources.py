@@ -68,26 +68,51 @@ def media_call_metadata_labels() -> list[str]:
     return [entry["label"] for entry in _sources().values() if entry.get("metadata_route") == "media_call"]
 
 
-def content_id_from_url(platform: str, url: Any) -> str | None:
-    """The video id a page link names, or None (short links, unknown hosts, other platforms)."""
-    entry = source(platform)
-    if entry is None or not isinstance(url, str):
+def match_url(url: Any) -> dict[str, Any] | None:
+    """Which listed platform a link belongs to, and its video id when the link itself carries one.
+
+    Returns ``{"platform", "kind": "video", "id"}``, ``{"platform", "kind": "short_link", "id": None}``
+    (the server must resolve it first) or None (not a listed video page).
+    """
+    # 与 kabo 的 matchPublicVideoSource 同一套口径（packages/creator/src/observation/public-video-sources.ts）：
+    # 只认 https、无内嵌凭据、默认端口；主机逐个精确比较，不做后缀匹配；按 url_patterns 依次试，第一个捕获组是 id，
+    # 没有捕获组（或捕获组没参与匹配）的那条从 query_id_params 取 id，同名参数出现不止一次就不认；
+    # 都不匹配时，命中 short_link_path_patterns 的是要先解析的分享链接，否则不是视频页。认不出来不猜。
+    if not isinstance(url, str) or len(url) > 2048:
         return None
     try:
         parts = urlsplit(url.strip())
+        port = parts.port
     except ValueError:
         return None
-    host = (parts.hostname or "").lower()
-    # 主机名逐个精确比较，不做后缀匹配：清单把 www. 与 m. 都单独列出。
-    if host not in entry.get("page_hosts", []):
+    if parts.scheme != "https" or parts.username or parts.password or port is not None:
         return None
-    for pattern in entry.get("url_patterns", []):
-        match = re.search(pattern, parts.path or "/")
-        if match:
-            return match[1]
-    query = parse_qs(parts.query)
-    for name in entry.get("query_id_params", []):
-        for value in query.get(name, []):
-            if QUERY_ID.match(value):
-                return value
+    host = (parts.hostname or "").lower()
+    path = parts.path or "/"
+    for identifier, entry in _sources().items():
+        if host in entry.get("short_link_hosts", []):
+            return {"platform": identifier, "kind": "short_link", "id": None}
+        if host not in entry.get("page_hosts", []):
+            continue
+        query = parse_qs(parts.query, keep_blank_values=True)
+        for pattern in entry.get("url_patterns", []):
+            match = re.search(pattern, path)
+            if not match:
+                continue
+            found = match.group(1) if match.re.groups else None
+            if found is None:
+                candidates = [query[name][0] for name in entry.get("query_id_params", [])
+                              if len(query.get(name, [])) == 1]
+                found = next((value for value in candidates if QUERY_ID.match(value)), None)
+            if found:
+                return {"platform": identifier, "kind": "video", "id": found}
+        if any(re.search(pattern, path) for pattern in entry.get("short_link_path_patterns", [])):
+            return {"platform": identifier, "kind": "short_link", "id": None}
+        return None
     return None
+
+
+def content_id_from_url(platform: str, url: Any) -> str | None:
+    """The video id a page link of this platform names, or None (short links, other hosts, other platforms)."""
+    found = match_url(url)
+    return found["id"] if found and found["platform"] == platform and found["kind"] == "video" else None

@@ -106,8 +106,16 @@ TRANSCRIPT_ORIGINS = {"platform_captions", "provider_transcript", "speech_recogn
 # 只导出逐字稿时不取元数据，模型写的请求也常不带 content_id：从创作者给的原始链接取。
 # 平台、证据编号前缀与链接里的 id 写法都按支持清单 public-video-sources.v1 读，不在这里另写一份。
 content_id_from_url = public_video_sources.content_id_from_url
-# 支持清单 public_metrics 的键 ← 元数据里的计数字段名。
-METADATA_COUNTERS = {"view_count": "views", "like_count": "likes", "comment_count": "comments"}
+# 支持清单 public_metrics 的键 ← 元数据里的计数字段名。分享与收藏数只有付费解析的平台（抖音、小红书、快手）带回。
+METADATA_COUNTERS = {"view_count": "views", "like_count": "likes", "comment_count": "comments",
+                     "share_count": "shares", "save_count": "saves"}
+# 平台不公开时要在证据里写一句「不可用，不是 0」的计数：只说这三项，老平台的证据不因分享、收藏多出说明。
+STATED_GAPS = ("views", "likes", "comments")
+# Facebook 播放数的来历（view_count_basis）：页面显示的取整值照收但注明精度；withheld 时 view_count 为 null，不收。
+VIEW_BASIS_NOTES = {
+    "page_display_rounded": "the page's own rounded display, not an exact figure",
+    "page_display": "the page's own display",
+}
 # The connector's blanket "nothing came back" sentence. It is true of one call, not of the run, so
 # it never travels into the evidence when anything else was retrieved.
 BLANKET = "no data was retrieved"
@@ -307,8 +315,50 @@ def limitation_text(value: Any) -> str | None:
     return message.strip() if isinstance(message, str) and message.strip() else None
 
 
+def carried_metadata(frames: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The public metadata a keyframe response carries as ``data.video``, as a metadata envelope.
+
+    On the platforms the backend resolves through a paid vendor (Douyin, Xiaohongshu, Kuaishou) the
+    keyframe job is the one billed resolution: it brings the metadata back with the frames, and a
+    standalone metadata request answers ``unsupported`` without fetching anything. The projection is
+    the same ``video`` shape the metadata operation returns, so it is read as that, named after the
+    response it actually came in.
+    """
+    video = as_record(frames.get("data")).get("video") if usable(frames) else None
+    if not isinstance(video, dict) or not video:
+        return None
+    carried = {key: frames.get(key) for key in ("schema_version", "connector_id", "operation", "provider",
+                                                "request_id", "job_id", "evidence_ref", "raw_sha256", "retrieved_at")}
+    # 抽帧这一轮的 completed_partial 说的是帧（预算全给了开头），不是元数据：随附的 video 是完整投影。
+    carried.update(status="completed", limitations=[], data={"video": video})
+    return carried
+
+
+def video_identity(envelopes: list[dict[str, Any]], platform: Any) -> dict[str, Any] | None:
+    """The video the backend says these responses are about (``data.video_identity``), or None.
+
+    Short links only name a video after the server resolved them, and a transcript-only export has no
+    metadata round, so this is where their id comes from. Every response that carries one must name
+    the same video, on the platform the request names.
+    """
+    found: dict[str, Any] | None = None
+    for envelope in envelopes:
+        identity = as_record(as_record(envelope.get("data")).get("video_identity")) if usable(envelope) else {}
+        if not identity.get("platform_video_id"):
+            continue
+        key = (identity.get("platform"), str(identity.get("platform_video_id")))
+        if found is not None and key != (found.get("platform"), str(found.get("platform_video_id"))):
+            raise ValueError("the media responses name two different videos; build the evidence from one video's "
+                             "responses only")
+        found = identity
+    if found is not None and found.get("platform") != platform:
+        raise ValueError(f"the media responses identify a {found.get('platform')} video, but the request names "
+                         f"{platform!r}: set the platform of the link the creator gave")
+    return found
+
+
 def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, published_at: str | None,
-                post_published_at: str | None = None) -> dict[str, Any]:
+                post_published_at: str | None = None, identity: dict[str, Any] | None = None) -> dict[str, Any]:
     source = as_record(request.get("source"))
     video = as_record(as_record(metadata.get("data")).get("video")) if usable(metadata) else {}
     platform = source.get("platform")
@@ -318,7 +368,9 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
                          "creator named in the request")
     file_ref = source.get("file_ref")
     permalink = source.get("url") or video.get("webpage_url")
+    # 短链（v.douyin.com、b23.tv …）从链接上读不出 id：后台解析后写进每条结果的 video_identity，只导出逐字稿时也有。
     content_id = (source.get("content_id") or video.get("id") or content_id_from_url(platform, permalink)
+                  or as_record(identity).get("platform_video_id")
                   or (Path(str(file_ref)).stem if file_ref else None))
     if not permalink and file_ref:
         # An unpublished draft has no platform address; its locator is the file itself.
@@ -482,9 +534,11 @@ def metadata_public_metrics(metadata: dict[str, Any] | None, platform: str | Non
         value = video.get(native_name)
         # Zero is observed; null, booleans and non-finite numbers are not counters.
         if type(value) is int or (type(value) is float and math.isfinite(value)):
+            basis = VIEW_BASIS_NOTES.get(video.get("view_count_basis")) if native_name == "view_count" else None
             metrics.append({
                 "native_name": native_name, "value": value, "equals_owner_metric": None,
-                "note": f"Public {native_name} from {source}; not reach or an owner metric.",
+                "note": (f"Public {native_name} from {source}"
+                         + (f", {basis}" if basis else "") + "; not reach or an owner metric."),
             })
     return metrics
 
@@ -1016,6 +1070,14 @@ def build(
     frames = pick(by_role.get("frames", []))
     measurements = pick(by_role.get("measurements", []))
     post = pick(by_role.get("public_post", []))
+    # 付费解析的平台上元数据与度量随抽帧那一轮带回（data.video / data.signals），单独的那两条答 unsupported、
+    # 什么也没取。指向的数据确实到了时，那两条的「没取到」不进 limitations：缺口并不存在。
+    served_elsewhere: set[str] = set()
+    if not usable(metadata) and carried_metadata(frames) is not None:
+        metadata = carried_metadata(frames)
+        served_elsewhere.add("metadata")
+    if not usable(measurements) and usable(frames) and as_record(as_record(frames.get("data")).get("signals")):
+        served_elsewhere.add("measurements")
 
     if acquisition_mode == "local_file" and (frames is not None or captions is not None
                                              or measurements is not None):
@@ -1036,7 +1098,8 @@ def build(
     local_steps = [as_record(step) for step in as_record(local_media).get("steps") or []]
     local_steps += [as_record(step) for step in as_record(local_transcript).get("steps") or []]
 
-    ref = content_ref(request, metadata, published_at, post_facts(post).get("published_at"))
+    identity = video_identity([envelope for _, envelope in envelopes], as_record(request.get("source")).get("platform"))
+    ref = content_ref(request, metadata, published_at, post_facts(post).get("published_at"), identity)
     # Tier 1 before tier 2, which is the order SKILL.md states. A supplied subtitle file is the
     # fallback for a cut with no published captions, not an override of the ones the platform
     # returned: taking it unconditionally would throw away what a viewer with captions on actually
@@ -1057,6 +1120,8 @@ def build(
     anything = transcript["status"] == "available" or frame_block["status"] == "available" or usable(metadata)
     notes: list[str] = []
     for _, envelope in envelopes:
+        if envelope.get("status") == "unsupported" and role_of(envelope) in served_elsewhere:
+            continue
         fact = f"{envelope.get('operation')} returned {envelope.get('status')}."
         for value in envelope.get("limitations") or []:
             text = limitation_text(value)
@@ -1089,7 +1154,7 @@ def build(
     if ref["published_at"] == "unknown":
         notes.append("No publish date was available from the retrieved metadata.")
     if usable(metadata):
-        for metric in dict.fromkeys(METADATA_COUNTERS.values()):
+        for metric in STATED_GAPS:
             if not public_video_sources.publishes(ref["platform"], metric):
                 notes.append(f"{public_video_sources.label(ref['platform'])} does not publish a public "
                              f"{metric[:-1]} count, so {metric} are unavailable, not zero.")

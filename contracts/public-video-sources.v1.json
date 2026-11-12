@@ -13,10 +13,8 @@
       ],
       "short_link_hosts": [],
       "url_patterns": [
-        "^/shorts/([A-Za-z0-9_-]{11})/?$",
-        "^/embed/([A-Za-z0-9_-]{11})/?$",
-        "^/live/([A-Za-z0-9_-]{11})/?$",
-        "^/v/([A-Za-z0-9_-]{11})/?$",
+        "^/watch$",
+        "^/(?:shorts|embed|live)/([A-Za-z0-9_-]{11})/?$",
         "^/([A-Za-z0-9_-]{11})/?$"
       ],
       "query_id_params": [
@@ -31,7 +29,7 @@
         "shares": false,
         "saves": false
       },
-      "notes": "Metadata comes from youtube_get_video; the media call's metadata operation is refused from datacentre egress."
+      "notes": "The single-segment 11-character pattern is for youtu.be only; on youtube.com such a path is not a video page."
     },
     {
       "id": "instagram",
@@ -39,13 +37,14 @@
       "content_id_prefix": "ig",
       "page_hosts": [
         "instagram.com",
-        "www.instagram.com"
+        "www.instagram.com",
+        "m.instagram.com"
       ],
       "short_link_hosts": [],
       "url_patterns": [
-        "^/(?:[A-Za-z0-9._]+/)?(?:reels?|p|tv)/([A-Za-z0-9_-]{5,64})/?$"
+        "^/(?:reel|reels|p|tv)/([A-Za-z0-9_-]{3,80})/?$"
       ],
-      "canonical_url": "https://www.instagram.com/p/{id}/",
+      "canonical_url": "https://www.instagram.com/reel/{id}/",
       "metadata_route": "media_call",
       "public_metrics": {
         "views": true,
@@ -54,7 +53,7 @@
         "shares": false,
         "saves": false
       },
-      "notes": "Still-image posts also have a post row from lookup_instagram_post. Likes can be hidden by the author."
+      "notes": "Likes can be hidden by the creator; a hidden count is missing, not zero."
     },
     {
       "id": "tiktok",
@@ -70,8 +69,7 @@
         "vt.tiktok.com"
       ],
       "url_patterns": [
-        "^/@[^/]*/(?:video|photo)/(\\d{8,25})/?$",
-        "^/v/(\\d{8,25})(?:\\.html)?/?$"
+        "^/@[A-Za-z0-9._]{1,64}/video/([0-9]{1,30})/?$"
       ],
       "canonical_url": "https://www.tiktok.com/@/video/{id}",
       "metadata_route": "media_call",
@@ -82,7 +80,7 @@
         "shares": true,
         "saves": true
       },
-      "notes": "International TikTok. Not Douyin."
+      "notes": "The canonical form drops the author handle; keep the pasted page URL as the fetch target."
     },
     {
       "id": "douyin",
@@ -141,7 +139,7 @@
         "shares": true,
         "saves": true
       },
-      "notes": "Includes RedNote links. A web URL usually carries xsec_token; keep the original URL for the vendor call."
+      "notes": "Includes RedNote links. Web links usually carry xsec_token; send the original URL to the server, not the canonical one."
     },
     {
       "id": "kuaishou",
@@ -154,11 +152,11 @@
       "short_link_hosts": [
         "v.kuaishou.com"
       ],
-      "url_patterns": [
-        "^/short-video/([0-9A-Za-z_-]{6,32})/?$"
+      "short_link_path_patterns": [
+        "^/f/[A-Za-z0-9_-]{4,64}/?$"
       ],
-      "query_id_params": [
-        "photoId"
+      "url_patterns": [
+        "^/short-video/([0-9A-Za-z]{6,32})/?$"
       ],
       "canonical_url": "https://www.kuaishou.com/short-video/{id}",
       "metadata_route": "media_call",
@@ -166,10 +164,10 @@
         "views": true,
         "likes": true,
         "comments": true,
-        "shares": false,
-        "saves": false
+        "shares": true,
+        "saves": true
       },
-      "notes": "/f/<code> share paths need resolution like short links."
+      "notes": "Media downloads from the platform CDN are slow from the server; the smallest rendition is fetched."
     },
     {
       "id": "facebook",
@@ -184,9 +182,13 @@
       "short_link_hosts": [
         "fb.watch"
       ],
+      "short_link_path_patterns": [
+        "^/share/(?:r|v)/[A-Za-z0-9_-]{4,64}/?$"
+      ],
       "url_patterns": [
-        "^/reel/(\\d{5,32})/?$",
-        "^/[^/]+/videos/(\\d{5,32})/?$"
+        "^/reel/(\\d{5,25})/?$",
+        "^/watch/?$",
+        "^/[A-Za-z0-9.\\-]{1,100}/videos/(?:[^/]{1,200}/)?(\\d{5,25})/?$"
       ],
       "query_id_params": [
         "v"
@@ -200,7 +202,7 @@
         "shares": true,
         "saves": false
       },
-      "notes": "/share/r/<code> and /share/v/<code> paths need resolution like short links. The downloader's view count disagrees with the page; treat it as low-confidence unless it comes from the post endpoint."
+      "notes": "Views are the page's own rounded display (video.view_count_basis); when that cannot be read the count is withheld, never taken from the downloader."
     },
     {
       "id": "bilibili",
@@ -226,7 +228,7 @@
         "shares": true,
         "saves": true
       },
-      "notes": "Licensed content can be region-blocked from the server's egress."
+      "notes": "Licensed content is region-locked from the server; ordinary uploads work."
     }
   ]
 }
