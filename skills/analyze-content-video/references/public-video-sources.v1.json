@@ -1,0 +1,232 @@
+{
+  "schema_version": "public-video-sources.v1",
+  "sources": [
+    {
+      "id": "youtube",
+      "label": "YouTube",
+      "content_id_prefix": "yt",
+      "page_hosts": [
+        "youtube.com",
+        "www.youtube.com",
+        "m.youtube.com",
+        "youtu.be"
+      ],
+      "short_link_hosts": [],
+      "url_patterns": [
+        "^/shorts/([A-Za-z0-9_-]{11})/?$",
+        "^/embed/([A-Za-z0-9_-]{11})/?$",
+        "^/live/([A-Za-z0-9_-]{11})/?$",
+        "^/v/([A-Za-z0-9_-]{11})/?$",
+        "^/([A-Za-z0-9_-]{11})/?$"
+      ],
+      "query_id_params": [
+        "v"
+      ],
+      "canonical_url": "https://www.youtube.com/watch?v={id}",
+      "metadata_route": "youtube_get_video",
+      "public_metrics": {
+        "views": true,
+        "likes": true,
+        "comments": true,
+        "shares": false,
+        "saves": false
+      },
+      "notes": "Metadata comes from youtube_get_video; the media call's metadata operation is refused from datacentre egress."
+    },
+    {
+      "id": "instagram",
+      "label": "Instagram",
+      "content_id_prefix": "ig",
+      "page_hosts": [
+        "instagram.com",
+        "www.instagram.com"
+      ],
+      "short_link_hosts": [],
+      "url_patterns": [
+        "^/(?:[A-Za-z0-9._]+/)?(?:reels?|p|tv)/([A-Za-z0-9_-]{5,64})/?$"
+      ],
+      "canonical_url": "https://www.instagram.com/p/{id}/",
+      "metadata_route": "media_call",
+      "public_metrics": {
+        "views": true,
+        "likes": true,
+        "comments": true,
+        "shares": false,
+        "saves": false
+      },
+      "notes": "Still-image posts also have a post row from lookup_instagram_post. Likes can be hidden by the author."
+    },
+    {
+      "id": "tiktok",
+      "label": "TikTok",
+      "content_id_prefix": "tt",
+      "page_hosts": [
+        "tiktok.com",
+        "www.tiktok.com",
+        "m.tiktok.com"
+      ],
+      "short_link_hosts": [
+        "vm.tiktok.com",
+        "vt.tiktok.com"
+      ],
+      "url_patterns": [
+        "^/@[^/]*/(?:video|photo)/(\\d{8,25})/?$",
+        "^/v/(\\d{8,25})(?:\\.html)?/?$"
+      ],
+      "canonical_url": "https://www.tiktok.com/@/video/{id}",
+      "metadata_route": "media_call",
+      "public_metrics": {
+        "views": true,
+        "likes": true,
+        "comments": true,
+        "shares": true,
+        "saves": true
+      },
+      "notes": "International TikTok. Not Douyin."
+    },
+    {
+      "id": "douyin",
+      "label": "Douyin",
+      "content_id_prefix": "dy",
+      "page_hosts": [
+        "douyin.com",
+        "www.douyin.com",
+        "m.douyin.com",
+        "iesdouyin.com",
+        "www.iesdouyin.com"
+      ],
+      "short_link_hosts": [
+        "v.douyin.com"
+      ],
+      "url_patterns": [
+        "^/video/(\\d{8,32})/?$",
+        "^/note/(\\d{8,32})/?$",
+        "^/share/video/(\\d{8,32})/?$"
+      ],
+      "canonical_url": "https://www.douyin.com/video/{id}",
+      "metadata_route": "media_call",
+      "public_metrics": {
+        "views": false,
+        "likes": true,
+        "comments": true,
+        "shares": true,
+        "saves": true
+      },
+      "notes": "Mainland Douyin. Not TikTok."
+    },
+    {
+      "id": "xiaohongshu",
+      "label": "Xiaohongshu",
+      "content_id_prefix": "xhs",
+      "page_hosts": [
+        "www.xiaohongshu.com",
+        "xiaohongshu.com",
+        "www.rednote.com",
+        "rednote.com"
+      ],
+      "short_link_hosts": [
+        "xhslink.com",
+        "www.xhslink.com"
+      ],
+      "url_patterns": [
+        "^/explore/([0-9a-f]{24})/?$",
+        "^/discovery/item/([0-9a-f]{24})/?$"
+      ],
+      "canonical_url": "https://www.xiaohongshu.com/explore/{id}",
+      "metadata_route": "media_call",
+      "public_metrics": {
+        "views": false,
+        "likes": true,
+        "comments": true,
+        "shares": true,
+        "saves": true
+      },
+      "notes": "Includes RedNote links. A web URL usually carries xsec_token; keep the original URL for the vendor call."
+    },
+    {
+      "id": "kuaishou",
+      "label": "Kuaishou",
+      "content_id_prefix": "ks",
+      "page_hosts": [
+        "www.kuaishou.com",
+        "kuaishou.com"
+      ],
+      "short_link_hosts": [
+        "v.kuaishou.com"
+      ],
+      "url_patterns": [
+        "^/short-video/([0-9A-Za-z_-]{6,32})/?$"
+      ],
+      "query_id_params": [
+        "photoId"
+      ],
+      "canonical_url": "https://www.kuaishou.com/short-video/{id}",
+      "metadata_route": "media_call",
+      "public_metrics": {
+        "views": true,
+        "likes": true,
+        "comments": true,
+        "shares": false,
+        "saves": false
+      },
+      "notes": "/f/<code> share paths need resolution like short links."
+    },
+    {
+      "id": "facebook",
+      "label": "Facebook",
+      "content_id_prefix": "fb",
+      "page_hosts": [
+        "www.facebook.com",
+        "facebook.com",
+        "m.facebook.com",
+        "web.facebook.com"
+      ],
+      "short_link_hosts": [
+        "fb.watch"
+      ],
+      "url_patterns": [
+        "^/reel/(\\d{5,32})/?$",
+        "^/[^/]+/videos/(\\d{5,32})/?$"
+      ],
+      "query_id_params": [
+        "v"
+      ],
+      "canonical_url": "https://www.facebook.com/watch/?v={id}",
+      "metadata_route": "media_call",
+      "public_metrics": {
+        "views": true,
+        "likes": true,
+        "comments": true,
+        "shares": true,
+        "saves": false
+      },
+      "notes": "/share/r/<code> and /share/v/<code> paths need resolution like short links. The downloader's view count disagrees with the page; treat it as low-confidence unless it comes from the post endpoint."
+    },
+    {
+      "id": "bilibili",
+      "label": "Bilibili",
+      "content_id_prefix": "bili",
+      "page_hosts": [
+        "www.bilibili.com",
+        "bilibili.com",
+        "m.bilibili.com"
+      ],
+      "short_link_hosts": [
+        "b23.tv"
+      ],
+      "url_patterns": [
+        "^/video/(BV[0-9A-Za-z]{10})/?$"
+      ],
+      "canonical_url": "https://www.bilibili.com/video/{id}",
+      "metadata_route": "media_call",
+      "public_metrics": {
+        "views": true,
+        "likes": true,
+        "comments": true,
+        "shares": true,
+        "saves": true
+      },
+      "notes": "Licensed content can be region-blocked from the server's egress."
+    }
+  ]
+}

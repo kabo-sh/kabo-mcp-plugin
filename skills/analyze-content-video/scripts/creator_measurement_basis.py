@@ -2,8 +2,13 @@
 from __future__ import annotations
 
 import math
+import sys
 import unicodedata
+from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import public_video_sources  # noqa: E402
 
 
 def record(value: Any) -> dict:
@@ -19,8 +24,9 @@ def number(value: Any, field: str, *, positive: bool = False) -> float:
 
 def measurement_basis(evidence: dict, analysis: dict, view: dict) -> dict:
     """Count existing frame records and transitive card citations, without a viewing ledger."""
-    platform = {"instagram": "Instagram video", "youtube": "YouTube video", "tiktok": "TikTok video"}.get(
-        record(evidence.get("content_ref")).get("platform"))
+    # 来源写成支持清单里该平台的 label 加「video」（YouTube video、Douyin video …）。
+    name = public_video_sources.label(record(evidence.get("content_ref")).get("platform"))
+    platform = f"{name} video" if name else None
     local = (record(evidence.get("media")).get("duration_source") == "local_probe"
              or any(record(step).get("step") == "local_extraction" for step in evidence.get("acquisition") or []))
     if not local and platform is None:
@@ -118,9 +124,14 @@ def measurement_basis(evidence: dict, analysis: dict, view: dict) -> dict:
 
 # 这一行随报告原样转述：中文视图写中文，其余语言仍写英文、由宿主按 SKILL.md 本地化。
 # 两种写法是同一组事实、同一组数字；英文措辞保持原样逐字不变，校验器按视图语言逐字比对。
+# 有通行中文名的平台写中文名，其余照 label 写（YouTube 视频、Instagram 视频、TikTok 视频与以前逐字相同）。
+ZH_PLATFORM_NAMES = {"douyin": "抖音", "xiaohongshu": "小红书", "kuaishou": "快手", "bilibili": "哔哩哔哩"}
 ZH_WORDS = {
-    "source": {"YouTube video": "YouTube 视频", "Instagram video": "Instagram 视频",
-               "TikTok video": "TikTok 视频", "Local video file": "本地视频文件"},
+    "source": {**{f"{public_video_sources.label(platform)} video":
+                  (f"{ZH_PLATFORM_NAMES[platform]}视频" if platform in ZH_PLATFORM_NAMES
+                   else f"{public_video_sources.label(platform)} 视频")
+                  for platform in public_video_sources.platform_ids()},
+               "Local video file": "本地视频文件"},
     "frames": {"descriptions": "画面来自文字描述，未直接查看像素", "unavailable": "画面帧不可用",
                "not_attempted": "未抽帧"},
     "transcript": {"platform captions": "平台字幕", "external transcript": "外部转写稿",

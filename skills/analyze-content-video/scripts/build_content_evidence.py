@@ -51,6 +51,8 @@ sys.dont_write_bytecode = True
 _linked_spec = importlib.util.spec_from_file_location("kabo_linked_media", Path(__file__).with_name("linked_media.py"))
 linked_media = importlib.util.module_from_spec(_linked_spec)
 _linked_spec.loader.exec_module(linked_media)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import public_video_sources  # noqa: E402
 
 SCHEMA_VERSION = "content-evidence.v1"
 MEDIA_CONNECTOR = "public-video-media"
@@ -101,19 +103,11 @@ ACQUISITION_STATUSES = {
 }
 FRAME_SELECTIONS = {"duration_scaled_v1", "evenly_spaced_bounded_v1", "explicit_timestamps_v1", "none"}
 TRANSCRIPT_ORIGINS = {"platform_captions", "provider_transcript", "speech_recognition"}
-PLATFORM_PREFIX = {"youtube": "yt", "instagram": "ig", "tiktok": "tt"}
 # 只导出逐字稿时不取元数据，模型写的请求也常不带 content_id：从创作者给的原始链接取。
-# 写法与各 Skill 里已有的同平台解析一致（research-youtube-trends、research-instagram-trends、select_comment_targets）。
-URL_CONTENT_ID = {
-    "youtube": re.compile(r"(?:[?&]v=|youtu\.be/|/shorts/|/embed/|/live/|/v/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])"),
-    "instagram": re.compile(r"instagram\.com/(?:[A-Za-z0-9._]+/)?(?:reels?|p|tv)/([A-Za-z0-9_-]{5,64})", re.IGNORECASE),
-    "tiktok": re.compile(r"tiktok\.com/.*?/(?:video|photo)/([0-9]{8,25})"),
-}
-
-
-def content_id_from_url(platform: str, url: Any) -> str | None:
-    match = URL_CONTENT_ID[platform].search(url) if isinstance(url, str) else None
-    return match[1] if match else None
+# 平台、证据编号前缀与链接里的 id 写法都按支持清单 public-video-sources.v1 读，不在这里另写一份。
+content_id_from_url = public_video_sources.content_id_from_url
+# 支持清单 public_metrics 的键 ← 元数据里的计数字段名。
+METADATA_COUNTERS = {"view_count": "views", "like_count": "likes", "comment_count": "comments"}
 # The connector's blanket "nothing came back" sentence. It is true of one call, not of the run, so
 # it never travels into the evidence when anything else was retrieved.
 BLANKET = "no data was retrieved"
@@ -318,9 +312,10 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
     source = as_record(request.get("source"))
     video = as_record(as_record(metadata.get("data")).get("video")) if usable(metadata) else {}
     platform = source.get("platform")
-    if platform not in PLATFORM_PREFIX:
+    if platform not in public_video_sources.platform_ids():
         raise ValueError(f"request source.platform is {platform!r}, but the evidence is for one platform "
-                         f"({', '.join(sorted(PLATFORM_PREFIX))}): set the platform the creator named in the request")
+                         f"({', '.join(sorted(public_video_sources.platform_ids()))}): set the platform the "
+                         "creator named in the request")
     file_ref = source.get("file_ref")
     permalink = source.get("url") or video.get("webpage_url")
     content_id = (source.get("content_id") or video.get("id") or content_id_from_url(platform, permalink)
@@ -473,14 +468,17 @@ def probed_block(measurements: dict[str, Any] | None) -> dict[str, Any] | None:
     return block or None
 
 
-def metadata_public_metrics(metadata: dict[str, Any] | None) -> list[dict[str, Any]]:
+def metadata_public_metrics(metadata: dict[str, Any] | None, platform: str | None = None) -> list[dict[str, Any]]:
     """Public counters from the normalized metadata, without inventing missing values."""
     if not usable(metadata):
         return []
     video = as_record(as_record(metadata.get("data")).get("video"))
     metrics = []
     source = f"{metadata.get('connector_id')}.{metadata.get('operation')}"
-    for native_name in ("view_count", "like_count", "comment_count"):
+    for native_name, metric in METADATA_COUNTERS.items():
+        # 平台不公开的计数（抖音、小红书的播放数）即使元数据里写着 0 也不是观测值：不收，记成不可用。
+        if platform is not None and not public_video_sources.publishes(platform, metric):
+            continue
         value = video.get(native_name)
         # Zero is observed; null, booleans and non-finite numbers are not counters.
         if type(value) is int or (type(value) is float and math.isfinite(value)):
@@ -1090,6 +1088,11 @@ def build(
             )
     if ref["published_at"] == "unknown":
         notes.append("No publish date was available from the retrieved metadata.")
+    if usable(metadata):
+        for metric in dict.fromkeys(METADATA_COUNTERS.values()):
+            if not public_video_sources.publishes(ref["platform"], metric):
+                notes.append(f"{public_video_sources.label(ref['platform'])} does not publish a public "
+                             f"{metric[:-1]} count, so {metric} are unavailable, not zero.")
     for text in post_facts(post).get("limitations") or []:
         if text not in notes:
             notes.append(text)
@@ -1114,7 +1117,7 @@ def build(
 
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
-        "evidence_id": f"ev-{PLATFORM_PREFIX[ref['platform']]}-{ref['content_id']}",
+        "evidence_id": f"ev-{public_video_sources.content_id_prefix(ref['platform'])}-{ref['content_id']}",
         "request_ref": request.get("request_id"),
         "content_ref": ref,
         "acquisition": (
@@ -1141,7 +1144,7 @@ def build(
     # metadata may still carry public ones; absent values stay absent rather than becoming zero.
     facts = post_facts(post)
     if not facts.get("public_metrics"):
-        facts["public_metrics"] = metadata_public_metrics(metadata)
+        facts["public_metrics"] = metadata_public_metrics(metadata, ref["platform"])
     for key in ("public_metrics", "derived", "audio_attribution"):
         if facts.get(key):
             evidence[key] = facts[key]
