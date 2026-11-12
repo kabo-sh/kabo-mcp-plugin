@@ -32,13 +32,18 @@ const isText = (file) => !/\.(png|jpe?g|gif|webp|ico|zip|mp4|mov|pdf|woff2?)$/i.
 // This file and .coderabbit.yaml must list these words as the rule itself, so those two files are skipped.
 const VENDORS = /tikhu|scrape ?creators|tubelab|vidiq|\bgemini\b|printingpress|yt-dlp|youtube-pp|youtube data api|ensemble ?data|hiker ?api|creator ?db|\bapify\b|firecrawl/i;
 
+const COMPARISON_PAGES = /^(?:README\.md|docs\/i18n\/README\.[\w-]+\.md)$/;
+
 export function vendorHits(files = tracked(".").filter(isText)) {
   const self = path.relative(root, fileURLToPath(import.meta.url));
   const hits = [];
   for (const file of files) {
     if (file === self || file === ".coderabbit.yaml") continue;
     text(file).split("\n").forEach((line, index) => {
-      if (VENDORS.test(line)) hits.push(`${file}:${index + 1}: ${line.trim().slice(0, 100)}`);
+      // The README comparison table names vidIQ as a competing product (approved by the product owner).
+      // That exception covers the README and its translations only; every other vendor name still fails.
+      const checked = COMPARISON_PAGES.test(file) ? line.replace(/vidiq/gi, "") : line;
+      if (VENDORS.test(checked)) hits.push(`${file}:${index + 1}: ${line.trim().slice(0, 100)}`);
     });
   }
   return hits;
