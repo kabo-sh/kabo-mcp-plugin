@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import public_video_sources  # noqa: E402
 
 
 def public_only_request_errors(request: dict) -> list[str]:
@@ -35,7 +39,8 @@ def prepare(bundles: list[dict], subject: str, budget: int, confirmed: bool, req
     if len(sources) != 1:
         raise ValueError("linked evidence describes more than one post")
     platform, url, content_id, media_type = sources.pop()
-    if platform not in {"tiktok", "instagram", "youtube"} or not url or not content_id:
+    # 接受哪些平台只看支持清单，不在这里另写一份。
+    if platform not in public_video_sources.platform_ids() or not url or not content_id:
         raise ValueError("linked evidence does not identify a supported post")
     if subject not in {"own_published", "third_party", "unknown"}:
         raise ValueError("a public link cannot identify an unpublished draft")

@@ -28,9 +28,10 @@ from pathlib import Path
 from typing import Any
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import public_video_sources  # noqa: E402
 
 SCHEMA_VERSION = "video-analysis.v1"
-PLATFORM_PREFIX = {"youtube": "yt", "instagram": "ig", "tiktok": "tt"}
 # Keys this script owns. A judgment that carries them is already a whole analysis (see `main`).
 COMPOSED = (
     "schema_version", "analysis_id", "subject_state", "request_ref", "evidence_ref",
@@ -345,7 +346,9 @@ def compose(judgment: dict[str, Any], evidence: dict[str, Any], deterministic: d
     require_judgment_references(judgment, evidence)
     ref = record(evidence.get("content_ref"))
     platform = str(ref.get("platform") or "")
-    if platform not in PLATFORM_PREFIX:
+    # 分析编号前缀取自支持清单的 content_id_prefix（yt / ig / tt / dy …），不另写一份平台表。
+    prefix = public_video_sources.content_id_prefix(platform)
+    if not prefix:
         raise SystemExit(f"the evidence names platform {platform!r}, which has no analysis id prefix")
     run_id = record(evidence.get("reproducibility")).get("run_id") or "unknown"
     missing = [key for key in ("observations",) if not judgment.get(key)]
@@ -356,7 +359,7 @@ def compose(judgment: dict[str, Any], evidence: dict[str, Any], deterministic: d
         )
     analysis: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
-        "analysis_id": f"va-{PLATFORM_PREFIX[platform]}-{ref.get('content_id')}-{run_id}",
+        "analysis_id": f"va-{prefix}-{ref.get('content_id')}-{run_id}",
         "subject_state": record(request.get("source")).get("subject_state"),
         "request_ref": request.get("request_id"),
         "evidence_ref": evidence.get("evidence_id"),

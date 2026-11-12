@@ -31,13 +31,15 @@ sys.dont_write_bytecode = True
 SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 import static_host  # noqa: E402
+import public_video_sources  # noqa: E402
 
 TOOL = "collect_video_media"
 CONNECTOR = "public-video-media"
 STATE = Path("collect-media.json")
 # 一次调用后台最多等 45 秒（Codex 工具超时 60 秒以内）；媒体一轮常要两三分钟，6 份结果够等满。
 MAX_ROUNDS = 6
-# 选项名 → collect_video_media 的操作。元数据只在 Instagram / TikTok 走媒体工具（YouTube 用 youtube_get_video）。
+# 选项名 → collect_video_media 的操作。元数据只在支持清单里 metadata_route 为 media_call 的平台走媒体工具
+# （YouTube 用 youtube_get_video）。
 OPERATIONS = {
     "metadata": "collect_public_metadata",
     "transcript": "fetch_transcript",
@@ -245,7 +247,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--url", required=True, help="the original public video url")
     parser.add_argument("--operations", required=True,
-                        help="comma-separated: " + ", ".join(OPERATIONS) + " (metadata only on Instagram and TikTok)")
+                        help="comma-separated: " + ", ".join(OPERATIONS) + " (metadata only on "
+                        + ", ".join(public_video_sources.media_call_metadata_labels()) + ")")
     parser.add_argument("--max-frames", type=int, default=MAX_FRAMES)
     parser.add_argument("--placed", action="store_true")
     parser.add_argument("--id", dest="result_id", help="the result id of the last collect_video_media call")

@@ -97,7 +97,14 @@ with `{"parameters": {"video_id": "<resolved-video-id>"}, "delivery": "download"
 frames and measurements come from `collect_media.py` with the original video URL, as `SKILL.md`
 says; it builds the arguments.
 
-On **Instagram and TikTok** the media call's `metadata` operation stays the metadata source.
+On **every other platform** (Instagram, TikTok, Douyin, Xiaohongshu, Kuaishou, Facebook, Bilibili)
+the media call's `metadata` operation stays the metadata source. On Douyin, Xiaohongshu and Kuaishou
+the `keyframes` job brings the metadata and measurements back with the frames; the separate
+`metadata` and `measure` jobs answer `unsupported` at no cost, and the builder reads both from the
+keyframes result, so that is not a missing source. Douyin and Xiaohongshu publish no public view
+count: the builder leaves views out and records that limitation, so never write zero views or
+divide anything by views there. A Facebook view count is the page's rounded display; quote it only
+at that precision, and a withheld one stays unknown.
 
 Persist the YouTube response like any other, naming its own connector and operation:
 `--connector youtube-public --operation get_video`. The builder reads its fields into the same shape.
