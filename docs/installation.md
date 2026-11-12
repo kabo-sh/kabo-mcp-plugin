@@ -5,8 +5,8 @@ An AI assistant installing Kabo for its user should follow [INSTALL.md](../INSTA
 
 ## Current release
 
-The current GitHub package release is [**1.0.43**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.43),
-packaged as `kabo-1.0.43.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
+The current GitHub package release is [**1.0.44**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.44),
+packaged as `kabo-1.0.44.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
 implementation. Earlier version history and source Skill versions remain separate. OpenAI marketplace
 review and production acceptance remain separate from this GitHub release.
 
@@ -90,7 +90,7 @@ for `-g`. The repository's `skills.lock.json` is a separate record of the origin
 
 - `#stable` follows published releases. It advances only after a release; installed files stay as
   they are until you run an installation or update command.
-- `#v1.0.43` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
+- `#v1.0.44` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
 - Without a ref, the CLI follows `main`, which includes unreleased changes.
 
 See [GitHub Releases](https://github.com/kabo-sh/kabo-mcp-plugin/releases) for new versions and release
@@ -157,6 +157,13 @@ The terminal equivalents are `claude plugin marketplace add kabo-sh/kabo-mcp-plu
 `claude plugin install kabo@kabo-mcp-plugin`. If you do not have a GitHub SSH key, set
 `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1` to clone over HTTPS.
 For development, use `claude --plugin-dir <plugin-root>` to load the working directory directly.
+
+Claude Code has no install-time event, so the plugin registers one `SessionStart` hook
+(`hooks/hooks.json`). In the first session after installing, it asks Claude to offer
+`/kabo:start-with-kabo` when you send your first message; it never starts the setup on its own, and
+it is shown only once (a marker in the plugin's data folder records that it was offered). Run
+`/kabo:start-with-kabo` at any time to start the setup yourself. The hook is read only from this
+repository's Claude Code install; the release ZIP and other hosts do not contain it.
 
 ### Codex
 

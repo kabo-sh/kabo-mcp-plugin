@@ -2,6 +2,16 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.44（2026-11-12；GitHub Release）
+
+- Claude Code 装好插件后会主动提出引导：宿主没有「安装后」事件，新增唯一一个 `SessionStart`（`startup`）钩子
+  `hooks/hooks.json` → `hooks/onboarding-nudge.sh`，在装好后的第一个会话给模型加一段上下文——用户第一句话是打招呼、
+  泛泛提问或问怎么开始时，用一句话提议、告诉用户随时可输入 `/kabo:start-with-kabo` 开始，同意后当场跑；第一句是具体请求就先做事、末尾补一句该命令。
+  从不替用户开跑，定时/无人值守的会话忽略。只提示一次：标记落在宿主给的 `CLAUDE_PLUGIN_DATA`（没有时退回 `~/.kabo`），
+  写不进标记就静默不提示，避免每个会话都打扰。
+- 打包规则随之调整：`hooks/` 不再列为禁止组件，但仍不是包组件——只在 Claude Code 从本仓安装时读取，发布 ZIP 不含，
+  OpenAI 包校验照旧拒绝 `hooks/`；`AGENTS.md`、README、INSTALL.md 与 Skills 规范里「不注册生命周期钩子」的表述同步改写。
+
 ## 1.0.43（2026-11-12；GitHub Release）
 
 - `diagnose-reach-drop`：用户给的数字（自己的后台数据、点名的某条作品）可以作为带自己 `source` 的问题，和导入的公开数据放进同一份计划；以前计划只认一个来源、并明确禁止合并，用户的数据进不了分析（11-10 生产会话）。只有把用户数字挂在默认公开来源上才打回；一次比较只用一个来源；只有一组时作为观察值交出，不给变化结论并注明缺对照；报告按来源标注，用户提供的标「user-supplied, not verified」。交付仍完整转交报告；自己加的话不超出报告，并标明是建议。用户对整组给的约数（「之前大概 60%」）记为一个 `approximate` 值，不再拆成逐条精确值，报告标为约数；组内字段出错时报错指到具体的组（#163）。

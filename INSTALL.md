@@ -30,7 +30,8 @@ claude plugin install kabo@kabo-mcp-plugin
 ```
 
 Then ask the user to run `/reload-plugins` (or start a new session), run `/mcp`, choose the Kabo server and
-sign in. The plugin contains both the connection and the Skills.
+sign in. The plugin contains both the connection and the Skills. In the first new session, the plugin asks
+Claude to offer the Kabo setup once; the user can also type `/kabo:start-with-kabo` at any time.
 
 ## Codex and ChatGPT
 
