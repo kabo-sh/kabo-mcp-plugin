@@ -466,7 +466,12 @@ const JARGON = new RegExp(String.raw`\b(backend|server|sync\w*|api|mcp|database|
    "model_invalid_output", "validation_error", "not_found", "failure_code", "retry_after_seconds", "declaredPillars", "declared_pillars",
    "signatureContent", "signature content", "generating", ...owners, "analyze-content-video", "create-script-and-packaging",
    "remake-viral-video"].map(word => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + String.raw`)\b`, "i");
-const plain = (label, text) => assert.doesNotMatch(String(text), JARGON, `${label}: ${text}`);
+// 实测里出现过的词与数字写法：不说 sample / baseline / reference groups；播放量取整加千分位，不出现 1726.0 或 8 位以上不分隔的整数。
+const ODD_WORDING = /\b(samples?|baselines?|reference groups?)\b|\d+\.0 views|\d{8,}/i;
+const plain = (label, text) => {
+  assert.doesNotMatch(String(text), JARGON, `${label}: ${text}`);
+  assert.doesNotMatch(String(text), ODD_WORDING, `${label}: ${text}`);
+};
 
 test("对创作者说的话不含技术词：脚本固定文案、各分支实际输出、SKILL.md 的引号例句", async t => {
   // 1. 固定文案常量。
@@ -499,7 +504,14 @@ test("对创作者说的话不含技术词：脚本固定文案、各分支实�
   // 支柱同步与复盘的 limits。
   const t0 = "2026-10-20T08:00:00Z";
   run("ingest", "--library", lib, "--snapshot", await snapshot(temp, "s0.json", t0, history(t0)), "--handle", "maker");
-  collect(run("posts", "--library", lib));
+  collect(run("posts", "--library", lib, "--tell"));
+  // 绑定结果、参考块与提议的每行句子同样纳入。
+  for (const value of [{ isError: true, content: [{ type: "text", text: "conflict: This idempotency key was already used for another request." }] },
+    { isError: true, content: [{ type: "text", text: "Insufficient scope: workspace:write" }] },
+    { structuredContent: { account: { id: "acc-9", bindingVersion: "b" } } }])
+    collect(run("connect-result", "--result", await as(value), "--handle", "@MrBeast"));
+  const reference = run("profile-pillars", "--profile", await as(profileResult([signature("sc1", "Hooks", 0.32)])));
+  for (const row of reference.candidates) said.push(row.say_line);
   await writeFile(path.join(temp, "confirmed.json"), JSON.stringify({ confirmed: true, pillars: [{ name: "Breakdowns", definition: "Why one video worked", search_phrases: ["viral breakdown"], content_ids: ["old0"] }] }));
   run("save-pillars", "--library", lib, "--file", path.join(temp, "confirmed.json"));
   for (const value of [{ isError: true, content: [{ type: "text", text: "Insufficient scope: workspace:write" }] }, { isError: true, content: [{ type: "text", text: "invalid_input: action" }] },
@@ -1051,8 +1063,10 @@ test("propose-pillars 只给参考数字、不裁定；按后台规则预检长�
   const library = path.join(temp, "lib");
   const t0 = "2026-10-20T08:00:00Z";
   run("ingest", "--library", library, "--snapshot", await snapshot(temp, "s0.json", t0, history(t0)), "--handle", "maker");
-  const posts = run("posts", "--library", library);
-  assert.match(posts.tell_creator_now, /I read 10 of your videos\. A typical one gets about 1050 views/);
+  const posts = run("posts", "--library", library, "--tell");
+  assert.match(posts.tell_creator_now, /I read 10 of your videos\. A typical one gets about 1,050 views/);
+  // 同一句只在读完作品后说一次：之后再列作品不带这句。
+  assert.equal("tell_creator_now" in run("posts", "--library", library), false);
   const file = path.join(temp, "clusters.json");
   await writeFile(file, JSON.stringify({ clusters: [cluster("Breakdowns", ["old0", "old1", "old2"]), cluster("Charisma", ["old6", "old7", "old8"])] }));
   const proposal = run("propose-pillars", "--library", library, "--clusters", file);
@@ -1163,3 +1177,64 @@ test("refresh-pillars 的来源优先级：声明的支柱 → 后台统计 → 
   assert.equal(run("show", "--library", path.join(temp, "boot")).pillars_sync.state, "synced");
 });
 
+// ---- 实测（Codex，三账号）后的修正：绑定的幂等键、给创作者的数字与参考块的句子。
+
+test("connect-request 生成幂等键：首次绑定与替换绑定不同，同一请求重试得到同一键，不同被替换版本得到不同键；handle 一律小写", async () => {
+  const first = run("connect-request", "--platform", "youtube", "--handle", "@MrBeast", "--url", "https://www.youtube.com/@MrBeast");
+  assert.deepEqual(first, { platform: "youtube", handle_or_url: "https://www.youtube.com/@MrBeast", idempotency_key: "library:youtube:mrbeast:new" });
+  const replace = (version) => run("connect-request", "--platform", "youtube", "--handle", "MRBEAST",
+    "--expected-account-id", "4779b7a3-ef7b-479f-9d5f-014f20296077", "--expected-binding-version", version);
+  const a = replace("c498edb2-1111-4111-8111-111111111111");
+  assert.equal(a.idempotency_key, "library:youtube:mrbeast:c498edb2-1111-4111-8111-111111111111");
+  assert.equal(a.handle_or_url, "mrbeast");
+  // 同一次绑定的重试：键不变（版本大小写不同也一样）；版本原样传给工具。
+  const again = replace("C498EDB2-1111-4111-8111-111111111111");
+  assert.equal(again.idempotency_key, a.idempotency_key);
+  assert.deepEqual(replace("c498edb2-1111-4111-8111-111111111111"), a);
+  assert.notEqual(replace("d0000000-2222-4222-8222-222222222222").idempotency_key, a.idempotency_key);
+  // 契约：8–128 字符，A-Za-z0-9._:-。
+  const longest = run("connect-request", "--platform", "instagram", "--handle", "a".repeat(64), "--expected-account-id",
+    "4779b7a3-ef7b-479f-9d5f-014f20296077", "--expected-binding-version", "c498edb2-1111-4111-8111-111111111111").idempotency_key;
+  assert.ok(longest.length <= 128 && /^[A-Za-z0-9._:-]{8,128}$/.test(longest), String(longest.length));
+  const contract = JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools.find(tool => tool.name === "connect_public_account").inputSchema.properties.idempotency_key;
+  assert.deepEqual([contract.minLength, contract.maxLength], [8, 128]);
+  assert.match(refuse("connect-request", "--platform", "youtube", "--handle", "x", "--expected-account-id", "4779b7a3-ef7b-479f-9d5f-014f20296077").stderr, /needs both/);
+  assert.match(refuse("connect-request", "--platform", "youtube", "--handle", "x", "--expected-account-id", "a", "--expected-binding-version", "nope").stderr, /bindingVersion uuid/);
+});
+
+test("connect-result：成功给出账号 id；失败不转述后台原话，给人话与下一步；缺写权限说要授权", async t => {
+  const temp = await workspace(t);
+  const file = path.join(temp, "connect.json");
+  const result = async (value) => { await writeFile(file, JSON.stringify(value)); return run("connect-result", "--result", file, "--handle", "MrBeast"); };
+  const ok = await result({ structuredContent: { account: { id: "acc-9", bindingVersion: "bv-1", handle: "mrbeast" } } });
+  assert.deepEqual([ok.linked, ok.account_id, ok.tell_creator_now], [true, "acc-9", "@mrbeast is now linked to your Kabo."]);
+  const conflict = await result({ isError: true, content: [{ type: "text", text: "conflict: This idempotency key was already used for another request." }] });
+  assert.equal(conflict.linked, false);
+  assert.equal(conflict.tell_creator_now, "I couldn't link @mrbeast to your Kabo just now. I'll still read its videos and propose pillars; we can try linking again in a moment.");
+  assert.match(conflict.reported.message, /idempotency key/);
+  assert.doesNotMatch(conflict.tell_creator_now, /idempotency|request/);
+  const scope = await result({ isError: true, content: [{ type: "text", text: "Insufficient scope: workspace:write" }] });
+  assert.match(scope.tell_creator_now, /needs your permission to save to your account before I can link @mrbeast/);
+});
+
+test("给创作者的数字：播放量取整加千分位，倍数至多两位小数；参考块与提议每行由脚本写好", async t => {
+  const temp = await workspace(t);
+  const library = path.join(temp, "lib");
+  const t0 = "2026-10-20T08:00:00Z";
+  const big = [0, 1, 2, 3].map(i => item(`b${i}`, hoursBefore(t0, 100 + i * 24), [65897439, 1231293530, 148897372, 1726][i]));
+  run("ingest", "--library", library, "--snapshot", await snapshot(temp, "s0.json", t0, big), "--handle", "maker");
+  const told = run("posts", "--library", library, "--tell").tell_creator_now;
+  assert.match(told, /A typical one gets about 107,397,406 views/);
+  assert.match(told, /has 1,231,293,530 views, 11\.46 times that/);
+  assert.doesNotMatch(told, /\d+\.0 views|\d{8,}/);
+  const profile = path.join(temp, "profile.json");
+  await writeFile(profile, JSON.stringify(profileResult([{ ...signature("sc1", "Hooks", 0.32), contentCount: 15, medianMultiplier: 1.48 },
+    { ...signature("sc2", "Vlogs", 0.5), contentCount: 20, medianMultiplier: 2 }, { ...signature("sc3", "Shorts", 0.07), contentCount: 3, medianMultiplier: null }])));
+  assert.deepEqual(run("profile-pillars", "--profile", profile).candidates.map(row => row.say_line), [
+    "Vlogs: 20 of your recent videos, about half; they get about 2 times your usual views.",
+    "Hooks: 15 of your recent videos, about a third; they get about 1.48 times your usual views.",
+    "Shorts: 3 of your recent videos, about 7%."]);
+  const clusters = path.join(temp, "clusters.json");
+  await writeFile(clusters, JSON.stringify({ clusters: [cluster("Big ones", ["b0", "b1"])] }));
+  assert.equal(run("propose-pillars", "--library", library, "--clusters", clusters).groups[0].say_line, "2 of your videos, about 6.04 times your usual views.");
+});

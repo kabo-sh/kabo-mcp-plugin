@@ -22,8 +22,10 @@ creator waiting in silence. The steps are the same for every platform and every 
 
 - **Talk to the creator in everyday words.** Everything you say to the creator, including lines
   you relay from a script, is plain language. Never say a tool name, a field name, a status or error
-  code, a Skill id, a file path, the run directory or the library path; codes and reasons in script
-  fields such as `failure_code`, `reason` or `reported` are for you, not to be read out. Swap
+  code, a Skill id, a file path, the run directory or the library path, and never repeat a tool's
+  error message; codes, reasons and messages in script fields such as `failure_code`, `reason` or
+  `reported` are for you, not to be read out. Numbers come from the script already formatted
+  (1,231,293,530 views; 1.8 times): use them as they are. Swap
   internal words like this:
 
   | Internal | To the creator |
@@ -88,13 +90,23 @@ and a limit is stated when the creator asks for something Kabo does not do.
   post on most.
 - **Ask before linking.** An account that is not linked yet is linked only after the creator agrees.
   Ask once, with options: "Link @handle to your Kabo so it can build your profile and daily picks"
-  (first) or "Not now". Only after a yes, call `connect_public_account` with `platform`,
-  `handle_or_url` and an `idempotency_key` of the form `library:<platform>:<handle>` (letters,
-  digits, `.`, `_`, `:` and `-` only). It uses data allowance and starts no official social login.
-  Replacing an existing link needs the creator's confirmation plus the current id and bindingVersion
-  from `list_connected_accounts`.
-- Note the account's Kabo `id` (from the `connect_public_account` result or
-  `list_connected_accounts`), its platform and handle.
+  (first) or "Not now". Only after a yes, print the request and make one call with it, unchanged
+  (a retry uses the very same arguments):
+
+  ```sh
+  python3 '<skill directory>/scripts/creator_library.py' connect-request --platform <platform> --handle '<handle>' [--url '<profile link>'] [--expected-account-id <id> --expected-binding-version <bindingVersion>]
+  ```
+
+  Add the two `--expected-*` values (the current link's id and bindingVersion from
+  `list_connected_accounts`) only when replacing an existing link, after the creator confirmed it.
+  The script builds the `idempotency_key`; never write one yourself. Call `connect_public_account`
+  with the printed arguments; it uses data allowance and starts no official social login. Save the
+  result (or the error) to a file and run
+  `python3 '<skill directory>/scripts/creator_library.py' connect-result --result '<file>' --handle '<handle>'`,
+  then send its `tell_creator_now`. Never repeat Kabo's error message to the creator; `reported`
+  keeps it for you.
+- Note the account's Kabo `id` (`account_id` from `connect-result`, or `list_connected_accounts`),
+  its platform and handle. When linking failed, go on as below for "No linked account".
 - **No linked account** (the creator said not now, the host refused write access, or the handle did
   not resolve as a Kabo link): say in one line that saving pillars to Kabo and the daily picks need an
   account linked in Kabo. Do steps 3 and 4 with the handle (the pillars stay on this computer), skip
@@ -147,7 +159,7 @@ returned data:
 cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch --tool collect_account_history --id=<result id>
 cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' snapshot --platform <platform> --output snapshot/posts.json
 cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' ingest --library '<library directory>' --snapshot snapshot/posts.json --handle '<handle>'
-cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' posts --library '<library directory>' --limit 40
+cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' posts --library '<library directory>' --limit 40 --tell
 ```
 
 - A result with no download url: save it whole to `host-results/01-collect_account_history.json` in
@@ -198,8 +210,9 @@ python3 '<skill directory>/scripts/creator_library.py' profile-pillars --profile
 - `declared_pillars` not empty: the creator saved pillars before. Show them as their current pillars
   and ask whether to keep them or change something; skip the proposal unless they want a change.
 - `candidates` (Kabo's signature content, with `niche`): show them as a reference next to your
-  proposal, labelled "What your numbers show…", with the evidence `references/pillars.md` describes. The
-  creator may take any of them.
+  proposal, labelled "What your numbers show…", one line each: copy each candidate's `say_line` as it
+  is (the script writes the numbers in plain words; never turn `share_of_posts` or `median_multiple`
+  into words yourself). The creator may take any of them.
 
 **Your proposal.** Group the posts into 2 to 4 pillars by subject and the promise to the viewer, and
 write `clusters.json` in the run, each pillar in the shape Kabo stores:
@@ -224,8 +237,8 @@ account's typical views and the share of views. These are reference numbers from
 it does not recommend or reject anything.
 
 **Show and confirm, on one screen.** The niche in one line when Kabo has one (`niche`), then each
-proposed pillar: its name, its definition, one line of numbers in plain words ("12 of your videos,
-1.4 times your usual views") and one example post as a link; then the "What your numbers show…" items when there
+proposed pillar: its name, its definition, its `say_line` from `propose-pillars` as it is (for
+example "12 of your videos, about 1.4 times your usual views.") and one example post as a link; then the "What your numbers show…" items when there
 are any. Say once that the proposal comes from reading their posts and is theirs to change. Then one
 question with options: keep these, keep only some, or change something (rename, drop, add, reword).
 Do not save before they answer.
@@ -269,7 +282,9 @@ Before offering anything recurring, give the creator one real result: follow the
 `pick-daily-viral-videos` Skill now, from its step 2 (the same `get_for_you_videos` call with
 `"include": ["author_id"]`, and the same single fallback without it), for this account, the run directory and the
 library directory above. The creator is here, so send each `progress_line` it prints while Kabo is
-still preparing the picks. With the picks, name in one line each what the creator can ask for next (a
+still preparing the picks. Describe the picks only by what Kabo returned (views, rank, Kabo's reason):
+Kabo may still be using a list made before the pillars were saved, so never say they were chosen for
+the pillars just confirmed. With the picks, name in one line each what the creator can ask for next (a
 breakdown, a script, a remake). If there are none today, send its one line and go on.
 
 ## 7. Offer three daily jobs, with times already filled in

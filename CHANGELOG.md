@@ -30,7 +30,20 @@
 - 依赖 kabo#2185（`declare_pillars` 与 `get_creator_profile` 的 `pillars` 入参 / `declaredPillars` 出参）。`contracts/directory-mcp/`
   按 `pin.json` 的命令在 kabo `dd614f5` 重新钉住（`tools-list.json` 与后台 golden 逐字节相同；`annotations.md`、
   `data-tool-bindings.json` 不变），入参与长度上限与脚本的预检一致。
-- 验收：只有离线测试（构造数据）；本地提议与同步流程尚未在真实宿主里跑过。
+- 真实宿主实测后的修正（Codex，生产，三个账号）：
+  - 绑定账号的幂等键由脚本生成（新命令 `connect-request`，原样使用）：`library:<平台>:<小写 handle>:<被替换绑定的 bindingVersion，
+    首次绑定为 new>`，最长 119 字符（契约上限 128）。原来只按账号定键，「绑 A → 换成 B → 再换回 A」会拿同一个键发不同请求，被后台
+    永久以 conflict 拒绝（实测 `@MrBeast`）。绑定结果由 `connect-result` 转成人话，后台原话只留在 `reported`；绑定失败照旧读作品、
+    提议支柱并保存在本机。
+  - 给创作者的数字由脚本格式化：播放量取整加千分位（`1,231,293,530`），倍数至多两位小数；「What your numbers show」参考块与提议的
+    每行句子由 `profile-pillars` / `propose-pillars` 的 `say_line` 直接给出，不再让模型把 `share_of_posts`、`medianMultiplier` 翻成话
+    （实测出现过 "about 32% of its sample"、"1.48 times its comparison baseline"）。
+  - 「I read N of your videos…」只在读完作品时说一次（`posts --tell`），之后再列作品不重复。
+  - 推荐只按 Kabo 返回的内容描述，不说「按刚确认的支柱选的」（保存支柱后，Kabo 可能仍给保存前生成的那一份）。
+  - 文案守卫加上：不得出现 sample / baseline / reference groups，不得出现 `\d+.0 views` 与 8 位以上不分隔的整数。
+- 验收：`@leohuan.fang`（Instagram）、`@veritasium`（YouTube）在 Codex 加生产 `/mcp-pub` 上走通本地提议 → `declare_pillars`
+  保存（version 0→1）→ `get_creator_profile`（`pillars: true`）读回逐字一致；`@MrBeast` 当时因幂等键撞车未能绑定，修正后尚未重测。
+  其余缺口同 1.0.38。
 
 ## 1.0.39（2026-11-12；GitHub Release）
 

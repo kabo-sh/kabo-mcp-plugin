@@ -158,6 +158,29 @@ def median(values):
     return statistics.median(values) if values else None
 
 
+def views_words(value):
+    """Views as the creator should read them: a whole number with thousands separators (1,231,293,530)."""
+    return f"{int(round(value)):,}" if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def times_words(value):
+    """A multiple with at most two decimals and no trailing zeros (1.8, 2, 0.45)."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    return f"{round(value, 2):.2f}".rstrip("0").rstrip(".")
+
+
+def share_words(share):
+    # 占比说成创作者听得懂的话：接近常见分数时用分数，否则用百分比。
+    if not isinstance(share, (int, float)) or isinstance(share, bool) or share <= 0:
+        return None
+    for value, words in ((0.25, "about a quarter"), (1 / 3, "about a third"), (0.5, "about half"),
+                         (2 / 3, "about two thirds"), (0.75, "about three quarters")):
+        if abs(share - value) <= 0.03:
+            return words
+    return f"about {round(share * 100)}%"
+
+
 def ratio(value, base):
     if value is None or not base:
         return None
@@ -170,6 +193,53 @@ def cmd_path(args):
     # 只打印目录：三个 Skill 都会调用它，其中两个无人值守，这里不能带任何要对创作者说的话。
     directory = library_path(args.workspace, args.platform, args.handle)
     say({"library": str(directory), "exists": (directory / "library.json").exists()})
+
+
+def connect_key(platform, handle, binding_version):
+    """Idempotency key for connect_public_account: the same for a retry of one request, different for another request.
+
+    键 = library:<平台>:<小写 handle>:<被替换绑定的 binding_version，首次绑定为 new>。只把账号放进键时，
+    「绑 A → 换成 B → 再换回 A」会拿同一个键发不同的请求，后台按 conflict 永久拒绝（Codex 实测 @MrBeast）。
+    长度最多 8+9+1+64+1+36=119，契约上限 128；字符集 A-Za-z0-9._:-。"""
+    version = str(binding_version or "new").lower()
+    if version != "new" and not re.fullmatch(r"[0-9a-f-]{36}", version):
+        fail("--expected-binding-version must be the bindingVersion uuid from list_connected_accounts")
+    key = f"library:{platform}:{normalize_handle(handle)}:{version}"
+    if not (8 <= len(key) <= 128 and re.fullmatch(r"[A-Za-z0-9._:-]+", key)):
+        fail("The handle cannot form a valid idempotency key")
+    return key
+
+
+def cmd_connect_request(args):
+    """The exact connect_public_account arguments; pass them to the tool unchanged (retry with the same ones)."""
+    if bool(args.expected_account_id) != bool(args.expected_binding_version):
+        fail("Replacing a link needs both --expected-account-id and --expected-binding-version")
+    handle = normalize_handle(args.handle)
+    request = {"platform": args.platform, "handle_or_url": args.url or handle,
+               "idempotency_key": connect_key(args.platform, handle, args.expected_binding_version)}
+    if args.expected_account_id:
+        request.update({"expected_account_id": args.expected_account_id,
+                        "expected_binding_version": args.expected_binding_version})
+    say(request)
+
+
+def cmd_connect_result(args):
+    """What to tell the creator after connect_public_account; the raw error stays in `reported` for the assistant."""
+    payload, is_error = tool_payload(read_json(args.result))
+    handle = "@" + normalize_handle(args.handle)
+    # 成功的出参是 {"account": {...}}（钉住契约），账号 id 在 account.id。
+    account = payload.get("account") if isinstance(payload.get("account"), dict) else {}
+    if not is_error and first_text(account.get("id")):
+        say({"linked": True, "account_id": account["id"], "binding_version": account.get("bindingVersion"),
+             "tell_creator_now": f"{handle} is now linked to your Kabo."})
+        return
+    if needs_write_access(payload, is_error):
+        line = (f"Kabo needs your permission to save to your account before I can link {handle}. Reconnect Kabo in this "
+                "app and approve it. Meanwhile I'll read its videos and propose pillars.")
+    else:
+        line = (f"I couldn't link {handle} to your Kabo just now. I'll still read its videos and propose pillars; we can "
+                "try linking again in a moment.")
+    say({"linked": False, "tell_creator_now": line, "reported": reported(payload)})
 
 
 def cmd_history_request(args):
@@ -368,13 +438,17 @@ def cmd_posts(args):
     best = max(settled_views(posts), key=lambda row: row[1], default=None)
     tell = f"I read {len(posts)} of your videos."
     if typical:
-        tell += f" A typical one gets about {int(round(typical))} views."
+        tell += f" A typical one gets about {views_words(typical)} views."
     if best and typical:
         title = (best[0].get("title") or "").strip().splitlines()[0][:60] if (best[0].get("title") or "").strip() else "your best one"
-        tell += f" Your best so far, \"{title}\", has {best[1]} views, {ratio(best[1], typical)} times that."
-    say({"tell_creator_now": tell, "handle": library["handle"], "platform": library["platform"],
-         "typical_settled_views": typical, "settled_posts": len(settled_views(posts)),
-         "posts": [post_row(post, typical) for post in ordered]})
+        tell += f" Your best so far, \"{title}\", has {views_words(best[1])} views, {times_words(ratio(best[1], typical))} times that."
+    result = {"handle": library["handle"], "platform": library["platform"],
+              "typical_settled_views": typical, "settled_posts": len(settled_views(posts)),
+              "posts": [post_row(post, typical) for post in ordered]}
+    # 这句只在读完作品后说一次（--tell）；之后再列作品不重复（实测里同一句被发了两遍）。
+    if args.tell:
+        result = {"tell_creator_now": tell, **result}
+    say(result)
 
 
 def cmd_media_request(args):
@@ -507,6 +581,9 @@ def cmd_propose_pillars(args):
                      "posts": len(members), "settled_posts": len(views), "median_views": median(views),
                      "median_multiple_of_typical": ratio(median(views), typical),
                      "share_of_views": round(sum(views) / total, 3) if total and views else None,
+                     "say_line": (f"{len(members)} of your videos"
+                                  + (f", about {times_words(ratio(median(views), typical))} times your usual views"
+                                     if times_words(ratio(median(views), typical)) else "") + "."),
                      "example_posts": [{"url": post.get("url"), "title": (post.get("title") or "")[:120],
                                         "views": latest(post)["views"]} for post in best]})
     say({"typical_settled_views": typical, "settled_posts": len(settled), "groups": rows,
@@ -641,6 +718,19 @@ def tool_payload(value):
     return value, is_error
 
 
+def reference_line(name, count, share, multiple):
+    """One plain line for the "What your numbers show" block, e.g. 'Hooks: 15 of your recent videos, about a third;
+    they get about 1.8 times your usual views.' 不用 sample / baseline 这类词，数字由这里格式化好。"""
+    parts = []
+    if isinstance(count, int) and not isinstance(count, bool) and count > 0:
+        parts.append(f"{count} of your recent videos" + (f", {share_words(share)}" if share_words(share) else ""))
+    elif share_words(share):
+        parts.append(f"{share_words(share)} of your recent videos")
+    if times_words(multiple):
+        parts.append(f"they get about {times_words(multiple)} times your usual views")
+    return f"{name}: " + "; ".join(parts) + "." if parts else f"{name}."
+
+
 def declared_pillars(structured):
     rows = structured.get("declaredPillars")
     if not isinstance(rows, list):
@@ -692,6 +782,7 @@ def read_profile(path):
             "profile_base_ids": [str(base) for base in ((item.get("origin") or {}).get("baseIds") or [item.get("id")])
                                  if isinstance(base, (str, int)) and str(base)],
             # 画像的 share 是条数占比（contentCount / 进了格式的作品数），不是播放占比。
+            "say_line": reference_line(name[:60], item.get("contentCount"), share, item.get("medianMultiplier")),
             "evidence": {"share_of_posts": share, "median_multiple": item.get("medianMultiplier"),
                          "content_count": item.get("contentCount"),
                          "examples": [{"url": row.get("sourceUrl"), "title": row.get("title"), "views": row.get("views"),
@@ -1642,6 +1733,16 @@ def build_parser():
     command = commands.add_parser("posts")
     command.add_argument("--library", required=True)
     command.add_argument("--limit", type=int, default=40)
+    command.add_argument("--tell", action="store_true")
+    command = commands.add_parser("connect-request")
+    command.add_argument("--platform", required=True, choices=PLATFORMS)
+    command.add_argument("--handle", required=True)
+    command.add_argument("--url")
+    command.add_argument("--expected-account-id")
+    command.add_argument("--expected-binding-version")
+    command = commands.add_parser("connect-result")
+    command.add_argument("--result", required=True)
+    command.add_argument("--handle", required=True)
     command = commands.add_parser("media-request")
     command.add_argument("--library", required=True)
     command.add_argument("--content-id", action="append")
@@ -1730,7 +1831,8 @@ def build_parser():
     return parser
 
 
-HANDLERS = {"path": cmd_path, "opening": cmd_opening, "posts": cmd_posts, "media-request": cmd_media_request,
+HANDLERS = {"path": cmd_path, "opening": cmd_opening, "posts": cmd_posts, "connect-request": cmd_connect_request,
+            "connect-result": cmd_connect_result, "media-request": cmd_media_request,
             "transcripts": cmd_transcripts, "propose-pillars": cmd_propose_pillars, "save-pillars": cmd_save_pillars,
             "declare-request": cmd_declare_request, "record-sync": cmd_record_sync, "profile-status": cmd_profile_status,
             "profile-pillars": cmd_profile_pillars, "for-you": cmd_for_you, "picks": cmd_picks,

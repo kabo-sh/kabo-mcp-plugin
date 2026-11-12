@@ -33,8 +33,10 @@ replying; never run it in the background and promise the result later.
 
 - **Talk to the creator in everyday words.** Everything you say to the creator, including lines
   you relay from a script, is plain language. Never say a tool name, a field name, a status or error
-  code, a Skill id, a file path, the run directory or the library path; codes and reasons in script
-  fields such as `failure_code`, `reason` or `reported` are for you, not to be read out. Swap
+  code, a Skill id, a file path, the run directory or the library path, and never repeat a tool's
+  error message; codes, reasons and messages in script fields such as `failure_code`, `reason` or
+  `reported` are for you, not to be read out. Numbers come from the script already formatted
+  (1,231,293,530 views; 1.8 times): use them as they are. Swap
   internal words like this:
 
   | Internal | To the creator |
