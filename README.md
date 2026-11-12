@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_hero">
-    <img src="docs/readme/hero.png" alt="Kabo. See which videos take off. Learn why. Make yours. Daily picks, account reviews and viral-video remakes with you on camera, in the AI assistant you already use, on your computer or your phone. 4 AI assistants (Claude, ChatGPT, Grok Bot, Muse), 21 creator skills, 3 platforms (YouTube, Instagram, TikTok)." width="100%" />
+    <img src="docs/readme/hero.gif" alt="Kabo. See which videos take off. Learn why. Make yours. Daily picks, account reviews and viral-video remakes with you on camera, in the AI assistant you already use, on your computer or your phone. 4 AI assistants (Claude, ChatGPT, Grok Bot, Muse), 21 creator skills, 3 platforms (YouTube, Instagram, TikTok)." width="100%" />
   </a>
 </p>
 
