@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, rm, symlink } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -15,5 +15,6 @@ test("从目录别名启动校验 CLI 仍执行检查，不能静默成功", asy
     [path.join(alias, "scripts", script), ...args], { encoding: "utf8" });
   assert.match(run("package-check.mjs"), /submissionReady=false/);
   const findings = JSON.parse(run("skills-lint.mjs", "--json"));
-  assert.equal(findings.length, 18);
+  const lock = JSON.parse(await readFile(path.join(alias, "skills.lock.json"), "utf8"));
+  assert.deepEqual(findings.map(row => row.id).sort(), lock.skills.map(row => row.id).sort());
 });

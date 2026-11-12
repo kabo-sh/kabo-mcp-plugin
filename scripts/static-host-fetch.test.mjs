@@ -73,7 +73,11 @@ for scenario in scenarios:
 print(json.dumps(report))
 `;
 
-const skills = (await readdir(path.join(root, "skills"))).sort();
+// 只给不取数的原生封面评测使用独立脚本；其余18个包仍必须有取数运行时。
+const lock = JSON.parse(await readFile(path.join(root, "skills.lock.json"), "utf8"));
+const skills = lock.skills.filter(skill => skill.origin !== "native").map(skill => skill.id).sort();
+assert.equal(skills.length, 18);
+assert.deepEqual(lock.skills.filter(skill => skill.origin === "native").map(skill => skill.id), ["review-thumbnail"]);
 const fetchSkills = [];
 for (const id of skills) {
   const text = await readFile(path.join(root, "skills", id, "scripts/static_host.py"), "utf8");

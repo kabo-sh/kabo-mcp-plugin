@@ -400,6 +400,6 @@ you to approve the first time; without it, or when Kabo does not offer the tool 
 saved and the research runs as before.
 
 `review-thumbnail` is a native plugin Skill for one to three uploaded thumbnails. It provides
-10 vidIQ-style pass/fail checks with reasons, fixes, the first 2–3 changes and candidate comparisons.
+10 editorial pass/fail checks with reasons, fixes, the first 2–3 changes and candidate comparisons.
 Python 3 and Pillow prepare local images; scripts validate and render the report without calling
 a backend checker. It does not assign scores, predict CTR or replace audience tests.

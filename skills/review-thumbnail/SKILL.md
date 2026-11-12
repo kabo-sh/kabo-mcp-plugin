@@ -1,6 +1,6 @@
 ---
 name: review-thumbnail
-description: "Review and compare one to three uploaded video thumbnails using ten vidIQ-style pass/fail checks, concrete reasons and fixes. Identify the first changes and recommend a candidate when justified. Use when a creator asks to critique or choose thumbnails."
+description: "Review and compare one to three uploaded video thumbnails using ten editorial pass/fail checks, concrete reasons and fixes. Identify the first changes and recommend a candidate when justified. Use when a creator asks to critique or choose thumbnails."
 license: MIT
 compatibility: "Requires a vision-capable host, local file read/write access, Python 3 and Pillow for static image decoding and small-image preparation. Inline file delivery requires a host capability that displays an existing Markdown file unchanged. No Kabo data permission or backend checker is required."
 metadata:
@@ -8,6 +8,10 @@ metadata:
 ---
 
 # Review Thumbnail
+
+Execution in a foreground sub-agent is recommended; wait for its final result before replying.
+Never run this in the background. If foreground sub-agents are unavailable, complete the same
+steps in the current thread.
 
 Read `references/rubric.md` and `references/contract.md`. Review actual uploaded images using
 exactly ten checks. Every check is pass or fail, one concrete reason, and a fix when it fails.

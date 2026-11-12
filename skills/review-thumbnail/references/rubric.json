@@ -1,5 +1,5 @@
 {
-  "framework": "vidiq-ten-binary-v1",
+  "framework": "ten-binary-v1",
   "items": [
     {
       "id": "topic_match",

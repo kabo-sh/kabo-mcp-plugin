@@ -1,6 +1,6 @@
 # Ten binary checks
 
-Apply these ten vidIQ-style dimensions, not vidIQ's proprietary algorithm or a claimed prediction.
+Apply these ten editorial dimensions, not a proprietary algorithm or a claimed prediction.
 Use only pass/fail, one evidence-grounded sentence and a fix for each fail. Judge originals and
 320px previews. No points, totals, ranks by pass count, quality dimension or automatic vetoes.
 

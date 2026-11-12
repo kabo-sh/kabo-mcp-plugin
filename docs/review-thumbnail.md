@@ -1,9 +1,9 @@
 # Review Thumbnail v0.1.1
 
-The native plugin skill evaluates 1–3 uploads using ten vidIQ-style pass/fail checks. Every failure
+The native plugin skill evaluates 1–3 uploads using ten editorial pass/fail checks. Every failure
 has a fix; each candidate has its first 2–3 changes (fewer if fewer fail), and comparisons explain
 both sides before recommending a suitable candidate or explicitly recommending none. It implements
-the approved ten-check framework, not vidIQ's private scoring algorithm. There are no scores,
+the approved ten-check framework, not a proprietary scoring algorithm. There are no scores,
 quality dimensions or vetoes. The prior local v0.1.0 framework and its results are superseded.
 
 The host inspects original and small images. Python/Pillow copy, decode and measure inputs;
