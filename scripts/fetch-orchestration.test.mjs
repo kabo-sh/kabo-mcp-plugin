@@ -1,10 +1,15 @@
-// 取数编排在后台闭环（docs/skills-spec.md KS9）的机械闸门，两条都是只减不增的棘轮：
-// 1. 交接轮次：驱动每处 `fetch_round` / `fetch_or_hand_over` / `hand_over` 调用，都是一轮
-//    「打印 call: → 宿主模型逐个调用 → 落盘 → 续跑」，每轮多花两三次模型调用。存量按 skill 记在
-//    HANDOVER_SITES 里；新 skill 不许有，存量 skill 不许变多。迁到后台接口后数目变少，同一 PR 里把
-//    这里的数字改小（数字对不上也会失败，免得棘轮松掉）。
-// 2. 宿主探测：脚本不许按宿主走不同的取数路径（connector-outbox、会话线程 id、回合令牌）。存量
-//    文件记在 HOST_PROBE_FILES；删掉后同一 PR 里把它从名单里拿掉。
+// Mechanical gate for the backend closed loop of data-fetch orchestration (docs/skills-spec.md KS9); both
+// are ratchets that only go down:
+// 1. Handover rounds: every `fetch_round` / `fetch_or_hand_over` / `hand_over` call in a driver is one
+// round of
+//    "print call: -> the host model calls them one by one -> write to disk -> resume", costing two or
+//    three extra model calls per round. The existing count per skill is recorded in
+//    HANDOVER_SITES; new skills may not have any, and existing skills may not gain more. When a skill
+//    migrates to the backend API and the count drops, lower
+//    the number here in the same PR (a mismatched number also fails, so the ratchet cannot loosen).
+// 2. Host probing: scripts may not take different fetch paths per host (connector-outbox, session thread
+// id, turn token). Existing
+//    files are recorded in HOST_PROBE_FILES; once one is removed, take it off the list in the same PR.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -38,7 +43,7 @@ const HOST_PROBE_FILES = [];
 export function handoverSites(files = scripts()) {
   const counts = {};
   for (const file of files) {
-    if (file.endsWith("/connector_driver.py")) continue; // 定义处，不是调用处
+    if (file.endsWith("/connector_driver.py")) continue; // The definition site, not the call site
     const skill = file.split("/")[1];
     for (const line of text(file).split("\n")) {
       if (HANDOVER_CALL.test(line) && !/^\s*def\s/.test(line)) counts[skill] = (counts[skill] ?? 0) + 1;
@@ -51,7 +56,7 @@ export function hostProbeFiles(files = scripts()) {
   return files.filter((file) => HOST_PROBE.test(text(file))).sort();
 }
 
-test("交接轮次只减不增：新增多轮取数要做成一次后台调用（KS9）", () => {
+test("handoff rounds only decrease, never increase: new multi-round fetches must be one backend call (KS9)", () => {
   assert.deepEqual(
     handoverSites(),
     HANDOVER_SITES,
@@ -60,7 +65,7 @@ test("交接轮次只减不增：新增多轮取数要做成一次后台调用�
   );
 });
 
-test("脚本不按宿主探测取数路径（KS9）", () => {
+test("scripts do not pick the fetch path by probing the host (KS9)", () => {
   assert.deepEqual(
     hostProbeFiles(),
     [...HOST_PROBE_FILES].sort(),
@@ -69,7 +74,7 @@ test("脚本不按宿主探测取数路径（KS9）", () => {
   );
 });
 
-test("检查本身能抓到违例", () => {
+test("the check itself catches violations", () => {
   assert.ok(HANDOVER_CALL.test("    cd.fetch_round(calls, args, place)"));
   assert.ok(!HANDOVER_CALL.test("original_hand_over(printed, why)"));
   assert.ok(HOST_PROBE.test('root / "connector-outbox-host"'));

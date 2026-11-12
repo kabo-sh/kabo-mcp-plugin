@@ -1,6 +1,8 @@
-// 视频分析的媒体证据是一次后台组合调用 collect_video_media（KS9）：collect_media.py 只交出一行 call:；还有 job
-// 在跑时续跑再交同一个调用；全部终态后逐项 persist 成 snapshot/envelope-NN.json，打印证据构建的 --envelope 参数和
-// 一次读帧。这里不联网：组合结果按后台对这组入参会给出的形状手写，走「没有下载链接」的退路落盘。
+// The media evidence for video analysis is one backend composite call, collect_video_media (KS9): collect_media.py
+// emits only a call: line; while jobs are still running, a resume emits the same call again; once all jobs are
+// terminal, it persists each item as snapshot/envelope-NN.json and prints the --envelope argument for building the
+// evidence plus a single frame read. Nothing touches the network here: the composite result is hand-written in the
+// shape the backend would return for these inputs, and goes to disk through the "no download link" fallback.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -63,7 +65,7 @@ function composite(args, pendingGroups = new Set()) {
 }
 const save = (file, result) => writeFile(file, JSON.stringify({ content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result }));
 
-test("视频分析媒体一次组合调用：交接一个 call，续跑等到终态，逐项落成 envelope-NN 并打印读帧", async (t) => {
+test("video analysis media single composite call: hand off one call, resume until a terminal state, persist item by item as envelope-NN and print the frame reads", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
   if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
   const init = python("static_host.py", ["init", "--workspace", workspace]);
@@ -83,7 +85,7 @@ test("视频分析媒体一次组合调用：交接一个 call，续跑等到终
   const keyframes = args.requests.find((r) => r.operation === "extract_keyframes");
   assert.deepEqual(keyframes.parameters, { url: URL_, sampling: "duration_scaled", max_frames: 60 });
 
-  // 还有 job 在跑：续跑再交同一个调用。
+  // Jobs are still running: a resume emits the same call again.
   await save(saveOf(first.out), composite(args, new Set(["video/extract_keyframes"])));
   const second = shell(resumeOf(first.out));
   assert.equal(second.code, 0, second.out);
@@ -105,11 +107,13 @@ test("视频分析媒体一次组合调用：交接一个 call，续跑等到终
   assert.equal(frameReads.length, 1);
   assert.equal(frameReads[0].arguments.job_id, uuid(2));
   assert.equal(frameReads[0].arguments.object_refs.length, 3);
-  // 读帧把图片直接给了模型就算看过：不要求逐帧暂存（Web 上 59 帧就是 59 步，超出每轮步数）。
+  // Handing the images straight to the model counts as having viewed them: per-frame staging is not required
+  // (on Web, 59 frames would be 59 steps, beyond the per-turn step limit).
   assert.match(third.out, /If its result shows you the images, they are viewed: do not save or stage them/);
   assert.match(first.out, / --id=<id>$/m);
 
-  // 没有暂存任何帧字节：builder 照样按 keyframes 信封列出全部帧，测量依据行照常生成。
+  // No frame bytes were staged: the builder still lists all frames from the keyframes envelope, and the
+  // measurement-basis lines are generated as usual.
   const request = path.join(run, "analysis/video-analysis-request.json");
   await writeFile(request, JSON.stringify({
     schema_version: "video-analysis-request.v1", request_id: "req-frames",
@@ -133,14 +137,14 @@ test("视频分析媒体一次组合调用：交接一个 call，续跑等到终
   assert.equal(JSON.parse(basis.stdout).frame_kind, "extracted");
 });
 
-test("collect_media.py：未知操作与超出上限的帧数直接拒绝，不交出调用", () => {
+test("collect_media.py: unknown operations and frame counts over the limit are rejected outright without handing off a call", () => {
   const bad = python("collect_media.py", ["--url", URL_, "--operations", "frames"], { cwd: os.tmpdir() });
   assert.equal(bad.code, 1);
   assert.match(bad.out, /--operations takes/);
   assert.equal(calls(bad.out).length, 0);
 });
 
-test("collect_media.py：续跑时既没有结果编号、也没有暂存记录，报错说出先 stage 再续跑", async (t) => {
+test("collect_media.py: when resuming with neither a result id nor a staged record, the error says to stage first and then resume", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
@@ -152,8 +156,10 @@ test("collect_media.py：续跑时既没有结果编号、也没有暂存记录�
   assert.match(resumed.out, /static_host\.py stage --tool collect_video_media/);
 });
 
-// Web 宿主读交接的规则（kabo-agent-service src/tools/plugin-handover.ts 的 parsePluginHandover），照抄到这里：
-// 读得懂，宿主就自己调用、把原样结果写进槽位文件、按续跑命令接着跑，模型不用经手暂存。
+// The rule the Web host uses to read a handoff (parsePluginHandover in kabo-agent-service
+// src/tools/plugin-handover.ts), copied here verbatim: if it can parse the handoff, the host makes the call
+// itself, writes the unchanged result into the slot file, and continues with the resume command, so the model
+// does not need to touch staging.
 function hostHandover(stdout) {
   const lines = stdout.split("\n");
   const start = lines.findIndex((line) => line.startsWith("Hand-over: "));
@@ -186,7 +192,7 @@ function hostHandover(stdout) {
   return resume && calls.length && files.length === calls.length ? { calls, files, resume } : null;
 }
 
-test("collect_media.py 的交接是 Web 宿主读得懂的写法：宿主写入原样结果、不带编号续跑，就能拿到媒体", async (t) => {
+test("the collect_media.py handoff is written in a form the Web host understands: the host writes the result verbatim and, resuming without an id, the media is obtained", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
@@ -198,14 +204,16 @@ test("collect_media.py 的交接是 Web 宿主读得懂的写法：宿主写入�
   assert.equal(handover.resume.cwd, run);
   assert.equal(path.basename(handover.resume.script), "collect_media.py");
   assert.ok(!handover.resume.args.includes("<id>"));
-  // 宿主写的是研究工具的原样出参（没有 MCP 包装）。续跑命令不带环境变量；shell 里残留着另一个 run 的
-  // KABO_STATIC_RUN_DIR 时，结果仍要落在 cd 进去的那个 run。
+  // What the host writes is the research tool's unchanged output (no MCP wrapper). The resume command carries no
+  // environment variable; if the shell still holds another run's KABO_STATIC_RUN_DIR, the result must still land in
+  // the run that was cd'd into.
   const stray = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
   assert.notEqual(stray, run);
   const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1", KABO_STATIC_RUN_DIR: stray };
   const resume = (current) => spawnSync("python3", [current.resume.script, ...current.resume.args], { cwd: current.resume.cwd, encoding: "utf8", env });
   const args = handover.calls[0].arguments;
-  // 第一轮还有 job 在跑：再交的一轮同样要让宿主认得（说明单独一行，槽位编号换成 02）。
+  // Jobs are still running in the first round: the handoff emitted again must also be recognized by the host
+  // (the instruction is on its own line, with the slot number changed to 02).
   await writeFile(handover.files[0], JSON.stringify(composite(args, new Set(["video/extract_keyframes"]))));
   const second = resume(handover);
   assert.equal(second.status, 0, second.stdout + second.stderr);
@@ -223,9 +231,10 @@ test("collect_media.py 的交接是 Web 宿主读得懂的写法：宿主写入�
   await assert.rejects(readFile(path.join(stray, "snapshot/envelope-01.json"), "utf8"));
 });
 
-// 只导出逐字稿（雨恬 11-10，生产 1.0.29）：只取转写、不取元数据，模型写的请求不带 content_id；
-// 以前 build_content_evidence.py 报「content_ref needs a content_id」退出，转写拿到了也导不出来。
-test("只导出逐字稿：请求不带 content_id 时从原始链接取，证据照常生成并导出 TXT/SRT", async (t) => {
+// Transcript-only export (Yutian 11-10, production 1.0.29): only the transcript is fetched, not the metadata, and
+// the request the model writes carries no content_id. Previously build_content_evidence.py exited with
+// "content_ref needs a content_id", so even a successfully fetched transcript could not be exported.
+test("transcript-only export: when the request has no content_id, take it from the original link; evidence is still generated and TXT/SRT exported", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-transcript-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();

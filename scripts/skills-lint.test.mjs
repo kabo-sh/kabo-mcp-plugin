@@ -12,7 +12,7 @@ const skill = (front, body = "Run the steps.\n", extra = {}) =>
   new Map(Object.entries({ "SKILL.md": `---\n${front}\n---\n${body}`, ...extra }).map(([name, text]) => [name, Buffer.from(text)]));
 const rules = (findings, level = "error") => findings.filter(finding => finding.level === level).map(finding => finding.rule).sort();
 
-test("符合规范的 skill 没有错误；allowed-tools 覆盖正文用到的 /mcp-pub 工具", () => {
+test("a spec-compliant skill has no errors; allowed-tools covers the /mcp-pub tools used in the body", () => {
   const files = skill(
     "name: demo-skill\ndescription: Analyze one public video.\ncompatibility: Requires Python 3 and file access.\nlicense: MIT\nmetadata:\n  version: \"1.0.0\"\nallowed-tools: youtube_get_video get_research_data_job",
     "Call `youtube_get_video`, then wait with `get_research_data_job`.\nWhen done, suggest other-skill as a next step.\n",
@@ -21,7 +21,7 @@ test("符合规范的 skill 没有错误；allowed-tools 覆盖正文用到的 /
   assert.deepEqual(rules(lintSkill("demo-skill", files, context)), []);
 });
 
-test("frontmatter 与开放规范不一致时报错", () => {
+test("errors when frontmatter does not match the open spec", () => {
   assert.deepEqual(rules(lintSkill("demo-skill", skill("name: demo-skill\ndescription: uses search then get: never collect"), context)), ["KS1.1"]);
   assert.deepEqual(rules(lintSkill("demo-skill", skill("name: Demo-Skill\ndescription: x\nexecution: subagent"), context)), ["KS1.1", "KS1.3"]);
   const long = lintSkill("demo-skill", skill(`name: demo-skill\ndescription: ${"a".repeat(600)}`), context);
@@ -29,12 +29,12 @@ test("frontmatter 与开放规范不一致时报错", () => {
   assert.deepEqual(rules(long, "warn"), ["KS1.2"]);
 });
 
-test("frontmatter 不是映射时只报 KS1.1，不抛异常", () => {
+test("reports only KS1.1 without throwing when frontmatter is not a mapping", () => {
   assert.deepEqual(rules(lintSkill("demo-skill", skill("hello"), context)), ["KS1.1"]);
   assert.deepEqual(rules(lintSkill("demo-skill", skill("- a\n- b"), context)), ["KS1.1"]);
 });
 
-test("references 的非 md 文本、普通 JSON 长度、多个 SPDX、未识别许可证与 JS fetch", () => {
+test("non-md text in references, plain JSON length, multiple SPDX, unrecognized license, and JS fetch", () => {
   const findings = lintSkill(
     "demo-skill",
     skill("name: demo-skill\ndescription: x\ncompatibility: Python 3", "Run.\n", {
@@ -56,7 +56,7 @@ test("references 的非 md 文本、普通 JSON 长度、多个 SPDX、未识别
   assert.deepEqual(findings.filter(f => f.rule === "KS5.2" && f.level === "error").map(f => f.file).sort(), ["scripts/compound.py", "scripts/mixed.py"]);
 });
 
-test("依赖：宿主私有运行时、未声明工具与清单外工具（含已从服务端删除的注册工具）均报错", () => {
+test("dependencies: host-private runtime, undeclared tools, and tools outside the list (including registered tools already removed from the server) all error", () => {
   const findings = lintSkill(
     "demo-skill",
     skill("name: demo-skill\ndescription: x\nallowed-tools: get_research_skill not_a_tool", "Use kabo-run-pipeline and mcp__plugin_kabo__run, then `youtube_get_video`.\n"),
@@ -65,7 +65,7 @@ test("依赖：宿主私有运行时、未声明工具与清单外工具（含�
   assert.deepEqual(rules(findings), ["KS2.1", "KS2.1", "KS2.2", "KS2.2", "KS2.2"]);
 });
 
-test("长度、嵌套、许可证与非标准文件", () => {
+test("length, nesting, license, and non-standard files", () => {
   const findings = lintSkill(
     "demo-skill",
     skill("name: demo-skill\ndescription: x", "line\n".repeat(501), {
@@ -82,14 +82,14 @@ test("长度、嵌套、许可证与非标准文件", () => {
   assert.deepEqual(rules(findings), ["KS3.1", "KS3.2", "KS4.1", "KS4.2", "KS5.2", "KS6.1", "KS6.2", "KS6.3"]);
 });
 
-test("SKILL.md 正文上限 21,000 字符，references 仍为 20,000", () => {
+test("SKILL.md body limit is 21,000 characters; references stay at 20,000", () => {
   const front = "name: demo-skill\ndescription: x";
   assert.deepEqual(rules(lintSkill("demo-skill", skill(front, "x".repeat(21_000)), context)), []);
   assert.deepEqual(rules(lintSkill("demo-skill", skill(front, "x".repeat(21_001)), context)), ["KS3.1"]);
   assert.deepEqual(rules(lintSkill("demo-skill", skill(front, "Run.\n", { "references/a.md": "x".repeat(20_001) }), context)), ["KS3.2"]);
 });
 
-test("KS2.3：compatibility 须写明 allowed-tools 需要的 Kabo 权限与下载主机", () => {
+test("KS2.3: compatibility must state the Kabo permissions allowed-tools needs and the download host", () => {
   const scoped = { ...context, toolScopes: new Map([["youtube_get_video", ["data"]], ["get_research_data_job", ["data"]]]) };
   const files = compatibility => skill(`name: demo-skill\ndescription: x\ncompatibility: "${compatibility}"\nallowed-tools: youtube_get_video`, "Call `youtube_get_video`.\n", {
     "scripts/fetch.py": "import urllib.request\n",
@@ -100,7 +100,7 @@ test("KS2.3：compatibility 须写明 allowed-tools 需要的 Kabo 权限与下�
   assert.deepEqual(warnings("Requires storage.googleapis.com links. Kabo permission: data."), []);
 });
 
-test("脚本：读会话记录报错；网络、安装与他人 skill 名只进审计", () => {
+test("scripts: reading session records errors; network, install, and other skills' names are audit-only", () => {
   const findings = lintSkill(
     "demo-skill",
     skill("name: demo-skill\ndescription: x\ncompatibility: Python 3", "Run.\n", {
@@ -114,7 +114,7 @@ test("脚本：读会话记录报错；网络、安装与他人 skill 名只进�
   assert.deepEqual(rules(findings, "audit"), ["KS4.2", "KS7.2", "KS7.3", "KS7.4"]);
 });
 
-test("门禁只拦启用的 skill；--strict 拦全部", async t => {
+test("the gate blocks only enabled skills; --strict blocks all", async t => {
   const repo = await mkdtemp(path.join(os.tmpdir(), "kabo-skills-lint-"));
   t.after(() => rm(repo, { recursive: true, force: true }));
   const source = fileURLToPath(new URL("..", import.meta.url));
@@ -127,10 +127,10 @@ test("门禁只拦启用的 skill；--strict 拦全部", async t => {
   await writeFile(path.join(repo, "skills-spec.json"), JSON.stringify({ enforced: ["good-skill"] }));
   assert.deepEqual(lintSkills({ directory: repo }).map(result => [result.id, result.enforced, rules(result.findings)]), [["bad-skill", false, ["KS1.3"]], ["good-skill", true, []]]);
   const run = args => execFileSync(process.execPath, ["scripts/skills-lint.mjs", ...args], { cwd: repo, encoding: "utf8", stdio: "pipe" });
-  assert.match(run(["--summary"]), /bad-skill（未启用门禁）：错误 1/);
-  assert.throws(() => run(["--strict"]), /门禁未通过：bad-skill/);
+  assert.match(run(["--summary"]), /bad-skill \(gate not enabled\): errors 1/);
+  assert.throws(() => run(["--strict"]), /gate failed: bad-skill/);
   await writeFile(path.join(repo, "skills-spec.json"), JSON.stringify({ enforced: ["bad-skill"] }));
-  assert.throws(() => run([]), /门禁未通过：bad-skill/);
+  assert.throws(() => run([]), /gate failed: bad-skill/);
   await writeFile(path.join(repo, "skills-spec.json"), JSON.stringify({ enforced: ["missing-skill"] }));
-  assert.throws(() => run([]), /不存在的 Skill/);
+  assert.throws(() => run([]), /nonexistent Skill/);
 });

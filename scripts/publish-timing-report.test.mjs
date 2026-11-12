@@ -1,7 +1,11 @@
-// 发布时间报告里的钟点：推荐答出时，标题或摘要要以 HH:MM 报出推荐窗口，且不报窗口以外的钟点；单小时答出时，
-// 分块投票的胜出段不能以时间段出现在正文里（一次迁移实测的报告标题推荐 18:00，「怎么比的」又写 06:00–09:00
-// 表现最好）。没拿到创作者时区时，模型要用创作者的语言写 creator_view.clock_note，渲染器放在答案下面。
-// 规则只看结构（HH:MM、相邻钟点、字段在不在），不认任何语言的字面量。这里只核对这几条规则的报错。
+// Clock times in the publish-time report: when a recommendation is given, the title or summary must state the
+//   recommended window as HH:MM and not state any clock time outside the window; when a single hour is given,
+// the winning segment of the chunked vote must not appear in the body as a time range (in one migration run
+//   the report title recommended 18:00 while "how it was compared" said 06:00-09:00
+// did best). When the creator's time zone was not obtained, the model must write creator_view.clock_note in
+//   the creator's language, and the renderer places it below the answer.
+// The rules look only at structure (HH:MM, adjacent hours, whether a field is present) and recognize no
+//   literal in any language. This only checks the errors of these rules.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -51,7 +55,7 @@ async function validate(t, rec, res) {
 
 const clockErrors = (out) => out.split("\n").filter((line) => /block vote|outside the recommended|states the recommended time|clock_note/.test(line));
 
-test("单小时答出时，正文报出分块胜出段被拒，连接词是哪种语言都一样，和推荐小时重叠也拒", async (t) => {
+test("when a single hour is answered, a body that reports the chunk-winning window is rejected regardless of connector language, and overlap with the recommended hour is also rejected", async (t) => {
   for (const range of ["06:00–09:00", "06:00 à 09:00", "06:00 至 09:00", "06:00 to 09:00"]) {
     const out = await validate(t, recommendation(), result({ lines: [`${range} performs best overall.`, "The 18:00 hour is carried by five posts."] }));
     const errors = clockErrors(out);
@@ -64,13 +68,13 @@ test("单小时答出时，正文报出分块胜出段被拒，连接词是哪�
   assert.equal(clockErrors(overlap).length, 1, overlap);
 });
 
-test("标题或摘要报出推荐窗口：没有钟点报错；对照实验可以出现在下一步", async (t) => {
+test("title or summary reporting the recommended window: error when there is no clock hour; a controlled experiment may appear in the next step", async (t) => {
   const out = await validate(t, recommendation(), result({ lines: ["The 18:00 hour is carried by five posts.", "The three-hour block vote did not pick this block."],
     next: ["Try two posts at 20:00 to test the hour your peers use."] }));
   assert.deepEqual(clockErrors(out), [], out);
 });
 
-test("标题或摘要报出窗口以外的钟点被拒；两处都没报推荐时间也被拒", async (t) => {
+test("title or summary reporting an hour outside the window is rejected; reporting no recommended time in either place is also rejected", async (t) => {
   const outside = await validate(t, recommendation(), result({ headline: "Post the next one at 06:00", summary: "Around 07:00 does better." }));
   const errors = clockErrors(outside);
   assert.ok(errors.some((line) => /^ERROR: headline states 06:00/.test(line)), outside);
@@ -80,13 +84,13 @@ test("标题或摘要报出窗口以外的钟点被拒；两处都没报推荐�
   assert.equal(clockErrors(silent).length, 1, silent);
 });
 
-test("分块答出时报那一段不算冲突", async (t) => {
+test("when chunks are answered, reporting that chunk is not a conflict", async (t) => {
   const out = await validate(t, recommendation({ start: "06:00", end: "09:00", resolution: "3h" }),
     result({ headline: "Post the next one between 06:00 and 09:00", summary: "On three-hour blocks, 06:00–09:00 collects the most votes.", lines: ["06:00–09:00 performs best overall."] }));
   assert.deepEqual(clockErrors(out), [], out);
 });
 
-test("备用钟点：有钟点的结果必须带 clock_note，不许写时区名；拿到时区或没有钟点的结果不要求", async (t) => {
+test("fallback clock hours: a result with clock hours must carry clock_note and must not name a time zone; results with a known time zone or without clock hours do not require it", async (t) => {
   const missing = await validate(t, recommendation({ source: "not_supplied" }), result());
   assert.ok(clockErrors(missing).some((line) => /creator_view\.clock_note is missing/.test(line)), missing);
   const unresolved = await validate(t, recommendation({ source: "zone_unresolved", outcome: "no_clear_window" }), result({ headline: "Post now", summary: "No hour in your history stands out from the rest of the day." }));
@@ -103,7 +107,7 @@ test("备用钟点：有钟点的结果必须带 clock_note，不许写时区名
   assert.deepEqual(clockErrors(abstain), [], abstain);
 });
 
-test("渲染器把 clock_note 原样放在答案下面，没有就不放", async (t) => {
+test("the renderer places clock_note verbatim below the answer, and omits it when absent", async (t) => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "kabo-timing-render-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const render = async (res) => {

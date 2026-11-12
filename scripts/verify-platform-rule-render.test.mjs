@@ -1,7 +1,7 @@
-// verify-platform-rule 的取页走一次后台组合调用 render_official_pages（docs/skills-spec.md KS9）：
-// fetch 只交出一条 call:，组合结果经 static_host.py stage 拆开后，--placed 按 page-<i> 组与请求 URL
-// 把每页绑回计划里的那一页；失败、未渲染、跳出注册主机的页面都记为 unreachable，报告照常校验通过。
-// 夹具是中性的合成页面正文，只用登记表里已有的官方页面 URL。
+// verify-platform-rule fetches pages with one backend composite call, render_official_pages (docs/skills-spec.md KS9):
+// fetch hands out only one call:, and after the composite result is split by static_host.py stage, --placed binds each page back to its page in the plan by the page-<i> group and the request URL;
+// pages that failed, were not rendered, or jumped out of the registered host are all recorded as unreachable, and the report still validates as usual.
+// The fixtures are neutral synthetic page bodies and use only official page URLs already in the registry.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -60,14 +60,14 @@ async function handedOver(t) {
   return { run, first, calls };
 }
 
-// 模型只把结果原样存进交接点名的文件、跑续跑命令；续跑自己 fetch（没有就绪下载时 stage）。
+// The model only saves the result as is into the file named by the handoff and runs the resume command; the resume fetches by itself (and stages when there is no ready download).
 async function placeComposite(run, value) {
   const file = path.join(run, "host-results", "01-render_official_pages.json");
   await writeFile(file, JSON.stringify({ content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value }));
   return python("drive.py", [...FETCH, "--placed"], { cwd: run, run });
 }
 
-test("fetch 交出一条 render_official_pages：全部计划页面、带 source_id 与下载交付", async (t) => {
+test("fetch hands off one render_official_pages: all planned pages, with source_id and download delivery", async (t) => {
   const { run, first, calls } = await handedOver(t);
   assert.deepEqual(calls.map((call) => call.tool), ["render_official_pages"]);
   const { pages, delivery } = calls[0].arguments;
@@ -78,16 +78,16 @@ test("fetch 交出一条 render_official_pages：全部计划页面、带 source
     "https://about.instagram.com/features/reels",
     "https://creators.instagram.com/blog/tips-for-improving-your-reach",
   ]);
-  // 只有登记页本身带 source_id；随源一起读的 watch 页没有。
+  // Only the registered page itself carries source_id; the watch page read together with the source does not.
   assert.deepEqual(pages.map((p) => p.source_id), ["instagram.originality", undefined, "instagram.reels_feature", undefined]);
-  // 交接只点名存放文件（绝对路径）与一条续跑命令，不再让模型自己跑 fetch / stage。
+  // The handoff names only the file to store into (an absolute path) and one resume command, and no longer has the model run fetch / stage itself.
   assert.ok(first.out.includes(`  result 01  (fallback file, only if this result has no download url: ${path.join(run, "host-results", "01-render_official_pages.json")})`), first.out);
   assert.doesNotMatch(first.out, /static_host\.py' (?:fetch|stage)/);
   assert.match(first.out, /^Then run this one command right away.*drive\.py' fetch .*--placed --id 01=<id>$/m);
   assert.match(first.out, /call get_research_data_download only when the resume says an id expired/);
 });
 
-test("组合结果按 page-<i> 绑回：读到的页面可引用，失败 / 未渲染 / 跳出主机的记为 unreachable，报告通过校验", async (t) => {
+test("composite results bind back by page-<i>: pages that were read can be cited, failed / unrendered / off-host ones are recorded as unreachable, and the report passes validation", async (t) => {
   const { run, calls } = await handedOver(t);
   const pages = calls[0].arguments.pages;
   const value = composite(pages, {
@@ -120,7 +120,7 @@ test("组合结果按 page-<i> 绑回：读到的页面可引用，失败 / 未�
       "https://creators.instagram.com/blog/tips-for-improving-your-reach", "instagram.reels_feature"].sort());
 });
 
-test("组内回答的不是计划里那一页时整轮拒绝，不改标签", async (t) => {
+test("when an in-group answer is not the planned page, the whole round is rejected without changing labels", async (t) => {
   const { run, calls } = await handedOver(t);
   const pages = calls[0].arguments.pages;
   const value = composite(pages, { overrides: { 0: { ...page(pages[1].url, "Wrong page.\n"), requested: pages[1].url } } });
@@ -129,7 +129,7 @@ test("组内回答的不是计划里那一页时整轮拒绝，不改标签", as
   assert.match(placed.out, /page-0 answers .* not the planned page .*no page was relabelled/);
 });
 
-test("续跑时交接点名的文件不存在：一句话点名文件与该存什么，什么都不放", async (t) => {
+test("on resume, when the file named by the handoff does not exist: one sentence names the file and what to save, and nothing is placed", async (t) => {
   const { run } = await handedOver(t);
   const placed = python("drive.py", [...FETCH, "--placed"], { cwd: run, run });
   assert.equal(placed.code, 2, placed.out);
@@ -138,7 +138,7 @@ test("续跑时交接点名的文件不存在：一句话点名文件与该存�
   assert.equal(existsSync(path.join(run, "analysis", "rule-input.json")), false);
 });
 
-test("有引文的主张可附推测：通过校验，渲染在引文之后并标明是推测；空推测被拒", async (t) => {
+test("a claim with a quote may carry a conjecture: it passes validation and renders after the quote marked as conjecture; an empty conjecture is rejected", async (t) => {
   const { run, calls } = await handedOver(t);
   const placed = await placeComposite(run, composite(calls[0].arguments.pages));
   assert.equal(placed.code, 0, placed.out);
@@ -151,7 +151,7 @@ test("有引文的主张可附推测：通过校验，渲染在引文之后并�
   const label = body.indexOf("**Our inference, not the platform's words - a possibility, not an established effect:** Following it may help");
   assert.ok(quote > -1 && label > quote, body);
   assert.match(body, /^### The page states the rule\.$/m);
-  // 多行推测压成一段，不会在标签外长出一条新结论。
+  // A multi-line speculation is squeezed into one paragraph and will not grow a new conclusion outside the label.
   assert.doesNotMatch(body, /^### Not a finding/m);
 
   const empty = python("drive.py", ["report", "--judgments", "-"], { cwd: run, run,

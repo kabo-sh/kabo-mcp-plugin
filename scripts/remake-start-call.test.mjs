@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-// remake-viral-video 的 start-call 与服务端 remakeVideoLink（kabo#1836）认同一批链接。
+// The start-call of remake-viral-video and the server's remakeVideoLink (kabo#1836) accept the same set of
+//   links.
 const script = path.resolve("skills/remake-viral-video/scripts/static_host.py");
 
 function startCall(reference, extra = ["--instagram-handle", "niallgardens"]) {
@@ -17,7 +18,7 @@ function startCall(reference, extra = ["--instagram-handle", "niallgardens"]) {
   });
 }
 
-test("TikTok 长链规范成 www 写法，短链原样带尾斜杠", () => {
+test("TikTok long links are normalized to the www form, short links keep the trailing slash as is", () => {
   for (const [input, expected] of [
     ["https://m.tiktok.com/@some.creator/video/7694694514350361869?lang=en", "https://www.tiktok.com/@some.creator/video/7694694514350361869"],
     ["https://tiktok.com/@a/video/7694694514350361869", "https://www.tiktok.com/@a/video/7694694514350361869"],
@@ -30,7 +31,7 @@ test("TikTok 长链规范成 www 写法，短链原样带尾斜杠", () => {
   }
 });
 
-test("TikTok 图文、http 与其他平台在付费调用前就被拒", () => {
+test("TikTok image posts, http and other platforms are rejected before the paid call", () => {
   for (const input of [
     "https://www.tiktok.com/@a/photo/7694694514350361869",
     "http://www.tiktok.com/@a/video/7694694514350361869",
@@ -43,14 +44,14 @@ test("TikTok 图文、http 与其他平台在付费调用前就被拒", () => {
   }
 });
 
-test("同一条 TikTok 不能既当参考又当创作者素材", () => {
+test("the same TikTok cannot serve as both reference and creator footage", () => {
   const result = startCall("https://www.tiktok.com/@a/video/1234567",
     ["--creator-video", "https://m.tiktok.com/@a/video/1234567", "--creator-name", "a"]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /same video/);
 });
 
-test("稿件模式：--script-file 原样带上口播稿，与 --reference-url 恰好给一项，不收 --language", () => {
+test("script mode: --script-file carries the voice-over script verbatim, exactly one of it and --reference-url is given, and --language is not accepted", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "remake-script-"));
   const file = path.join(dir, "approved.txt");
   const text = "Plant tomatoes deep.  Water at the base — not the leaves.";
@@ -71,7 +72,7 @@ test("稿件模式：--script-file 原样带上口播稿，与 --reference-url �
   assert.notEqual(startCall(null, ["--script-file", file, "--instagram-handle", "a"]).status, 0);
 });
 
-test("照片当长相素材：--creator-photo 进 creator.photo_urls；只有照片时先要录音，没有才给预设音色", () => {
+test("photo as likeness footage: --creator-photo goes into creator.photo_urls; with only photos a recording is requested first, and preset voices are offered only if none exists", () => {
   const ref = ["--reference-url", "https://www.youtube.com/shorts/8u7NbUT0XW4"];
   const photo = "https://example.com/me.jpg";
   const preset = "536d3a5e000945adb7038665781a4aca";

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { buildPluginBundle, stableJson, validateBundle } from './web-publish/bundle.mjs';
 
-// 插件包格式：与 kabo-agent-service src/skill/registry-format.ts 读方一致（从 creator-skills tests/skill-registry-plugin-source.mjs 搬来）。
+// Plugin package format: consistent with the reader in kabo-agent-service src/skill/registry-format.ts (moved over from creator-skills tests/skill-registry-plugin-source.mjs).
 const COMMIT = 'b'.repeat(40);
 
 

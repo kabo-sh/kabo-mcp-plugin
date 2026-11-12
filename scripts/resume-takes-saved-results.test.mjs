@@ -1,9 +1,15 @@
-// 交接与续跑之间只剩「调用 → 把结果编号填进续跑命令」（docs/skills-spec.md KS8）：交接给每条调用一个编号槽位，
-// 续跑（--placed --id NN=<编号>）自己按编号向 Kabo 取那份下载字节、按响应头的 sha256 与长度校验，再放置
-// （kabo ADR-0084「2026-11-04」）。模型手抄结果是插件交接的头号故障（patch 写坏、签名链接抄漏、改写字段），
-// 所以存文件只剩退路：没有下载链接的结果存进槽位点名的 host-results/ 文件，续跑照旧 fetch / stage。
-// 这里对每个驱动 Skill 的 connector_driver.py 副本（连同它自己的 static_host.py）在进程内走一遍：按编号取
-// （假 HTTPS，不联网）、存文件退路（下载与内联 stage）、槽位既无编号也无文件时的提示、同一槽位不重复取。
+// Between handoff and resume only "call -> fill the result's number into the resume command" remains
+//   (docs/skills-spec.md KS8): the handoff gives each call a numbered slot,
+// and resume (--placed --id NN=<number>) itself fetches that download's bytes from Kabo by number, validates
+//   them against the sha256 and length in the response headers, and then places them
+// (kabo ADR-0084, "2026-11-04"). Having the model copy results by hand was the top failure of plugin handoffs
+//   (patches corrupted, signed links copied incompletely, fields rewritten),
+// so saving to a file remains only as a fallback: a result without a download link is saved into the
+//   host-results/ file named by the slot, and resume still does fetch / stage.
+// Here, for the copy of each driving Skill's connector_driver.py (together with its own static_host.py), the
+//   following is run in-process: fetch by number
+// (fake HTTPS, no network), the save-to-file fallback (download and inline stage), the hint when a slot has
+//   neither a number nor a file, and no repeated fetch for the same slot.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -19,8 +25,10 @@ const RESULT_ID = "Neutral_Result-Id01234";
 const SIGNED = `https://storage.googleapis.com/kabo-media/_temporary/research-export/v1/${RESULT_ID}.json?X-Goog-Signature=SIGNATURE`;
 const BY_ID = `https://kabo.sh/v1/research-downloads/${RESULT_ID}`;
 
-// 每个场景一个进程：导入该 Skill 的 connector_driver / static_host，替换 urllib 的 HTTPS 收发，
-// 先让 fetch_round 交接（打印并 SystemExit 0），再按场景把结果存进点名的文件、带 --placed 续跑。
+// One process per scenario: import that Skill's connector_driver / static_host, replace urllib's HTTPS
+//   send/receive,
+// first let fetch_round hand off (print and SystemExit 0), then, per scenario, save the result into the named
+//   file and resume with --placed.
 const HARNESS = String.raw`
 import argparse, base64, contextlib, http.client, io, json, os, sys, urllib.request, urllib.response
 
@@ -99,7 +107,8 @@ const ttCandidates = { composite: "collect_tiktok_video_candidates",
   calls: [["tiktok_discovery_search_videos", "tiktok-discovery", "search_videos", 2], ["tiktok_discovery_search_videos", "tiktok-discovery", "search_videos", 1]],
   arguments: { intents: [{ keyword: "bead craft ideas", publish_time: 30 }], sorts: [0, 1], count: 30, delivery: "download" } };
 
-// 每个驱动 Skill 交出的那种调用：组合工具，或交接成单个具名数据工具的 connector 请求。
+// The kind of call each driving Skill hands over: a composite tool, or a connector request handed off as a
+//   single named data tool.
 const DRIVERS = {
   "analyze-creator-competitors": igHistory,
   "analyze-tiktok-competitors": ttCandidates,
@@ -147,7 +156,7 @@ async function drive(t, skill, spec) {
 for (const [skill, driver] of Object.entries(DRIVERS)) {
   const tool = driver.composite ?? driver.single[2];
 
-  test(`${skill}：交接给每条调用一个槽位与一条带 --id 的续跑命令；续跑按编号自己取（假 HTTPS）、校验并放置，再跑不重复取`, async (t) => {
+  test(`${skill}: handoff gives each call one slot and one resume command with --id; resume fetches by id itself (fake HTTPS), validates and places, and a rerun does not fetch again`, async (t) => {
     const report = await drive(t, skill, { ...scenario(driver, { download: true }), id: RESULT_ID });
     const handed = report.handed.out;
     assert.equal(report.handed.code, 0, handed);
@@ -166,12 +175,12 @@ for (const [skill, driver] of Object.entries(DRIVERS)) {
     assert.match(report.resumed.out, new RegExp(`result 01: fetched by id ${tool}`));
     assert.match(report.resumed.out, /^PLACED \[.+\]$/m);
     assert.deepEqual(report.requests, [BY_ID], "one download by id, made by the resume");
-    // 同一命令再跑：这一轮已放置，不再下载。
+    // Run the same command again: this round is already placed, so nothing is downloaded again.
     assert.equal(report.again.code, 0, report.again.out);
     assert.doesNotMatch(report.again.out, /fetched|staged|PLACED/);
   });
 
-  test(`${skill}：没交编号而存了带下载链接的结果时，续跑照旧下载（假 HTTPS）、校验并放置`, async (t) => {
+  test(`${skill}: when no id was handed over but a result with a download link was saved, resume downloads as before (fake HTTPS), validates and places`, async (t) => {
     const report = await drive(t, skill, scenario(driver, { download: true }));
     assert.equal(report.resumed.code, 0, report.resumed.out);
     assert.match(report.resumed.out, new RegExp(`result 01: fetched ${tool}`));
@@ -179,7 +188,7 @@ for (const [skill, driver] of Object.entries(DRIVERS)) {
     assert.deepEqual(report.requests, [SIGNED]);
   });
 
-  test(`${skill}：结果没有就绪下载时续跑退回 stage；${driver.composite ? "模型存下的整份组合结果照收" : "内联信封照收"}`, async (t) => {
+  test(`${skill}: when the result has no ready download, resume falls back to stage; ${driver.composite ? "the full composite result saved by the model is accepted as is" : "the inline envelope is accepted as is"}`, async (t) => {
     const report = await drive(t, skill, scenario(driver, { download: false }));
     assert.equal(report.resumed.code, 0, report.resumed.out);
     assert.match(report.resumed.out, new RegExp(`result 01: staged ${tool}`));
@@ -188,7 +197,7 @@ for (const [skill, driver] of Object.entries(DRIVERS)) {
     assert.deepEqual(report.requests, []);
   });
 
-  test(`${skill}：这一轮还没交接就带 --placed 跑时，照常交接、不报缺结果；按编号续跑照样放置`, async (t) => {
+  test(`${skill}: running with --placed before this round has handed off still hands off normally without reporting a missing result; resume by id still places`, async (t) => {
     const report = await drive(t, skill, { ...scenario(driver, { download: true }), id: RESULT_ID, placed_first: true, again: false });
     assert.equal(report.handed.code, 0, report.handed.out);
     assert.match(report.handed.out, /--placed, but this round was not handed over yet; handing it over now/);
@@ -197,7 +206,7 @@ for (const [skill, driver] of Object.entries(DRIVERS)) {
     assert.match(report.resumed.out, /^PLACED \[.+\]$/m);
   });
 
-  test(`${skill}：续跑时槽位既无编号也无文件，一句话点名槽位与该补的 --id，什么都不放`, async (t) => {
+  test(`${skill}: when resuming a slot with neither id nor file, one sentence names the slot and the --id to supply, and nothing is placed`, async (t) => {
     const report = await drive(t, skill, { ...scenario(driver, { download: false, saved: false }), again: false });
     assert.equal(report.resumed.code, 2, report.resumed.out);
     assert.ok(report.resumed.out.includes(
@@ -206,7 +215,8 @@ for (const [skill, driver] of Object.entries(DRIVERS)) {
   });
 }
 
-// 同一个编号交给两个槽位：后一个会被当成「已持有」跳过、少一份结果，所以续跑在取之前就拒掉，什么都不下载。
+// The same number given to two slots: the later one would be treated as "already held" and skipped, leaving
+//   one result short, so resume rejects it before fetching and downloads nothing.
 const DUPLICATE = String.raw`
 import json, os, sys
 from pathlib import Path
@@ -226,7 +236,7 @@ except cd.StageError as error:
     print("STOPPED", error)
 `;
 for (const skill of Object.keys(DRIVERS)) {
-  test(`${skill}：两个槽位交了同一个编号时，续跑点名这两个槽位、什么都不下载`, async (t) => {
+  test(`${skill}: when two slots hand over the same id, resume names both slots and downloads nothing`, async (t) => {
     const temp = await mkdtemp(path.join(os.tmpdir(), "kabo-resume-dup-"));
     t.after(() => rm(temp, { recursive: true, force: true }));
     const out = execFileSync("python3", ["-I", "-B", "-c", DUPLICATE, path.join(root, "skills", skill, "scripts"), temp,
@@ -235,8 +245,9 @@ for (const skill of Object.keys(DRIVERS)) {
   });
 }
 
-// research-instagram-trends 的精简补全交接自己打印（不走 call: 行），同样点名绝对路径、记下待取文件，续跑照样取。
-test("research-instagram-trends：精简补全交接点名绝对路径与一条续跑命令；文件缺失时续跑点名它", async (t) => {
+// research-instagram-trends' slimmed-down completion handoff prints itself (not via a call: line), likewise
+//   naming absolute paths and recording the files to fetch, and resume fetches as usual.
+test("research-instagram-trends: condensed completion handoff names the absolute path and one resume command; when the file is missing, resume names it", async (t) => {
   const temp = await mkdtemp(path.join(os.tmpdir(), "kabo-resume-lean-"));
   t.after(() => rm(temp, { recursive: true, force: true }));
   const script = String.raw`

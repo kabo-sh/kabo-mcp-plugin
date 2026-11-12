@@ -21,14 +21,14 @@ async function installed(t) {
   return { temp, root, files };
 }
 
-test("二十一个固定 Skills 完整解包；根目录、宿主身份与唯一 MCP 一致", async t => {
+test("the twenty-one pinned Skills unpack completely; root directory, host identity and the single MCP are consistent", async t => {
   const { root, files } = await installed(t);
   const result = await checkPackage(root);
   assert.equal(result.version, JSON.parse(await readFile(new URL("../plugin.json", import.meta.url))).version);
   assert.equal(result.submissionReady, false);
   const runtime = JSON.parse(await readFile(path.join(root, "runtime-contract.json")));
   assert.deepEqual(runtime.skills, ids);
-  // 目录面已收敛到插件在用的工具：必需与可选两组恰好覆盖本仓钉住的 tools/list（契约不进包），不多不少。
+  // The tool surface has converged to the tools the plugin actually uses: the required and optional groups exactly cover the tools/list pinned in this repo (the contract is not in the package), no more and no fewer.
   const pinnedNames = JSON.parse(await readFile(new URL("../contracts/directory-mcp/tools-list.json", import.meta.url))).tools.map(tool => tool.name).sort();
   assert.equal(pinnedNames.length, 80);
   assert.deepEqual([...runtime.requiredTools, ...runtime.optionalTools].sort(), pinnedNames);
@@ -38,11 +38,11 @@ test("二十一个固定 Skills 完整解包；根目录、宿主身份与唯一
   assert.deepEqual(deterministicZip(files), deterministicZip([...files].reverse()));
   await mkdir(path.join(root, "hooks"));
   await writeFile(path.join(root, "hooks/hooks.json"), "{}");
-  await assert.rejects(checkPackage(root), /过滤器/);
+  await assert.rejects(checkPackage(root), /filter/);
 });
 
-// 两个宿主各读自己的市场清单，都只列仓库根这一个 kabo；Codex 市场名已被用户本机安装引用，改名会让已装条目找不到来源。
-test("Claude Code 与 Codex 市场清单都指向仓库根的同一个 kabo，且不进安装包", async () => {
+// The two hosts each read their own marketplace manifest, and each lists only this single kabo at the repo root; the Codex marketplace name is referenced by installs on users' machines, so renaming it would leave installed entries unable to find their source.
+test("the Claude Code and Codex marketplace manifests both point to the same kabo at the repository root and stay out of the install package", async () => {
   const json = async name => JSON.parse(await readFile(new URL(`../${name}`, import.meta.url)));
   const manifest = await json("plugin.json");
   const claude = await json(".claude-plugin/marketplace.json");
@@ -51,13 +51,13 @@ test("Claude Code 与 Codex 市场清单都指向仓库根的同一个 kabo，�
   assert.equal(codex.name, "kabo-plugin-openai");
   assert.deepEqual(claude.plugins.map(entry => [entry.name, entry.source]), [[manifest.name, "./"]]);
   assert.deepEqual(codex.plugins.map(entry => [entry.name, entry.source]), [[manifest.name, { source: "local", path: "./" }]]);
-  // 版本只认 plugin.json；条目再写一份会与之漂移（Claude Code 以 plugin.json 为准并告警）。
+  // The version is taken only from plugin.json; writing it again in the entry would drift (Claude Code goes by plugin.json and warns).
   assert.equal("version" in claude.plugins[0], false);
   assert.equal((await packageFiles()).some(file => file.name.endsWith("marketplace.json")), false);
 });
 
-// 现行品牌只有 K Fold 一张图标；旧三角形标志已退出，两个宿主的清单都指向同一文件。
-test("插件图标只有 composer-icon.png，两份清单都指向它", async () => {
+// The current brand has only the K Fold icon; the old triangle mark is retired, and both hosts' manifests point to the same file.
+test("the plugin icon is only composer-icon.png and both manifests point to it", async () => {
   const json = async name => JSON.parse(await readFile(new URL(`../${name}`, import.meta.url)));
   const ui = (await json("plugin.json")).extensions["com.openai"].interface;
   assert.equal(ui.logo, "./assets/composer-icon.png");
@@ -67,18 +67,18 @@ test("插件图标只有 composer-icon.png，两份清单都指向它", async ()
   const original = await packageFiles();
   const broken = original.map(file => file.name === ".claude-plugin/plugin.json"
     ? { ...file, bytes: Buffer.from(JSON.stringify({ ...JSON.parse(file.bytes), icon: "./assets/logo.png" })) } : file);
-  assert.throws(() => validatePackage(broken), /图标/);
+  assert.throws(() => validatePackage(broken), /icon/);
 });
 
-test("MIT 许可随包分发，两份清单声明一致", async () => {
+test("the MIT license ships with the package and both manifests declare it consistently", async () => {
   const original = await packageFiles();
   assert.ok(original.some(file => file.name === "LICENSE"));
   const mismatched = original.map(file => file.name === ".claude-plugin/plugin.json"
     ? { ...file, bytes: Buffer.from(JSON.stringify({ ...JSON.parse(file.bytes), license: "Apache-2.0" })) } : file);
-  assert.throws(() => validatePackage(mismatched), /同一插件身份/);
+  assert.throws(() => validatePackage(mismatched), /same plugin identity/);
 });
 
-test("每个 Skill 自带与插件清单一致的 license，供 skills CLI 单独安装", async () => {
+test("each Skill carries a license consistent with the plugin manifest, for standalone skills CLI installs", async () => {
   const original = await packageFiles();
   const filename = "skills/develop-content-ideas/SKILL.md";
   for (const to of ["license: Apache-2.0\n", ""]) {
@@ -87,17 +87,17 @@ test("每个 Skill 自带与插件清单一致的 license，供 skills CLI 单�
   }
 });
 
-test("固定 Skills 可在本仓直接修改；缺正文、未记录目录和错误工具绑定仍被拒绝", async () => {
+test("pinned Skills can be edited directly in this repository; missing body, unrecorded directories and wrong tool bindings are still rejected", async () => {
   const original = await packageFiles();
   const filename = "skills/review-creator-account/scripts/drive.py";
   const changed = original.map(file => file.name === filename ? { ...file, bytes: Buffer.from("print('changed')") } : file);
   validatePackage(changed);
   validatePackage(original.filter(file => file.name !== "skills/review-creator-account/manifest.json"));
-  assert.throws(() => validatePackage(original.filter(file => file.name !== "skills/review-creator-account/SKILL.md")), /入口缺失|正文/);
-  assert.throws(() => validatePackage([...original, { name: "skills/extra-skill/SKILL.md", bytes: Buffer.from("---\nname: extra-skill\ndescription: x\n---\nbody\n"), mode: 0o100644 }]), /未记录/);
-  // Skill 已按规范删除绑定表；包内再出现与公开契约不一致的绑定表仍须拒绝。
+  assert.throws(() => validatePackage(original.filter(file => file.name !== "skills/review-creator-account/SKILL.md")), /entry is missing|body/);
+  assert.throws(() => validatePackage([...original, { name: "skills/extra-skill/SKILL.md", bytes: Buffer.from("---\nname: extra-skill\ndescription: x\n---\nbody\n"), mode: 0o100644 }]), /not recorded/);
+  // The Skill has dropped the bindings table per the spec; a bindings table in the package that disagrees with the public contract must still be rejected.
   const bindings = "skills/review-creator-account/references/mcp-bindings.json";
-  assert.throws(() => validatePackage([...original.filter(file => file.name !== bindings), { name: bindings, bytes: Buffer.from("{}"), mode: 0o100644 }]), /公开工具契约/);
+  assert.throws(() => validatePackage([...original.filter(file => file.name !== bindings), { name: bindings, bytes: Buffer.from("{}"), mode: 0o100644 }]), /public tool contract/);
   for (const edit of [
     data => { data.execution = "agent-service"; },
     data => { data.requiredTools.push("not_a_pinned_tool"); },
@@ -113,7 +113,7 @@ test("固定 Skills 可在本仓直接修改；缺正文、未记录目录和错
   }
 });
 
-test("实际 ZIP 中的驱动不下载程序，显式交接公开工具；deep 不再查找其他 Skill", async t => {
+test("drivers in the real ZIP download no program and hand off to public tools explicitly; deep no longer looks up other Skills", async t => {
   const { root, temp } = await installed(t);
   const scripts = path.join(root, "skills/review-creator-account/scripts");
   const run = execFileSync("python3", [path.join(scripts, "static_host.py"), "init", "--workspace", temp], { encoding: "utf8" }).trim();
@@ -122,16 +122,16 @@ test("实际 ZIP 中的驱动不下载程序，显式交接公开工具；deep �
   });
   const calls = output.split("\n").filter(line => line.startsWith("call: ")).map(line => JSON.parse(line.slice(6)));
   assert.ok(calls.length > 0);
-  // 取数是一次后台组合调用（KS9），带 delivery:"download"：完整数据由 static_host.py fetch 下载、拆开、校验。
+  // Fetching is one backend composite call (KS9) with delivery:"download": the full data is downloaded, split and validated by static_host.py fetch.
   assert.deepEqual(calls.map(call => call.tool), ["collect_account_history"]);
   assert.equal(calls[0].arguments.platform, "youtube");
   assert.equal(calls[0].arguments.delivery, "download");
-  // deep 原先在宿主 skill 缓存里找视频 skill（KS4.2 / KS7.1），该脚本已删除。
+  // deep used to look for the video skill in the host skill cache (KS4.2 / KS7.1); that script has been removed.
   await assert.rejects(readFile(path.join(root, "skills/review-creator-account-deep/scripts/resolve_video_skill.py")));
 });
 
-// 计划帧数是请求量：provider 少返回一帧（120 请求、119 记录）时照实写进 data_note，多于计划才拒绝。
-test("ACV data_note 接受少于计划的帧记录并写明请求量，多于计划仍拒绝", () => {
+// The planned frame count is the requested amount: if the provider returns one frame fewer (120 requested, 119 records), state it as is in data_note; reject only if it returns more than planned.
+test("ACV data_note accepts fewer frame records than planned and states the requested amount; more than planned is still rejected", () => {
   const probe = `
 import json, sys
 sys.path.insert(0, sys.argv[1])
@@ -156,9 +156,9 @@ print(json.dumps(out))
   assert.match(out[121], /^ERROR cannot derive data_note: sampling-plan frame count disagrees/);
 });
 
-// 报告原样转述：中文视图的报告自带标签（要改什么 / 这样说 / 下一步）和 data_note 都是中文；
-// 英文视图与未写语言时逐字保持原来的英文。2026-11-04 回归里中文报告夹着 "What to change"、"Say this" 和英文 data_note。
-test("ACV 中文视图渲染中文标签与中文 data_note，英文视图逐字不变", () => {
+// Reports are relayed verbatim: a Chinese-view report carries its own Chinese labels (the equivalents of "What to change", "Say this" and "Next step") and its data_note is in Chinese;
+// the English view, and any view with no language set, stays word for word as the original English. In the 2026-11-04 regression a Chinese report contained "What to change", "Say this" and an English data_note.
+test("the ACV Chinese view renders Chinese labels and the Chinese data_note; the English view is unchanged verbatim", () => {
   const probe = `
 import json, sys
 sys.path.insert(0, sys.argv[1])
@@ -199,7 +199,7 @@ print(json.dumps(out, ensure_ascii=False))
 `;
   const scripts = path.join(import.meta.dirname, "..", "skills", "analyze-content-video", "scripts");
   const out = JSON.parse(execFileSync("python3", ["-I", "-B", "-c", probe, scripts], { encoding: "utf8" }));
-  // 不再写「viewing unverified / 画面查看未核实」：帧送到了模型面前、报告逐条引用，创作者却读成「画面没看过」。
+  // Stop writing "viewing unverified / 画面查看未核实" (Chinese for "visual review unverified"): the frames reached the model and the report cites them one by one, yet creators read it as "the visuals were never viewed".
   const english = "YouTube video; 14 extracted frames; 2 cited frame refs; platform captions (108 cues); owner metrics unavailable.";
   assert.equal(out.en.note, english);
   assert.equal(out.None.note, english);
@@ -216,16 +216,16 @@ print(json.dumps(out, ensure_ascii=False))
   assert.equal(out.None.report, out.en.report);
   assert.equal(out["image zh-CN"], "图文帖：返回 5 个位置，4 个可用；总数未知；完整度未知；后台数据不可用。");
   assert.equal(out["image en"], "Image post: 4/5 returned positions available; total count unknown; completeness unknown; owner metrics unavailable.");
-  // 更早版本给 zh 视图写的是英文 data_note；回放仍要认，改过数字的行照样拦。
-  // 1.0.32 之前的行末尾多一段「画面查看未核实 / viewing unverified」，回放旧结果时同样认。
+  // An earlier version wrote an English data_note for the zh view; replay must still accept it, and a line with altered numbers is still blocked.
+  // Lines before 1.0.32 end with an extra "viewing unverified / 画面查看未核实" (Chinese for "visual review unverified"); replay of old results accepts that as well.
   assert.deepEqual(out.replay, {"zh view, older English line": true, "zh view, Chinese line": true,
                                 "en view, Chinese line": false, "zh view, edited line": false,
                                 "zh view, pre-1.0.32 Chinese line": true, "en view, pre-1.0.32 English line": true});
 });
 
-// 证据原文自带量级词（转录 "27 B" / "27 billion"、caption "27B"）时，报告照写不能判成编造；
-// 证据只有不相关的裸数字 27、"5 billionaires" 或 ID 片段（UUID 的 "-5b2e"）时，报告的带量级数字仍要拦。2026-10-28 Claude Code 补测 P2 实测误报。
-test("ACV 数字核对接受证据里自带量级词的数字，裸数字仍不能支撑带量级的写法", () => {
+// When the evidence text itself carries a magnitude word (transcript "27 B" / "27 billion", caption "27B"), the report may write it as is and must not be judged fabricated;
+// when the evidence has only an unrelated bare number 27, "5 billionaires", or an ID fragment ("-5b2e" in a UUID), a report number with a magnitude must still be blocked. Observed as a false positive in the 2026-10-28 Claude Code supplementary P2 test.
+test("ACV figure checking accepts numbers whose evidence carries a magnitude word; a bare number still cannot support a magnitude phrasing", () => {
   const probe = `
 import json, sys
 sys.path.insert(0, sys.argv[1])
@@ -268,9 +268,9 @@ print(json.dumps({
   assert.deepEqual(out.dotted_ref, []);
 });
 
-// 带小数秒的时间点（0:07.866、0:08.366–0:09.366）是位置，不是数字；以前只把 0:07 当时间剥掉，剩下 .866 被判成编造。
-// 2026-11-06 Web pre 与插件复测的 Instagram Reel 诊断都停在这一步。
-test("ACV 数字核对把带小数秒的时间点整体当时间，不拆出小数", () => {
+// A timestamp with fractional seconds (0:07.866, 0:08.366-0:09.366) is a position, not a number; previously only 0:07 was stripped as a time, and the remaining .866 was judged fabricated.
+// The Instagram Reel diagnoses in the 2026-11-06 Web pre and plugin retests both stopped at this step.
+test("ACV figure checking treats a timestamp with fractional seconds as one time value and does not split out the decimal", () => {
   const probe = `
 import json, sys
 sys.path.insert(0, sys.argv[1])
@@ -288,9 +288,9 @@ print(json.dumps({
   assert.match(out.figure_after[0], /states 3\.5/);
 });
 
-// 播放量按有效数字取整（"1800 万"、"1.8千万"）或截断（"2.6M+"）是正常写法，不能判成编造；
-// 小数字、只剩一位有效数字的整数和取整方向错的写法仍要拦。2026-11-06 生产 Web 视频分析在最终校验被拒的就是这种缩写。
-test("ACV 数字核对接受按有效数字取整或截断的大计数，小数字仍按原规则", () => {
+// View counts rounded to significant digits ("1800万" = 18 million, "1.8千万" = 18 million) or truncated ("2.6M+") are normal writing and must not be judged fabricated;
+// small numbers, integers with a single significant digit, and wrongly rounded values must still be blocked. This is what was rejected at final validation in production Web video analysis on 2026-11-06.
+test("ACV figure checking accepts large counts rounded or truncated to significant digits; small numbers still follow the original rule", () => {
   const probe = `
 import json, sys
 sys.path.insert(0, sys.argv[1])
