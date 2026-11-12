@@ -2,95 +2,37 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
-## 未发布
+## 1.0.38（2026-11-12；GitHub Release）
 
-- 配合 kabo#2181（kabo main `80e7d5263`）：`contracts/directory-mcp/` 按 `pin.json` 记录的命令在该 commit 重新导出并钉住
-  （`tools-list.json` 与后台 golden 逐字节相同；`annotations.md`、`data-tool-bindings.json` 未变）。`get_for_you_videos` 新增可选入参
-  `include: ["author_id"]`，只有带上时每条视频才多出门控出参 `author_id`；`pick-daily-viral-videos`（以及 `start-with-kabo` 第 5 步）
-  调用时带上它，同作者判断优先用 `author_id`。若 `include` 被当成无效入参拒绝，去掉它重调一次（只这一种错误、只一次）。
-  YouTube 的 `author_handle` 现在是频道名称（不是唯一标识）：`for-you` 输出可直接展示的 `author` 字段——YouTube 写频道名不加 `@`，
-  Instagram / TikTok 写 `@handle`，没有作者写 "author not supplied"。
-
-- `pick-daily-viral-videos` 加按窗口的相对播放量门槛（常量 `VIEWS_FLOOR_SHARE = 0.10`）：一个窗口里低于该窗口榜首播放 10% 的、
-  或没有播放量的不选，各窗口用自己的榜首；先 7d、再 30d、再 24h 的顺序与去重规则不变，过门槛的不足 3 条不凑数，并说明其余明显
-  低于榜首。跳过计数新增 `below_views_floor`，输出带 `views_floor`（各窗 `top_views` 与 `min_views`）。理由：真实宿主里 YouTube
-  7d 榜是 63,831 / 1,266 / 1,240 …，按 rank 取前 3 会把没起量的视频当推荐。只用后台给的 `views`，不引入后台没有的口径。
-  推荐的证据写成「N views · #rank in Kabo's last-7-days / last-30-days / last-24-hours list」，窗口名与实际来源一致。
-
-- 修 `pick-daily-viral-videos` 只选出 1 条的问题（Codex 实测，YouTube 账号，30 条推荐只选出 1 条、29 条报为重复）：链接归一时
-  整串丢掉查询参数，所有 `youtube.com/watch?v=…` 被当成同一条视频，跨天去重也会因此误判。现在保留标识视频的 `?v=`，去掉
-  `si`、`igsh` 等分享追踪参数。同作者判断优先用 `author_id`（后台若补上），其次 `author_handle`，作者未知时不参与同作者与
-  排除本人判断；跨窗重复只看 `content_id` 与链接。跳过计数里原来的 `duplicate` 改名为 `same_video_in_another_window`，五项含义
-  写进 SKILL.md；作者未知写「author not supplied」，`format: "long"` 说是长视频、不叫 short，都写进 SKILL.md。
-
-- 配合 kabo#2180 修订的失败语义（真实宿主里新绑定的 YouTube 账号暴露）：
-  - `prepare_creator_profile` 的 `failed` + `retryable=true`（执行偶发，如 `classification_unavailable`、`model_invalid_output`）
-    不再说成「作品不够」：`start-with-kabo` 告诉创作者 Kabo 正在重试，按 `retry_after_seconds` 等后再调同一工具（后台自动重跑
-    复盘、回 `generating`），计入原有轮询上限（最多再查 8 次、总等待 480 秒）。`retryable=false` 时说明暂时没有支柱、大约多久后
-    可以再试（把秒数换成「约 N 小时」），本次不再调用；`insufficient_posts` 仍说作品不够；`job_id=null` 的 `generating` 照常轮询。
-  - `get_for_you_videos` 的 `failed` 一律不轮询，按 `retry_after_seconds` 说大约多久后能出新推荐，并转述 `failure_code`；不再按
-    `retryable` 说「稍后重试」。
-  - kabo#2180 上线前后台仍是旧行为（分类失败回 `insufficient_posts`，`context_changed` 回 `failed` + `retryable=true` + 约 24 小时），
-    插件同样能处理：前者照「作品不够」说，后者不轮询并如实说时间。
-
+- 新增三个 Skill，组成创作者的日常流程（本仓原创；Skill 总数 18 → 21；#160）：
+  - `start-with-kabo`：第一次对话。两条开场短消息加一个问题；先问再绑定一个 Instagram / TikTok / YouTube 公开账号
+    （`connect_public_account`）；`prepare_creator_profile` 让 Kabo 推断赛道并生成画像（按 `retry_after_seconds` 有上限地轮询：首次后
+    最多再查 8 次、总等待 480 秒；推断不出赛道时只问创作者一次、原话作为 `niche` 重试；偶发失败等后台自动重跑；缺写权限时提示重新
+    授权），`get_creator_profile` 读出赛道与支柱请创作者确认，改名 / 删除 / 合并用 `update_content_preferences` 存回 Kabo；没有支柱时
+    如实说明并继续。随后给今日推荐、提三个宿主定时任务（每日推荐、新内容 24 小时复盘、每日账号回顾），四行收尾。
+  - `pick-daily-viral-videos`：每天三条，只取 Kabo 后台的每日推荐 `get_for_you_videos`（带 `include: ["author_id"]`）。插件只做展示
+    限制：先 7 天、再 30 天、再 24 小时；每个窗口只取播放量不低于本窗榜首 10% 的；跳过以前展示过的、本人的、同一作者第二条与跨窗
+    重复；不凑数。证据只用后台口径（播放量、窗口内排名、后台理由）。生成中有上限地等（首次后最多再查 3 次、总等待 600 秒），
+    `not_eligible` / `failed` 一句话说明并结束、不轮询不兜底。可无人值守。
+  - `review-new-posts`：每天一次的新内容 24 小时复盘（与本人更早作品同龄读数比较）加账号回顾。第一次运行自己建库；每次运行按
+    `get_creator_profile` 刷新支柱（按画像项 id 对齐：改名保持归属、合并归到合并项、删除置未归类；读不到就沿用并在 limits 说明）；
+    没有支柱也照常复盘与回顾。可无人值守。
+  - 三者共用 `creator_library.py`（三份逐字相同，测试守着）。插件里不保留与后台重复的画像推导或推荐检索。宿主没有持久文件时，
+    推荐无法跨天去重、复盘每次从一次新读数开始，Skill 会明说。宿主定时任务的写法见 `start-with-kabo/references/host-schedules.md`；
+    定时任务只跑推荐与复盘，不调写工具。
 - **权限范围扩大：首次授权加入 `workspace:write`。** `host-auth.json` 的 `defaultScopes` 由 `data video workspace:read` 改为
-  `data video workspace:read workspace:write`，包检查（`scripts/package-standard.mjs`）与测试同步。理由：新用户的第一次对话要绑定
-  账号（`connect_public_account`）、触发画像生成（`prepare_creator_profile`）、保存支柱修改（`update_content_preferences`），都需要
-  写权限；真实宿主实测 Codex 按 `defaultScopes` 授权、不会按 403 challenge 补权，所以 e2801c0 的「写权限按需补权」在 Codex 上拿不到
-  写权限，三者都报 `Insufficient scope`。已安装的用户需要重新登录一次才会拿到写权限（Codex：`codex mcp login kabo --scopes
-  openid,profile,email,offline_access,data,video,workspace:read,workspace:write`；其他宿主断开后重新连接 Kabo），README 与
-  INSTALL.md 已写明；旧授权用户由各 Skill 现有的缺写权限处理兜底（`start-with-kabo` 提示重新授权，不处理就不带支柱继续）。
-- `review-new-posts` 每次运行都按 `get_creator_profile` 刷新本地库的赛道与支柱（新命令 `refresh-pillars`），以后台画像为准：
-  画像项 id 不变（含改名）的支柱保持作品归属；被合并的按合并项的 `origin.baseIds` 归到合并后的支柱；被删除、隐藏、拆分或跌出
-  前 4 项的，作品置为未归类，历史读数与已记录的复盘不动；画像没有支柱时本地也清空。读不到画像时沿用上一次的支柱，并在复盘与
-  账号回顾的 limits 里写明「支柱未能刷新」，不让整次复盘失败。
-
-- 新增三个 Skill，组成创作者的日常流程（本仓原创，不是从 creator-skills 搬运；Skill 总数 18 → 21）：
-  - `start-with-kabo`：创作者第一次用 Kabo。开场两条短消息加一个问题（问账号）；先看 `get_kabo_info` 与
-    `list_connected_accounts`，未绑定的账号**先问一次**再用 `connect_public_account` 绑定；随后 `prepare_creator_profile`
-    让后台推断赛道并生成画像（生成中严格按 `retry_after_seconds` 等，首次之后最多再查 8 次、总等待不超过 8 分钟，等待时告诉
-    创作者在做什么；后台推断不出赛道返回 `niche_required` 时，只问创作者一次、让其用一句话说明领域，原话作为 `niche` 重试，
-    模型不替创作者编；不愿回答或仍失败就说暂时没有支柱、继续往下走），
-    就绪后用 `get_creator_profile`（`include: ["content_profile"]`、`effective: true`）读出赛道与支柱、整理成提案请创作者确认；
-    改名、删除、合并用 `update_content_preferences` 存回 Kabo（暂不能新增支柱，如实说明）。作品不够或画像生成失败时如实说一句，
-    流程照常往下走。之后给今天的推荐，再提三件宿主自己的定时任务（每日推荐 8:00、新内容 24 小时复盘 12:00、每日账号回顾 20:00，
-    时区从宿主读出），结尾四行以内。宿主写法在 `references/host-schedules.md`。
-  - `pick-daily-viral-videos`：每天三条，只来自后台 `get_for_you_videos`（与账号同领域、语言匹配，按公开播放量排序，每窗最多
-    12 条）。插件只做展示上的限制：先 7 天窗按后台排名取，不够再用 30 天、24 小时补；跳过以前某天展示过的、创作者本人的、
-    同一作者的第二条；不够就有几条给几条，不凑数。跨天去重靠库目录里的 `picks.json`，后台结果就绪的日子（含零条）都记下，
-    同一天再跑原样重放。证据只用后台口径：播放量、所在时间窗的排名、后台给的理由。后台还在生成时有上限地等，仍未就绪、
-    `not_eligible`（含 `unavailable`：推荐暂未对该账号开放）、`failed`（转述 `failure_code`，不轮询，按 `retry_after_seconds` 说大约多久后再来）、
-    工具错误或未知 `status` 都一句话说明并结束，不搜索、不兜底。生成中严格按 `retry_after_seconds` 等（通常 120 秒，后台补画像
-    时 300 秒），首次之后最多再查 3 次、总等待不超过 10 分钟，定时运行同样适用。可无人值守。
-  - `review-new-posts`：一天一次（也可随时叫）。绑定时间之后发布、已满 24 小时、还没有 24 小时复盘的作品各复盘一次，与创作者自己
-    更早的作品在同一年龄的读数比（至少 3 条才比）；1 小时与 7 天复盘可选。每份日报都带账号回顾：粉丝变化（有读数时）、近 7 天
-    作品对比常规播放、每个支柱的表现（有支柱时）、一条具体建议。只用公开指标。没有本地库时自己建库（`bootstrap` 加首次
-    `ingest`，回看 48 小时），支柱取自 `get_creator_profile`；没有画像或画像没有支柱也照常建库、复盘与出日报，只是不带支柱小节。
-  - 三者共用 `creator_library.py`（三份副本逐字相同，测试校验）。复盘取数沿用 `static_host.py` 的下载交付与
-    `build_public_snapshot.py`，账号历史走 `collect_account_history`（KS9）。`start-with-kabo` 与 `pick-daily-viral-videos`
-    不读作品历史，`static_host.py` 只用来建运行目录，白名单为空，也不再带 `build_public_snapshot.py`。
-  - 宿主没有持久文件时：推荐无法跨天去重，复盘每次从新的一次读数开始（没有同龄对比与粉丝变化），说明里都会明说。
-  - `start_skill_run` 的 `skill_id` 枚举里还没有这三个 Skill，所以它们不调用该工具。
-  - 证明定时任务真的会送达时，优先把每日任务临时挪到几分钟后；只有创作者要求反复验证时才另建每隔几分钟跑一次的临时任务，创建时就告诉
-    创作者它会一直跑到被删除、怎么自己关掉，看到证明后立刻删除并读任务列表确认。对话里说的次数上限不算数：实测中 Grok Bot 被告知
-    「跑满 5 次」并复述了一遍，任务仍在云端跑了 137 次（不到 12 小时），直到被手动删除。
-
-  - 按仓库所有者的决定，插件不再保留与后台重复的方法：删除本地的支柱推导（全量读历史与转写后聚类、`propose-pillars`、写死的
-    0.8 倍与 20% 规则、`save-pillars` 本地保存支柱）与本地的每日推荐（`pick-request` / `candidates` / `pick`，即
-    `collect_*_trend_candidates` 加 `enrich_*_shortlist` 与「作者常规播放 2 倍」筛选），改为调用后台的 `prepare_creator_profile`
-    与 `get_for_you_videos`。同时删除 `posts`、`media-request`、`transcripts`、`set-profile` 命令，`path` 不再夹带开场白。
-  - 依赖的后台工具 `get_for_you_videos`（`workspace:read`）与 `prepare_creator_profile`（`workspace:write`）随 kabo#2176
-    合并上线（`/mcp-pub` 工具数 77 → 79）。`contracts/directory-mcp/` 按 `pin.json` 记录的命令在 kabo `d70c9f2da` 重新导出并钉住
-    （`tools-list.json` 与后台制品 `docs/contracts/directory-mcp-tools-list.golden.json` 逐字节相同），两个工具加进
-    `runtime-contract.json` 的 `requiredTools`。插件按其契约对接：内联结果、字段固定全出现，推荐条目没有时长字段，多账号未指定
-    是工具错误 `validation_error`。
-  - 宿主的 Kabo 授权里没有 `workspace:write` 时，`prepare_creator_profile` 返回 `Insufficient scope` 工具错误：`start-with-kabo`
-    请创作者在宿主里重新授权并批准写权限后再试一次；不处理就说明暂时没有支柱、照常给推荐（只需读权限）。定时任务只跑
-    `pick-daily-viral-videos` 与 `review-new-posts`，不调写工具（Codex 非交互运行时写工具会停在审批上），写在 `host-schedules.md`。
-    改动前的版本曾在 Codex、Muse、Claude Code、Grok Bot 里对着生产 `/mcp-pub` 实测（见 PR #160）；改动后的流程只有离线测试。
-  - 早先按 Leo 11 月 11 日意见重做的第一次对话（开场不罗列功能、选择用宿主的选项控件、推荐先于定时任务、结尾四行）保留；
-    其中「读完作品马上说具体数字」「读转写前先给第一个支柱」两项随本地推导一起删除。`review-new-posts` 支持只做新作品复盘或
-    只做账号回顾。
+  `data video workspace:read workspace:write`，包检查同步。理由：第一次对话要绑定账号、触发画像生成、保存支柱修改，都需要写权限；
+  真实宿主实测 Codex 按 `defaultScopes` 授权、不按 403 challenge 补权。**已安装的用户需要重新登录一次**（Codex：
+  `codex mcp login kabo --scopes openid,profile,email,offline_access,data,video,workspace:read,workspace:write`；其他宿主断开后重连）；
+  旧授权由各 Skill 的缺写权限处理兜底。
+- `/mcp-pub` 契约（`contracts/directory-mcp/`）按 `pin.json` 记录的命令重新钉住到 kabo `80e7d5263`（79 个工具，新增
+  `get_for_you_videos`、`prepare_creator_profile`；`tools-list.json` 与后台 golden 逐字节相同），两者进 `runtime-contract.json`。
+- 新增 `INSTALL.md`：写给 AI 助手照做的安装步骤（Grok Bot、Muse 等没有插件安装器的宿主）。`host-schedules.md` 规定证明定时任务
+  会送达时优先临时挪动每日任务；另建的临时任务必须告诉创作者怎么关、看到证明后立即删除并读任务列表确认（实测中 Grok Bot 被告知
+  「跑 5 次」，任务仍跑了 137 次）。README 把 `remake-viral-video` 的时长上限从 90 秒更正为 10 分钟（与该 Skill 一致）。
+- 已有 18 个 Skill 的文件没有改动；三个新 Skill 不声明 `metadata.version`、不在任何 channel 上架，Web 发布会跳过它们。
+- 验收：已在 Codex 0.167 加生产 `/mcp-pub` 上用两个账号跑过三个 Skill 的非交互流程；Claude Code、Grok Bot、Muse、交互式会话、
+  定时任务到点运行、新安装默认拿到写权限、分类重试后的成功画像、YouTube 频道名展示均未验证。
 
 ## 1.0.37（2026-11-11；GitHub Release）
 
