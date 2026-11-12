@@ -63,7 +63,7 @@ Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable
 
 <p align="center">
   <a href="https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_remake">
-    <img src="../readme/remake-before-after.png" alt="Recrea un video viral. Izquierda: el video original de una persona hablando a cámara. Derecha: el remake de Kabo con otro creador frente a la cámara, la misma estructura de tres puntos y nuevos títulos en pantalla. Pasos: envías un enlace, Kabo lo desglosa y redacta tu guion, tú apruebas el modelo y la estimación, Kabo entrega un MP4 vertical terminado." width="100%" />
+    <img src="../readme/remake-before-after.png" alt="Recrea un video viral. Izquierda: el video original de una persona hablando a cámara. Derecha: el remake de Kabo con otro creador frente a la cámara, y el mismo encuadre, título, lista y micrófono. Pasos: envías un enlace, Kabo lo desglosa y redacta tu guion, tú apruebas el modelo y la estimación, Kabo entrega un MP4 vertical terminado." width="100%" />
   </a>
 </p>
 

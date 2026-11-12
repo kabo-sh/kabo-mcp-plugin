@@ -62,7 +62,7 @@ Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable
 
 <p align="center">
   <a href="https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_remake">
-    <img src="../readme/remake-before-after.png" alt="翻拍一条爆款视频。左边：原版口播视频。右边：Kabo 翻拍版，换了另一位创作者出镜，保持同样的三点结构，配上新的屏幕标题。步骤：发送链接，Kabo 拆解视频并起草你的脚本，你确认模型和费用估算，Kabo 交付一条做好的竖屏 MP4。" width="100%" />
+    <img src="../readme/remake-before-after.png" alt="翻拍一条爆款视频。左边：原版口播视频。右边：Kabo 翻拍版，换了另一位创作者出镜，镜头、标题、清单和麦克风都和原版对得上。步骤：发送链接，Kabo 拆解视频并起草你的脚本，你确认模型和费用估算，Kabo 交付一条做好的竖屏 MP4。" width="100%" />
   </a>
 </p>
 
