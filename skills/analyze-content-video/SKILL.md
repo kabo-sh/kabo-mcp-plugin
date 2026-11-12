@@ -1,6 +1,6 @@
 ---
 name: analyze-content-video
-description: "Diagnose one video or still-image post from its own timestamped evidence and say what to keep, recut or replace next; or break down how a video was made into steps one person can follow. Also exports a video's transcript as TXT or SRT and reports its cover and tags. Use for why a video flopped or took off, hook and retention review, a re-edit plan, an unpublished cut on this machine, how was this edited, whether its music or sound fits, or getting a video's subtitles."
+description: "Diagnose one video or still-image post from its own timestamped evidence and say what to keep, recut or replace next; or break down how a video was made into steps one person can follow. Also exports a video's transcript as TXT or SRT and reports its cover and tags. Use for what a video is about or says, why it flopped or took off, hook and retention review, a re-edit plan, an unpublished local cut, how was this edited, whether its music or sound fits, or getting a video's subtitles."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, read and write access to a local workspace, and network access from scripts to kabo.sh and to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Local video files also need ffmpeg and ffprobe. Kabo permission: data."
 allowed-tools: get_research_capabilities get_research_data_download read_research_data_artifacts collect_video_media youtube_get_video youtube_get_channel youtube_list_channel_uploads lookup_instagram_post instagram_get_transcript instagram_resolve_profile instagram_list_posts instagram_list_reels tiktok_search_get_video tiktok_search_get_transcript tiktok_search_list_profile_videos start_skill_run
@@ -22,7 +22,8 @@ original wording. Never summarize, retype numbers, append a
 second paraphrased report or narrate artifact writing, validation, file paths, call counts, credits
 or providers. If the run fails, say the requested report could not be completed; never present
 unvalidated output as a report, and never answer from fetched data or your own knowledge instead of
-the report the final step prints.
+the report the final step prints. A content read has no report: it answers from the evidence object,
+as *Content read* says.
 
 When the host supports one, run this Skill in a foreground sub-agent, because a full diagnosis takes
 many steps, and wait for its final result before replying; never run it in the background and tell
@@ -87,7 +88,8 @@ If this Skill cannot produce the report, say so.
   never poll them yourself: the backend queues them all with one `collect_video_media` call and waits.
   Only `collect_media.py` writes that call's arguments: never compose it yourself, and if it fails,
   never fall back to per-operation media or job calls. Start it with the operations this mode needs (diagnosis: `transcript,keyframes,measure`, plus
-  `metadata` on Instagram and TikTok; craft teardown: `transcript,keyframes,measure`; transcript
+  `metadata` on Instagram and TikTok; content read: `transcript,keyframes`, plus `metadata` on
+  Instagram and TikTok; craft teardown: `transcript,keyframes,measure`; transcript
   export: `transcript`):
 
   ```sh
@@ -161,9 +163,12 @@ Decide before retrieving anything.
 |---|---|
 | How it did, and what to change next — why it flopped or took off, retention, the cover, whether to repost | **Diagnosis** (below) |
 | How it was *made* — how that was cut, how to get that look, when a transition earns its place, which steps need no team, what to buy first | **Craft teardown** — read `references/craft-teardown.md` whole |
-| The words themselves — a transcript or subtitle file | **Transcript export** (below) |
+| What it is about or says — what it shows, what is said or written in it, what it sells or asks for | **Content read** (below) |
+| The words themselves as a file — a transcript or subtitle file to edit, translate or quote in full | **Transcript export** (below) |
 
-The signal is what they asked about, **not whether a link is present**. When both are asked,
+"What is this video about" and "what does it say" are a content read, not a transcript export:
+the words alone show nothing on screen, and machine-heard words can be a song's lyrics rather than
+anyone speaking. The signal is what they asked about, **not whether a link is present**. When both are asked,
 follow the main clause and offer the other once in `next_actions`; never produce two reports.
 Questions about sound are answered inside whichever mode applies, judged only from heard or
 measured sound, as *Judging sound* in `references/craft-teardown.md` says.
@@ -237,6 +242,24 @@ each command depends on. Then run, in this one run:
    ```
 
    It prints the validated report; deliver it as **Delivery** says.
+
+## Content read
+
+Run diagnosis steps 1–3 with the media operations this mode lists under *Data tools and complete
+evidence*, `acquire.owner_metrics` set to `skip` and no baseline, then open the frames. Answer in
+the chat, in a few short paragraphs, from that evidence object alone: what the video shows, what is
+said or written in it, and what it is about or asking for. Put the timestamp beside each point and
+say whether it was seen in a frame, read from on-screen text or the caption, or heard.
+
+Before repeating heard words as what the video says, decide whose words they are. When
+`audio_attribution` names an existing track (`uses_original_audio` false, or a song or artist
+name), or the frames show no one speaking, words with `transcript.origin` `speech_recognition` may
+be that track's lyrics: say the sound is that track, never summarize its words as the video's
+message, and build the answer on the frames, on-screen text and caption. When it stays unclear, say
+the words may be sung and keep them apart from what the video itself claims.
+
+This mode writes no report and runs no further step; it is not a diagnosis, so never call it one.
+Offer a diagnosis or craft teardown once at the end when the creator may want one.
 
 ## Transcript export
 
