@@ -405,7 +405,11 @@ def read_profile(path):
     diagnosis = structured.get("diagnosis") if isinstance(structured.get("diagnosis"), dict) else {}
     insight = diagnosis.get("insight") if isinstance(diagnosis.get("insight"), dict) else {}
     review = ((diagnosis.get("accountReview") or {}).get("sections") or {}).get("niche") or {}
-    niche = first_text(insight.get("niche")) or first_text(review.get("label")) or first_text(review.get("summary"))
+    # 赛道先读顶层 niche：prepare_creator_profile 推断或创作者口述后写入的赛道在这里（kabo get_creator_profile 组装处
+    # 的 niche / nicheId）；没有复盘诊断时 diagnosis 里是空的（Codex 实测 @veritasium：顶层 "Science education"，
+    # diagnosis 无赛道）。顶层为空再回退到诊断里的两处。
+    niche = (first_text(structured.get("niche")) or first_text(insight.get("niche"))
+             or first_text(review.get("label")) or first_text(review.get("summary")))
     items = [item for item in ((source or {}).get("signatureContent") or []) if isinstance(item, dict)]
     items.sort(key=lambda item: -(item.get("share") if isinstance(item.get("share"), (int, float)) else 0))
     taken, candidates = set(), []

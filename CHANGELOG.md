@@ -2,6 +2,15 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.39（2026-11-12；GitHub Release）
+
+- `start-with-kabo` 确认支柱时补回赛道那一行：`creator_library.py` 读赛道时先读 `get_creator_profile` 结果顶层的 `niche`
+  （`prepare_creator_profile` 推断或创作者口述后写入的赛道在这里），为空再回退到 `diagnosis.insight.niche` 与
+  `diagnosis.accountReview.sections.niche`。此前只读诊断里的两处，没有复盘诊断的新绑定账号读不到赛道（Codex 实测：YouTube
+  `@veritasium` 顶层赛道为 "Science education"，`profile-pillars` 输出的 `niche` 却是 null，提案里少了赛道一行）。
+  `review-new-posts` 的建库与支柱刷新用同一个函数，库里的赛道一并补上。其余行为不变（推荐的播放量门槛仍是本窗榜首的 10%）。
+- 验收：只有离线测试（顶层有赛道、顶层优先于诊断、只有诊断有、都没有、建库与刷新）；修复后尚未在真实宿主重跑。
+
 ## 1.0.38（2026-11-12；GitHub Release）
 
 - 新增三个 Skill，组成创作者的日常流程（本仓原创；Skill 总数 18 → 21；#160）：
