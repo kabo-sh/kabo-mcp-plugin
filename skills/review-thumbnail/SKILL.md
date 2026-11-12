@@ -4,7 +4,8 @@ description: "Review and compare one to three uploaded video thumbnails using te
 license: MIT
 compatibility: "Requires a vision-capable host, local file read/write access, Python 3 and Pillow for static image decoding and small-image preparation. Inline file delivery requires a host capability that displays an existing Markdown file unchanged. No Kabo data permission or backend checker is required."
 metadata:
-  version: "0.1.1"
+  version: "0.1.2"
+  platform_agnostic: "true"
 ---
 
 # Review Thumbnail
@@ -20,6 +21,12 @@ Use the user's language (English or Chinese in v1). Scripts validate and render;
 and judges the images. These judgments are editorial advice, not measured CTR.
 
 ## Prepare
+
+This review is platform-independent. Uploaded images are the required input; a title and other
+context are optional. Do not require a selected account, platform confirmation, channel research
+or account access. A selected account does not turn an image review into platform research.
+Use an explicitly supplied target format when present; otherwise note the missing format only
+in the relevant check and continue reviewing the supplied images.
 
 Accept 1–3 static PNG/JPEG/WebP attachments. Resolve their local files. Optional context includes
 title, verified video summary, source references, peer examples, audience and target aspect ratio.
