@@ -1,0 +1,35 @@
+{
+  "name": "kabo-sh",
+  "version": "0.0.1",
+  "description": "Install Kabo (creator research tools and skills for YouTube, Instagram and TikTok) into your AI assistant: Claude Code, Codex, Grok Bot, Muse and other MCP clients.",
+  "bin": {
+    "kabo-sh": "bin/kabo.js",
+    "kabo": "bin/kabo.js"
+  },
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "homepage": "https://kabo.sh/install",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kabo-sh/kabo-mcp-plugin.git",
+    "directory": "installer"
+  },
+  "keywords": [
+    "kabo",
+    "mcp",
+    "claude-code",
+    "codex",
+    "skills",
+    "youtube",
+    "instagram",
+    "tiktok",
+    "creator"
+  ]
+}
