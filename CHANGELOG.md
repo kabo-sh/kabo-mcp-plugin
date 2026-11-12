@@ -2,6 +2,13 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.45 (unreleased)
+
+- Declare `extensions.com.openai.onboardingSkill` as `./skills/start-with-kabo/SKILL.md` so Codex's
+  setup entry point resolves the bundled Start With Kabo workflow after installation or reinstallation.
+- Update the installation guidance and package versions so Codex loads the new metadata from its
+  versioned cache.
+
 ## 1.0.44（2026-11-12；GitHub Release）
 
 - Claude Code 装好插件后会主动提出引导：宿主没有「安装后」事件，新增唯一一个 `SessionStart`（`startup`）钩子

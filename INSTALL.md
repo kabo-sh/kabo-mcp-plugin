@@ -43,8 +43,10 @@ codex plugin marketplace add kabo-sh/kabo-mcp-plugin
 codex plugin add kabo@kabo-plugin-openai
 ```
 
-The user signs in to Kabo when prompted, then opens a new task so the tools and Skills load. If Kabo was
-connected before, its old sign-in has no write access; sign in again with all permissions:
+The user signs in to Kabo when prompted, then opens a new task so the tools and Skills load. Starting
+with 1.0.45, Codex's Setup entry point runs `start-with-kabo`. After a terminal install, the user can
+also ask Codex to "Use Kabo to get me started." If Kabo was connected before, its old sign-in has no
+write access; sign in again with all permissions:
 
 ```sh
 codex mcp login kabo --scopes openid,profile,email,offline_access,data,video,workspace:read,workspace:write
