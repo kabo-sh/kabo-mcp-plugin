@@ -199,6 +199,15 @@ Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable
 
 [INSTALL.md](../../INSTALL.md) 是写给助手看的：它会告诉助手怎样添加 Kabo 连接、加载技能，并检查一切是否正常。登录在你的浏览器里完成，不需要复制任何 API 密钥。
 
+**在自己电脑上用 Claude Code 或 Codex？** 一条命令就能装好：它会检查电脑上装了这两个中的哪一个，
+替你装上插件，然后告诉你还剩哪几步登录要你自己完成：
+
+```sh
+npx kabo-sh install
+```
+
+加上 `--dry-run` 可以只看它会执行什么、不做任何改动。Grok Bot 和 Muse 请继续用上面那句话。
+
 | 助手 | 状态 | 手动安装 |
 | --- | :---: | --- |
 | **Claude**（Claude Code 2.1.275 或更高版本） | ✅ 已支持 | `claude plugin marketplace add kabo-sh/kabo-mcp-plugin`，然后 `claude plugin install kabo@kabo-mcp-plugin`。运行 `/mcp`，登录 Kabo。 |

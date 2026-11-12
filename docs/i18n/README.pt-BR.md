@@ -202,6 +202,16 @@ Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable
 O [INSTALL.md](../../INSTALL.md) foi escrito para o assistente: ele ensina como adicionar a conexão com o Kabo,
 carregar as Skills e conferir se tudo funciona. O login acontece no seu navegador. Não há nenhuma chave de API para copiar.
 
+**Usa o Claude Code ou o Codex no seu computador?** Um único comando instala o plugin naquele que
+encontrar dos dois e depois mostra os passos de login que faltam:
+
+```sh
+npx kabo-sh install
+```
+
+Acrescente `--dry-run` para ver o que ele executaria sem alterar nada. O Grok Bot e o Muse continuam
+usando a mensagem acima.
+
 | Assistente | Status | Instalar manualmente |
 | --- | :---: | --- |
 | **Claude** (Claude Code 2.1.275 ou mais recente) | ✅ Compatível | `claude plugin marketplace add kabo-sh/kabo-mcp-plugin`, depois `claude plugin install kabo@kabo-mcp-plugin`. Execute `/mcp` e entre no Kabo. |
