@@ -59,17 +59,20 @@ A daily pick, as it reads in the chat:
 You   What should I make today?
 
 Kabo  Scanned Instagram Reels from the last 7 days against your two confirmed pillars.
-      11 of 18 candidates had public view counts; 3 beat their own author's typical views by 2 times or more.
+      11 of 18 candidates had public view counts.
+      3 beat their own author's typical views by 2 times or more.
 
       1. "This video went viral years ago..."        2.3x the author's typical views
-         Pillar: break down one viral video. Proof: 7-day median for that account, link attached.
+         Pillar: break down one viral video.
+         Proof: 7-day median for that account, link attached.
          Your version: open on the result, then the one lesson you would reuse.
 
       2. "A hook so good it's unskippable"            2.4x
       3. "It went viral for the wrong reason"         2.4x
 
       Next: say "break down pick 1", "write my version", or "remake pick 1 with me in it".
-      Kabo never posts for you. After you publish, ask for a review once the post is 24 hours old.
+      Kabo never posts for you. After you publish, ask for a review
+      once the post is 24 hours old.
 ```
 
 <sub>Condensed from a real session. Titles are shortened and account names removed; the multiples are the ones Kabo reported.</sub>
