@@ -2,6 +2,13 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.46 (unreleased)
+
+- Declare `extensions.com.openai.onboardingSkill` as `./skills/start-with-kabo/SKILL.md` so Codex's
+  setup entry point resolves the bundled Start With Kabo workflow after installation or reinstallation.
+- Update the installation guidance and package versions so Codex loads the new metadata from its
+  versioned cache.
+
 ## 1.0.45 (2026-11-12; GitHub Release)
 
 - `remake-viral-video`: when the talking models are listed, each `est_usd` is described as the whole video's estimated total, rounded up, with the final charge usually a little lower. Pairs with kabo#2194, which changed the estimate from "talking video + a fixed $0.28" to a total counted from the first-frame job list (kabo#2166: estimated $0.49, charged $1.25-1.30).
