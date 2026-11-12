@@ -8,10 +8,15 @@ export const packageComponents = [
 //   component; once installed from a ZIP,
 // the unpacked directory would contain a marketplace pointing at itself.
 export const distributionOnlyFiles = new Set([".claude-plugin/marketplace.json"]);
+// hooks/ serves only Claude Code installed from this repository (the marketplace source points at the repo root, so
+// the whole repo lands in the host cache):
+// the host has no "after install" event, so a SessionStart hook offers start-with-kabo once in the first session.
+// It is not a package component and is not in the release ZIP; the OpenAI package check still rejects hooks, and ZIP
+// users reach onboarding through the Skill description and INSTALL.md.
 export const isPackageFile = name => packageComponents.includes(name.split("/")[0]) && !distributionOnlyFiles.has(name);
 
 export function assertNoHiddenComponents(names) {
-  const unsupported = new Set(["plugin", "hooks", "apps", ".app.json", ".codex-plugin", ".cursor-plugin", "agents", "commands", "rules", "monitors", "lsp.json", ".lsp.json"]);
+  const unsupported = new Set(["plugin", "apps", ".app.json", ".codex-plugin", ".cursor-plugin", "agents", "commands", "rules", "monitors", "lsp.json", ".lsp.json"]);
   if (names.some(name => unsupported.has(name.split("/")[0])))
     throw new Error("Source contains unsupported plugin components, which cannot be hidden by a build filter.");
 }

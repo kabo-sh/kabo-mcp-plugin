@@ -2,6 +2,20 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.44 (2026-11-12; GitHub Release)
+
+- After the plugin is installed in Claude Code, it now offers onboarding on its own initiative: the host has no "after install" event, so
+  a single `SessionStart` (`startup`) hook is added, `hooks/hooks.json` -> `hooks/onboarding-nudge.sh`, which gives the model a piece of
+  context in the first session after installation. When the user's first message is a greeting, a general question or asks how to start,
+  the model proposes onboarding in one sentence and tells the user they can type `/kabo:start-with-kabo` at any time to begin, then runs it
+  on the spot once the user agrees; when the first message is a specific request, it does the work first and adds one sentence about the
+  command at the end. It never starts the flow on the user's behalf, and scheduled or unattended sessions ignore it. The offer is made only
+  once: the marker is written to the `CLAUDE_PLUGIN_DATA` directory the host provides (falling back to `~/.kabo` when it is absent), and if
+  the marker cannot be written the hook stays silent, so that it does not interrupt every session.
+- The packaging rules change accordingly: `hooks/` is no longer listed as a forbidden component, but it is still not a package component.
+  It is read only when Claude Code installs from this repository, the release ZIP does not contain it, and the OpenAI package check still
+  rejects `hooks/`; the "no lifecycle hooks" wording in `AGENTS.md`, the README, INSTALL.md and the Skills spec is rewritten to match.
+
 ## 1.0.43 (2026-11-12; GitHub Release)
 
 - `diagnose-reach-drop`: numbers the user supplies (their own creator analytics, a specific post they name) can be entered as questions carrying their own `source` and placed in the same plan as the imported public data. Previously the plan accepted a single source and explicitly forbade merging, so the user's data could not enter the analysis (production session on 11-10). Only attaching user numbers to the default public source is rejected; one comparison uses only one source; when there is only one group it is handed over as an observed value, with no claim of change and a note that a comparison is missing; the report labels each item by source, and user-supplied items are marked "user-supplied, not verified". Delivery still forwards the full report; anything the assistant adds stays within the report and is marked as a suggestion. An approximate figure the user gives for a whole group ("about 60% before") is recorded as one `approximate` value, no longer split into per-item exact values, and the report marks it as approximate; when a field inside a group is wrong, the error points to that specific group (#163).

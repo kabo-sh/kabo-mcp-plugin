@@ -36,8 +36,13 @@ test("the twenty-one pinned Skills unpack completely; root directory, host ident
   assert.equal(files.some(file => /^(plugin|bin|hooks)\//.test(file.name)), false);
   for (const id of ids) assert.ok((await readFile(path.join(root, "skills", id, "SKILL.md"))).length);
   assert.deepEqual(deterministicZip(files), deterministicZip([...files].reverse()));
+  // hooks/ is a component read only when Claude Code installs from the repository: it may sit at the root without
+  // an error, but it does not go into the package.
   await mkdir(path.join(root, "hooks"));
   await writeFile(path.join(root, "hooks/hooks.json"), "{}");
+  assert.equal((await packageFiles(root)).some(file => file.name.startsWith("hooks/")), false);
+  await mkdir(path.join(root, "commands"));
+  await writeFile(path.join(root, "commands/start.md"), "start");
   await assert.rejects(checkPackage(root), /filter/);
 });
 
