@@ -91,6 +91,43 @@ Kabo  Scanned Instagram Reels from the last 7 days against your two confirmed pi
 
 <sub>Condensed from a real session. Titles are shortened and account names removed; the multiples are the ones Kabo reported.</sub>
 
+The same loop in four assistants, captured in November 2026:
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/readme/shot-onboarding-claude-code.png" alt="Claude Code terminal: Kabo proposes two content pillars with the number of videos and the view multiple behind each, and asks which to keep." width="100%" /><br />
+      <sub><b>First session</b> in Claude Code: Kabo reads the account and proposes content pillars to confirm.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/readme/shot-pillars-grok-bot.png" alt="Grok Bot chat: the niche and two content pillars, each with its median views, share of views and example posts." width="100%" /><br />
+      <sub><b>Pillars and their evidence</b> in Grok Bot.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/readme/shot-picks-codex.png" alt="Codex terminal: two daily picks, each with its reference, the multiple of the creator's median views, why it fits, an opening line and what to film." width="100%" /><br />
+      <sub><b>Daily picks</b> in Codex. Two videos cleared the 2x bar that day, so Kabo returned two and said why there was no third.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/readme/shot-picks-claude-code.png" alt="Claude Code terminal: one daily pick with proof, why it fits, how to adapt it and next steps." width="100%" /><br />
+      <sub><b>Daily picks</b> in Claude Code on the same day: one pick, because Kabo does not pad the list with weaker videos.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/readme/shot-review-muse.png" alt="Muse chat: 24-hour reviews of two new posts, each with views against the creator's usual, engagement and what to make next." width="100%" /><br />
+      <sub><b>New-post review</b> in Muse: each post against the creator's own usual numbers, then the next video to make.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/readme/shot-remake-claude-code.png" alt="Claude Code terminal: the remake is finished, with total time 16 minutes 20 seconds, length 20.9 seconds and the cost breakdown." width="100%" /><br />
+      <sub><b>Remake delivered</b> in Claude Code: a finished MP4 with the time, length and cost reported.</sub>
+    </td>
+  </tr>
+</table>
+
+<sub>Real sessions on a small test account, November 2026. Claude Code and Codex are terminal output rendered as images; Grok Bot and Muse are app screenshots. Other creators' handles and links are masked.</sub>
+
 ## Without Kabo, with Kabo
 
 **Without Kabo**

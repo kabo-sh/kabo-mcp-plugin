@@ -92,6 +92,43 @@ Kabo  我对照你确认过的两个内容方向，扫描了过去 7 天的 Inst
 
 <sub>节选自一次真实对话。标题做了缩短，账号名已隐去；倍数是 Kabo 当时给出的原值。</sub>
 
+同一套每日流程在四个助手里的实际画面，截于 2026 年 11 月：
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-onboarding-claude-code.png" alt="Claude Code 终端：Kabo 提出两个内容方向，并给出每个方向背后的视频数量和播放倍数，询问保留哪些。" width="100%" /><br />
+      <sub><b>第一次使用</b>（Claude Code）：Kabo 读取账号后提出内容方向，等你确认。</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-pillars-grok-bot.png" alt="Grok Bot 对话：赛道和两个内容方向，各自带有播放量中位数、播放占比和示例作品。" width="100%" /><br />
+      <sub><b>内容方向及其依据</b>（Grok Bot）。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-picks-codex.png" alt="Codex 终端：两条每日精选，每条都有参考视频、相对作者播放中位数的倍数、适合你的原因、开场白和拍摄建议。" width="100%" /><br />
+      <sub><b>每日精选</b>（Codex）。当天只有两条视频达到 2 倍门槛，所以 Kabo 只给了两条，并说明了为什么没有第三条。</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-picks-claude-code.png" alt="Claude Code 终端：一条每日精选，包含依据、适合你的原因、改编方法和下一步。" width="100%" /><br />
+      <sub><b>每日精选</b>（Claude Code，同一天）：只有一条，因为 Kabo 不会用较弱的视频凑数。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-review-muse.png" alt="Muse 对话：两条新作品的 24 小时复盘，各自包含与创作者平时水平的播放对比、互动率和下一条该做什么。" width="100%" /><br />
+      <sub><b>新作品复盘</b>（Muse）：每条作品都和创作者自己平时的数据比较，再给出下一条视频的建议。</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-remake-claude-code.png" alt="Claude Code 终端：翻拍已完成，总用时 16 分 20 秒，成片 20.9 秒，并列出费用明细。" width="100%" /><br />
+      <sub><b>翻拍成片交付</b>（Claude Code）：一条做好的 MP4，并报告用时、时长和费用。</sub>
+    </td>
+  </tr>
+</table>
+
+<sub>以上均为一个小型测试账号在 2026 年 11 月的真实会话，界面与回答为英文原样。Claude Code 和 Codex 是把终端输出渲染成图片；Grok Bot 和 Muse 是应用截图。其他创作者的账号名和链接已遮盖。</sub>
+
 ## 没有 Kabo，有了 Kabo
 
 **没有 Kabo**

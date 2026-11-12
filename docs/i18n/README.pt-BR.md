@@ -93,6 +93,43 @@ Kabo  Analisei os Reels do Instagram dos últimos 7 dias com base nos seus dois 
 
 <sub>Condensado de uma sessão real. Os títulos foram encurtados e os nomes das contas removidos; os múltiplos são os que o Kabo informou.</sub>
 
+O mesmo ciclo em quatro assistentes, capturado em novembro de 2026:
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-onboarding-claude-code.png" alt="Terminal do Claude Code: o Kabo propõe dois pilares de conteúdo com o número de vídeos e o múltiplo de visualizações de cada um, e pergunta quais manter." width="100%" /><br />
+      <sub><b>Primeira sessão</b> no Claude Code: o Kabo lê a conta e propõe pilares de conteúdo para você confirmar.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-pillars-grok-bot.png" alt="Chat do Grok Bot: o nicho e dois pilares de conteúdo, cada um com sua mediana de visualizações, sua parcela das visualizações e posts de exemplo." width="100%" /><br />
+      <sub><b>Pilares e suas evidências</b> no Grok Bot.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-picks-codex.png" alt="Terminal do Codex: duas sugestões diárias, cada uma com a referência, o múltiplo sobre a mediana de visualizações do criador, por que combina, uma frase de abertura e o que gravar." width="100%" /><br />
+      <sub><b>Sugestões diárias</b> no Codex. Nesse dia dois vídeos passaram do limite de 2 vezes, então o Kabo entregou dois e explicou por que não houve um terceiro.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-picks-claude-code.png" alt="Terminal do Claude Code: uma sugestão diária com prova, por que combina, como adaptar e próximos passos." width="100%" /><br />
+      <sub><b>Sugestões diárias</b> no Claude Code no mesmo dia: apenas uma, porque o Kabo não completa a lista com vídeos mais fracos.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-review-muse.png" alt="Chat do Muse: revisões de 24 horas de dois posts novos, cada um com visualizações em relação ao habitual do criador, engajamento e o que fazer em seguida." width="100%" /><br />
+      <sub><b>Revisão de posts novos</b> no Muse: cada post comparado aos números habituais do próprio criador, e depois o próximo vídeo.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="../readme/shot-remake-claude-code.png" alt="Terminal do Claude Code: o remake está pronto, com tempo total de 16 minutos e 20 segundos, duração de 20,9 segundos e o detalhamento do custo." width="100%" /><br />
+      <sub><b>Remake entregue</b> no Claude Code: um MP4 pronto, com tempo, duração e custo informados.</sub>
+    </td>
+  </tr>
+</table>
+
+<sub>Sessões reais em uma conta de teste pequena, novembro de 2026; a interface e as respostas estão em inglês. Claude Code e Codex são saída de terminal convertida em imagem; Grok Bot e Muse são capturas de tela do app. Os nomes de usuário e links de outros criadores estão ocultos.</sub>
+
 ## Sem o Kabo, com o Kabo
 
 **Sem o Kabo**
