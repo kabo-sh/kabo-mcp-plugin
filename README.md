@@ -1,427 +1,227 @@
-# Kabo plugin
+<h1 align="center">Kabo: your creator partner inside Claude, ChatGPT, Grok Bot and Muse</h1>
 
-Kabo helps you research public creator accounts, compare competitors, find trends, analyze videos,
-develop content ideas and scripts, and remake a viral talking-head video with you in it. This
-repository contains one plugin: a `kabo` MCP connection, twenty-one bundled Skills, and the metadata
-needed by each host. The AI host runs the workflows and writes
-reports; Kabo provides the data tools. The plugin does not hand work to Kabo's web agent, download
-Skills at runtime, or register lifecycle hooks.
+<p align="center">
+  <a href="https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_hero">
+    <img src="docs/readme/hero.png" alt="Kabo. See which videos take off. Learn why. Make yours. Daily picks, account reviews and viral-video remakes with you on camera, in the AI assistant you already use, on your computer or your phone. 4 AI assistants (Claude, ChatGPT, Grok Bot, Muse), 21 creator skills, 3 platforms (YouTube, Instagram, TikTok)." width="100%" />
+  </a>
+</p>
 
-The current GitHub package release is [**1.0.43**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.43),
-packaged as `kabo-1.0.43.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
-implementation. Earlier version history and source Skill versions remain separate. OpenAI marketplace
-review and production acceptance remain separate from this GitHub release.
+<p align="center">
+  <a href="https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_links_website">Website</a> ·
+  <a href="#install">Install</a> ·
+  <a href="https://kabo.sh/docs/mcp?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_links_docs">Docs</a> ·
+  <a href="https://kabo.sh/pricing?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_links_pricing">Pricing</a> ·
+  <a href="https://kabo.sh/tools?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_links_tools">Free creator tools</a> ·
+  <a href="https://github.com/kabo-sh/kabo-mcp-plugin/issues">Report an issue</a>
+</p>
 
-## Choose your installation
+<p align="center">
+  <a href="https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/kabo-sh/kabo-mcp-plugin?style=flat&color=blueviolet&label=release" /></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat" /></a>
+  <a href="#install"><img alt="works with" src="https://img.shields.io/badge/works%20with-Claude%20%C2%B7%20ChatGPT%20%C2%B7%20Grok%20Bot%20%C2%B7%20Muse-black?style=flat" /></a>
+  <a href="#what-you-can-do"><img alt="skills" src="https://img.shields.io/badge/skills-21-d8ff74?style=flat" /></a>
+  <a href="#install"><img alt="install" src="https://img.shields.io/badge/install-1%20message-green?style=flat" /></a>
+</p>
 
-| Your setup | Install |
-| --- | --- |
-| You already connected Kabo MCP in your AI host | [Skills only](#skills-only): use Git, ZIP or the optional skills CLI to add the twenty-one workflows and keep your existing connection. |
-| You want the MCP connection and workflows together | [Full plugin](#installation-and-authentication): use your host's plugin installer. |
-| You want your AI assistant to install Kabo for you (Grok Bot, Muse and other assistants without a plugin installer) | Paste this to the assistant: "Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable/INSTALL.md, then get me started." See [INSTALL.md](INSTALL.md). |
+Kabo is an AI partner for YouTube, Instagram and TikTok creators. This repository is the Kabo plugin:
+one connection to Kabo and twenty-one creator Skills that run inside the AI assistant you already use.
+Two things set it apart:
 
-[MCP setup and Skills guide](https://kabo.sh/docs/mcp#skills) ·
-[Latest release and ZIP download](https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest)
+- **One Kabo, four assistants.** The same account, the same saved profile and the same Skills work in
+  Claude, ChatGPT, Grok Bot and Muse (and in Claude Code and Codex). Set up once, ask anywhere.
+- **Remake a viral video with you on camera, from your phone.** Send a link to a talking-head video
+  that took off. Kabo breaks it down, drafts your script, and delivers a finished vertical MP4. The
+  video is made on Kabo's servers, so you can start it from an assistant's mobile app and come back
+  for the result.
 
-<a id="skills-only-skills-cli"></a>
+**AI video generation is free for a limited time.** New Kabo accounts also get 100 daily credits for
+their first 7 days. Details are on the [pricing page](https://kabo.sh/pricing?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_free).
 
-## Skills only
+**Install in one message.** Paste this to your assistant:
 
-The MCP connection provides data tools. Skills add the research workflows your AI host runs with
-those tools. Connecting MCP does not install Skills automatically. If the full Kabo plugin is
-already installed, it includes all bundled Skills; installing them again can produce duplicate entries.
-
-Official repository: **https://github.com/kabo-sh/kabo-mcp-plugin**.
-
-Kabo Skills can be used by compatible agents on your computer, in a remote workspace or in the
-cloud. The agent environment must load `SKILL.md` and its bundled files, run the required scripts
-with Python 3, and use your authorized Kabo MCP connection. Compatibility depends on these
-capabilities, not on whether the interface is a desktop app or a web page. Codex, Claude Code and
-Cursor are examples, not an exclusive support list. See the host's Skills loading and execution
-instructions and the [workflow requirements](#requirements-and-connection).
-
-Choose Git, ZIP or the optional skills CLI according to your environment and preference.
-
-### Option 1: Clone the GitHub repository
-
-In the workspace where your agent can access Skill files:
-
-```sh
-git clone --branch stable --single-branch https://github.com/kabo-sh/kabo-mcp-plugin.git
+```text
+Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable/INSTALL.md, then get me started.
 ```
 
-Configure your agent to load the complete Skill folders under `kabo-mcp-plugin/skills/`, or copy or
-import those folders into its supported Skills location. Keep all scripts, references and assets.
-Cloning alone does not register Skills with the agent. Keep your existing Kabo MCP connection and
-sign-in.
+## See it in action
 
-For a clone on `stable`, update from its parent directory with:
+<p align="center">
+  <a href="https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_remake">
+    <img src="docs/readme/remake-before-after.png" alt="Remake a viral video. Left: the original talking-head video. Right: the Kabo remake with a different creator on camera, the same three-point structure and new on-screen titles. Steps: send a link, Kabo breaks it down and drafts your script, you approve the model and the estimate, Kabo delivers a finished vertical MP4." width="100%" />
+  </a>
+</p>
 
-```sh
-git -C kabo-mcp-plugin pull --ff-only
+<p align="center"><sub>The original and its Kabo remake, from the pair shown on <a href="https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_remake_caption">kabo.sh</a>, where you can watch both videos in full.</sub></p>
+
+A daily pick, as it reads in the chat:
+
+```text
+You   What should I make today?
+
+Kabo  Scanned Instagram Reels from the last 7 days against your two confirmed pillars.
+      11 of 18 candidates had public view counts; 3 beat their own author's typical views by 2 times or more.
+
+      1. "This video went viral years ago..."        2.3x the author's typical views
+         Pillar: break down one viral video. Proof: 7-day median for that account, link attached.
+         Your version: open on the result, then the one lesson you would reuse.
+
+      2. "A hook so good it's unskippable"            2.4x
+      3. "It went viral for the wrong reason"         2.4x
+
+      Next: say "break down pick 1", "write my version", or "remake pick 1 with me in it".
+      Kabo never posts for you. After you publish, ask for a review once the post is 24 hours old.
 ```
 
-If you copied or imported the Skill folders elsewhere, replace those copies as well. Git and ZIP
-installations are not tracked by the skills CLI updater.
+<sub>Condensed from a real session. Titles are shortened and account names removed; the multiples are the ones Kabo reported.</sub>
 
-### Option 2: Use the skills CLI (npx)
+## The daily loop
 
-The [skills CLI](https://github.com/vercel-labs/skills) is an optional installer. You can also clone
-the GitHub repository or download a ZIP. Choose whichever method fits your environment and preference.
+Kabo is built to be used every day, not once.
 
-After connecting `https://kabo.sh/mcp-pub` and signing in, run this in your project directory:
+| When | What you say | What Kabo does |
+| --- | --- | --- |
+| **First session** | "Get me started" | Explains what it can do, links one public Instagram, TikTok or YouTube account, reads your recent posts, and proposes your niche and two to four content pillars for you to confirm. |
+| **Every morning** | "What should I make today?" | Picks three short videos from the last 7 days that match your pillars and beat their own author's typical views by at least 2 times. Each comes with proof, how to adapt it and next steps. Picks never repeat across days. |
+| **Every evening** | "Review my new posts" | Reviews each post that has passed 24 hours against your own earlier posts at the same age, then recaps the account: follower change, the last 7 days against your typical views, each pillar, and one recommendation. |
+
+Both daily jobs are safe to run unattended, so you can put them on your assistant's schedule and read
+the results when they arrive.
+
+## What you can do
+
+| Job | What Kabo does | Skills |
+| --- | --- | --- |
+| **Start and keep a daily rhythm** | First-session setup, three picks a day, a review of every new post | `start-with-kabo` · `pick-daily-viral-videos` · `review-new-posts` |
+| **Make the video** | Remakes a viral talking-head or voice-over video of up to 10 minutes with you in it, makes one from an approved script, or changes a delivered one | `remake-viral-video` |
+| **Spot what is working now** | Current trends and the patterns behind high performers, measured against each account's own baseline | `research-youtube-trends` · `research-instagram-trends` · `research-tiktok-trends` |
+| **Study competitors** | Finds comparable accounts, compares their recent content and names positioning gaps | `analyze-creator-competitors` · `analyze-tiktok-competitors` |
+| **Review an account** | What works, what hurts, and what to continue, stop or test. The deep review also watches the videos. Diagnoses a reach drop | `review-creator-account` · `review-creator-account-deep` · `diagnose-reach-drop` |
+| **Break down a video** | A timestamped read of the hook, pacing and structure of a public video or a local file | `analyze-content-video` |
+| **Decide what to make next** | Content ideas from your account, trends and competitors, then the script, hook and title for the one you pick | `develop-content-ideas` · `create-script-and-packaging` |
+| **Plan when to post** | A content calendar and posting times drawn from your own history | `plan-content-calendar` · `recommend-publish-timing` |
+| **Build the brand and get paid** | Names, bios and a media kit; monetization thresholds; line-item pricing for a brand-deal brief | `optimize-creator-brand` · `plan-platform-monetization` · `price-creator-brand-deals` |
+| **Check a platform rule** | Verifies a rule, threshold or rumour against official help pages, with quotes and dates | `verify-platform-rule` |
+
+Ask in plain language. You do not need to name a Skill.
+
+```text
+Get me started with Kabo.
+What should I make today?
+Remake this video with me in it: <link to a talking-head video>
+Why is @handle growing so fast on Instagram?
+Break down the hook of this Reel: <link>
+My TikTok reach dropped this month. What changed?
+Plan my next four weeks of posts.
+What should I charge for this sponsorship brief? <paste the brief>
+```
+
+<a id="installation-and-authentication"></a>
+
+## Install
+
+The fastest way is the same on every assistant. Paste this message and follow the sign-in prompt:
+
+```text
+Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable/INSTALL.md, then get me started.
+```
+
+[INSTALL.md](INSTALL.md) is written for the assistant: it tells it how to add the Kabo connection, load
+the Skills and check that everything works. Sign-in happens in your browser. There is no API key to copy.
+
+| Assistant | Status | Install by hand |
+| --- | :---: | --- |
+| **Claude** (Claude Code 2.1.275 or later) | ✅ Supported | `claude plugin marketplace add kabo-sh/kabo-mcp-plugin`, then `claude plugin install kabo@kabo-mcp-plugin`. Run `/mcp` and sign in to Kabo. |
+| **ChatGPT and Codex** (Codex 0.163 or later) | ✅ Supported | Open Plugins, find Kabo and add it. From a terminal: `codex plugin marketplace add kabo-sh/kabo-mcp-plugin`, then `codex plugin add kabo@kabo-plugin-openai`. |
+| **Grok Bot** | ✅ Supported | Paste the message above into the Bot. It adds Kabo as an app and loads the Skills on the Bot's computer. |
+| **Muse** | ✅ Supported | Paste the message above. Muse adds Kabo as a custom connector and loads the Skills on its computer. |
+| **Cursor and other MCP clients** | Not yet tested | Add `https://kabo.sh/mcp-pub` as a remote MCP server with OAuth, then add the Skills. |
+
+You need a Kabo account; signing in with Google creates one. The workflows need Python 3 and a
+workspace the assistant can read and write.
+
+Step-by-step guides: [kabo.sh/install](https://kabo.sh/install?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_install) ·
+[MCP setup](https://kabo.sh/docs/mcp?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_install_mcp) ·
+[full installation reference](docs/installation.md#installation-and-authentication)
+
+<a id="skills-only"></a>
+
+### Already connected Kabo? Add the Skills only
+
+The connection provides the data tools. The Skills add the workflows. If you connected
+`https://kabo.sh/mcp-pub` yourself, add the Skills with one command and keep your connection:
 
 ```sh
 npx skills add 'kabo-sh/kabo-mcp-plugin#stable' --skill '*'
 ```
 
-Select your agent in the installer. Examples of explicit CLI targets are listed below; this is not
-a complete list of agents that can use Kabo Skills. Use Git or ZIP for compatible environments that
-the CLI does not target.
+Git and ZIP installs, pinning a version, updating and uninstalling are in the
+[installation reference](docs/installation.md#skills-only).
 
-| Agent | Option |
-| --- | --- |
-| Codex | `--agent codex` |
-| Claude Code | `--agent claude-code` |
-| Cursor | `--agent cursor` |
+## How it works
 
-The command installs all bundled Skills with their scripts and resources. It does not add an MCP
-connection or change your Kabo sign-in. **Keep your existing Kabo connection.** If you have not
-connected yet, follow the [MCP setup guide](https://kabo.sh/docs/mcp#connect). For Codex, the command is
-`codex mcp add kabo --url https://kabo.sh/mcp-pub`; to sign in again later, use
-`codex mcp login kabo`.
+1. **You ask in plain language.** Your assistant picks the matching Skill.
+2. **Kabo fetches public data on its servers.** There are no platform API keys to set up.
+3. **Your assistant does the analysis and writes the report.** Findings come with source links, the
+   time window, the sample size and what could not be measured.
 
-Installation defaults to the current project. Add `-g` to install for all projects. For Codex, these
-locations are `.agents/skills/` and `~/.agents/skills/`, respectively; other hosts use their own
-supported locations. Run `npx skills list` (or `npx skills list -g`) to see the installation, then
-start a new host session to load it.
+What Kabo does not do:
 
-### CLI versions and updates
+- **It never publishes for you.** It researches, drafts and makes the video; posting stays with you.
+- **It does not guess private metrics.** Click-through rate, retention, revenue and Insights are never
+  inferred from public views or likes.
+- **It does not promise virality.** When the evidence is thin, the report says so.
 
-The CLI records the source ref and a content hash in `skills-lock.json`, or in its global lock file
-for `-g`. The repository's `skills.lock.json` is a separate record of the original Skill sources.
+## How Kabo compares
 
-- `#stable` follows published releases. It advances only after a release; installed files stay as
-  they are until you run an installation or update command.
-- `#v1.0.43` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
-- Without a ref, the CLI follows `main`, which includes unreleased changes.
+We make Kabo, so read this as our view. Each TubeBuddy and Viewstats cell comes from that product's
+own pages ([tubebuddy.com/pricing](https://www.tubebuddy.com/pricing),
+[viewstats.com](https://www.viewstats.com/)), checked in November 2026. If something has changed,
+please [open an issue](https://github.com/kabo-sh/kabo-mcp-plugin/issues).
 
-See [GitHub Releases](https://github.com/kabo-sh/kabo-mcp-plugin/releases) for new versions and release
-notes. To update installed Skills, choose the scope explicitly:
+| | Kabo | TubeBuddy | Viewstats |
+| --- | --- | --- | --- |
+| Where you use it | Inside Claude, ChatGPT, Grok Bot and Muse, in the browser, and in iPhone and Android apps | Chrome extension and mobile app for YouTube | Web app |
+| Platforms | YouTube, Instagram and TikTok | YouTube | YouTube |
+| Makes a finished video with you on camera | Yes: remakes a viral talking-head video into a finished MP4 | No: video and thumbnail tools | No: thumbnail search and video ideas |
+| Daily picks matched to your own content pillars | Yes, three a day | Next Video Ideas | Outliers tool with filters |
+| YouTube keyword scores | No dedicated keyword score | Yes: Keyword Explorer | Not listed |
+| Changes your channel | Never: it does not publish or edit | Bulk editing and scheduled publishing | Not listed |
+| Free to start | 100 daily credits for a new account's first 7 days; AI video generation free for a limited time | See its pricing page | Free account; Pro is paid |
 
-```sh
-npx skills update -p
-```
+Pick TubeBuddy if YouTube keywords and tools that edit your channel are the center of the job. Pick
+Viewstats to browse YouTube outliers and thumbnails. Pick Kabo if you want one partner across YouTube,
+Instagram and TikTok that works in the assistant you already use and can take an idea all the way to
+a finished video. Longer comparisons: [kabo.sh/alternatives](https://kabo.sh/alternatives?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_compare).
 
-Use `npx skills update -g` for global installations. These commands update all tracked Skills in that
-scope, including other sources. To refresh only Kabo, rerun the `skills add` command above with the
-same agent and project/global scope.
+## Pricing
 
-**`skills check` is not a read-only check in CLI 1.7.4.** It runs the same update logic as `update` and
-can replace installed files. Use the release page to read about updates without changing your
-installation. See the [CLI 1.7.4 implementation](https://github.com/vercel-labs/skills/blob/v1.7.4/src/cli.ts#L420).
+- **AI video generation is free for a limited time.**
+- **Free to start.** New accounts get 100 daily credits for their first 7 days.
+- **Plans.** Pro and Ultra add daily credits. Current prices are on the
+  [pricing page](https://kabo.sh/pricing?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_pricing).
 
-### Option 3: Download a ZIP
+Before a remake starts, Kabo shows the model choices and an estimate, and waits for your approval.
 
-The [latest release](https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest) includes a ZIP and its
-SHA-256 file. This is the full plugin package. For manual Skills-only installation, extract it and
-copy or import each complete directory under `skills/` into your agent's supported Skills location, including
-all scripts, references and assets. Copying only `SKILL.md` is insufficient. Manual copies are not
-tracked by the skills CLI updater.
+## Privacy
 
-The CLI collects anonymous usage data; set `DISABLE_TELEMETRY=1` to turn it off.
+Creator research uses public data fetched by Kabo's servers. Signing in uses OAuth in your browser;
+your assistant never sees a Kabo password. The plugin asks for read and write access to your Kabo
+workspace so that it can link your account and save your pillars, scripts and preferences; see
+[Your saved Kabo work](docs/workspace.md). [Privacy](https://kabo.sh/privacy) · [Terms](https://kabo.sh/terms)
 
-Installing the ten Skills of release 1.0.2 and their discovery by Codex 0.164 were checked on October 27, 2026. Kabo
-sign-in and a complete Skill run through this method still need testing, as do other agents. See
-[requirements and connection](#requirements-and-connection) for evidence downloads and local video
-requirements.
+## More from Kabo
 
-## Installation and authentication
+- **[Kabo in the browser](https://kabo.sh/?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_more_web)**: the full workspace, no setup.
+- **Kabo for [iPhone](https://apps.apple.com/us/app/kabo-ai-creator-coach/id6800972386) and [Android](https://play.google.com/store/apps/details?id=com.dealism.kabo)**: pre-publish video feedback on the go.
+- **[Free creator tools](https://kabo.sh/tools?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_more_tools)**: calculators, checkers and generators. No account needed.
 
-This repository also serves as a Claude Code and Codex marketplace. Each listing points to the same
-`kabo` plugin at the repository root.
+## For maintainers
 
-Hosts fetch the repository through local, noninteractive `git`.
+- [Installation reference](docs/installation.md): current release, Skills-only installs, per-host details, requirements, updating, uninstalling and rollback.
+- [Development and release](docs/development.md): repository layout, checks, building the package, acceptance.
+- [Your saved Kabo work](docs/workspace.md): what the plugin reads and writes in a Kabo workspace.
+- [Skills specification](docs/skills-spec.md) · [Changelog](CHANGELOG.md) · [Instructions for AI assistants](INSTALL.md)
 
-| Host | Marketplace | Plugin ID |
-| --- | --- | --- |
-| Claude Code | `kabo-mcp-plugin` | `kabo@kabo-mcp-plugin` |
-| Codex | `kabo-plugin-openai` | `kabo@kabo-plugin-openai` |
+## License
 
-The marketplace names differ because existing Codex installations already reference
-`kabo-plugin-openai`. Renaming it would break those references.
-
-### Claude Code
-
-In Claude Code 2.1.275 or later:
-
-```text
-/plugin install kabo --marketplace kabo-sh/kabo-mcp-plugin
-```
-
-Or add the marketplace first:
-
-```text
-/plugin marketplace add kabo-sh/kabo-mcp-plugin
-/plugin install kabo@kabo-mcp-plugin
-```
-
-The terminal equivalents are `claude plugin marketplace add kabo-sh/kabo-mcp-plugin` and
-`claude plugin install kabo@kabo-mcp-plugin`. If you do not have a GitHub SSH key, set
-`CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1` to clone over HTTPS.
-For development, use `claude --plugin-dir <plugin-root>` to load the working directory directly.
-
-### Codex
-
-Codex 0.163 supports GitHub marketplace sources (`owner/repo[@ref]`, HTTPS or SSH):
-
-```sh
-codex plugin marketplace add kabo-sh/kabo-mcp-plugin
-codex plugin add kabo@kabo-plugin-openai
-```
-
-If you already added `kabo-plugin-openai` from a local clone, run `git pull` there, then run
-`codex plugin add kabo@kabo-plugin-openai` again. Codex caches plugins by version. Only one marketplace
-can have this name; to switch to a GitHub source, remove the old listing with
-`codex plugin marketplace remove kabo-plugin-openai`, then add the new source.
-
-Kabo data tools use your Kabo data allowance. Codex asks for approval on each call by default. If you
-want to approve these calls in advance, add this to `~/.codex/config.toml`:
-
-```toml
-[plugins."kabo@kabo-plugin-openai".mcp_servers.kabo]
-default_tools_approval_mode = "approve"
-```
-
-This configuration has been tested. The equivalent command-line `-c` override did not work for the
-plugin ID containing `@`.
-
-### Cursor
-
-Place the extracted package in a supported local plugin directory and reload it. The package uses the
-portable format; installation in Cursor still needs to be tested.
-
-### Validation status
-
-Use `claude plugin validate <plugin-root>` to check the Claude Code manifest and marketplace. Codex
-metadata is covered by portable-schema and package tests. Under the old version numbering, 3.1.0
-passed an end-to-end YouTube video-analysis run in Codex 0.163. That historical result does not replace
-acceptance testing for the current release; record results against the exact candidate commit and ZIP.
-
-### Requirements and connection
-
-The workflows need Python 3 and workspace file access. Local video analysis also needs ffmpeg and
-ffprobe. Full evidence normally arrives through download links valid for 10 minutes on
-`storage.googleapis.com`. The scripts download it and check its size and SHA-256. If downloads are
-unavailable, the host must be able to export complete tool results for the `stage` fallback.
-Sandbox network behavior still needs testing in each host. ChatGPT and Claude.ai web environments
-require separate validation of these capabilities; a local installation does not establish web support.
-A successful build also does not establish source-distribution rights or marketplace approval.
-
-The only connection is `https://kabo.sh/mcp-pub`. Follow the host's OAuth flow on first use
-(or during installation in Codex). The host manages login, refresh and revocation. Versions 1.0.0 and later keep
-the `/mcp-pub` address introduced in the old 3.0.1 release. The former `/mcp-directory` endpoint was
-removed and has returned 404 since October 22, 2026. Installations still using that address must update and reconnect. If `/mcp-pub` is unavailable,
-report the failure rather than switching endpoints or reusing a token issued for another audience.
-
-**Repeated `invalid_token` errors after connecting:** the host may have omitted
-`resource=https://kabo.sh/mcp-pub` (RFC 8707) and obtained a token for another Kabo endpoint.
-Disconnect and reconnect Kabo through the host so it uses
-`https://kabo.sh/.well-known/oauth-protected-resource/mcp-pub`. Do not paste a token manually or alter
-requests to bypass authentication. Tokens for `/mcp` or the removed `/mcp-directory` endpoint do not
-work here. Once the corresponding server change is deployed, the 401 response's `authorization_hint`
-and `WWW-Authenticate` error description provide the same guidance.
-
-Each research run uses a separate local directory and saves complete MCP results. Do not reconstruct
-truncated evidence or read the host's credentials or session logs. Follow the steps in each Skill.
-
-**Claude Code is authorized interactively, but `claude -p` says authentication is needed:** an old
-`plugin:kabo:kabo` entry in `~/.claude/mcp-needs-auth-cache.json` may still mark it as `needs-auth` with
-zero tools, even when `claude mcp list` says Connected. Remove only that entry, or wait for it to expire,
-then retry. This host behavior was observed in Claude Code 2.1.308 on October 22, 2026.
-
-**Frame images:** frame reads also request `delivery: "download"`. The script saves images in the run
-directory, and the host opens those local files. Claude Code may store inline images in its own
-session directory, outside the exportable result. If an entire result has no ready download, export
-the full inline result and use `stage`. If only some artifacts are unavailable or the script cannot
-access the network, read those artifacts again without `delivery`, then export and stage them.
-Skills do not read the host's session or `tool-results` directories.
-
-## Updating, uninstalling and rollback
-
-Moving from a development version to 1.0.0 resets the version numbering while keeping the latest
-implementation; see [CHANGELOG](CHANGELOG.md) (Chinese). SemVer ranks `1.0.0` below the former `3.x`
-versions, so do not rely on automatic upgrade detection. Refresh the marketplace, update the
-installation, and confirm that the host loads `1.0.0` or later. If it retains the old version, uninstall the
-plugin through the host and reinstall it. Keep research files and credentials intact. Host behavior
-when moving to a lower version number still needs testing.
-
-Normal update commands:
-
-- Claude Code: `/plugin marketplace update kabo-mcp-plugin`, or
-  `claude plugin update kabo@kabo-mcp-plugin` in the terminal.
-- Codex: `codex plugin marketplace upgrade kabo-plugin-openai` for a GitHub source, or `git pull` for a
-  local clone; then run `codex plugin add kabo@kabo-plugin-openai` again.
-
-The connection and OAuth resource stay at `/mcp-pub` when moving from the old 3.0.1 or 3.1.x versions.
-Renumbering alone does not change authorization. Older installations using `/mcp-directory` must
-reauthorize for `/mcp-pub`. The current package has twenty-one fixed Skills, downloads full evidence, and
-stores raw tool results in each run's `host-results/` directory. The old dynamic menu, channel switch,
-download cache and Node runner are no longer included. Validate in a separate workspace before
-updating the existing `kabo` entry. Old research directories are not migrated or deleted automatically.
-
-Do not roll back to 3.0.0 or earlier under the **old numbering scheme**, including the former 2.0.0
-ZIP: their `/mcp-directory` connection no longer works. Fix current problems in a new release instead
-of replacing signed content with an old package. Uninstall through the host to remove the plugin and
-connection. Delete local research files only when the user asks.
-
-## Repository layout
-
-```text
-plugin.json                     # Portable manifest for Codex / Cursor
-mcp.json                        # Production MCP connection
-.claude-plugin/plugin.json       # Claude Code metadata
-.claude-plugin/marketplace.json  # Claude Code marketplace (not included in the ZIP)
-.agents/plugins/marketplace.json # Codex marketplace (not included in the ZIP)
-.mcp.json                       # Claude Code HTTP MCP configuration
-skills/                         # Twenty-one complete Skills and their resources
-skills.lock.json                # Original Skill source and versions
-runtime-contract.json           # Fixed tool and Skill inventory
-INSTALL.md                      # Installation steps written for an AI assistant to follow
-CHANGELOG.md                    # Version history (Chinese)
-```
-
-The twenty-one Skills cover video analysis, standard and deep account reviews, scripts and packaging,
-content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor research, reach-drop
-diagnosis, publish-timing recommendations, platform monetization plans, official platform rule checks,
-brand identity options and media kits, content calendars, brand-deal pricing, and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 10 minutes or less
-(talking videos may cut to screen recordings or show a product) with the creator in it. Three more form a daily routine
-for a creator: `start-with-kabo` (first session: link one public account, read its posts, propose content pillars for the
-creator to confirm and save them to Kabo, give today's picks, offer three daily jobs), `pick-daily-viral-videos` (three picks a day
-from Kabo's daily "for you" list, never repeated) and `review-new-posts` (a 24-hour review of each new post plus a daily
-account recap). See
-[skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
-same Skills.
-
-`diagnose-reach-drop`, `recommend-publish-timing`, `plan-platform-monetization` and
-`verify-platform-rule` are included in 1.0.9. Their complete cross-host acceptance is still pending;
-Current release acceptance focuses on short-window content-language checks and user-approved cross-language searches.
-`verify-platform-rule` needs the `official_page_render_page` tool on `/mcp-pub` (restored by kabo#1817).
-`optimize-creator-brand`, `plan-content-calendar` and `price-creator-brand-deals` are ported from
-creator-skills; their cross-host acceptance is pending.
-
-`start-with-kabo`, `pick-daily-viral-videos` and `review-new-posts` keep their state in the workspace
-(`kabo-library/<platform>-<handle>/`) through a shared `creator_library.py`; the three copies are identical. In the
-first session the assistant proposes 2 to 4 content pillars from the account's posts, the creator confirms or changes
-them, and the whole set is saved to Kabo once (`update_content_preferences` with `declare_pillars`). From then on Kabo
-holds the pillars (read back with `get_creator_profile` and `pillars: true`) and uses them for the daily picks; the
-local library is only a copy. If the save fails, the pillars stay on this computer and are saved the next time the
-Skill can. Kabo's own statistics (signature content) are shown only as a reference. The daily picks come only from
-`get_for_you_videos`; `pick-daily-viral-videos` only chooses which three of Kabo's videos to show each day and
-remembers which were shown. `review-new-posts` refreshes the pillars from Kabo on every run, and builds its own
-library when none exists. The
-Skills are written to run unattended from a host's own scheduled tasks and never post, comment or message anyone.
-Host-specific scheduling notes live in `skills/start-with-kabo/references/host-schedules.md`.
-
-`get_for_you_videos` (`workspace:read`) and `prepare_creator_profile` (`workspace:write`) come from kabo-sh/kabo#2176
-and are pinned in `contracts/directory-mcp/`. Building the profile needs write access to the creator's Kabo account,
-so it happens only in the first session; the scheduled jobs run only `pick-daily-viral-videos` and `review-new-posts`.
-The new flow has been tested offline; real-host acceptance is still pending.
-
-`remake-viral-video` uses the `start_remake_video`, `get_remake_video` and `render_remake_video`
-tools on `/mcp-pub`, plus `edit_remake_video` to change a delivered video and `start_video_project`,
-`make_video_step` and `finish_video_project` to build a video outside the remake formats step by step. Its scripts download the brief and the finished MP4 from the same signed
-`storage.googleapis.com` links as evidence downloads; there is no `stage` fallback for them.
-
-- The Kabo service, which is not part of this repository, owns MCP, OAuth, data tools, asynchronous
-  jobs, the website and deployment.
-- The Skills were adapted from the ones used by Kabo's web agent and are now maintained here.
-- This repository owns the plugin Skills, offline checks, host metadata, reproducible packages and
-  acceptance evidence.
-
-## Development
-
-Use Node 24 and Python 3. Normal builds do not read neighboring repositories or a Skill registry.
-
-```sh
-npm ci --ignore-scripts
-npm run verify
-```
-
-Edit the bundled `skills/` here and submit changes for PR review. Do not overwrite them with a fresh
-upstream export. The web agent's Skills are maintained separately.
-`skills.lock.json` records the original source, not a byte-for-byte comparison; update it and
-`runtime-contract.json` when adding or removing a Skill.
-
-Follow the [Kabo Skills specification](docs/skills-spec.md). Run `npm run skills:lint` for
-details. Enforcement remains disabled (`skills-spec.json` has an empty `enforced` list), and
-`npm run verify` prints the summary. The MCP artifacts in `contracts/directory-mcp/` record the
-provider commit and file hashes. New tools require an explicit update to those artifacts.
-
-Build from a committed revision:
-
-```sh
-npm run build -- --commit <full-40-character-commit> --output <new-output-directory>
-```
-
-The build reads Git blobs from that commit and produces `kabo-<version>.zip`, its SHA-256, and a file
-manifest. Every declared component is included. Development documentation, tests, dependencies and
-marketplace listings are excluded. The repository's resource limits are 512 files and 5 MiB per Skill,
-and 2,048 files and 64 MiB for the whole package; these are local build limits.
-
-## Acceptance and release
-
-Passing CI and building a ZIP establish local structure and test results. Production acceptance still
-covers tool visibility (including YouTube), complete tasks and reports delivered once, photo/carousel/
-video evidence, OAuth, incorrect audience/scope, account isolation, deletion, five positive and three
-negative review cases, and a reviewer account. Without complete production evidence,
-`submissionReady=false`.
-
-Deployment, marketplace upload and Publish are separate actions.
-
-[Privacy](https://kabo.sh/privacy) · [Terms](https://kabo.sh/terms)
-
-Format references: [OpenAI plugins](https://developers.openai.com/plugins/build/plugins),
-[Claude Code manifests](https://code.claude.com/docs/en/plugins-reference), and
-[Cursor portable plugins](https://cursor.com/docs/plugins).
-
-## Your saved Kabo work
-
-When your Kabo deployment provides workspace tools, your agent can read your linked accounts,
-saved creator profiles, official social connection status, scripts and video library after you
-grant workspace access. `get_kabo_info` shows basic identity and permissions without credits.
-Ask the agent to save a completed script or update an existing one; it keeps the saved version
-and rejects conflicting edits. You can also ask to connect a public Instagram, TikTok or YouTube
-account. Public Connect uses data allowance and does not start official social OAuth or analysis.
-Connecting Kabo asks for read and write access to your Kabo workspace (`workspace:read` and
-`workspace:write`), because the first session links your account, has Kabo build your profile and
-saves your pillar edits. Connections made before this change have read access only: sign in to Kabo
-again once to get write access (in Codex:
-`codex mcp login kabo --scopes openid,profile,email,offline_access,data,video,workspace:read,workspace:write`;
-in other hosts, disconnect and reconnect Kabo). Until then, a Skill that needs to write tells you to
-reconnect, and the original public research and local drafting workflows remain usable.
-
-The three trends Skills can also start from your saved account profile. When you ask for trends for
-your own linked account, the agent reads the account's saved content profile (your signature
-content, content language and formats) with `get_creator_profile`, keeps the complete result as a
-local file and passes it to the trends driver. The searches then start from your own seed words,
-leave out your own posts and accounts far larger or smaller than yours, and share the
-recommendations across your signature content. In the general trend-research Workflow, content
-language steers the search words. Short-window recommendations (seven days or less) also check
-candidate language before ranking. You can explicitly add other languages or allow any language
-for the current request; that choice overrides the account default without editing your profile.
-The Skills never write or edit the profile file. If the
-profile is missing or empty, workspace access is not granted, or Kabo does not offer the profile
-yet, the Skills run the same public trend scan as before.
-
-You can also correct that saved profile in the conversation. Ask the trends Skills or the account
-review to rename, remove or merge a signature content item, make one your main item, exclude a
-topic, or set the language you make content in or your market, and the agent saves the edit to Kabo
-with `update_content_preferences`. Your edits are kept per account and come back on every later
-read, in this plugin and in Kabo's web app; the profile Kabo computed stays as it was, and you can
-reset your edits. A plain, unambiguous change is saved and repeated back to you in one sentence; a
-guess, a removal, a merge or a reset is restated for you to confirm first. Your market is only the
-default search region (Instagram search takes none); it never filters results by region.
-Content-language checks follow the short-window rules above. An edit applies from the next trend run. Saving needs write access, which a
-connection made before this plugin asked for it lacks until you sign in again; without it, or when Kabo does not offer the
-tool yet, nothing is saved and the research runs as before.
+[MIT](LICENSE)
