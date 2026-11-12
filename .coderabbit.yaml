@@ -20,6 +20,8 @@ reviews:
         youtube-pp, youtube data api, ensemble data, hiker api, creatordb, apify, firecrawl; case-insensitive,
         truncated forms such as "tikhu" count). Use platform or capability names instead (TikTok, Instagram,
         YouTube, discovery) and neutral fixture values such as "provider-a".
+        Exception: the comparison table in README.md and docs/i18n/README.*.md may name vidIQ as a
+        competing product; do not flag it there.
 
     - path: "skills/**"
       instructions: |
@@ -92,7 +94,8 @@ reviews:
           fixtures, docs and comments: tikhub, scrapecreators, scrape creators, tubelab, vidiq, gemini,
           printingpress, yt-dlp, youtube-pp, youtube data api, ensemble data, hiker api, creatordb, apify,
           firecrawl (case-insensitive, truncated forms count). This repository is public, so any file is readable
-          by anyone.
+          by anyone. Exception: the comparison table in README.md and docs/i18n/README.*.md may name vidIQ as a
+          competing product.
       - name: "Skill risk level and evidence"
         mode: warning
         instructions: |

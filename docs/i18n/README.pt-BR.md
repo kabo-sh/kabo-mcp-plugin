@@ -247,23 +247,24 @@ O que o Kabo não faz:
 
 ## Como o Kabo se compara
 
-Nós fazemos o Kabo, então leia isto como a nossa opinião. Cada célula do TubeBuddy e do Viewstats vem das
+Nós fazemos o Kabo, então leia isto como a nossa opinião. Cada célula do vidIQ, do TubeBuddy e do Viewstats vem das
 páginas do próprio produto
-([tubebuddy.com/pricing](https://www.tubebuddy.com/pricing),
+([vidiq.com/mcp](https://vidiq.com/mcp/), [vidiq.com/pricing](https://vidiq.com/pricing/), [tubebuddy.com/pricing](https://www.tubebuddy.com/pricing),
 [viewstats.com](https://www.viewstats.com/)), conferidas em novembro de 2026. Se algo mudou,
 por favor [abra uma issue](https://github.com/kabo-sh/kabo-mcp-plugin/issues).
 
-| | Kabo | TubeBuddy | Viewstats |
-| --- | --- | --- | --- |
-| Onde você usa | Dentro do Claude, ChatGPT, Grok Bot e Muse, no navegador e nos apps de iPhone e Android | Extensão do Chrome e app de celular para YouTube | App web |
-| Plataformas | YouTube, Instagram e TikTok | YouTube | YouTube |
-| Faz um vídeo pronto com você na câmera | Sim: refaz um vídeo viral de pessoa falando para a câmera e entrega um MP4 pronto | Não: ferramentas de vídeo e de miniatura | Não: busca de miniaturas e ideias de vídeo |
-| Sugestões diárias alinhadas aos seus próprios pilares de conteúdo | Sim, três por dia | Next Video Ideas | Ferramenta Outliers com filtros |
-| Pontuação de palavras-chave do YouTube | Sem pontuação de palavras-chave dedicada | Sim: Keyword Explorer | Não listado |
-| Altera o seu canal | Nunca: não publica nem edita | Edição em massa e publicação agendada | Não listado |
-| Grátis para começar | 100 créditos por dia nos primeiros 7 dias de uma conta nova; geração de vídeo com IA gratuita por tempo limitado | Veja a página de preços dele | Conta gratuita; o Pro é pago |
+| | Kabo | vidIQ | TubeBuddy | Viewstats |
+| --- | --- | --- | --- | --- |
+| Onde você usa | Dentro do Claude, ChatGPT, Grok Bot e Muse, no navegador e nos apps de iPhone e Android | App web, extensão de navegador e apps de celular, além de um servidor MCP para ChatGPT, Claude, Muse, Cursor, Grok, Codex e outros clientes | Extensão do Chrome e app de celular para YouTube | App web |
+| Plataformas | YouTube, Instagram e TikTok | YouTube primeiro, com pesquisa pública de Instagram | YouTube | YouTube |
+| Faz um vídeo pronto com você na câmera | Sim: refaz um vídeo viral de pessoa falando para a câmera e entrega um MP4 pronto | A lista de ferramentas MCP dele inclui cortes de vídeos longos e miniaturas com IA | Não: ferramentas de vídeo e de miniatura | Não: busca de miniaturas e ideias de vídeo |
+| Sugestões diárias alinhadas aos seus próprios pilares de conteúdo | Sim, até três por dia | Daily Ideas para o seu canal do YouTube | Next Video Ideas | Ferramenta Outliers com filtros |
+| Pontuação de palavras-chave do YouTube | Sem pontuação de palavras-chave dedicada | Sim | Sim: Keyword Explorer | Não listado |
+| Altera o seu canal | Nunca: não publica nem edita | Com a sua aprovação, atualiza títulos, descrições, tags e miniaturas, responde comentários e publica Reels do Instagram | Edição em massa e publicação agendada | Não listado |
+| Grátis para começar | 100 créditos por dia nos primeiros 7 dias de uma conta nova; geração de vídeo com IA gratuita por tempo limitado | Plano gratuito com 150 créditos de IA por mês | Veja a página de preços dele | Conta gratuita; o Pro é pago |
 
-Escolha o TubeBuddy se palavras-chave do YouTube e ferramentas que editam o seu canal são o centro do trabalho. Escolha o
+Escolha o vidIQ se palavras-chave do YouTube e as análises conectadas do seu próprio canal são o centro do trabalho.
+Escolha o TubeBuddy para palavras-chave do YouTube e ferramentas que editam o seu canal. Escolha o
 Viewstats para explorar outliers e miniaturas do YouTube. Escolha o Kabo se você quer um parceiro para YouTube,
 Instagram e TikTok que funcione no assistente que você já usa e leve uma ideia até
 um vídeo pronto. Comparações mais longas: [kabo.sh/alternatives](https://kabo.sh/alternatives?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_compare).

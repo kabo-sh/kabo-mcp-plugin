@@ -241,23 +241,24 @@ Kabo 不做的事：
 
 ## Kabo 和别的工具比起来怎么样
 
-Kabo 是我们做的，所以请把这部分当作我们自己的看法。表中 TubeBuddy 和 Viewstats 的每一格，
-都来自这两个产品自己的页面
-（[tubebuddy.com/pricing](https://www.tubebuddy.com/pricing)、
+Kabo 是我们做的，所以请把这部分当作我们自己的看法。表中 vidIQ、TubeBuddy 和 Viewstats 的每一格，
+都来自这几个产品自己的页面
+（[vidiq.com/mcp](https://vidiq.com/mcp/)、[vidiq.com/pricing](https://vidiq.com/pricing/)、[tubebuddy.com/pricing](https://www.tubebuddy.com/pricing)、
 [viewstats.com](https://www.viewstats.com/)），核对时间为 2026 年 11 月。如果有变化，
 请[提一个 issue](https://github.com/kabo-sh/kabo-mcp-plugin/issues)。
 
-| | Kabo | TubeBuddy | Viewstats |
-| --- | --- | --- | --- |
-| 在哪里用 | 在 Claude、ChatGPT、Grok Bot 和 Muse 里，在浏览器里，以及 iPhone 和 Android App 里 | 面向 YouTube 的 Chrome 扩展和手机 App | 网页应用 |
-| 支持的平台 | YouTube、Instagram 和 TikTok | YouTube | YouTube |
-| 能否做出由你出镜的成片 | 能：把爆款口播视频翻拍成做好的 MP4 | 不能：提供视频和封面工具 | 不能：提供封面搜索和视频选题 |
-| 贴合你自己内容方向的每日精选 | 有，每天三条 | 有“下一条视频选题”（Next Video Ideas） | 有带筛选条件的爆款视频工具（Outliers） |
-| YouTube 关键词评分 | 没有专门的关键词评分 | 有：关键词探索器（Keyword Explorer） | 未列出 |
-| 会不会改动你的频道 | 绝不：它不发布，也不编辑 | 批量编辑和定时发布 | 未列出 |
-| 免费开始 | 新账号前 7 天每天 100 点积分；AI 视频生成限时免费 | 见其价格页 | 免费账号；Pro 版收费 |
+| | Kabo | vidIQ | TubeBuddy | Viewstats |
+| --- | --- | --- | --- | --- |
+| 在哪里用 | 在 Claude、ChatGPT、Grok Bot 和 Muse 里，在浏览器里，以及 iPhone 和 Android App 里 | 网页应用、浏览器扩展和手机 App，另有一个 MCP 服务，可接入 ChatGPT、Claude、Muse、Cursor、Grok、Codex 等客户端 | 面向 YouTube 的 Chrome 扩展和手机 App | 网页应用 |
+| 支持的平台 | YouTube、Instagram 和 TikTok | 以 YouTube 为主，另有 Instagram 公开数据研究 | YouTube | YouTube |
+| 能否做出由你出镜的成片 | 能：把爆款口播视频翻拍成做好的 MP4 | 它的 MCP 工具清单里有长视频切片和 AI 封面 | 不能：提供视频和封面工具 | 不能：提供封面搜索和视频选题 |
+| 贴合你自己内容方向的每日精选 | 有，每天最多三条 | 有面向你 YouTube 频道的每日选题（Daily Ideas） | 有“下一条视频选题”（Next Video Ideas） | 有带筛选条件的爆款视频工具（Outliers） |
+| YouTube 关键词评分 | 没有专门的关键词评分 | 有 | 有：关键词探索器（Keyword Explorer） | 未列出 |
+| 会不会改动你的频道 | 绝不：它不发布，也不编辑 | 经你同意后，可以修改标题、简介、标签和封面，回复评论，并发布 Instagram Reels | 批量编辑和定时发布 | 未列出 |
+| 免费开始 | 新账号前 7 天每天 100 点积分；AI 视频生成限时免费 | 免费版每月 150 点 AI 积分 | 见其价格页 | 免费账号；Pro 版收费 |
 
-如果你的核心需求是 YouTube 关键词，以及能直接修改频道的工具，选 TubeBuddy。
+如果你的核心需求是 YouTube 关键词，以及接入你自己频道后台数据的分析，选 vidIQ。
+需要 YouTube 关键词和能直接修改频道的工具，选 TubeBuddy。
 想浏览 YouTube 上的爆款视频和封面，选 Viewstats。想要一个横跨 YouTube、
 Instagram 和 TikTok、在你已经在用的助手里工作、并且能把一个想法一路带到成片的搭档，选 Kabo。更详细的对比：[kabo.sh/alternatives](https://kabo.sh/alternatives?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_compare)。
 

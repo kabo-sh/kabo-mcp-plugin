@@ -241,22 +241,23 @@ What Kabo does not do:
 
 ## How Kabo compares
 
-We make Kabo, so read this as our view. Each TubeBuddy and Viewstats cell comes from that product's
-own pages ([tubebuddy.com/pricing](https://www.tubebuddy.com/pricing),
+We make Kabo, so read this as our view. Each vidIQ, TubeBuddy and Viewstats cell comes from that product's
+own pages ([vidiq.com/mcp](https://vidiq.com/mcp/), [vidiq.com/pricing](https://vidiq.com/pricing/), [tubebuddy.com/pricing](https://www.tubebuddy.com/pricing),
 [viewstats.com](https://www.viewstats.com/)), checked in November 2026. If something has changed,
 please [open an issue](https://github.com/kabo-sh/kabo-mcp-plugin/issues).
 
-| | Kabo | TubeBuddy | Viewstats |
-| --- | --- | --- | --- |
-| Where you use it | Inside Claude, ChatGPT, Grok Bot and Muse, in the browser, and in iPhone and Android apps | Chrome extension and mobile app for YouTube | Web app |
-| Platforms | YouTube, Instagram and TikTok | YouTube | YouTube |
-| Makes a finished video with you on camera | Yes: remakes a viral talking-head video into a finished MP4 | No: video and thumbnail tools | No: thumbnail search and video ideas |
-| Daily picks matched to your own content pillars | Yes, three a day | Next Video Ideas | Outliers tool with filters |
-| YouTube keyword scores | No dedicated keyword score | Yes: Keyword Explorer | Not listed |
-| Changes your channel | Never: it does not publish or edit | Bulk editing and scheduled publishing | Not listed |
-| Free to start | 100 daily credits for a new account's first 7 days; AI video generation free for a limited time | See its pricing page | Free account; Pro is paid |
+| | Kabo | vidIQ | TubeBuddy | Viewstats |
+| --- | --- | --- | --- | --- |
+| Where you use it | Inside Claude, ChatGPT, Grok Bot and Muse, in the browser, and in iPhone and Android apps | Web app, browser extension and mobile apps, plus an MCP server for ChatGPT, Claude, Muse, Cursor, Grok, Codex and other clients | Chrome extension and mobile app for YouTube | Web app |
+| Platforms | YouTube, Instagram and TikTok | YouTube first, with public Instagram research | YouTube | YouTube |
+| Makes a finished video with you on camera | Yes: remakes a viral talking-head video into a finished MP4 | Its MCP tool list includes clips cut from long videos and AI thumbnails | No: video and thumbnail tools | No: thumbnail search and video ideas |
+| Daily picks matched to your own content pillars | Yes, up to three a day | Daily Ideas for your YouTube channel | Next Video Ideas | Outliers tool with filters |
+| YouTube keyword scores | No dedicated keyword score | Yes | Yes: Keyword Explorer | Not listed |
+| Changes your channel | Never: it does not publish or edit | With your approval it updates titles, descriptions, tags and thumbnails, replies to comments and publishes Instagram Reels | Bulk editing and scheduled publishing | Not listed |
+| Free to start | 100 daily credits for a new account's first 7 days; AI video generation free for a limited time | Free plan with 150 AI credits a month | See its pricing page | Free account; Pro is paid |
 
-Pick TubeBuddy if YouTube keywords and tools that edit your channel are the center of the job. Pick
+Pick vidIQ if YouTube keywords and your own channel's connected analytics are the center of the job.
+Pick TubeBuddy for YouTube keywords and tools that edit your channel. Pick
 Viewstats to browse YouTube outliers and thumbnails. Pick Kabo if you want one partner across YouTube,
 Instagram and TikTok that works in the assistant you already use and can take an idea all the way to
 a finished video. Longer comparisons: [kabo.sh/alternatives](https://kabo.sh/alternatives?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_compare).

@@ -247,22 +247,23 @@ Lo que Kabo no hace:
 
 ## Cómo se compara Kabo
 
-Nosotros hacemos Kabo, así que lee esto como nuestra opinión. Cada celda de TubeBuddy y Viewstats proviene de las
-páginas del propio producto ([tubebuddy.com/pricing](https://www.tubebuddy.com/pricing),
+Nosotros hacemos Kabo, así que lee esto como nuestra opinión. Cada celda de vidIQ, TubeBuddy y Viewstats proviene de las
+páginas del propio producto ([vidiq.com/mcp](https://vidiq.com/mcp/), [vidiq.com/pricing](https://vidiq.com/pricing/), [tubebuddy.com/pricing](https://www.tubebuddy.com/pricing),
 [viewstats.com](https://www.viewstats.com/)), revisadas en noviembre de 2026. Si algo cambió,
 por favor [abre un issue](https://github.com/kabo-sh/kabo-mcp-plugin/issues).
 
-| | Kabo | TubeBuddy | Viewstats |
-| --- | --- | --- | --- |
-| Dónde lo usas | Dentro de Claude, ChatGPT, Grok Bot y Muse, en el navegador y en apps para iPhone y Android | Extensión de Chrome y app móvil para YouTube | App web |
-| Plataformas | YouTube, Instagram y TikTok | YouTube | YouTube |
-| Hace un video terminado contigo frente a la cámara | Sí: convierte un video viral de una persona hablando a cámara en un MP4 terminado | No: herramientas de video y miniaturas | No: búsqueda de miniaturas e ideas de video |
-| Selecciones diarias acordes con tus propios pilares de contenido | Sí, tres al día | Next Video Ideas | Herramienta Outliers con filtros |
-| Puntuaciones de palabras clave de YouTube | Sin puntuación de palabras clave dedicada | Sí: Keyword Explorer | No figura |
-| Cambia tu canal | Nunca: no publica ni edita | Edición masiva y publicación programada | No figura |
-| Gratis para empezar | 100 créditos diarios durante los primeros 7 días de una cuenta nueva; generación de video con IA gratis por tiempo limitado | Consulta su página de precios | Cuenta gratuita; Pro es de pago |
+| | Kabo | vidIQ | TubeBuddy | Viewstats |
+| --- | --- | --- | --- | --- |
+| Dónde lo usas | Dentro de Claude, ChatGPT, Grok Bot y Muse, en el navegador y en apps para iPhone y Android | App web, extensión de navegador y apps móviles, más un servidor MCP para ChatGPT, Claude, Muse, Cursor, Grok, Codex y otros clientes | Extensión de Chrome y app móvil para YouTube | App web |
+| Plataformas | YouTube, Instagram y TikTok | YouTube primero, con investigación pública de Instagram | YouTube | YouTube |
+| Hace un video terminado contigo frente a la cámara | Sí: convierte un video viral de una persona hablando a cámara en un MP4 terminado | Su lista de herramientas MCP incluye clips recortados de videos largos y miniaturas con IA | No: herramientas de video y miniaturas | No: búsqueda de miniaturas e ideas de video |
+| Selecciones diarias acordes con tus propios pilares de contenido | Sí, hasta tres al día | Daily Ideas para tu canal de YouTube | Next Video Ideas | Herramienta Outliers con filtros |
+| Puntuaciones de palabras clave de YouTube | Sin puntuación de palabras clave dedicada | Sí | Sí: Keyword Explorer | No figura |
+| Cambia tu canal | Nunca: no publica ni edita | Con tu aprobación actualiza títulos, descripciones, etiquetas y miniaturas, responde comentarios y publica Reels de Instagram | Edición masiva y publicación programada | No figura |
+| Gratis para empezar | 100 créditos diarios durante los primeros 7 días de una cuenta nueva; generación de video con IA gratis por tiempo limitado | Plan gratuito con 150 créditos de IA al mes | Consulta su página de precios | Cuenta gratuita; Pro es de pago |
 
-Elige TubeBuddy si las palabras clave de YouTube y las herramientas que editan tu canal son el centro del trabajo. Elige
+Elige vidIQ si las palabras clave de YouTube y las analíticas conectadas de tu propio canal son el centro del trabajo.
+Elige TubeBuddy para palabras clave de YouTube y herramientas que editan tu canal. Elige
 Viewstats para explorar videos atípicos (outliers) y miniaturas de YouTube. Elige Kabo si quieres un solo socio para YouTube,
 Instagram y TikTok que funcione en el asistente que ya usas y pueda llevar una idea hasta
 un video terminado. Comparaciones más largas: [kabo.sh/alternatives](https://kabo.sh/alternatives?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_compare).
