@@ -15,8 +15,9 @@ modules, write the plan and write the analysis around the computed facts.
 `KABO_FINAL_REPLY_BEGIN` and `KABO_FINAL_REPLY_END`. That report is the answer: reply from it once,
 in the creator's language, as Markdown text rather than a file path. You may translate or condense
 it, but never tell the creator more than it supports: a conclusion keeps its limits, a number keeps
-its source note (user-supplied numbers stay unverified), a hypothesis stays unconfirmed, and you add
-no cause or claim of your own. Do not narrate artifact writing, validation or call counts. If a step fails, say
+its source note (user-supplied numbers stay unverified), a hypothesis stays unconfirmed, and
+anything beyond the report is marked as your own suggestion. Do not narrate artifact writing,
+validation or call counts. If a step fails, say
 which deliverable is unavailable; never present a draft or an unvalidated file as the result.
 
 When the host supports one, run this Skill in a foreground sub-agent, because a diagnosis takes

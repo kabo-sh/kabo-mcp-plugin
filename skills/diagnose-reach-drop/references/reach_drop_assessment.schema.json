@@ -267,6 +267,9 @@
                             "minItems": 2,
                             "maxItems": 2
                           },
+                          "approximate": {
+                            "type": "boolean"
+                          },
                           "record_ids": {
                             "type": "array",
                             "items": {

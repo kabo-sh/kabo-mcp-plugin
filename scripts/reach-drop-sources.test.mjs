@@ -99,6 +99,39 @@ test("values left on the plan's public source are sent back for their own source
   assert.match(out, /give each question that carries values its own source/);
 });
 
+// 用户只给了整组的约数（"之前大概 60%"）：记一次、标为约数，变化也只是近似。
+const roughShare = {
+  id: "share", kind: "recent_drop", intent: "diagnose", metric: "non_follower_reach_percent", format: "reel",
+  ask: "Did the non-follower share fall?", selection_reason: "The user gave recent shares and a rough earlier figure.",
+  source: { kind: "user_supplied", locator: "creator message" },
+  groups: [{ label: "earlier", values: [60], approximate: true },
+    { label: "recent", values: [35, 30, 28, 33, 31] }],
+};
+
+test("a rough figure for a whole group stays one approximate value", async () => {
+  const { out, assessment, evidence } = await prepare(plan([publicDrop, roughShare]));
+  assert.ok(assessment, out);
+  const fact = assessment.questions[1].facts[0];
+  assert.equal(fact.groups[0].approximate, true);
+  assert.equal(fact.groups[0].n, 1);
+  assert.ok(fact.limits.includes("approximate_supplied_value"));
+  assert.match(evidence, /earlier \(approximate\)/);
+  assert.match(evidence, /rough figure for the whole group/);
+});
+
+test("a rough figure is not repeated per post, and group errors name their group", async () => {
+  const repeated = { ...roughShare, groups: [{ label: "earlier", values: [60, 60, 60], approximate: true },
+    roughShare.groups[1]] };
+  const first = await prepare(plan([publicDrop, repeated]));
+  assert.equal(first.assessment, null);
+  assert.match(first.out, /groups\[0\]: an approximate group is one rough figure/);
+  const misplaced = { ...roughShare, groups: [roughShare.groups[1],
+    { label: "later", values: [20], source: { kind: "user_supplied", locator: "creator message" } }] };
+  const second = await prepare(plan([publicDrop, misplaced]));
+  assert.equal(second.assessment, null);
+  assert.match(second.out, /groups\[1\]: unknown fields: \['source'\]/);
+});
+
 test("one comparison never mixes sources", () => {
   // 计划层面跨问题引用就会被拦；这里直接喂给比较函数，确认它自己也不跨来源比。
   const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1" };

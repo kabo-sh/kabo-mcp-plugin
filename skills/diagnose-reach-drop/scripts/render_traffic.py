@@ -14,6 +14,7 @@ LIMITS = {
     "missing_requested_metric": "Some requested measurements are missing, not zero or another metric.",
     "missing_same_format_comparator": "Some formats lack a usable comparator.",
     "single_observation_not_repeatability_evidence": "A single observation does not establish repeatability.",
+    "approximate_supplied_value": "A group's value is a rough figure for the whole group, not per-post measurements; any change from it is approximate.",
     "no_comparison_group": "One group only: these values are observations, not a comparison.",
     "different_observation_ages": "The known observation ages differ; those records have age information, but the cumulative-count difference is not an age-matched performance change.",
     "unknown_observation_ages": "Some observation ages are unknown; age matching is unverified.",
@@ -92,7 +93,8 @@ def snapshot_context(value, _language=None):
 
 def group_label(group):
     dates = group["publication_range"]
-    return f"{dates[0][:10]} → {dates[1][:10]}" if dates else group["label"]
+    label = f"{dates[0][:10]} → {dates[1][:10]}" if dates else group["label"]
+    return label + (" (approximate)" if group.get("approximate") else "")
 
 
 def coverage_gaps(value: dict) -> list[str]:

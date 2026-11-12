@@ -25,6 +25,8 @@ Each supplied group has `label` and `values`. Optional aligned arrays: `content_
 `published_at`, `observed_at`, `published_on`, `observed_on`, `post_age_hours`.
 Question-level `post_age_hours` applies only when all records have that stated age.
 Group-level `post_age_hours` may also be one stated age applying to every row in that group.
+A rough figure the user gives for a whole group ("around 60% before") is that group's single value
+with `approximate: true`, never repeated once per post.
 
 AccountAnalysis groups use `record_ids` or `select`, never both. A selector filters by optional
 `format`, `published_from` (inclusive), `published_before` (exclusive; a bare date is UTC midnight), then sorts oldest first

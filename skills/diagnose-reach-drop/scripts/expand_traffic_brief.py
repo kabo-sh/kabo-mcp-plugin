@@ -192,43 +192,58 @@ def add_performance(case: dict, question: dict, result: dict, source_id: str) ->
         finite(common_age)
     case.setdefault("performance", [])
     for group_index, group in enumerate(groups, 1):
-        allowed_group = {
-            "label", "values", "content_ids", "date_labels", "published_at", "observed_at",
-            "published_on", "observed_on", "post_age_hours",
+        try:
+            add_value_group(case, result, group, group_index, metric, format_, common_age, source_id)
+        except ValueError as error:
+            raise ValueError(f"groups[{group_index - 1}]: {error}") from None
+
+
+def add_value_group(case: dict, result: dict, group: dict, group_index: int, metric: str, format_: str,
+                    common_age: Any, source_id: str) -> None:
+    allowed_group = {
+        "label", "values", "content_ids", "date_labels", "published_at", "observed_at",
+        "published_on", "observed_on", "post_age_hours", "approximate",
+    }
+    fields(group, {"label", "values"}, allowed_group - {"label", "values"})
+    size = group_size(group, ("values",))
+    # 用户对整组给的约数（如"之前大概 60%"）只记一次，不能拆成逐条的精确值。
+    approximate = group.get("approximate", False)
+    require(isinstance(approximate, bool), "brief group approximate must be true or false")
+    require(not approximate or size == 1,
+            "an approximate group is one rough figure for the whole group: give it once in values")
+    values = aligned(group, "values", size, optional=False)
+    content_ids = aligned(group, "content_ids", size)
+    age = group.get("post_age_hours")
+    if age is not None and not isinstance(age, list):
+        group = {**group, "post_age_hours": [finite(age)] * size}
+    dates = {key: aligned(group, key, size) for key in (
+        "date_labels", "published_at", "observed_at", "published_on", "observed_on", "post_age_hours"
+    )}
+    refs = []
+    for row_index, value in enumerate(values, 1):
+        row_id = f"{result['id']}-g{group_index}-r{row_index}"
+        content_id = content_ids[row_index - 1] if content_ids else row_id
+        row = {
+            "id": row_id,
+            "source_ref": source_id,
+            "content_id": text(content_id),
+            "format": format_,
+            "metrics": {metric: finite(value, allow_none=True)},
         }
-        fields(group, {"label", "values"}, allowed_group - {"label", "values"})
-        size = group_size(group, ("values",))
-        values = aligned(group, "values", size, optional=False)
-        content_ids = aligned(group, "content_ids", size)
-        age = group.get("post_age_hours")
-        if age is not None and not isinstance(age, list):
-            group = {**group, "post_age_hours": [finite(age)] * size}
-        dates = {key: aligned(group, key, size) for key in (
-            "date_labels", "published_at", "observed_at", "published_on", "observed_on", "post_age_hours"
-        )}
-        refs = []
-        for row_index, value in enumerate(values, 1):
-            row_id = f"{result['id']}-g{group_index}-r{row_index}"
-            content_id = content_ids[row_index - 1] if content_ids else row_id
-            row = {
-                "id": row_id,
-                "source_ref": source_id,
-                "content_id": text(content_id),
-                "format": format_,
-                "metrics": {metric: finite(value, allow_none=True)},
-            }
-            if common_age is not None:
-                row["post_age_hours"] = common_age
-            for key, entries in dates.items():
-                if entries is not None:
-                    target_key = "date_label" if key == "date_labels" else key
-                    if key == "post_age_hours" and common_age is not None:
-                        require(entries[row_index - 1] == common_age,
-                                "group post age conflicts with the common post age")
-                    row[target_key] = entries[row_index - 1]
-            case["performance"].append(row)
-            refs.append(row_id)
-        result["groups"].append({"label": text(group["label"]), "record_ids": refs})
+        if approximate:
+            row["approximate"] = True
+        if common_age is not None:
+            row["post_age_hours"] = common_age
+        for key, entries in dates.items():
+            if entries is not None:
+                target_key = "date_label" if key == "date_labels" else key
+                if key == "post_age_hours" and common_age is not None:
+                    require(entries[row_index - 1] == common_age,
+                            "group post age conflicts with the common post age")
+                row[target_key] = entries[row_index - 1]
+        case["performance"].append(row)
+        refs.append(row_id)
+    result["groups"].append({"label": text(group["label"]), "record_ids": refs})
 
 
 def add_period_totals(case: dict, question: dict, result: dict, source_id: str) -> None:

@@ -154,7 +154,9 @@ def validate_case(case: dict) -> None:
             common = {"id", "source_ref"}
             if module == "performance":
                 fields(row, common | {"content_id", "format", "metrics"},
-                       {"url", "date_label", "published_at", "observed_at", "published_on", "observed_on", "post_age_hours"})
+                       {"url", "date_label", "published_at", "observed_at", "published_on", "observed_on", "post_age_hours",
+                        "approximate"})
+                require(row.get("approximate", True) is True, "approximate marks a rough figure: true or omitted")
                 if "date_label" in row:
                     text(row["date_label"])
                 for stem in ("published", "observed"):
@@ -404,6 +406,8 @@ def performance(q: dict, groups: list) -> tuple[list, list, list]:
                     local_limits.append("missing_requested_metric")
                     continue
                 values.append(number(value))
+                if row.get("approximate"):
+                    local_limits.append("approximate_supplied_value")
                 if age is not None:
                     cohort_ages.append(age)
                     aged.append((age, number(value)))
@@ -419,6 +423,7 @@ def performance(q: dict, groups: list) -> tuple[list, list, list]:
                               "sample_sum": sum(values) if values else None,
                               "age_hours": {"min": min(cohort_ages), "max": max(cohort_ages)} if cohort_ages else None,
                               "publication_range": publication_range,
+                              "approximate": any(r.get("approximate") for r in cohort if r["id"] in accepted),
                               "record_ids": accepted})
             if "target" in q:
                 target = q["target"]
