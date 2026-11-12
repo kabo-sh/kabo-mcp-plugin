@@ -1,7 +1,13 @@
 # Kabo plugin repository
 
-- Write commit messages, PR titles and PR descriptions in English. Code comments stay in Chinese.
-  Maintainer documentation in `docs/`, plugin metadata and user-facing content are in English.
+- Everything in this public repository is written in English: commit messages, PR titles and PR descriptions,
+  code comments, docstrings, test names, `CHANGELOG.md`, release notes, maintainer documentation in `docs/`,
+  plugin metadata and user-facing content. `docs/i18n/` holds the localized README translations and is the
+  only directory where prose in another language is allowed. Outside it, non-English text may appear only as
+  data: localized report strings, patterns that match non-English user input or platform content, and test
+  fixtures that exercise them. `scripts/repo-rules.test.mjs` enforces this; a file that needs such data must be
+  listed in its allowlist, and its comments, docstrings and messages stay in English (a comment may quote the
+  literal token it is about).
 - The repository root is the plugin root. Maintain one `skills/` directory, one `kabo` entry and one
   build entry point. Codex, Claude Code and Cursor add only host metadata; do not copy business content
   or remove features for a particular host.
