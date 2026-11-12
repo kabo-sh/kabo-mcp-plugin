@@ -265,7 +265,8 @@ go-ahead. After it, preview the stills once (narration.md), then build the argum
 `--talking-model` / `--models-from` and render as below.
 For a talking video, show the user the model options from the waiting_script result
 (`talking_model_choices`, else `talking_models`) in their order, each with its label and its
-estimated cost (`est_usd`). Do not add a recommendation of your own, drop options or change the
+estimated cost (`est_usd`). Each `est_usd` is the whole video's estimated total, rounded up; say
+the final charge is usually a little lower. Do not add a recommendation of your own, drop options or change the
 order. Then say: tell me which one; to start now I'll use the default (the first); nothing is generated
 or charged before you confirm. Do not ask for a number or "OK". Unless the user already named a
 listed model, end your reply there and wait (the job waits; resume here in the same run

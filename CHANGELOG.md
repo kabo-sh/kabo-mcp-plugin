@@ -2,6 +2,10 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.45 (2026-11-12; GitHub Release)
+
+- `remake-viral-video`: when the talking models are listed, each `est_usd` is described as the whole video's estimated total, rounded up, with the final charge usually a little lower. Pairs with kabo#2194, which changed the estimate from "talking video + a fixed $0.28" to a total counted from the first-frame job list (kabo#2166: estimated $0.49, charged $1.25-1.30).
+
 ## 1.0.44 (2026-11-12; GitHub Release)
 
 - After the plugin is installed in Claude Code, it now offers onboarding on its own initiative: the host has no "after install" event, so
