@@ -2,6 +2,18 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.42（2026-11-12；GitHub Release）
+
+- `analyze-content-video` 接受抖音、小红书（含 RedNote）、快手、Facebook、Bilibili 的单视频链接，分析方法、打分与报告不变。
+  接受哪些平台只看支持清单 `public-video-sources.v1`：kabo 生成正式文件，在那之前按共享规格手写一份钉在
+  `contracts/public-video-sources.v1.json`，Skill 的 `references/` 下放逐字相同的副本（单独安装与 Web 打包都带着它）。
+  `prepare_link_request`、`prepare_video_hook`、证据构建、分析合成、测量依据行与 `collect_media` 的平台、编号前缀（dy / xhs / ks / fb / bili）、
+  链接取 id 与公开计数都读这份清单；三个 schema 的平台枚举同步列出八个平台。
+- 十五个短视频开场模式对清单里的任一平台都给同一组：`applicability.platforms` 记的是样本来源，不是适用范围；`knowledge.json` 不改，
+  原有三个平台拿到的结果逐字相同。
+- 平台不公开的计数（抖音、小红书的播放数）即使元数据里写着 0 也不收，证据里记成「不可用，不是 0」。新平台的本人基线不可用。
+- 依赖 kabo 后端为这五个平台接通 `collect_video_media`（元数据、抽帧、测量、转写）。验收：仅本地单测；真实宿主与 Pre/生产验收待后端上线后进行。
+
 ## 1.0.41（2026-11-12；GitHub Release）
 
 - `remake-viral-video` 支持用户给的**本地**视频与照片（mp4/mov/m4v/webm ≤200 MB、JPEG/PNG ≤10 MB）：`upload-call` 生成
