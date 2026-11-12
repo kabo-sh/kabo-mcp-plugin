@@ -7,8 +7,8 @@ needed by each host. The AI host runs the workflows and writes
 reports; Kabo provides the data tools. The plugin does not hand work to Kabo's web agent, download
 Skills at runtime, or register lifecycle hooks.
 
-The current GitHub package release is [**1.0.39**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.39),
-packaged as `kabo-1.0.39.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
+The current GitHub package release is [**1.0.40**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.40),
+packaged as `kabo-1.0.40.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
 implementation. Earlier version history and source Skill versions remain separate. OpenAI marketplace
 review and production acceptance remain separate from this GitHub release.
 
@@ -103,7 +103,7 @@ for `-g`. The repository's `skills.lock.json` is a separate record of the origin
 
 - `#stable` follows published releases. It advances only after a release; installed files stay as
   they are until you run an installation or update command.
-- `#v1.0.39` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
+- `#v1.0.40` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
 - Without a ref, the CLI follows `main`, which includes unreleased changes.
 
 See [GitHub Releases](https://github.com/kabo-sh/kabo-mcp-plugin/releases) for new versions and release
@@ -296,8 +296,8 @@ content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor resear
 diagnosis, publish-timing recommendations, platform monetization plans, official platform rule checks,
 brand identity options and media kits, content calendars, brand-deal pricing, and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 10 minutes or less
 (talking videos may cut to screen recordings or show a product) with the creator in it. Three more form a daily routine
-for a creator: `start-with-kabo` (first session: link one public account, have Kabo build the creator's profile and confirm the
-niche and content pillars it found, give today's picks, offer three daily jobs), `pick-daily-viral-videos` (three picks a day
+for a creator: `start-with-kabo` (first session: link one public account, read its posts, propose content pillars for the
+creator to confirm and save them to Kabo, give today's picks, offer three daily jobs), `pick-daily-viral-videos` (three picks a day
 from Kabo's daily "for you" list, never repeated) and `review-new-posts` (a 24-hour review of each new post plus a daily
 account recap). See
 [skills.lock.json](skills.lock.json) for exact IDs and source versions. All hosts use the
@@ -311,11 +311,15 @@ Current release acceptance focuses on short-window content-language checks and u
 creator-skills; their cross-host acceptance is pending.
 
 `start-with-kabo`, `pick-daily-viral-videos` and `review-new-posts` keep their state in the workspace
-(`kabo-library/<platform>-<handle>/`) through a shared `creator_library.py`; the three copies are identical. The
-creator's profile (niche and content pillars) and the daily picks come only from Kabo: `prepare_creator_profile` and
-`get_creator_profile` for the profile, `get_for_you_videos` for the picks. The Skills do not derive pillars or search for
-picks themselves; `pick-daily-viral-videos` only chooses which three of Kabo's videos to show each day and remembers
-which were shown. `review-new-posts` builds its own library from the account's public posts on its first run. The
+(`kabo-library/<platform>-<handle>/`) through a shared `creator_library.py`; the three copies are identical. In the
+first session the assistant proposes 2 to 4 content pillars from the account's posts, the creator confirms or changes
+them, and the whole set is saved to Kabo once (`update_content_preferences` with `declare_pillars`). From then on Kabo
+holds the pillars (read back with `get_creator_profile` and `pillars: true`) and uses them for the daily picks; the
+local library is only a copy. If the save fails, the pillars stay on this computer and are saved the next time the
+Skill can. Kabo's own statistics (signature content) are shown only as a reference. The daily picks come only from
+`get_for_you_videos`; `pick-daily-viral-videos` only chooses which three of Kabo's videos to show each day and
+remembers which were shown. `review-new-posts` refreshes the pillars from Kabo on every run, and builds its own
+library when none exists. The
 Skills are written to run unattended from a host's own scheduled tasks and never post, comment or message anyone.
 Host-specific scheduling notes live in `skills/start-with-kabo/references/host-schedules.md`.
 

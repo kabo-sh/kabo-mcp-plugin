@@ -2,6 +2,36 @@
 
 版本号以 `plugin.json` 为准；`.claude-plugin/plugin.json`、`package.json` 与 `package-lock.json` 的根包版本与之同步。
 
+## 1.0.40（2026-11-12；GitHub Release）
+
+- `start-with-kabo` 恢复本地提议支柱，创作者确认后**整份同步到 Kabo 一次**，Kabo 成为支柱的唯一存放处：
+  - 流程：开场 → 绑定前问一次 → 绑定 → 顺手调一次 `prepare_creator_profile`（不等它，只让 Kabo 也开始生成画像；缺写权限、要赛道
+    时照原有处理）→ `collect_account_history` 读作品 → `collect_video_media` 读最多 8 条转写 → 助手提议 2–4 个支柱
+    （`propose-pillars`）→ 若 `get_creator_profile`（带 `pillars: true`）里已有 Kabo 的主打内容，作为「What your numbers show…」
+    参考一并展示 → 创作者确认（`save-pillars`）→ `update_content_preferences` 的 `declare_pillars` 一次（`declare-request` 生成入参，
+    `record-sync` 记结果）→ 今日推荐 → 定时任务 → 四行收尾。
+  - 支柱形状与后台一致：`name`（1–60 字）、`definition`（1–200 字）、`search_phrases`（1–3 条、每条 1–60 字），最多 4 个、名称忽略
+    大小写不重复；脚本先按这些规则预检，超限让助手改短。原来写死的「中位播放 ≥ 0.8 倍、第二支柱 ≥ 20%」只作参考数字（各组条数、
+    中位播放、占比），脚本不再裁定推荐与否，也不说成 Kabo 的统计结论。
+  - 同步：先读 `get_creator_profile` 取 `preferences.version`（没有就 0），整份替换；版本冲突重读后重试一次；其他失败（缺写权限、
+    宿主或 Kabo 不认这个 action、网络）如实告诉创作者「支柱暂时只保存在这台电脑上」，本地库标记未同步；下次运行 `start-with-kabo`，
+    或创作者手动运行 `review-new-posts` 时能写就补同步一次（定时运行不写）。
+- `review-new-posts` 刷新支柱时读 `get_creator_profile` 带 `pillars: true`，来源优先级：创作者声明的支柱（`declaredPillars` 非空）→
+  Kabo 的主打内容 → 没有。声明的支柱没有 id，按名称（忽略大小写）对齐，改了名的作品置未归类；本地还有未同步的支柱时不被后台结果
+  清掉。不留文件的宿主建库时按同一优先级。
+- 三个 Skill 对创作者只说日常语言：不念工具名、字段名、状态码、失败码、Skill id、文件路径；脚本里会被转述的文案（开场、等待与
+  失败提示、同步结果、复盘与回顾的 limits、推荐的结束语）全部改写，失败码只留在给助手的字段里。SKILL.md 的 Ground rules 加了
+  「内部词 → 对创作者的说法」对照表，下一步建议写成动作（Break it down / Write my version / Remake it with me in it / review it after
+  24 hours），Skill id 只留给助手。测试扫描脚本固定文案、各分支实际输出与 SKILL.md 的引号例句，不得出现禁用词。
+- `start-with-kabo` 重新带上 `build_public_snapshot.py`（与账号复盘的副本相同）与取数白名单（`collect_account_history`、
+  `collect_video_media`），`allowed-tools` 加回 `collect_account_history`、`collect_video_media`、`get_research_data_download`、
+  `get_research_data_job`；`review-new-posts` 加 `update_content_preferences`（只用于手动运行时补同步）。`pick-daily-viral-videos`
+  不变（只取 `get_for_you_videos`，相对门槛仍是本窗榜首的 10%）。
+- 依赖 kabo#2185（`declare_pillars` 与 `get_creator_profile` 的 `pillars` 入参 / `declaredPillars` 出参）。`contracts/directory-mcp/`
+  按 `pin.json` 的命令在 kabo `dd614f5` 重新钉住（`tools-list.json` 与后台 golden 逐字节相同；`annotations.md`、
+  `data-tool-bindings.json` 不变），入参与长度上限与脚本的预检一致。
+- 验收：只有离线测试（构造数据）；本地提议与同步流程尚未在真实宿主里跑过。
+
 ## 1.0.39（2026-11-12；GitHub Release）
 
 - `start-with-kabo` 确认支柱时补回赛道那一行：`creator_library.py` 读赛道时先读 `get_creator_profile` 结果顶层的 `niche`
