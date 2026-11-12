@@ -209,7 +209,7 @@ def market_tokens(plan: dict[str, Any]) -> list[str]:
 
 
 def carries_market_token(query: str, declared: set[str]) -> bool:
-    """A declared word counts as a whole word, or inside an unspaced CJK term (`日本料理`)."""
+    """A declared word counts as a whole word, or inside an unspaced CJK term (`日本料理`, "Japanese cuisine")."""
     for term in query.split():
         folded = term.casefold()
         if {token.casefold() for token in _tokens(folded)} & declared:

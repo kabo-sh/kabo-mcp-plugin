@@ -1,6 +1,10 @@
-// diagnose-reach-drop 的近期掉量对比：一次公开快照里早发的帖子总是更“老”，累计值天然偏向前期。
-// 近期更年轻却不低于前期，就直接说没有下降；近期更低时不设固定成熟天数，只给出发布时长差，
-// 由书面分析结合用户问题推测。夹具是中性的合成账号数据。
+// Recent reach-drop comparison in diagnose-reach-drop: in a single public snapshot, earlier posts are always
+//   "older", so cumulative values naturally lean toward the earlier period.
+// If the recent period is younger yet not lower than the earlier one, say plainly that there is no drop; when
+//   the recent period is lower, no fixed maturity in days is set, only the difference in time since
+//   publication is given,
+// and the written analysis infers from it in light of the user's question. The fixture is a neutral synthetic
+//   account's data.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";

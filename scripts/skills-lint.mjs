@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Kabo Skills 规范校验，规则编号与 docs/skills-spec.md 一一对应。
-// 只读本仓工作区：规范只管插件 skills/，不读 creator-skills 或 registry。
+// Kabo Skills spec validation, with rule numbers matching docs/skills-spec.md one to one.
+// Reads only this repo's working tree: the spec governs only the plugin's skills/, and does not read
+//   creator-skills or the registry.
 import { readFileSync, readdirSync, lstatSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,11 +11,13 @@ import { parseDocument } from "yaml";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
-// 与 skills-ref 0.1.1（agentskills validate）一致；不依赖 Python，CI 只需 Node。
+// Consistent with skills-ref 0.1.1 (agentskills validate); no Python dependency, CI needs only Node.
 const allowedFields = new Set(["name", "description", "license", "compatibility", "metadata", "allowed-tools"]);
-// 白名单而非黑名单：「禁止商业用途」拦不住 AGPL（允许商用但有网络传染条款）。
+// An allowlist rather than a denylist: "no commercial use" would not catch AGPL (which allows commercial use
+//   but has network copyleft terms).
 export const licenseAllowlist = new Set(["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "0BSD", "CC0-1.0", "CC-BY-4.0"]);
-// 字符而非 token：分词器因模型而异，用 token 计量本身就绑定了模型（原则 1）。
+// Characters rather than tokens: tokenizers differ by model, so measuring in tokens would itself bind to a
+//   model (principle 1).
 const maxLines = 500;
 const maxBodyChars = 21_000;
 const maxChars = 20_000;
@@ -22,18 +25,20 @@ const descriptionWarnChars = 500;
 const hostPrivate = [
   [/kabo-run-pipeline/, "kabo-run-pipeline"],
   [/\bCLAUDE_PLUGIN_ROOT\b|\bPLUGIN_ROOT\b/, "PLUGIN_ROOT"],
-  [/\bmcp__[A-Za-z0-9_-]+/, "宿主命名空间工具名 mcp__*"],
+  [/\bmcp__[A-Za-z0-9_-]+/, "host-namespaced tool name mcp__*"],
 ];
-// 宿主会话记录与内部状态：宿主刻意对命令面隐藏 CODEX_HOME，脚本不得绕过。
+// Host session records and internal state: the host deliberately hides CODEX_HOME from the command surface,
+//   and scripts must not bypass that.
 const hostState = /\bCODEX_HOME\b|\.codex\/(?:sessions|state)|rollout-[^"'\s]*\.jsonl|\.claude\/projects|@kabo\/desktop|skill-cache/;
 const networkUse = /^\s*(?:import|from)\s+(?:urllib\.request|requests|httpx|aiohttp|http\.client|socket)\b|\burlopen\(|\b(?:curl|wget)\b/m;
 const installUse = /\b(?:pip3?|npm|pnpm|apt-get|apt|brew)\s+install\b/;
-// 许可证文件能认出是白名单许可证才算通过；认不出的交给人工，不默认放行。
+// A license file passes only if it can be recognized as an allowlisted license; unrecognized ones go to a
+//   human and are not allowed by default.
 const allowedLicenseText = /\bMIT License\b|Permission is hereby granted, free of charge|Apache License,? Version 2\.0|Redistribution and use in source and binary forms|ISC License|CC0 1\.0|Creative Commons Attribution 4\.0/i;
 const restrictiveLicense = /\b(?:A|L)?GPL(?:-?v?\d)?\b|GNU (?:Affero |Lesser )?General Public License|NonCommercial|\bCC[ -]BY(?:-SA)?-NC\b/i;
-// 按内容判定文本，不按扩展名：.rst 之类的说明文件同样会被模型读到。
+// Decide text by content, not by extension: description files such as .rst are read by the model too.
 const textFile = bytes => !bytes.includes(0) && decode(bytes) !== null;
-// 结构化数据（契约、样本）里的工具名不代表依赖，工具依赖只从说明性文本统计。
+// Tool names inside structured data (contracts, samples) do not count as dependencies; tool dependencies are counted only from descriptive text.
 const dataFile = name => /\.(?:json|jsonl|ya?ml|csv|toml)$/i.test(name);
 const spdxIds = expression => {
   const ids = [];
@@ -62,26 +67,26 @@ function decode(bytes) {
   try { return decoder.decode(bytes); } catch { return null; }
 }
 
-/** 校验一个 skill 目录。files 的键是相对 skill 根的 posix 路径。 */
+/** Validate one skill directory. Keys of files are posix paths relative to the skill root. */
 export function lintSkill(id, files, { toolNames, skillIds, toolScopes = new Map() }) {
   const findings = [];
   const add = (rule, level, file, message) => findings.push({ rule, level, file, message });
   const entry = files.get("SKILL.md");
   if (!entry) {
-    add("KS1.1", "error", "SKILL.md", "缺少 SKILL.md。");
+    add("KS1.1", "error", "SKILL.md", "Missing SKILL.md.");
     return findings;
   }
   const text = decode(entry) ?? "";
   const front = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
   let meta = {};
   let parsed = false;
-  if (!front) add("KS1.1", "error", "SKILL.md", "缺少 YAML frontmatter。");
+  if (!front) add("KS1.1", "error", "SKILL.md", "Missing YAML frontmatter.");
   else {
     const doc = parseDocument(front[1], { uniqueKeys: true });
-    if (doc.errors.length) add("KS1.1", "error", "SKILL.md", `frontmatter 不是合法 YAML：${doc.errors[0].message.split("\n")[0]}`);
+    if (doc.errors.length) add("KS1.1", "error", "SKILL.md", `frontmatter is not valid YAML: ${doc.errors[0].message.split("\n")[0]}`);
     else {
       const value = doc.toJS();
-      if (value === null || typeof value !== "object" || Array.isArray(value)) add("KS1.1", "error", "SKILL.md", "frontmatter 必须是 YAML 映射。");
+      if (value === null || typeof value !== "object" || Array.isArray(value)) add("KS1.1", "error", "SKILL.md", "frontmatter must be a YAML mapping.");
       else {
         meta = value;
         parsed = true;
@@ -90,85 +95,85 @@ export function lintSkill(id, files, { toolNames, skillIds, toolScopes = new Map
   }
   const body = front ? text.slice(front[0].length) : text;
 
-  // KS1：与开放规范一致。frontmatter 解析失败时只报那一条，避免连带出一串字段缺失。
+  // KS1: matches the open spec. When frontmatter parsing fails, report only that one error to avoid a cascade of missing-field errors.
   if (parsed) {
     const extra = Object.keys(meta).filter(key => !allowedFields.has(key));
-    if (extra.length) add("KS1.3", "error", "SKILL.md", `frontmatter 含规范外字段：${extra.join(", ")}。`);
+    if (extra.length) add("KS1.3", "error", "SKILL.md", `frontmatter has fields outside the spec: ${extra.join(", ")}.`);
     const name = typeof meta.name === "string" ? meta.name.normalize("NFKC").trim() : "";
     if (!name || name.length > 64 || name !== name.toLowerCase() || /^-|-$|--/.test(name) || !/^[\p{L}\p{N}-]+$/u.test(name) || name !== id)
-      add("KS1.1", "error", "SKILL.md", `name 必须是不超过 64 字符的小写字母、数字、连字符，且与目录名 ${id} 一致。`);
+      add("KS1.1", "error", "SKILL.md", `name must be at most 64 characters of lowercase letters, digits, and hyphens, and match the directory name ${id}.`);
     const description = typeof meta.description === "string" ? meta.description : "";
-    if (!description.trim()) add("KS1.2", "error", "SKILL.md", "description 不能为空。");
-    else if (description.length > 1024) add("KS1.2", "error", "SKILL.md", `description ${description.length} 字符，超过 1024。`);
-    else if (description.length > descriptionWarnChars) add("KS1.2", "warn", "SKILL.md", `description ${description.length} 字符，超过 ${descriptionWarnChars}，Codex 列表预算不足时会先被缩短。`);
+    if (!description.trim()) add("KS1.2", "error", "SKILL.md", "description must not be empty.");
+    else if (description.length > 1024) add("KS1.2", "error", "SKILL.md", `description is ${description.length} characters, over 1024.`);
+    else if (description.length > descriptionWarnChars) add("KS1.2", "warn", "SKILL.md", `description is ${description.length} characters, over ${descriptionWarnChars}; it is shortened first when the Codex list budget runs short.`);
     if ("compatibility" in meta && (typeof meta.compatibility !== "string" || meta.compatibility.length > 500))
-      add("KS1.4", "error", "SKILL.md", "compatibility 必须是不超过 500 字符的字符串。");
+      add("KS1.4", "error", "SKILL.md", "compatibility must be a string of at most 500 characters.");
     if ("metadata" in meta && (meta.metadata === null || typeof meta.metadata !== "object" || Array.isArray(meta.metadata) || Object.values(meta.metadata).some(v => typeof v !== "string")))
-      add("KS1.4", "error", "SKILL.md", "metadata 必须是字符串到字符串的映射。");
+      add("KS1.4", "error", "SKILL.md", "metadata must be a string-to-string mapping.");
   }
 
-  // KS2：运行依赖只有 /mcp-pub 工具
+  // KS2: the only runtime dependencies are /mcp-pub tools
   const readable = [...files].filter(([file, bytes]) => file === "SKILL.md" || (file.startsWith("references/") && textFile(bytes))).map(([file, bytes]) => [file, decode(bytes) ?? ""]);
-  // mcp-bindings.json 这类契约会列出全部工具，不能算作依赖。
+  // A contract such as mcp-bindings.json lists every tool, so it cannot count as a dependency.
   const instructions = readable.filter(([file]) => !dataFile(file));
   for (const [file, content] of readable)
     for (const [pattern, label] of hostPrivate)
-      if (pattern.test(content)) add("KS2.1", "error", file, `出现宿主私有运行时：${label}。`);
+      if (pattern.test(content)) add("KS2.1", "error", file, `Host-private runtime found: ${label}.`);
   let declared = new Set();
   if ("allowed-tools" in meta) {
-    if (typeof meta["allowed-tools"] !== "string") add("KS2.2", "error", "SKILL.md", "allowed-tools 必须是空格分隔的字符串。");
+    if (typeof meta["allowed-tools"] !== "string") add("KS2.2", "error", "SKILL.md", "allowed-tools must be a space-separated string.");
     else declared = new Set(meta["allowed-tools"].split(/\s+/).filter(Boolean));
     for (const tool of declared) {
-      if (!toolNames.has(tool)) add("KS2.2", "error", "SKILL.md", `allowed-tools 中的 ${tool} 不在 /mcp-pub 工具清单中。`);
+      if (!toolNames.has(tool)) add("KS2.2", "error", "SKILL.md", `${tool} in allowed-tools is not in the /mcp-pub tool list.`);
     }
   }
   const used = new Set();
   for (const [, content] of instructions)
     for (const tool of toolNames) if (new RegExp(`\\b${tool}\\b`).test(content)) used.add(tool);
   const undeclared = [...used].filter(tool => !declared.has(tool)).sort();
-  if (undeclared.length) add("KS2.2", "error", "SKILL.md", `正文用到但未在 allowed-tools 声明的工具：${undeclared.join(", ")}。`);
+  if (undeclared.length) add("KS2.2", "error", "SKILL.md", `Tools used in the body but not declared in allowed-tools: ${undeclared.join(", ")}.`);
   const hasScripts = [...files.keys()].some(file => file.startsWith("scripts/"));
-  if (hasScripts && !meta.compatibility) add("KS2.3", "warn", "SKILL.md", "带 scripts/ 但未在 compatibility 声明运行前提（如 Python 3 与文件读写）。");
-  // Kabo 权限按 allowed-tools 的工具反推：宿主授权的是连接而非 skill，用户只能从这里看出每个 skill 要哪项。
+  if (hasScripts && !meta.compatibility) add("KS2.3", "warn", "SKILL.md", "Has scripts/ but compatibility does not declare the runtime prerequisites (e.g. Python 3 and file read/write).");
+  // Kabo permissions are inferred from the tools in allowed-tools: the host grants a connection, not a skill, so this is the only place a user can see which permission each skill needs.
   const compatibility = typeof meta.compatibility === "string" ? meta.compatibility : "";
   const permissionText = [...compatibility.matchAll(/Kabo permissions?\b[^.]*\./g)].map(match => match[0]).join(" ");
   const scopes = [...new Set([...declared].flatMap(tool => toolScopes.get(tool) ?? []))].sort();
   const unlisted = scopes.filter(scope => !new RegExp(`(?:^|[\\s,;:])${scope}(?=[\\s,;.]|$)`).test(permissionText));
-  if (unlisted.length) add("KS2.3", "warn", "SKILL.md", `compatibility 未用「Kabo permission: …」写明 allowed-tools 需要的权限：${unlisted.join(", ")}。`);
+  if (unlisted.length) add("KS2.3", "warn", "SKILL.md", `compatibility does not state the permissions required by allowed-tools using "Kabo permission: ...": ${unlisted.join(", ")}.`);
   const fetches = [...files].some(([file, bytes]) => file.startsWith("scripts/") && textFile(bytes) && networkUse.test(decode(bytes) ?? ""));
   if (fetches && !compatibility.includes("storage.googleapis.com"))
-    add("KS2.3", "warn", "SKILL.md", "scripts/ 会联网下载，compatibility 未写明需要访问 storage.googleapis.com。");
-  if (/[㐀-鿿]/.test(body)) add("KS2.5", "warn", "SKILL.md", "正文含中文字符；skill 内容一律英文。");
+    add("KS2.3", "warn", "SKILL.md", "scripts/ download over the network, but compatibility does not state that access to storage.googleapis.com is required.");
+  if (/[\u3400-\u9fff]/.test(body)) add("KS2.5", "warn", "SKILL.md", "Body contains Chinese characters; skill content must be English.");
 
-  // KS3：长度
+  // KS3: length
   const measure = (file, content) => {
     const lines = content.split("\n").length;
     const limit = file === "SKILL.md" ? maxBodyChars : maxChars;
     if (lines > maxLines || content.length > limit)
-      add(file === "SKILL.md" ? "KS3.1" : "KS3.2", "error", file, `${lines} 行、${content.length} 字符，上限 ${maxLines} 行、${limit} 字符；${file === "SKILL.md" ? "超出部分移到 references/" : "拆成可按需读取的小文件"}。`);
+      add(file === "SKILL.md" ? "KS3.1" : "KS3.2", "error", file, `${lines} lines, ${content.length} characters; limit is ${maxLines} lines, ${limit} characters; ${file === "SKILL.md" ? "move the excess to references/" : "split into small files that can be read on demand"}.`);
   };
   measure("SKILL.md", body);
   for (const [file, bytes] of files)
     if (file.startsWith("references/") && textFile(bytes) && !file.endsWith(".schema.json")) measure(file, decode(bytes) ?? "");
 
-  // KS4：不嵌套
+  // KS4: no nesting
   for (const file of files.keys())
-    if (file !== "SKILL.md" && path.posix.basename(file) === "SKILL.md") add("KS4.1", "error", file, "skill 内含嵌套的 SKILL.md。");
+    if (file !== "SKILL.md" && path.posix.basename(file) === "SKILL.md") add("KS4.1", "error", file, "Skill contains a nested SKILL.md.");
   const others = [...skillIds].filter(other => other !== id);
   for (const [file, bytes] of files) {
     if (!textFile(bytes)) continue;
     const content = decode(bytes) ?? "";
     for (const other of others) {
       const pathRef = new RegExp(`(?:skills/|\\.\\./)${other}/|\\b${other}/(?:scripts|references|assets|SKILL\\.md)`);
-      if (pathRef.test(content)) add("KS4.2", "error", file, `读取或调用另一个 skill：${other}。`);
-      // 共享脚本会按 skill 名分支（如按平台取值），字面量本身不等于嵌套，交给人工判断。
+      if (pathRef.test(content)) add("KS4.2", "error", file, `Reads or calls another skill: ${other}.`);
+      // Shared scripts branch on the skill name (e.g. to pick a per-platform value), so the literal alone does not imply nesting; leave it to manual judgment.
       else if (file.startsWith("scripts/") && new RegExp(`["']${other}["']`).test(content))
-        add("KS4.2", "audit", file, `脚本出现另一个 skill 的名称 ${other}，确认没有读取或调用它。`);
+        add("KS4.2", "audit", file, `Script mentions another skill's name ${other}; confirm it does not read or call it.`);
     }
   }
 
-  // KS5：许可证
-  if ("license" in meta && !licenseAllowlist.has(meta.license)) add("KS5.1", "error", "SKILL.md", `license ${meta.license} 不在白名单中。`);
+  // KS5: license
+  if ("license" in meta && !licenseAllowlist.has(meta.license)) add("KS5.1", "error", "SKILL.md", `license ${meta.license} is not in the allowlist.`);
   for (const [file, bytes] of files) {
     if (!textFile(bytes)) continue;
     const content = decode(bytes) ?? "";
@@ -176,25 +181,25 @@ export function lintSkill(id, files, { toolNames, skillIds, toolScopes = new Map
     const licenseFile = /^(?:LICENSE|LICENCE|COPYING|NOTICE)/.test(base);
     const spdx = [...content.matchAll(/SPDX-License-Identifier:[ \t]*([^\r\n*]+)/g)].flatMap(match => spdxIds(match[1].replace(/-->\s*$/, "")));
     if ((licenseFile && restrictiveLicense.test(content)) || spdx.some(id => !licenseAllowlist.has(id)))
-      add("KS5.2", "error", file, "含白名单之外的许可证内容（GPL/AGPL/LGPL/NC 等）。");
+      add("KS5.2", "error", file, "Contains license content outside the allowlist (GPL/AGPL/LGPL/NC, etc.).");
     else if (licenseFile && !allowedLicenseText.test(content))
-      add("KS5.2", "audit", file, "认不出是白名单内的许可证，人工确认来源与许可证。");
+      add("KS5.2", "audit", file, "Not recognized as an allowlisted license; manually confirm the source and license.");
   }
 
-  // KS6：非标准文件
-  if (files.has("manifest.json")) add("KS6.1", "error", "manifest.json", "manifest.json 不是开放规范的一部分，内容按规范迁到 frontmatter 后删除。");
-  if (files.has("references/mcp-bindings.json")) add("KS6.2", "error", "references/mcp-bindings.json", "逻辑 connector 映射由 allowed-tools 与直接调用 /mcp-pub 工具名取代。");
+  // KS6: non-standard files
+  if (files.has("manifest.json")) add("KS6.1", "error", "manifest.json", "manifest.json is not part of the open spec; move its content to frontmatter per the spec, then delete it.");
+  if (files.has("references/mcp-bindings.json")) add("KS6.2", "error", "references/mcp-bindings.json", "The logical connector mapping is replaced by allowed-tools and direct calls to /mcp-pub tool names.");
   for (const file of files.keys())
-    if (file.startsWith("agents/")) add("KS6.3", "error", file, "不得有 agents/ 目录；隐式调用默认开启，MCP 由插件 mcp.json 声明。");
+    if (file.startsWith("agents/")) add("KS6.3", "error", file, "agents/ directory is not allowed; implicit invocation is on by default and MCP is declared by the plugin's mcp.json.");
 
-  // KS7：脚本
+  // KS7: scripts
   for (const [file, bytes] of files) {
     if (!/\.(?:py|sh|js|mjs)$/.test(file)) continue;
     const content = decode(bytes) ?? "";
-    if (hostState.test(content)) add("KS7.1", "error", file, "读取宿主会话记录或内部状态。");
-    if (!file.startsWith("scripts/")) add("KS7.4", "audit", file, "可执行脚本不在 scripts/ 下。");
-    if (networkUse.test(content) || (/\.m?js$/.test(file) && /\bfetch\(/.test(content))) add("KS7.3", "audit", file, "有网络访问，确认只访问 Kabo 域名，或 Kabo 工具结果给出的 storage.googleapis.com 签名下载链接（只 GET、主机精确匹配、不跟随重定向）。");
-    if (installUse.test(content)) add("KS7.2", "audit", file, "出现安装命令，确认只是提示文字，运行时不安装软件。");
+    if (hostState.test(content)) add("KS7.1", "error", file, "Reads host session records or internal state.");
+    if (!file.startsWith("scripts/")) add("KS7.4", "audit", file, "Executable script is not under scripts/.");
+    if (networkUse.test(content) || (/\.m?js$/.test(file) && /\bfetch\(/.test(content))) add("KS7.3", "audit", file, "Has network access; confirm it only reaches Kabo domains or the storage.googleapis.com signed download links given by Kabo tool results (GET only, exact host match, no redirects followed).");
+    if (installUse.test(content)) add("KS7.2", "audit", file, "Contains an install command; confirm it is only prompt text and nothing is installed at runtime.");
   }
   return findings;
 }
@@ -205,7 +210,7 @@ export function lintSkills({ directory = root, only } = {}) {
   const toolScopes = new Map(tools.map(tool => [tool.name, (tool.securitySchemes ?? []).flatMap(scheme => scheme.scopes ?? [])]));
   const enforced = new Set(JSON.parse(readFileSync(path.join(directory, "skills-spec.json"), "utf8")).enforced);
   const skillIds = new Set(readdirSync(path.join(directory, "skills")).filter(name => lstatSync(path.join(directory, "skills", name)).isDirectory()));
-  for (const id of enforced) if (!skillIds.has(id)) throw new Error(`skills-spec.json 启用了不存在的 Skill：${id}`);
+  for (const id of enforced) if (!skillIds.has(id)) throw new Error(`skills-spec.json enables a nonexistent Skill: ${id}`);
   const results = [];
   for (const id of [...skillIds].sort()) {
     if (only && id !== only) continue;
@@ -222,19 +227,19 @@ function count(findings, level) {
 if (process.argv[1] && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])) {
   const { values } = parseArgs({ options: { skill: { type: "string" }, strict: { type: "boolean" }, json: { type: "boolean" }, summary: { type: "boolean" } } });
   const results = lintSkills({ only: values.skill });
-  if (values.skill && !results.length) throw new Error(`没有这个 Skill：${values.skill}`);
-  // 门禁逐个 skill 开启：未启用的只报告，不让存量阻塞 verify。
+  if (values.skill && !results.length) throw new Error(`No such Skill: ${values.skill}`);
+  // The gate is enabled per skill: skills not yet enabled are only reported, so existing ones do not block verify.
   const blocking = results.filter(result => (values.strict || result.enforced) && count(result.findings, "error"));
   if (values.json) console.log(JSON.stringify(results, null, 2));
   else
     for (const { id, enforced, findings } of results) {
-      const mode = enforced ? "门禁" : "未启用门禁";
-      console.log(`${id}（${mode}）：错误 ${count(findings, "error")}，警告 ${count(findings, "warn")}，审计 ${count(findings, "audit")}`);
+      const mode = enforced ? "gated" : "gate not enabled";
+      console.log(`${id} (${mode}): errors ${count(findings, "error")}, warnings ${count(findings, "warn")}, audits ${count(findings, "audit")}`);
       if (values.summary && !enforced) continue;
-      for (const finding of findings) console.log(`  ${finding.level} ${finding.rule} ${finding.file}：${finding.message}`);
+      for (const finding of findings) console.log(`  ${finding.level} ${finding.rule} ${finding.file}: ${finding.message}`);
     }
   if (blocking.length) {
-    console.error(`Skills 规范门禁未通过：${blocking.map(result => result.id).join(", ")}`);
+    console.error(`Skills spec gate failed: ${blocking.map(result => result.id).join(", ")}`);
     process.exitCode = 1;
   }
 }

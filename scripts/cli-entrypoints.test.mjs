@@ -6,7 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-test("从目录别名启动校验 CLI 仍执行检查，不能静默成功", async t => {
+test("launching the validation CLI through a directory alias still runs the checks and cannot succeed silently", async t => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), "kabo-cli-alias-"));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const alias = path.join(temporary, "plugin");

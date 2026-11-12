@@ -16,7 +16,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import shrunk_baseline  # noqa: E402
 
-# 作者收缩倍数的先验来源：本轮各作者对数中位数的中位数。
+# Source of the prior for the author shrinkage multiple: the median of each author's log-median this round.
 PRIOR_SOURCE = "round_authors"
 
 
@@ -79,7 +79,7 @@ def baseline(row: dict[str, Any], envelope: dict[str, Any] | None) -> dict[str, 
 
 
 def history_samples(envelope: dict[str, Any] | None, exclude_id: str | None = None) -> list[dict[str, Any]]:
-    """一个作者的历史作品，写成 shrunk_baseline 的样本形状；目标作品自己不进自己的基线。"""
+    """One author's historical posts, written in the sample shape of shrunk_baseline; the target post does not enter its own baseline."""
     if not envelope or envelope.get("status") != "completed":
         return []
     observed = envelope.get("retrieved_at")
@@ -88,7 +88,8 @@ def history_samples(envelope: dict[str, Any] | None, exclude_id: str | None = No
         if not isinstance(item, dict) or (exclude_id is not None and str(item.get("content_id") or "") == exclude_id):
             continue
         samples.append({
-            # 历史行没有时长时按 TikTok 缺省判 short_video；时长 0 的图文不进基线。
+            # A historical row with no duration is treated as TikTok's default, short_video; an image post with duration 0
+            # does not enter the baseline.
             "format": shrunk_baseline.classify_format("tiktok", item.get("duration_seconds")),
             "published_at": item.get("published_at"),
             "observed_at": observed,
@@ -99,7 +100,7 @@ def history_samples(envelope: dict[str, Any] | None, exclude_id: str | None = No
 
 
 def round_priors(by_handle: dict[str, dict[str, Any]], handles: list[str]) -> dict[str, float | None]:
-    """每种格式的先验 μ0：本轮每个有成熟作品的作者取对数中位数，再取这些中位数的中位数。"""
+    """Prior mu0 for each format: for every author with mature posts this round take the log-median, then take the median of those medians."""
     priors: dict[str, float | None] = {}
     for content_format in shrunk_baseline.FORMATS:
         priors[content_format] = shrunk_baseline.round_authors_prior(
@@ -147,7 +148,8 @@ def build(ranking: dict[str, Any], history_source: dict[str, Any], shrink: bool 
         if proof is None:
             missing.append(handle)
         elif shrink:
-            # 只增补，不改原有的 multiple 与 bucket：报告与校验仍按原始倍数说话，名额分配读收缩倍数。
+            # Only add; do not change the existing multiple and bucket: the report and validation still speak in terms of
+            # the raw multiple, and slot allocation reads the shrinkage multiple.
             proof["shrunk"] = shrunk(selected, by_handle.get(handle), priors)
         items.append({
             "content_key": selected["content_key"],

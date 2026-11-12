@@ -341,8 +341,8 @@ def check_claim(claim: object, index: int, registry: dict[str, dict], language: 
         if claim.get("unreached_source") is not None:
             errors.append(f"{where} is {verdict!r}, so unreached_source must be null - it exists to "
                           "name a page that could not be read, and this claim quotes one")
-        # 引文撑住事实、撑不住由它推出的做法时，推测是正常交付：允许挂在有引文的主张上，
-        # 由渲染单独标成推测。禁止它只会把推测挤进 statement，被当成平台原话判 confirmed。
+        # When a quote supports a fact but not the practice derived from it, speculation is normal delivery: it may hang on a claim that has a quote,
+        # and rendering marks it separately as speculation. Forbidding it would only squeeze speculation into the statement, where it would be judged confirmed as the platform's own words.
         if inference is not None and not text(inference):
             errors.append(f"{where}.inference is empty - give the possibility that follows from "
                           "the quotes, or null")

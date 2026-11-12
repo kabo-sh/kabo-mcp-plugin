@@ -16,7 +16,7 @@ skills/                         # Twenty-one complete Skills and their resources
 skills.lock.json                # Original Skill source and versions
 runtime-contract.json           # Fixed tool and Skill inventory
 INSTALL.md                      # Installation steps written for an AI assistant to follow
-CHANGELOG.md                    # Version history (Chinese)
+CHANGELOG.md                    # Version history
 ```
 
 The twenty-one Skills cover video analysis, standard and deep account reviews, scripts and packaging,

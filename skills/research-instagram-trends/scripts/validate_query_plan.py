@@ -145,7 +145,7 @@ def validate_against_request(plan: dict[str, Any], request: dict[str, Any]) -> N
     below apply only without a saved profile.
     """
     intake = _profile_intake()
-    # 排除话题只检查一次；画像存在时不再强制历史 seed 或 caption phrase。
+    # Excluded topics are checked only once; when a profile exists, historical seed or caption phrase is no longer enforced.
     intake.check_excluded([str(intent["search_query"]) for intent in plan["intents"]], request)
     if intake.profile_fields_attached(request):
         return

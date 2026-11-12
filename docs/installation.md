@@ -179,6 +179,12 @@ If you already added `kabo-plugin-openai` from a local clone, run `git pull` the
 can have this name; to switch to a GitHub source, remove the old listing with
 `codex plugin marketplace remove kabo-plugin-openai`, then add the new source.
 
+Starting with 1.0.46, Kabo declares `start-with-kabo` as its native Codex onboarding Skill. After
+installation, run Setup in the plugin interface to begin the guided setup. Codex opens it in a new
+conversation, or in the existing conversation when you installed the plugin there. A terminal
+`codex plugin add` installs the plugin; to begin the conversation yourself, ask Codex to
+"Use Kabo to get me started."
+
 Kabo data tools use your Kabo data allowance. Codex asks for approval on each call by default. If you
 want to approve these calls in advance, add this to `~/.codex/config.toml`:
 
@@ -244,7 +250,7 @@ Skills do not read the host's session or `tool-results` directories.
 ## Updating, uninstalling and rollback
 
 Moving from a development version to 1.0.0 resets the version numbering while keeping the latest
-implementation; see [CHANGELOG](../CHANGELOG.md) (Chinese). SemVer ranks `1.0.0` below the former `3.x`
+implementation; see [CHANGELOG](../CHANGELOG.md). SemVer ranks `1.0.0` below the former `3.x`
 versions, so do not rely on automatic upgrade detection. Refresh the marketplace, update the
 installation, and confirm that the host loads `1.0.0` or later. If it retains the old version, uninstall the
 plugin through the host and reinstall it. Keep research files and credentials intact. Host behavior

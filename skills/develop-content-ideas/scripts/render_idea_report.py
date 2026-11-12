@@ -19,7 +19,8 @@ def load(path: Path) -> dict:
 
 
 def ordered_ideas(data: dict) -> list[dict]:
-    # 展示顺序与后台 rank 保持一致；推荐标记不改变用户看到的编号。
+    # The display order stays consistent with the backend rank; the recommendation marker does not change the
+    #   numbers the user sees.
     return sorted(data["ideas"], key=lambda value: value["rank"])
 
 
@@ -34,13 +35,14 @@ def minute_text(feasibility: dict, tr=lambda value: value, display=lambda value:
 
 
 def pending_asset_lines(idea: dict, request: dict | None = None, tr=lambda value: value) -> list[str]:
-    """展示未来所需资源，不改变已声明可用资源的含义。"""
+    """Show the resources needed in the future, without changing the meaning of resources already declared available."""
     feasibility = idea.get("production_feasibility") or {}
     if feasibility.get("status") != "requires_user_confirmation":
         return []
     required = feasibility.get("required_assets") or []
     if request is None:
-        # 独立调试没有资源可用性证据，只列依赖，不断言资源缺失或已经拥有。
+        # Standalone debugging has no evidence of resource availability, so it only lists dependencies and does not
+        #   assert that a resource is missing or already owned.
         label = ""
         pending = required
     else:

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 
-test("续写检查拒绝重放，但允许短回顾与新的推进；不作语义判定", () => {
+test("the continuation check rejects replays but allows short recaps and new progress; it makes no semantic judgment", () => {
   const output = execFileSync("python3", ["-B", "-c", `
 import importlib.util
 from pathlib import Path
@@ -36,7 +36,7 @@ print("8 continuation overlap checks passed")
   assert.match(output, /8 continuation overlap checks passed/);
 });
 
-test("无空格文字的复制不会被当成几个词，Unicode 等价拼写也能匹配", () => {
+test("copies of unspaced text are not counted as a few words, and Unicode-equivalent spellings still match", () => {
   const output = execFileSync("python3", ["-B", "-c", `
 import importlib.util
 import unicodedata
@@ -65,7 +65,7 @@ print("7 Unicode continuation checks passed")
   assert.match(output, /7 Unicode continuation checks passed/);
 });
 
-test("组合附标不丢失，短匹配不触发后续区域搜索", () => {
+test("combining marks are not lost, and short matches do not trigger the later region search", () => {
   const output = execFileSync("python3", ["-B", "-c", `
 import importlib.util
 from pathlib import Path

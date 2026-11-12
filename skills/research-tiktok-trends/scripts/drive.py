@@ -77,7 +77,7 @@ DISCOVERY = "tiktok-discovery"
 REQUEST = "trend-research-request.json"
 PLAN = "tiktok-trend-query-plan.json"
 SOURCE_VIDEO = "source-video.json"
-# lookup_tiktok_video 给源视频 data 的固定投影，与作答路线无关。
+# Fixed projection of lookup_tiktok_video for the source video data, independent of which route answered.
 VIDEO_PROJECTION = "kabo.tiktok_video.v1"
 ENVELOPES = "discovery-envelopes.json"
 PROVENANCE = "discovery-requests.json"
@@ -102,7 +102,8 @@ ANALYSIS = "public-content-analysis.json"
 SYNTHESIS = "trend-research-synthesis.json"
 REPORT = "trend-research-report.json"
 CREATOR_REPORT = "creator-report.md"
-# 用户原话逐字存在 run 里，冻结 Request 时据此核对 locale.named_in_ask。
+# The user's exact words are stored verbatim in the run; use them to check locale.named_in_ask when
+# freezing the Request.
 QUESTION = Path("analysis") / "original-question.txt"
 
 POLICIES = ("default_1y", "recent_90d", "user_named_span")
@@ -129,7 +130,8 @@ TIKTOK_SHORT = re.compile(r"^(?:https?://)?(v[mt])\.tiktok\.com/([A-Za-z0-9]{5,1
 
 
 def _validator(name: str):
-    # 同名模块在各趋势包里字节可能不同，不复用别的包留在 sys.modules 里的那份。
+    # A module of the same name may differ in bytes across trend packages; do not reuse the copy another
+    # package left in sys.modules.
     path = Path(__file__).with_name(name + ".py")
     spec = importlib.util.spec_from_file_location(f"{path.parent.parent.name}:{name}", path)
     module = importlib.util.module_from_spec(spec)
@@ -178,7 +180,8 @@ def need_authored(*names: str) -> bool:
     except (FileNotFoundError, json.JSONDecodeError):
         receipt = {}
     state = cd.state()
-    # 静态运行没有 run-manifest.json，以 static_host.py init 写下的 .static-run.json 作为预留凭据。
+    # A static run has no run-manifest.json; use the .static-run.json written by static_host.py init as the
+    # reservation credential.
     reserved = receipt.get("status") == "running" or Path(".static-run.json").is_file()
     if (not reserved or cd.in_skill_directory(Path.cwd())
             or state.get("missing_authored_inputs") or (state.get("frozen") or {}).get("sha")):
@@ -194,15 +197,15 @@ def need_authored(*names: str) -> bool:
 
 
 def _locale_correction(args: argparse.Namespace, originals: dict[str, bytes], error: str) -> bool:
-    """作者输入的一次改正（与 YouTube / Instagram 的 discovery 输入改正同一约定），只在任何取数之前。
+    """The author's one-time correction of the input (same convention as the YouTube / Instagram discovery input corrections), only before any fetch.
 
-    TikTok 原先没有这条改正通道；这里只服务 locale 核对：原始字节留档，第二次仍不对就终止。
+    TikTok had no such correction channel before; this one serves only the locale check: keep the original bytes on file, and stop if the second attempt is still wrong.
     """
     state = cd.state()
     try:
         receipt = json.loads(Path("run-manifest.json").read_text(encoding="utf-8"))
     except FileNotFoundError:
-        receipt = {}  # 旧宿主可能没有 wrapper manifest；其余 I/O 仍是致命错误
+        receipt = {}  # Old hosts may have no wrapper manifest; other I/O errors are still fatal
     if receipt and receipt.get("status") != "running":
         raise cd.StageError("discovery input correction requires this same open run")
     if state.get("discovery") or Path(ENVELOPES).exists():
@@ -237,27 +240,27 @@ def standard_input(wait: bool) -> str:
     """What standard input holds: all of it when `wait`, else only what is already there."""
     stream = sys.stdin
     if stream is None or stream.isatty():
-        return ""  # 漏了 heredoc 的终端，绝不等待
+        return ""  # A terminal missing its heredoc must never wait
     if not wait:
         try:
             import select
 
             ready, _, _ = select.select([stream], [], [], 0)
         except (OSError, ValueError, TypeError, AttributeError):
-            ready = [stream]  # 内存流（测试）读取不会阻塞
+            ready = [stream]  # Reading an in-memory stream (tests) does not block
         if not ready:
             return ""
     return stream.read().rstrip("\r\n")
 
 
 def original_question(args: argparse.Namespace) -> str | None:
-    """用户原话：本次 `--question-file` 给的优先，否则沿用本 run 已存的；都没有时返回 None（旧调用方）。
+    """The user's exact words: the one given by this call's `--question-file` wins, otherwise the one already stored in this run; returns None when there is neither (old callers).
 
-    与 review-creator-account `fetch --question-file` 同一约定：`-` 从标准输入读（同一命令的 heredoc），
-    否则读该文件。heredoc 末尾的换行不是用户打的字，去掉。
+    Same convention as review-creator-account `fetch --question-file`: `-` reads from stdin (the heredoc of the same command),
+    otherwise read the file. The trailing newline of a heredoc is not typed by the user, so strip it.
     """
     source = getattr(args, "question_file", None)
-    source = source if isinstance(source, str) else None  # 直接调用阶段函数的旧调用方没有这个参数
+    source = source if isinstance(source, str) else None  # Old callers that invoke the stage function directly do not have this parameter
     given = ""
     if source == "-":
         given = standard_input(wait=not getattr(args, "placed", False))
@@ -276,17 +279,17 @@ def original_question(args: argparse.Namespace) -> str | None:
 
 
 def _locale_preflight(args: argparse.Namespace, originals: dict[str, bytes]) -> bool:
-    """region / language 非空时，`locale.named_in_ask` 必须逐字出自用户原话；否则在任何取数前要求改一次。
+    """When region / language is non-empty, `locale.named_in_ask` must come verbatim from the user's exact words; otherwise ask for one correction before any fetch.
 
-    10-29 plugins K2：中文问句、没点名市场，模型仍写 language=zh-CN，搜索被偏到中文。核对通过后把引语
-    从 Request 移到 state：下游 Report 的 scope.locale 只有 region/language 两项，Request 其余字节不变。
-    宿主没给原话（旧调用方）时保持原行为，只打印一行警告。
+    10-29 plugins K2: a Chinese-language question that named no market still got language=zh-CN from the model, which skewed the search toward Chinese. After the check passes, the quote
+    moves from the Request to state: the downstream Report's scope.locale has only the region/language fields, and the rest of the Request bytes are unchanged.
+    When the host did not supply the exact words (old callers), keep the previous behavior and print only a warning line.
     """
     question = original_question(args)
     request = cd.load(REQUEST)
     locale = request.get("locale") if isinstance(request, dict) else None
     if not isinstance(locale, dict):
-        return True  # Request 自身的形状校验会指出
+        return True  # The Request's own shape validation will point it out
     if question is None:
         say("[drive] warning: no --question-file was given, so locale.region / locale.language were not "
             "checked against the user's ask")
@@ -294,7 +297,7 @@ def _locale_preflight(args: argparse.Namespace, originals: dict[str, bytes]) -> 
     error = window_rules.locale_named_error(request, question)
     checked = cd.state().get("locale_named_in_ask") or {}
     if error and "named_in_ask" not in locale and checked.get("locale") == key:
-        error = None  # 同一 locale 本 run 已核对过，引语已移进 state（重跑 / --placed）
+        error = None  # This locale was already checked in this run and the quote moved into state (rerun / --placed)
     if error:
         return _locale_correction(args, originals, error)
     if question is not None and any(key):
@@ -376,8 +379,10 @@ def say_limitations(record: dict[str, Any]) -> None:
 
 def projected_source_video(data: dict[str, Any]) -> dict[str, Any] | None:
     """What the Request is written from, read from lookup_tiktok_video's fixed projection."""
-    # null 表示拿不到：省略并在 unavailable 里列出，不当 0。thumbnail_url 是会过期的 CDN 链接，与旧路径
-    # 一样不打印；投影本来就没有播放地址。回退路线作答时注明路线，计数可能来自另一家数据源。
+    # null means unavailable: omit it and list it under unavailable, never treat it as 0. thumbnail_url is a
+    # CDN link that expires, so, as on the old
+    # path, it is not printed; the projection has no playback address anyway. When the fallback route answers,
+    # state the route, since the counts may come from another data source.
     video = data.get("video")
     if not isinstance(video, dict):
         return None
@@ -403,12 +408,14 @@ def projected_source_video(data: dict[str, Any]) -> dict[str, Any] | None:
 def print_source_video() -> None:
     envelope = cd.load(SOURCE_VIDEO)
     data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
-    # 投影与旧 get_video_by_share_url 原样（旧运行的快照）并存：按 data.projection 分支读。
+    # The projection coexists with the old get_video_by_share_url as returned (snapshots of old runs): branch
+    # on data.projection when reading.
     projected = data.get("projection") == VIDEO_PROJECTION
     item = data.get("video" if projected else "item")
     item = item if isinstance(item, dict) else None
     if envelope.get("status") not in cd.USABLE_STATUSES or not item:
-        # 投影的 video 为 null：私密、已删除或图文帖，服务端在 limitations 里说明。
+        # A null video in the projection means private, deleted, or an image post; the server explains this in
+        # limitations.
         why = (envelope.get("limitations") or [None])[0] if projected and envelope.get("status") in cd.USABLE_STATUSES else None
         say(f"source video: not resolved (status={envelope.get('status')}; "
             f"{str(why or envelope.get('error') or envelope.get('summary') or '')[:200]})")
@@ -443,9 +450,10 @@ def source_call(video: str) -> dict[str, Any]:
 
 
 def place_source() -> None:
-    # lookup_tiktok_video 的信封记实际作答的路线：短链是 get_video_by_share_url，链接带 id 时是
-    # tiktok-discovery/get_video，回退时是 tiktok-search/get_video。本 Skill 没有别的取视频操作，
-    # 所以先按短链那条的操作名、再按 get_video（不限 connector）放置。
+    # The lookup_tiktok_video envelope records the route that actually answered: get_video_by_share_url for a
+    # short link, tiktok-discovery/get_video when the link carries an id,
+    # and tiktok-search/get_video on fallback. This Skill has no other video-fetch operation,
+    # so place by the short-link operation name first, then by get_video (any connector).
     def by_content() -> None:
         try:
             cd.script("persist_envelope.py", "--operation", "get_video_by_share_url", "--any-status", "--dest", SOURCE_VIDEO)
@@ -476,8 +484,10 @@ def place_profile(raw: bytes | None) -> None:
     if raw is None:
         return
     placed = Path(PROFILE_SOURCE)
-    # 用户可能在本轮中途改了画像。冻结后的 Request 已经带着旧画像的字段，换文件会让同一轮前后两半口径
-    # 不一致，所以字节不同就停下，让模型开一个新 run；同一份文件重跑 start 照常。
+    # The user may have changed the profile midway through this round. The frozen Request already carries
+    # fields from the old profile, and swapping the file would make the two halves of the same round
+    # use different bases, so stop when the bytes differ and have the model open a new run; rerunning start
+    # with the same file works as usual.
     if placed.is_file() and placed.read_bytes() != raw:
         raise cd.StageError("the profile file differs from the one this run started with: the profile changed during "
                             "the run. Start a new run with the new file")
@@ -499,8 +509,10 @@ def stage_start(args: argparse.Namespace) -> None:
         cd.fetch_round(calls, args, place_source)
     except SystemExit as handover:
         if handover.code == 0:
-            # 下载交付的结果不带 data，模型从调用结果里读不到标题与作者：fetch 之后再跑一次
-            # start --placed 由脚本打印。没再跑 start 时 `discover` 照旧放置这份回答。
+            # A result delivered by download carries no data, so the model cannot read the title and author from the
+            # call result: after fetch, run
+            # start --placed once more and let the script print them. If start is not rerun, `discover` places this
+            # answer as before.
             cd.save_state(source_pending=calls)
             say("That call's result is the source video. Fetch (or stage) it, then run this same start command again "
                 "with --placed added: it places the response and prints the caption, author.handle and public "
@@ -857,8 +869,9 @@ def stage_rank(args: argparse.Namespace) -> None:
                           Path(ENRICHMENT_RESPONSE).exists() or bool((current.get("bundles") or {}).get(HISTORIES)) or history_handed):
         return
     cd.script("build_relevance_gate.py", "--input", GATE_INPUT, "--scores", GATE_SCORES, "--output", GATE, show=True)
-    # 带画像时 shortlist 按主打内容预分配名额，基线加收缩倍数，最后按同一个名额函数定稿；
-    # 不带画像时每条命令与参数都和原来一样。
+    # With a profile, the shortlist pre-allocates quota by main content, adds a baseline and shrink
+    # multiplier, and finalizes with the same quota function;
+    # without a profile, every command and parameter is the same as before.
     profiled = intake.attached(cd.load(REQUEST))
     ranking = build_ranking_input(profiled)
     rows = [row for row in ranking.get("history_requests") or [] if isinstance(row, dict) and row.get("handle")]
@@ -915,7 +928,8 @@ def language_option(args: argparse.Namespace) -> tuple[str, ...]:
 
 
 def reference_args() -> list[str]:
-    # 只读本次运行已有的候选；交付兜底不再触发采集或改写原 Gate。
+    # Read only the candidates this run already has; the delivery fallback no longer triggers collection or
+    # rewrites the original Gate.
     args = []
     for flag, paths in (("--reference-candidates", [CANDIDATES]), ("--reference-gate", [GATE])):
         for name in paths:
@@ -993,7 +1007,8 @@ def stage_report(args: argparse.Namespace) -> None:
     # Deliver by this path where the host can send a file as one block; its text follows unchanged.
     say(f"creator_report: {report}")
     say(report.read_text(encoding="utf-8").rstrip())
-    # 交付方式紧跟报告打印：实测里短问题的回复常被模型改写成摘要。
+    # Print the delivery instructions right after the report: in real runs the model often rewrote short
+    # replies into a summary.
     say('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says), then this creator_report line.')
 
 

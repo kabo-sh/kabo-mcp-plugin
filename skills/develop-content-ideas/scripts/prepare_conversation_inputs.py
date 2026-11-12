@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""机械整理用户可见聊天和当前请求；不选择指代、不生成内容、不替代 prep。"""
+"""Mechanically tidy the user-visible chat and the current request; does not choose referents, generate content or replace prep."""
 import argparse
 from datetime import datetime, timezone
 import json
@@ -14,12 +14,12 @@ from validate_ideas import (REQUEST_SCHEMA, has_text, load,
 
 
 def read_text(path: Path) -> str:
-    """保留原文换行和 Unicode，不通过文本模式归一化 CRLF。"""
+    """Preserve the original line breaks and Unicode; do not normalize CRLF through text mode."""
     return path.read_bytes().decode("utf-8")
 
 
 def conversation_source(args: argparse.Namespace) -> dict:
-    """只统一导出字段名，保持全文、角色和消息索引不变。"""
+    """Only unify exported field names; the full text, roles and message indexes stay unchanged."""
     exported = json.loads(read_text(args.messages))
     messages = exported.get("messages") if isinstance(exported, dict) else exported
     if not isinstance(messages, list) or not messages:
@@ -49,7 +49,7 @@ def conversation_source(args: argparse.Namespace) -> dict:
 
 
 def authored_intent(args: argparse.Namespace) -> dict:
-    """未知信息保持缺失；用户明确给出的限制须随后补入对应字段。"""
+    """Unknown information stays missing; limits the user explicitly stated must be added to the corresponding fields afterwards."""
     intent = {
         "schema_version": "idea-request.v3-candidate2",
         "request_id": f"conversation-{uuid4().hex}",
@@ -78,7 +78,7 @@ def authored_intent(args: argparse.Namespace) -> dict:
 
 
 def main() -> int:
-    """先完整校验再独占创建文件；已有任一输出时拒绝覆盖。"""
+    """Validate completely first, then create files exclusively; refuse to overwrite if any output already exists."""
     parser = argparse.ArgumentParser(description=(
         "Prepare exact visible-chat inputs for a continuation with no new explicit topic "
         "or external-evidence request. Fill explicitly supplied constraints afterward; "

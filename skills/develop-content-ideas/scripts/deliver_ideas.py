@@ -24,7 +24,7 @@ def digest(data: bytes) -> str:
 
 
 def atomic_write(path: Path, data: bytes) -> None:
-    # 同目录替换，避免宿主读到未写完的报告。
+    # Replace in the same directory so the host never reads a half-written report.
     name = None
     try:
         with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as handle:
@@ -37,7 +37,8 @@ def atomic_write(path: Path, data: bytes) -> None:
 
 
 def export(run: Path) -> dict:
-    # 失败后不保留上一次可被误交付的最终文件；原始产物和生成预算不变。
+    # After a failure, do not keep a previous final file that could be delivered by mistake; raw artifacts and
+    # the generation budget stay unchanged.
     report_path, receipt_path = run / REPORT, run / RECEIPT
     report_path.unlink(missing_ok=True)
     receipt_path.unlink(missing_ok=True)

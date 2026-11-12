@@ -12,8 +12,8 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 SKILL = Path(__file__).resolve().parent.parent
-# 本 Skill 不调用任何 /mcp-pub 数据工具，没有需要 stage 的工具结果，所以只保留 init；
-# 目录布局与其他 Skill 的 init 保持一致，便于在同一工作区里辨认各次运行。
+# This Skill calls no /mcp-pub data tools and has no tool results to stage, so only init is kept;
+# the directory layout stays consistent with other Skills' init, making runs easy to recognise in the same workspace.
 
 
 def init(workspace):
@@ -32,7 +32,7 @@ def init(workspace):
 
 
 def write_new(path, body):
-    # 独占写入，重试和并发不能覆盖已有证据。
+    # Exclusive write: retries and concurrency must not overwrite existing evidence.
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "wb") as stream:
         stream.write(body)

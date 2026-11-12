@@ -75,8 +75,9 @@ ROLE_OF_OPERATION.update({operation: "frames" for operation in KEYFRAME_OPERATIO
 # operation; the role follows the operation, not which one answered.
 POST_CONNECTORS = {"instagram-discovery", "instagram-detail-proxy"}
 POST_OPERATION = "get_post"
-# lookup_instagram_post 不论哪条路线作答，data 都是这份固定投影；按它判形状，
-# 不按 connector_id。没有这个标记的是旧的单操作工具信封（GraphQL 原样或详情白名单），照旧读。
+# However lookup_instagram_post answers, data is this one fixed projection; judge the shape by it, not by
+# connector_id. Envelopes without this marker are the old single-operation tool envelope (GraphQL as-is or a
+# detail allowlist) and are read as before.
 POST_PROJECTION = "kabo.instagram_post.v1"
 PLAYS_NOTE = "A play count, which is neither reach nor an owner view figure."
 # A digitally silent sample reads as an extreme negative rather than as an absent one. The floor is
@@ -102,8 +103,9 @@ ACQUISITION_STATUSES = {
 FRAME_SELECTIONS = {"duration_scaled_v1", "evenly_spaced_bounded_v1", "explicit_timestamps_v1", "none"}
 TRANSCRIPT_ORIGINS = {"platform_captions", "provider_transcript", "speech_recognition"}
 PLATFORM_PREFIX = {"youtube": "yt", "instagram": "ig", "tiktok": "tt"}
-# 只导出逐字稿时不取元数据，模型写的请求也常不带 content_id：从创作者给的原始链接取。
-# 写法与各 Skill 里已有的同平台解析一致（research-youtube-trends、research-instagram-trends、select_comment_targets）。
+# When only the transcript is exported, metadata is not fetched and the model's request often has no content_id
+# either: take it from the original link the creator gave. The parsing matches the same-platform parsing already
+# in each Skill (research-youtube-trends, research-instagram-trends, select_comment_targets).
 URL_CONTENT_ID = {
     "youtube": re.compile(r"(?:[?&]v=|youtu\.be/|/shorts/|/embed/|/live/|/v/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])"),
     "instagram": re.compile(r"instagram\.com/(?:[A-Za-z0-9._]+/)?(?:reels?|p|tv)/([A-Za-z0-9_-]{5,64})", re.IGNORECASE),
@@ -331,7 +333,8 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
     if not content_id or not permalink:
         raise ValueError("content_ref needs a content_id and a URL or file_ref: put the original post or video "
                          "link in the request's source.url, or its id in source.content_id")
-    # 帖子投影的发布时间只补 metadata 没给的：metadata 是平台对自己视频的回答，两者都有时它优先。
+    # The post projection's publish time only fills in what metadata did not give: metadata is the platform's own
+    # answer about its video, and takes priority when both exist.
     published = published_at or video.get("upload_date") or post_published_at
     if not published and source.get("subject_state") == "own_unpublished":
         published = "unpublished"
@@ -507,9 +510,10 @@ def graphql_post(row: dict[str, Any]) -> tuple[Any, list[tuple[str, Any, str | N
 def projected_post(row: dict[str, Any],
                    facts: dict[str, Any]) -> tuple[Any, list[tuple[str, Any, str | None]], dict[str, Any]]:
     """Caption, counters and sound of a `kabo.instagram_post.v1` post; also its publish time."""
-    # native_name 写投影里的字段路径，报告引用的就是这个名字。IG 播放数与 IG+FB 合并值分开记，
-    # 合并值不冒充 IG 播放数；点赞被作者隐藏时 likes 为 null，记一条限制，说明它不是 0。
-    # thumbnail_url 是会过期的 CDN 链接，不当封面地址写进证据。
+    # native_name writes the field path in the projection, and the report cites exactly this name. IG views and the
+    # combined IG+FB value are recorded separately, and the combined value does not pass as IG views; when the
+    # author hides likes, likes is null, so record one limitation saying it is not 0.
+    # thumbnail_url is a CDN link that expires, so it is not written into the evidence as a cover address.
     metrics = as_record(row.get("metrics"))
     if metrics.get("likes_hidden") is True:
         facts["limitations"] = ["The post hides its like count, so likes are unavailable, not zero."]
@@ -552,7 +556,7 @@ def post_facts(post: dict[str, Any] | None) -> dict[str, Any]:
         facts["hashtags"] = HASHTAG.findall(caption)  # the creator's own order
     metrics = []
     for native_name, value, note in counters:
-        # null 与布尔都不是计数：拿不到就不写，不当 0。
+        # null and booleans are not counts: if it cannot be obtained, do not write it, and do not treat it as 0.
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             metrics.append({"native_name": native_name, "value": value,
                             "equals_owner_metric": None, "note": note})

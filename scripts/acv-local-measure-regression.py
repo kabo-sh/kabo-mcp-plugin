@@ -1,9 +1,13 @@
-"""本地文件抽帧与测量的时限回归（analyze-content-video/scripts/extract_local_frames.py）。
+"""Time-limit regression for local-file frame extraction and measurement (analyze-content-video/scripts/extract_local_frames.py).
 
-生产上 4 vCPU 宿主单条命令 60 秒硬上限：旧版把测量和抽帧挤在一条命令里，测量对整条视频做三遍
-全分辨率解码，大文件必超时，宿主什么都不收，已抽好的帧一起丢。这里钉住修法：测量两遍、各只解码
-自己读的那一路；命令到 --deadline-s 自己停下并写出已有结果；帧在测量前落盘；--signals-only 单独测量。
-mock 用例不依赖媒体工具链；端到端用例在本机没有 ffmpeg/ffprobe 时跳过。
+In production a single command on a 4 vCPU host has a hard 60-second limit. The old version crammed measurement
+and frame extraction into one command, and the measurement decoded the whole video three times at full
+resolution; large files always timed out, the host received nothing, and the frames already extracted were lost
+with it. These tests pin the fix: measurement runs two passes, each decoding only the stream it reads; the
+command stops itself at --deadline-s and writes the results it has; frames are written to disk before
+measurement; --signals-only measures on its own.
+The mock cases do not depend on the media toolchain; the end-to-end cases are skipped on machines without
+ffmpeg/ffprobe.
 """
 
 from __future__ import annotations
@@ -222,7 +226,7 @@ class EndToEndTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.dir = Path(tempfile.mkdtemp())
-        cls.media = cls.dir / "a draft -- v2.mp4"  # 空格和前导短横都是普通文件名
+        cls.media = cls.dir / "a draft -- v2.mp4"  # Spaces and a leading dash are ordinary filename characters
         subprocess.run(
             ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
              "-f", "lavfi", "-i", "testsrc=duration=4:size=160x120:rate=10",

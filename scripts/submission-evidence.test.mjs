@@ -27,7 +27,7 @@ function fixture(t) {
   return { root, assess, receipt, release, evidencePath };
 }
 
-test("提交门由完整证据决定，缺席、未执行、失败与错误版本均不能通过", t => {
+test("the submission gate is decided by complete evidence; absent, unexecuted, failed and wrong-version evidence cannot pass", t => {
   const { assess } = fixture(t);
   assert.equal(assess().blockers.length, 0);
   assert.equal(assessAcceptance().blockers[0].code, "PRODUCTION_ACCEPTANCE_PENDING");
@@ -45,7 +45,7 @@ test("提交门由完整证据决定，缺席、未执行、失败与错误版�
   ]) assert.equal(assess(edit).blockers[0].code, "ACCEPTANCE_EVIDENCE_INVALID");
 });
 
-test("提交门拒绝被改写、越界、链接和含凭据的验收附件", t => {
+test("the submission gate rejects rewritten, out-of-bounds, linked and credential-bearing acceptance attachments", t => {
   const { root, assess } = fixture(t);
   assert.equal(assess(r => { r.checks[0].artifact = "../report.txt"; }).blockers[0].code, "ACCEPTANCE_EVIDENCE_INVALID");
   fs.symlinkSync(path.join(root, "report.txt"), path.join(root, "linked.txt"));

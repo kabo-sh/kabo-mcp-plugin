@@ -34,12 +34,13 @@ def write_once(path: Path, value: dict[str, Any]) -> None:
 
 
 def semantic_total(scores: dict[str, float]) -> float:
-    """三项加权；缺 creator_transferability 时把它的权重按比例摊给另外两项。
+    """Three-item weighting; when creator_transferability is missing, its weight is spread proportionally over the other two.
 
-    Gate 只在 Request 带上 anchor 信息时才打 creator_transferability——没有 anchor 就没有
-    「这个 Creator 接不接得住」可判。省略它时把那 0.25 按原比例归一化到 topic_relevance 与
-    locale_fit（0.5:0.25 → 2/3:1/3），总分仍落在 0–100，同一份 Gate 内的相对次序也只由真正
-    打过的维度决定。跨运行的总分不可直接比较：有无 anchor 衡量的维度本就不同。
+    The Gate scores creator_transferability only when the Request carries anchor information - without an anchor
+    there is nothing to judge about whether this Creator can carry it. When it is omitted, its 0.25 is renormalized
+    in the original proportion onto topic_relevance and locale_fit (0.5:0.25 -> 2/3:1/3), the total still falls in
+    0-100, and the relative order within one Gate is decided only by the dimensions actually scored. Totals across
+    runs are not directly comparable: with and without an anchor the dimensions measured are different.
     """
     topic = scores["topic_relevance"] * 0.5
     locale = scores["locale_fit"] * 0.25
@@ -76,8 +77,8 @@ def semantic_sort_key(item: dict[str, Any], scores: dict[str, dict[str, float]])
     )
 
 
-# 语义 50 会把播放路高位挤掉（006：view_count 第 3、语义 85，截在 86.25）。
-# 先留 12 个播放路名额，其余仍按语义填满 50。
+# Semantic 50 would squeeze out the high end of the views lane (006: view_count rank 3, semantic 85, cut at
+# 86.25). First reserve 12 slots for the views lane, and fill the rest up to 50 by semantic score as before.
 VIEW_COUNT_RESERVE = 12
 
 
@@ -140,7 +141,8 @@ def build(
         "ranking_mode": "evidence_ranked.v1",
         "window": {"since": window["since"], "until": window["until"]},
     }
-    # 句柄形态:候选集留在服务端，入参只带编号与本次选中的 content_key。
+    # Handle form: the candidate set stays on the server, and the input carries only the id and the content_key
+    # selected this time.
     candidate_set_id = candidates.get("candidate_set_id")
     if candidate_set_id is not None:
         if not isinstance(candidate_set_id, str) or not candidate_set_id:
@@ -181,7 +183,8 @@ def main() -> int:
         selected = result.get("selected", result.get("items"))
         print(json.dumps({"status": "ok", "eligible": len(selected), "path": str(args.output)}))
         if args.print:
-            # enrich 的入参就是这份文件的原文；打印紧凑形式，模型不必再 jq 一次。
+            # The enrich input is the verbatim content of this file; print the compact form so the model does not need to
+            # run jq again.
             print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
         return 0
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:

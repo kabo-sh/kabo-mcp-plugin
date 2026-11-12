@@ -45,28 +45,28 @@ from urllib.parse import parse_qs, urlsplit
 
 sys.dont_write_bytecode = True
 SKILL = Path(__file__).resolve().parent.parent
-# 工具结果本身很小（只有链接与摘要）；简报 JSON 远小于 32 MiB，成片按 60 秒短视频留足余量。
+# Tool results are tiny (only links and summaries); the brief JSON is far below 32 MiB, and the finished video leaves headroom for a 60-second short video.
 MAX_RESULT_BYTES = 4 * 1024 * 1024
 MAX_BRIEF_BYTES = 32 * 1024 * 1024
 MAX_VIDEO_BYTES = 512 * 1024 * 1024
-# 旁白的预览页与逐句对照页：runner 每页压到 200 KB 以内，这里留余量
+# Narration preview page and sentence-by-sentence comparison page: the runner keeps each page under 200 KB; leave headroom here
 MAX_PAGE_BYTES = 1024 * 1024
-# 下载交付：只认 Kabo 工具结果给出的 GCS 签名链接，只 GET、不跟随重定向（Kabo Skills 规范 KS7.3）。
+# Download delivery: accept only the GCS signed link given in a Kabo tool result; GET only, never follow redirects (Kabo Skills spec KS7.3).
 DOWNLOAD_HOST = "storage.googleapis.com"
 DOWNLOAD_PREFIX = "https://" + DOWNLOAD_HOST + "/"
 DOWNLOAD_TIMEOUT = 120
 BRIEF_SCHEMA = "kabo.remake-brief.v1"
-# 简报包里必须有的四份文件（与网页端 status.brief 相同）。
+# The four files that must be in the brief package (the same as status.brief on the web).
 BRIEF_FILES = ("work/brief_input.json", "work/script.draft.json", "work/decisions.draft.json",
                "work/route_b/jobs.template.json")
-# 旁白没有口播首帧任务，简报里可以没有 jobs.template.json
+# Narration has no talking-head first-frame job, so the brief may omit jobs.template.json
 NARRATION_OPTIONAL = ("work/route_b/jobs.template.json",)
-# 旁白出片前看一次图时，简报换成当前稿件与逐句审片模板
+# For the one image check before rendering narration, the brief is replaced with the current script and a sentence-by-sentence review template
 REVIEW_FILES = ("work/decisions.json", "work/script.json",
                 "production/review/beats/beat_review.template.json")
 RESIGN_HINT = ("Call get_remake_video again with this job_id (reading re-signs the link; nothing is re-run), save "
                "its complete result to a new host-results file and run fetch on it right away")
-# 签名失败时服务端给 {status: "unavailable", reason}；复刻没有内联回退，只能稍后再读一次重签，不要连着狂调。
+# On a signing failure the server returns {status: "unavailable", reason}; remake has no inline fallback, so the only option is to read again later to re-sign, and do not call repeatedly in a row.
 UNAVAILABLE_HINTS = {
     "service_unavailable": ("Signing the download link failed for now. Wait about a minute, call get_remake_video "
                             "again with this job_id, save that result and run fetch on it. After three such tries, "
@@ -77,7 +77,7 @@ UNAVAILABLE_HINTS = {
 }
 RUN_DIRS = ("host-results", "brief", "script", "render", "output", "project", "project/steps", "project/edits")
 
-# 与 start_remake_video 的入参约束一致；服务端仍会再校验一次。
+# Matches the argument constraints of start_remake_video; the server still validates once more.
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
 INSTAGRAM_HOSTS = {"instagram.com", "www.instagram.com"}
 TIKTOK_HOSTS = {"tiktok.com", "www.tiktok.com", "m.tiktok.com"}
@@ -89,12 +89,12 @@ CREATOR_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 LANGUAGE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 HANDLE = re.compile(r"^@?[A-Za-z0-9._]{1,30}$")
 FILE_REF_RE = re.compile(r"^kabo-file:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", re.IGNORECASE)
-# 本地文件上传（upload_file 登记 + 核对）：类型与上限同 Kabo 用户文件策略；照片只收复刻认的 JPEG / PNG。
+# Local file upload (upload_file registration + check): types and limits are the same as the Kabo user file policy; for photos remake accepts only JPEG / PNG.
 UPLOAD_VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".m4v": "video/x-m4v", ".webm": "video/webm"}
 UPLOAD_IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 UPLOAD_VIDEO_MAX_BYTES = 200 * 1000 * 1000
 UPLOAD_IMAGE_MAX_BYTES = 10 * 1000 * 1000
-# 签名上传只照发服务端签进去的这几个头；多出任何头（尤其 Authorization）都拒绝。
+# A signed upload sends only the headers the server signed in; any extra header (especially Authorization) is rejected.
 UPLOAD_HEADERS = frozenset({"content-type", "x-goog-resumable", "x-goog-if-generation-match", "x-goog-content-length-range"})
 UPLOAD_TIMEOUT = 900
 KEY_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:._-")
@@ -106,15 +106,15 @@ def run_dir():
     if raw:
         run = Path(raw).resolve(strict=True)
     else:
-        # 宿主不一定在命令之间保留环境变量；从当前目录向上找本次运行的标记。
+        # The host does not necessarily keep environment variables between commands; search upward from the current directory for this run's marker.
         here = Path.cwd().resolve()
         run = next((path for path in (here, *here.parents) if (path / ".static-run.json").is_file()), None)
         if run is None:
             raise ValueError("Set KABO_STATIC_RUN_DIR to this request's reserved directory, or run the command from inside it")
     if not (run / ".static-run.json").is_file():
         raise ValueError("Not a reserved static Skill run")
-    # 有的宿主只在两次执行之间保留文件、不保留空目录(Web Agent 的沙箱工作区):init 建的
-    # 空子目录下一步就不在了。每次进入运行目录都补齐,已有的不动。
+    # Some hosts keep only files between two executions and not empty directories (the Web Agent sandbox workspace): the empty subdirectories created by init
+    # are gone by the next step. Complete them on every entry into the run directory; existing ones are left untouched.
     for name in ("snapshot", "snapshot/.host-evidence", "analysis", "report", "owner", "host-results",
                  "project/steps", "project/edits"):
         (run / name).mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -129,8 +129,8 @@ def init(workspace):
     name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + secrets.token_hex(6)
     run = base / name
     run.mkdir(mode=0o700)
-    # host-results/ 放宿主保存的完整工具结果（fetch 的输入）；brief/ 放下载的简报，script/ 放宿主写的四份文件，
-    # render/ 放提交参数，output/ 放成片。
+    # host-results/ holds the full tool results saved by the host (input to fetch); brief/ holds the downloaded brief, script/ holds the four files written by the host,
+    # render/ holds submission arguments, and output/ holds the finished video.
     for name in RUN_DIRS:
         (run / name).mkdir(mode=0o700)
     write_new(run / ".static-run.json", json.dumps({"format": "kabo.static-run.v1", "skill": SKILL.name}).encode())
@@ -138,7 +138,7 @@ def init(workspace):
 
 
 def write_new(path, body):
-    # 独占写入，重试和并发不能覆盖已保存的文件。
+    # Exclusive write: retries and concurrency must not overwrite saved files.
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "wb") as stream:
         stream.write(body)
@@ -147,7 +147,7 @@ def write_new(path, body):
 # ---------------------------------------------------------------- start-call
 
 def _file_ref(raw):
-    """kabo-file:<uuid>（upload_file 核对后给的已传完的本地文件）规范成小写；不是这种写法返回 None。"""
+    """Normalise kabo-file:<uuid> (a fully uploaded local file, as given after upload_file check) to lowercase; return None if it is not written this way."""
     value = (raw or "").strip() if isinstance(raw, str) else ""
     match = FILE_REF_RE.match(value)
     return f"kabo-file:{match.group(1).lower()}" if match else None
@@ -170,7 +170,7 @@ def _url(raw, role):
         raise ValueError(f"{role} must link to one video, not a home page")
     if any(ord(char) <= 32 or ord(char) == 127 for char in url):
         raise ValueError(f"{role} link contains spaces or control characters")
-    # TikTok 与服务端 remakeVideoLink 一致：长链规范成 www 写法（幂等键对得上），短链原样交给服务端解析。
+    # TikTok matches the server's remakeVideoLink: a long link is normalised to the www form (so the idempotency keys line up), and a short link is handed to the server to resolve as is.
     segments = [s for s in parts.path.split("/") if s]
     if host in TIKTOK_HOSTS:
         if len(segments) != 3 or not TIKTOK_USER.match(segments[0]) or segments[1] != "video" \
@@ -186,7 +186,7 @@ def _url(raw, role):
 
 
 def _same_video(a, b):
-    # 同一条视频不能同时当参考和创作者素材；按主机族、路径与 YouTube 的 v 参数比较。
+    # The same video cannot be both the reference and the creator's footage; compare by host family, path, and the YouTube v parameter.
     if a.startswith("kabo-file:") or b.startswith("kabo-file:"):
         return a == b
 
@@ -222,7 +222,7 @@ def approved_script(path):
     return text
 
 
-# 与服务端 start_remake_video 的 voice_preset 闭集一致（Fish 预设音色），服务端仍会再校验。
+# Matches the closed set of voice_preset in the server's start_remake_video (Fish preset voices); the server still validates once more.
 VOICE_PRESETS = {
     "933563129e564b19a115bedd57b7406a": "female, young, soft and conversational",
     "b545c585f631496c914815291da4e893": "female, young, bright",
@@ -323,14 +323,14 @@ def start_call(reference, handle, video_urls, creator_name, language, attempt, s
 
 
 # ---------------------------------------------------------------- projects and edits
-# 原子项目与出片后修改（跨仓契约 v1，2026-11-04）。入参由脚本生成并带幂等键，形状与服务端
-# 的严格 schema 一致；服务端仍会再校验一次。op 是封闭枚举，文件只能是工作区句柄。
+# Atomic projects and post-render edits (cross-repo contract v1, 2026-11-04). Arguments are generated by the script and carry an idempotency key, with a shape matching the server's
+# strict schema; the server still validates once more. op is a closed enum, and files can only be workspace handles.
 
-# 契约 v1.7：已交付复刻另有 master（当前无字幕画面）、broll_bNN（B-roll 段与其静帧）、frame_sNN（口播段首帧）
+# Contract v1.7: a delivered remake additionally has master (the current subtitle-free picture), broll_bNN (a B-roll segment and its still frame), and frame_sNN (the first frame of a talking-head segment)
 HANDLE_RE = re.compile(r"^(creator/[a-z0-9_.-]{1,60}|input/[a-z0-9_.-]{1,60}|a\d{2,3}|final(_r\d{1,2})?|master|take_s\d{2}"
                        r"|broll_b\d{2,3}|frame_s\d{2}|line_\d{2,3})\.(mp4|png|jpg|wav)$")
 COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
-# 服务端的字幕颜色只收 #RRGGBB；常见颜色名由脚本换成固定色值，不让模型自己换算。
+# The server accepts subtitle colors only as #RRGGBB; common color names are converted to fixed values by the script, so the model does not convert them itself.
 COLOR_NAMES = {"white": "#FFFFFF", "black": "#000000", "yellow": "#FFD400", "red": "#FF3B30", "orange": "#FF9500",
                "green": "#34C759", "blue": "#0A84FF", "pink": "#FF2D92", "purple": "#AF52DE", "gray": "#8E8E93",
                "grey": "#8E8E93"}
@@ -344,9 +344,9 @@ def caption_color(value, where):
     return value.upper()
 JOB_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
 MAX_SECONDS = 600
-# voice_change 的音色（服务端 AGENT_REMAKE_VOICE_CHANGE_VOICES，V2-r88 catalog）
+# Voices for voice_change (the server's AGENT_REMAKE_VOICE_CHANGE_VOICES, V2-r88 catalog)
 CHANGE_VOICES = ("warm_female",)
-# 碰脸 op 只收 catalog 里 tested 的模型（第一个是默认）；与工具清单的枚举一致。
+# Face-touching ops accept only models marked tested in the catalog (the first is the default); consistent with the enum in the tool list.
 FACE_MODELS = {
     "refvideo": ("alibaba/wan-3.0/reference-to-video", "kling/v4/reference-to-video"),
     "motion": ("alibaba/wan-3.0/reference-to-video", "fal-ai/kling-video/v3/pro/motion-control",
@@ -358,8 +358,8 @@ FACE_MODELS = {
                 "alibaba/wan-3.0/reference-to-video"),
     "first_frame": ("fal-ai/nano-banana-pro/edit", "fal-ai/bytedance/seedream/v4.5/edit", "fal-ai/nano-banana/edit"),
 }
-# op -> (inputs: 名称 -> 种类, 必填 inputs, params: 名称 -> 种类, 必填 params)
-# 种类：h 句柄；h[lo,hi] 句柄数组；其余见 _param。
+# op -> (inputs: name -> kind, required inputs, params: name -> kind, required params)
+# Kinds: h is a handle; h[lo,hi] is an array of handles; see _param for the rest.
 STEP_OPS = {
     "refvideo": ({"images": "h[1,10]", "ref_video": "h", "first_frame": "h", "last_frame": "h"}, {"images"},
                  {"prompt": "prompt", "duration": "duration3_30", "sound": "bool", "model": "model"}, {"prompt"}),
@@ -385,26 +385,26 @@ STEP_OPS = {
     "mux": ({"video": "h", "audio": "h"}, {"video", "audio"}, {"mode": "mux_mode", "gain_db": "mux_gain"}, {"mode"}),
     "extract_audio": ({"video": "h"}, {"video"}, {}, set()),
     "voice_change": ({"media": "h"}, {"media"}, {"voice": "change_voice"}, {"voice"}),
-    # 契约 v1.5：没有任何本人素材时的虚构 AI 人物（定妆照）；seed_images 按契约在 params 里，是非真人的风格图句柄。
+    # Contract v1.5: a fictional AI persona (a styled portrait) for when there is no footage of the person; seed_images, per the contract, is in params and is a handle to non-real-person style images.
     "persona": ({"seed_images": "h[0,4]"}, set(), {"description": "persona", "count": "count2_4"}, {"description"}),
-    # 契约 v1.6：工具级原子（本地、$0），只是工具，不带场景；场景由宿主组合原子完成。
+    # Contract v1.6: tool-level atoms (local, $0), just tools with no scene attached; scenes are composed by the host from the atoms.
     "retime": ({"video": "h"}, {"video"}, {"mode": "retime_mode", "speed": "retime_speed", "duration": "length",
                                            "t0": "t", "t1": "t", "audio": "keep_none"}, {"mode"}),
     "crop": ({"media": "h"}, {"media"}, {"box": "rect", "size": "size_px"}, {"box"}),
     "inpaint_text": ({"media": "h"}, {"media"}, {"boxes": "rects", "fill": "fill", "t0": "t", "t1": "t"}, set()),
     "layout": ({"base": "h", "layers": "h[1,8]"}, {"layers"}, {"layers": "layers", "canvas": "canvas",
                                                                "audio": "base_none"}, {"layers"}),
-    # 契约 v1.7：first_frame 改一张图出新静帧（重画脸、付费）；still_video 图片成段；audio_edit 声音的
-    # 音量 / 响度 / 淡入淡出 / 速度 / 长度（本地、$0）
+    # Contract v1.7: first_frame edits one image into a new still (redraws the face, paid); still_video turns an image into a segment; audio_edit changes the sound's
+    # volume / loudness / fade in-out / speed / length (local, $0)
     "first_frame": ({"image": "h", "refs": "h[0,3]"}, {"image"}, {"prompt": "prompt", "model": "model"}, {"prompt"}),
     "still_video": ({"images": "h[1,8]"}, {"images"}, {"duration": "length", "zoom": "zoom", "fit": "still_fit"},
                     {"duration"}),
-    # 契约 v1.8：一段视频 / 音频说了什么（带时间；本地、$0、不出文件），用 fetch-step 读转写
+    # Contract v1.8: what a video / audio says (with timing; local, $0, no output file); use fetch-step to read the transcript
     "transcribe": ({"media": "h"}, {"media"}, {"language": "lang"}, set()),
     "audio_edit": ({"media": "h"}, {"media"}, {"gain_db": "audio_gain", "normalize": "bool", "fade_in": "fade",
                                                "fade_out": "fade", "speed": "tts_speed", "duration": "length"}, set()),
 }
-# sync_mode 只给 sync-lipsync 模型（缺省模型就是它）
+# sync_mode is given only to the sync-lipsync model (the default model is it)
 SYNC_MODES = ("cut_off", "loop", "bounce", "silence", "remap")
 EDIT_KINDS = {
     "lines": ({"lines"}, set()),
@@ -446,7 +446,7 @@ def _box(value, where):
 
 
 def _rect(value, where):
-    """[x, y, w, h]：画面比例，非空且落在画面内（crop / inpaint_text / layout）。"""
+    """[x, y, w, h]: frame ratios, non-empty and inside the frame (crop / inpaint_text / layout)."""
     if (not isinstance(value, list) or len(value) != 4 or not all(_number(v) and 0 <= v <= 1 for v in value)
             or value[2] <= 0 or value[3] <= 0 or value[0] + value[2] > 1 + 1e-6 or value[1] + value[3] > 1 + 1e-6):
         raise ValueError(f"{where} must be [x, y, width, height] as fractions of the frame (0-1, width and height "
@@ -614,7 +614,7 @@ def _job_id(job_id):
 
 
 def _key(tool, arguments, attempt):
-    """KS8 job-call 的幂等键：<skill>:<运行目录名>:<工具名>:<入参摘要>:a<尝试序号>。"""
+    """Idempotency key for KS8 job-call: <skill>:<run directory name>:<tool name>:<arguments digest>:a<attempt number>."""
     if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
         raise ValueError("--attempt must be a positive integer")
     digest = hashlib.sha256(json.dumps(arguments, sort_keys=True, ensure_ascii=False,
@@ -650,8 +650,8 @@ def _image_url(raw):
 
 def project_call(handle, video_urls, creator_name, attempt, photo_urls=(), reference_videos=(),
                  reference_images=(), job_id=None):
-    """start_video_project 的入参。创作者素材 0-4 段视频（或 Instagram 主页）加 0-8 张照片，别人的视频 0-4、
-    参考图 0-8（契约 v1.1/v1.3/v1.4）。带 --job-id 时是往已有项目追加照片、参考视频或参考图。"""
+    """Arguments of start_video_project. The creator's footage is 0-4 videos (or an Instagram profile) plus 0-8 photos, others' videos 0-4, and
+    reference images 0-8 (contract v1.1/v1.3/v1.4). With --job-id, it appends photos, reference videos or reference images to an existing project."""
     photos = [_photo_url(url) for url in photo_urls or []]
     refs = [_url(url, "Reference video") for url in reference_videos or []]
     images = [_image_url(url) for url in reference_images or []]
@@ -676,7 +676,7 @@ def project_call(handle, video_urls, creator_name, attempt, photo_urls=(), refer
             if any(_same_video(ref, url) for url in arguments["creator"].get("video_urls", [])):
                 raise ValueError("A reference video is also a creator video; each role needs its own video")
     else:
-        # 没有创作者讲话视频：只能做无脸的步骤，或只靠照片做人像（声音用预设音色或另给录音）。
+        # No creator talking footage: only faceless steps are possible, or a portrait made from photos alone (voice from a preset voice or a separately provided recording).
         arguments = {}
         if photos:
             if not creator_name:
@@ -696,7 +696,7 @@ def project_call(handle, video_urls, creator_name, attempt, photo_urls=(), refer
 
 
 def step_call(job_id, step_file, attempt):
-    """make_video_step 的入参：{op, inputs, params} 按 op 的严格形状核对。"""
+    """Arguments of make_video_step: {op, inputs, params}, checked against the strict shape of the op."""
     step = read_json_file(step_file, "step")
     if not isinstance(step, dict) or set(step) - {"op", "inputs", "params"} or "op" not in step:
         raise ValueError("The step file must be {\"op\": ..., \"inputs\": {...}, \"params\": {...}} and nothing else")
@@ -769,7 +769,7 @@ def script_rows():
 
 
 def edit_call(job_id, edits_file, attempt):
-    """edit_remake_video 的入参：1-10 项修改，每项按 kind 的严格形状核对。"""
+    """Arguments of edit_remake_video: 1-10 edits, each checked against the strict shape of its kind."""
     edits = read_json_file(edits_file, "edits")
     if isinstance(edits, dict) and set(edits) == {"edits"}:
         edits = edits["edits"]
@@ -853,13 +853,13 @@ def tool_result(raw):
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
-    # 签名链接只指向一个对象；任何 3xx 都按失败处理，不让链接把脚本带到别的主机。
+    # A signed link points to exactly one object; any 3xx is treated as a failure, so a link can never lead the script to another host.
     def redirect_request(self, *args, **kwargs):
         return None
 
 
 def hashed_capath(path):
-    # OpenSSL 只从目录里读 <8 位十六进制>.<数字> 形式的证书链接；目录非空但没有这类文件时等于没有信任库。
+    # OpenSSL reads certificate links from a directory only in the form <8 hex digits>.<number>; a non-empty directory without such files is equivalent to having no trust store.
     try:
         with os.scandir(path) as entries:
             return any(re.fullmatch(r"[0-9a-f]{8}\.\d+", entry.name) for entry in entries)
@@ -868,10 +868,10 @@ def hashed_capath(path):
 
 
 def tls_context():
-    # macOS 上 python.org 装的 Python 没跑过 Install Certificates 时默认信任库是空的，每个 HTTPS 下载都报证书失败
-    # （插件实测 T-20261028-04）。只在默认信任库确实不存在时换用 certifi 或系统 CA 包，证书照常校验；
-    # 某个候选读不了或格式不对就试下一个。
-    # Windows 的默认上下文读系统证书库，文件路径为空不代表没有信任库，保持默认。
+    # On macOS, when Python installed from python.org has not run Install Certificates, the default trust store is empty and every HTTPS download fails with a certificate error
+    # (plugin run T-20261028-04). Switch to certifi or the system CA bundle only when the default trust store truly does not exist; certificates are still validated as usual;
+    # if a candidate cannot be read or has the wrong format, try the next one.
+    # On Windows the default context reads the system certificate store, so an empty file path does not mean there is no trust store; keep the default.
     if sys.platform == "win32":
         return None
     paths = ssl.get_default_verify_paths()
@@ -895,7 +895,7 @@ def tls_context():
 
 
 def build_opener():
-    # 测试可在进程内替换这个函数注入假的 HTTPS 处理器；命令行没有入口能改它。
+    # Tests can replace this function in-process to inject a fake HTTPS handler; no command-line entry point can change it.
     context = tls_context()
     handlers = [NoRedirect()] + ([urllib.request.HTTPSHandler(context=context)] if context else [])
     return urllib.request.build_opener(*handlers)
@@ -917,7 +917,7 @@ def download(descriptor, kind, content_type, limit, sink):
         raise ValueError(f"Download unavailable ({reason}). " + UNAVAILABLE_HINTS.get(reason, RESIGN_HINT))
     if descriptor.get("status") != "ready":
         raise ValueError("This result has no ready download. " + RESIGN_HINT)
-    # 简报是 envelope，成片是 artifact（ADR-0084 researchDownloadSchema 的 kind）。
+    # A brief is an envelope and a finished video is an artifact (the kind of ADR-0084 researchDownloadSchema).
     if descriptor.get("kind") != kind:
         raise ValueError(f"Download kind is {descriptor.get('kind')!r}, expected {kind!r}")
     if (not isinstance(url, str) or not isinstance(digest, str) or len(digest) != 64 or
@@ -928,12 +928,12 @@ def download(descriptor, kind, content_type, limit, sink):
         raise ValueError(f"Download is declared as {descriptor.get('content_type')!r}, expected {content_type}")
     if expired(descriptor):
         raise ValueError("Download link expired (expires_at has passed). " + RESIGN_HINT)
-    # 协议与主机逐字匹配（不带端口、用户名），不含空白或控制字符。
+    # Protocol and host must match verbatim (no port, no username) and contain no whitespace or control characters.
     if (not url.startswith(DOWNLOAD_PREFIX) or urlsplit(url).netloc != DOWNLOAD_HOST or
             any(ord(char) <= 32 or ord(char) == 127 for char in url)):
         raise ValueError("Download link is not a Kabo signed storage link; refusing to fetch it")
     request = urllib.request.Request(url, method="GET", headers={"Accept-Encoding": "identity"})
-    # 报错只说类别与状态码：异常文本可能带链接、签名或对象名，一律不转述。
+    # Errors state only the category and status code: exception text may carry the link, signature or object name, so it is never relayed.
     hasher, total = hashlib.sha256(), 0
     try:
         with build_opener().open(request, timeout=DOWNLOAD_TIMEOUT) as response:
@@ -970,7 +970,7 @@ def download(descriptor, kind, content_type, limit, sink):
 
 
 def safe_relative(name):
-    # 简报包里的路径只能是相对路径，不能越出 brief/。
+    # Paths inside the brief package may only be relative and must not escape brief/.
     if (not isinstance(name, str) or not name or name.startswith("/") or "\\" in name or
             not re.fullmatch(r"[A-Za-z0-9._/-]+", name) or any(part in ("", ".", "..") for part in name.split("/"))):
         raise ValueError("Brief bundle contains an unsafe file path")
@@ -1009,7 +1009,7 @@ def fetch_brief(run, structured, loaded=None):
     marker = target / "bundle.json"
     previous = None
     if marker.exists():
-        # 信封里可能带着每次重签的预览链接：只按稿件文件判断简报是否换了
+        # The envelope may carry a preview link re-signed each time: decide whether the brief has changed only from the script files
         if (json.loads(marker.read_bytes().decode("utf-8")) or {}).get("files") == files:
             return {"saved": "brief", "job_id": bundle.get("job_id"), "status": "already_saved", "directory": str(target),
                     "files": {name: str(target / name) for name in BRIEF_FILES if (target / name).exists()}}
@@ -1027,8 +1027,8 @@ def fetch_brief(run, structured, loaded=None):
         if name.endswith(".json"):
             json.loads(text)
     if marker.exists():
-        # 稿件预检没过时服务端回到 waiting_script 并给一份新简报：旧简报整体留作 brief.previous-N，
-        # 新简报写回 brief/，script/ 里已写的文档不动。
+        # When script pre-check fails, the server returns to waiting_script and gives a new brief: the old brief is kept whole as brief.previous-N,
+        # the new brief is written back to brief/, and documents already written in script/ are left untouched.
         n = 1
         while (run / f"brief.previous-{n}").exists():
             n += 1
@@ -1039,10 +1039,10 @@ def fetch_brief(run, structured, loaded=None):
     for name, text in sorted(files.items()):
         path = target / name
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        # bundle.json 还不在说明上次没写完；这几份文件按同一份已校验的字节重写。
+        # bundle.json not being there yet means the last write did not finish; these files are rewritten from the same validated bytes.
         path.write_bytes(text.encode("utf-8"))
         written[name] = str(path)
-    # bundle.json 最后写：它在就表示整份简报都已落盘。
+    # bundle.json is written last: its presence means the whole brief has been written to disk.
     write_new(marker, body)
     result = {"saved": "brief", "job_id": bundle.get("job_id"), "sha256": digest, "bytes": size,
               "directory": str(target), "files": written}
@@ -1051,7 +1051,7 @@ def fetch_brief(run, structured, loaded=None):
     return result
 
 
-# 终审转述由脚本定稿：review.qc.failed 是唯一来源，交付说明里的自检、qc 行不进转述（模型会把它们当结论）。
+# The final-review paraphrase is fixed by the script: review.qc.failed is the only source; the self-check and qc lines in the delivery notes stay out of the paraphrase (the model would treat them as conclusions).
 QC_ITEMS = {
     "framing": "the shot is framed differently from the reference (for example wider or tighter)",
     "caption_overlap": "captions overlap the speaker or another caption",
@@ -1129,9 +1129,9 @@ def fetch_video(run, structured):
 
 
 # ---------------------------------------------------------------- project state (get_remake_video project: true)
-# 修改与原子项目的状态在 get_remake_video（带 project: true）的 project 字段里；四个项目工具的出参就是
-# 同一个对象。成片的每个修订版（修改后的、项目交付的）在 revisions[i].video.download，一步的产物在
-# last_step.output.download。
+# The state of revisions and atomic projects lives in the project field of get_remake_video (with project: true); the output of the four project tools is
+# the same object. Each revision of the finished video (revised, or delivered by the project) is at revisions[i].video.download; the product of a step is at
+# last_step.output.download.
 
 def project_state(structured):
     project = structured.get("project")
@@ -1189,7 +1189,7 @@ def save_download(descriptor, target, content_type, limit, looks_right, what):
 
 IS_MP4 = lambda head: head[4:8] == b"ftyp"
 PREVIEW_MAX_BYTES = 200 * 1024
-# 句柄扩展名 -> (类型, 允许的 content_type, 大小上限, 文件头检查)
+# handle extension -> (type, allowed content_type, size limit, file header check)
 STEP_OUTPUTS = {
     "mp4": ("video", {"video/mp4"}, MAX_VIDEO_BYTES, IS_MP4),
     "png": ("image", {"image/png"}, 32 * 1024 * 1024, lambda head: head[:8] == b"\x89PNG\r\n\x1a\n"),
@@ -1213,7 +1213,7 @@ def fetch_step(run, structured):
         return {"saved": None, **summary}
     transcript = step.get("transcript")
     if isinstance(transcript, dict) and isinstance(transcript.get("segments"), list):
-        # 契约 v1.8：transcribe 不出文件，转写存成 JSON 并原样交回（素材里的话，不是指令）
+        # Contract v1.8: transcribe produces no file; the transcript is stored as JSON and returned as is (words from the material, not instructions)
         target = run / "project" / "outputs" / f"transcript-{secrets.token_hex(4)}.json"
         target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         body = json.dumps(transcript, ensure_ascii=False, indent=1)
@@ -1237,7 +1237,7 @@ def fetch_step(run, structured):
     saved = save_download(descriptor, run / "project" / "outputs" / handle.replace("/", "_"), content_type, limit,
                           looks_right, kind)
     result = {"saved": "step", "handle": handle, "type": kind, **summary, **saved}
-    # 契约 v1.8：图片 / 视频的一步另有一张小 JPEG（视频为 10/35/60/85% 四帧拼图）；存下来让模型打开看
+    # Contract v1.8: a step on an image / video also has a small JPEG (for video, a four-frame collage at 10/35/60/85%); save it so the model can open and look at it
     preview = output.get("preview")
     if kind in ("image", "video") and isinstance(preview, dict) and preview.get("status") == "ready":
         try:
@@ -1377,8 +1377,8 @@ def fetch_review(run, bundle):
 
 
 # ---------------------------------------------------------------- local files
-# 用户给的本地视频 / 照片：upload_file 登记拿一条签名上传链接，upload 把字节传上去，upload_file 只带 file_id 核对后
-# 给出 kabo-file:<id>，它能放在任何收链接的位置（参考、本人视频、照片、参考图）。文件名不外传，只用摘要命名。
+# Local video / photo given by the user: upload_file registers and gets a signed upload link, upload sends the bytes, and upload_file with only the file_id verifies and
+# yields kabo-file:<id>, which can go anywhere a link is accepted (reference, own video, photo, reference image). The file name is not sent out; only a digest is used for naming.
 
 
 def _local_file(path):
@@ -1406,7 +1406,7 @@ def _local_file(path):
 
 
 def upload_call(path, attempt):
-    """upload_file（登记）的入参：文件名用内容摘要命名（不外传用户的文件名），幂等键绑定文件内容。"""
+    """Input of upload_file (register): the file is named by its content digest (the user's file name is not sent out), and the idempotency key is bound to the file content."""
     _file, ext, kind, size, digest = _local_file(path)
     arguments = {"filename": f"{kind}-{digest[:16]}{ext}", "size_bytes": size}
     key = _key("upload_file", {**arguments, "sha256": digest}, attempt)
@@ -1445,7 +1445,7 @@ UPLOAD_RESIGN = ("Call upload_file again with the same upload-call arguments (th
 
 
 def upload(raw, path):
-    """把本地文件传到 upload_file 给的签名链接：一次 POST 开可续传会话，一次 PUT 传完整字节。"""
+    """Send a local file to the signed link given by upload_file: one POST opens a resumable session, one PUT sends the complete bytes."""
     structured = _structured(raw, "upload_file")
     file_id = structured.get("file_id")
     if not isinstance(file_id, str) or not JOB_ID_RE.match(file_id):
@@ -1453,7 +1453,7 @@ def upload(raw, path):
     file, _ext, _kind, size, _digest = _local_file(path)
     ref = f"kabo-file:{file_id.lower()}"
     if structured.get("status") == "ready":
-        # 同一个文件已经传完并核对过（同键重放），不用再传。
+        # The same file has already been uploaded and verified (same-key replay); no need to upload again.
         return {"status": "ready", "file_ref": ref,
                 "next": f"Use {ref} wherever this file goes (a reference, creator video or photo, or reference image)"}
     instruction = structured.get("upload")
@@ -1468,7 +1468,7 @@ def upload(raw, path):
     if expired({"expires_at": instruction.get("expires_at")}):
         raise ValueError("The upload link expired. " + UPLOAD_RESIGN)
     opener = build_opener()
-    # 报错只说类别与状态码：异常文本可能带链接、签名或对象名，一律不转述。
+    # Errors state only the category and status code: exception text may carry the link, signature or object name, so it is never relayed.
     try:
         with opener.open(urllib.request.Request(url, data=b"", method="POST", headers=headers),
                          timeout=DOWNLOAD_TIMEOUT) as response:
@@ -1528,7 +1528,7 @@ def main():
     command.add_argument("--creator-name")
     command.add_argument("--language")
     command.add_argument("--attempt", type=int, default=1)
-    # 完整结果只从文件或 stdin 读；下载链接不进 argv，不出现在进程列表里。
+    # The complete result is read only from a file or stdin; the download link never goes into argv, so it does not appear in the process list.
     command = commands.add_parser("fetch")
     command.add_argument("--input", default="-")
     command = commands.add_parser("fetch-preview")
@@ -1561,7 +1561,7 @@ def main():
     command = commands.add_parser("upload-call")
     command.add_argument("--file", required=True)
     command.add_argument("--attempt", type=int, default=1)
-    # 签名上传链接只从完整结果文件或 stdin 读，不进 argv。
+    # The signed upload link is read only from the complete result file or stdin, never from argv.
     command = commands.add_parser("upload")
     command.add_argument("--file", required=True)
     command.add_argument("--input", default="-")

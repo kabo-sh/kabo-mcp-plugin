@@ -1076,7 +1076,7 @@ def validate_gate_state(idea_set: dict[str, Any], errors: list[str]) -> None:
 def presentation_inputs_are_safe(idea_set: Any) -> bool:
     """Gate early presentation diagnostics on only their typed dependencies."""
     schema = load(IDEA_SET_SCHEMA)
-    # 提前检查只保证容器形状与可哈希性；枚举和范围错误仍由完整 schema 拒绝。
+    # The early check only guarantees container shape and hashability; enum and range errors are still rejected by the full schema.
     fields = ("status", "task_intent", "source_mode")
     guard = {"type": "object", "properties": {
         field: {"type": "string"} for field in fields}}
@@ -1093,7 +1093,7 @@ def presentation_inputs_are_safe(idea_set: Any) -> bool:
 
 
 def shortlist_hook_errors(idea_set: Any, request: Any) -> list[str]:
-    """只读取类型安全的 Hook 依赖，让无关 schema 错误不遮住可确认的问题。"""
+    """Read only type-safe Hook dependencies, so unrelated schema errors do not mask problems that can be confirmed."""
     errors: list[str] = []
     if not isinstance(idea_set, dict) or not isinstance(request, dict):
         return errors
@@ -1124,7 +1124,7 @@ def shortlist_hook_errors(idea_set: Any, request: Any) -> list[str]:
 
 
 def production_asset_errors(idea_set: Any, request: Any) -> list[str]:
-    """类型安全地汇总素材条件，让无关 schema 错误不耗掉唯一修订机会。"""
+    """Aggregate material conditions in a type-safe way, so unrelated schema errors do not use up the only revision chance."""
     errors: list[str] = []
     if not isinstance(idea_set, dict) or not isinstance(request, dict):
         return errors
@@ -1156,7 +1156,7 @@ def production_asset_errors(idea_set: Any, request: Any) -> list[str]:
             continue
         if not (set(required) - available_assets):
             continue
-        # 提案可以列出未来资源，不能冒充已拥有；产能和改写请求的门槛保持不变。
+        # A proposal may list future resources but must not pass them off as already owned; thresholds for capacity and rewrite requests are unchanged.
         require(intent in {"open_shortlist", "brief_only"},
                 f"{prefix}: {intent} required_assets must be declared available_assets; "
                 "only shortlist intents allow pending resources", errors)
@@ -1503,7 +1503,7 @@ def main() -> int:
         print(json.dumps(generation_decision(request), ensure_ascii=False, sort_keys=True))
         return 0
     if args.command == "idea-set" and args.report:
-        # 一次返回已核验的完整交付，不写文件，也不消耗新的生成机会。
+        # Return the verified complete delivery in one go, without writing files and without consuming a new generation chance.
         from render_idea_report import concise
         try:
             report = args.report.read_text(encoding="utf-8")
@@ -1514,7 +1514,7 @@ def main() -> int:
             print(f"ERROR: cannot deliver validated report: {error}", file=sys.stderr)
             return 1
         if args.deliver:
-            # 交付元数据先于正文；完整性信息只用于宿主转交，不替代内容校验。
+            # Delivery metadata comes before the body; integrity information is only for host handoff and does not replace content validation.
             import hashlib
             from report_language import report_language
             try:

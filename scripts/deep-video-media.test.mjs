@@ -1,7 +1,11 @@
-// 深度复盘看片是一次后台组合调用 collect_video_media（KS9）：watch_media.py 先跑目录摘要、选片与媒体计划，
-// 只交出一行 call:；还有 job 在跑时续跑再交同一个调用；全部终态后按组逐字节写 snapshot/media-*.json、
-// 绑定 job id、生成 outcomes / evidence / 作者种子，并打印每条已看视频的开头帧读取。这里不联网：
-// 组合结果按后台对这组入参会给出的形状手写，走 stage 回退落盘。
+// Deep review's video viewing is one backend combined call to collect_video_media (KS9): watch_media.py
+// first runs the catalog digest, clip selection, and media plan,
+// and hands off only a call: line; while jobs are still running, the resume hands off the same call again;
+// once all are in a terminal state, it writes snapshot/media-*.json byte for byte per group,
+// binds job ids, generates outcomes / evidence / author seeds, and prints the opening-frame reading of each
+// video watched. This test does not touch the network:
+// the combined result is hand-written in the shape the backend would give for this input, and goes to disk
+// through the stage fallback.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cp, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -26,7 +30,8 @@ function shell(command) {
 }
 const calls = (out) => out.split("\n").filter((line) => line.startsWith("call: ")).map((line) => JSON.parse(line.slice(6)));
 const reads = (out) => out.split("\n").filter((line) => line.startsWith("read: ")).map((line) => JSON.parse(line.slice(6)));
-// 这几例走「没有下载链接」的退路：结果存进交接点名的文件，续跑去掉 --id。按编号取的那条路见文件末尾两例。
+// These cases take the "no download link" fallback: the result is saved to the file named by the handoff,
+// and the resume drops --id. The by-id path is covered by the two cases at the end of the file.
 const saveOf = (out) => out.split("\n").find((line) => line.startsWith("  result ")).split("has no download url: ")[1].slice(0, -1);
 const resumeOf = (out) => { const line = out.split("\n").find((l) => l.startsWith("Then run this one command")); return line.slice(line.indexOf("cd '")).replace(/ --id=<id>$/, ""); };
 const withoutId = (command) => command.replace(/ --id=<id>$/, "");
@@ -80,7 +85,7 @@ function composite(args, pendingGroups = new Set()) {
 }
 const save = (file, result) => writeFile(file, JSON.stringify({ content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result }));
 
-test("看片一次组合调用：交接一个 call，续跑等到终态，按组写入快照并打印开头帧读取与作者包", async (t) => {
+test("video watch single composite call: hand off one call, resume until a terminal state, write the snapshot by group and print the opening-frame reads and the author pack", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-deep-media-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const init = python("static_host.py", ["init", "--workspace", workspace]);
@@ -99,7 +104,8 @@ test("看片一次组合调用：交接一个 call，续跑等到终态，按组
   assert.equal(args.requests.length, 9);
   assert.deepEqual([...new Set(args.requests.map((r) => r.operation))], ["collect_public_metadata", "fetch_transcript", "extract_keyframes"]);
 
-  // 第一次结果还有 job 在跑：续跑再交同一个调用（同一 run_key、同一组请求）。
+  // The first result still has jobs running: the resume hands off the same call again (same run_key, same set
+  // of requests).
   await save(saveOf(first.out), composite(args, new Set([`${ids[0]}/extract_keyframes`])));
   const second = shell(resumeOf(first.out));
   assert.equal(second.code, 0, second.out);
@@ -123,21 +129,24 @@ test("看片一次组合调用：交接一个 call，续跑等到终态，按组
   assert.equal(frameReads.length, 3);
   for (const read of frameReads) {
     assert.equal(read.tool, "read_research_data_artifacts");
-    assert.equal(read.arguments.object_refs.length, 5, "开头 3 秒内 7 帧，取 5 张、首尾必含");
+    assert.equal(read.arguments.object_refs.length, 5, "7 frames within the first 3 seconds; take 5, first and last always included");
     assert.match(read.arguments.object_refs[0], /frame-0001\.jpg$/);
     assert.match(read.arguments.object_refs.at(-1), /frame-0007\.jpg$/);
   }
   assert.match(third.out, /Authoring packet/);
   await readFile(path.join(run, "account_deep_authoring.json"), "utf8");
-  // Web 每条命令把同一个 run 挂在不同的绝对目录下：作者包的来源绑定仍认得这个 run。
+  // Web hosts mount the same run under a different absolute directory on every command: the author pack's
+  // source binding still recognizes this run.
   const moved = path.join(workspace, "elsewhere", ".kabo-runs", path.basename(run));
   await cp(run, moved, { recursive: true });
   const reread = python("read_deep_synthesis_packet.py", ["deep_synthesis_input.json", "--authoring"], { cwd: moved, run: moved });
   assert.equal(reread.code, 0, reread.out);
 });
 
-// 没有标准复盘时：fetch_catalog.py --workspace 一条命令占好 run 并交出一个 collect_account_history；
-// 续跑按调用顺序逐字节放进 catalog/、组装分析，并直接接上看片的交接。
+// With no standard review: the single command fetch_catalog.py --workspace reserves the run and hands off a
+// collect_account_history;
+// the resume places the results into catalog/ byte for byte in call order, assembles the analysis, and goes
+// straight on to the video-viewing handoff.
 const NOW_S = Math.floor(Date.now() / 1000);
 const igEnvelope = (operation, data) => ({
   schema_version: "1.0", connector_id: "instagram-discovery", operation, provider: "fixture", status: "completed", summary: "ok",
@@ -151,7 +160,7 @@ const igRow = (code, index, reel) => ({
 });
 const igPage = (prefix, count, reel) => ({ rows: Array.from({ length: count }, (_, i) => igRow(`${prefix}${i}`, i, reel)), count, more_available: false });
 
-test("目录一次组合调用：--workspace 占 run 并交一个 call，续跑逐字节放置、组装分析并接上看片交接", async (t) => {
+test("directory single composite call: --workspace claims a run and hands off one call; resume places byte for byte, assembles the analysis, and chains into the video-watch handoff", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-deep-catalog-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const first = python("fetch_catalog.py", ["--workspace", workspace, "--platform", "instagram", "--account", "@neutral.creator"], { cwd: os.tmpdir() });
@@ -183,7 +192,7 @@ test("目录一次组合调用：--workspace 占 run 并交一个 call，续跑�
   assert.equal(media[0].tool, "collect_video_media");
 });
 
-test("目录组合调用：资料页不存在如实说；调用两次都失败就停下", async (t) => {
+test("directory composite call: say so honestly when the profile page does not exist; stop when the call fails twice", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-deep-catalog-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const first = JSON.parse(python("fetch_catalog.py", ["--workspace", workspace, "--platform", "instagram", "--account", "ghost"], { cwd: os.tmpdir() }).out);
@@ -199,8 +208,10 @@ test("目录组合调用：资料页不存在如实说；调用两次都失败�
   assert.match(failed.out, /"reason": "service_failed"/);
 });
 
-// 按结果编号取（kabo ADR-0084「2026-11-04」）：模型只把编号填进续跑命令，脚本向 Kabo 取同一份字节、按响应头的
-// sha256 与长度校验后落盘，不存任何文件。进程内替换 urllib 的 HTTPS 收发，不联网。
+// Fetch by result id (kabo ADR-0084 "2026-11-04"): the model only fills the id into the resume command, and
+// the script fetches the same bytes from Kabo, validates them
+// against the sha256 and length in the response headers, and writes them to disk, without saving any file.
+// The HTTPS send/receive of urllib is replaced in-process; no network access.
 const RESULT_ID = "Neutral_Result-Id01234";
 const DASH_ID = "-eutral_Result-Id01234";
 const BY_ID = `https://kabo.sh/v1/research-downloads/${RESULT_ID}`;
@@ -238,7 +249,7 @@ async function byId(run, script, argv, download) {
   return JSON.parse(result.stdout.trim().split("\n").at(-1));
 }
 
-test("看片按结果编号续跑：交接只要编号，续跑自己取、不存文件，走到终态", async (t) => {
+test("video watch resumes by result id: the handoff needs only the id, the resume fetches by itself without storing a file, and runs to a terminal state", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-deep-media-id-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
@@ -248,7 +259,8 @@ test("看片按结果编号续跑：交接只要编号，续跑自己取、不�
   assert.match(first.out, /Do not save the result/);
   assert.match(first.out, / --id=<id>$/m);
   const args = calls(first.out)[0].arguments;
-  // 编号以「-」开头时也要能续跑：交接打印的是 `--id=<id>`，照填即可（分开写会被当成另一个选项）。
+  // An id starting with "-" must also be resumable: the handoff prints `--id=<id>`, so fill it in as is
+  // (written separately it would be taken as another option).
   const resumed = await byId(run, "watch_media", ["account_analysis.json", "--placed", `--id=${DASH_ID}.json`], composite(args));
   assert.equal(resumed.code, 0, resumed.out);
   assert.deepEqual(resumed.requests, [`https://kabo.sh/v1/research-downloads/${DASH_ID}`]);
@@ -256,7 +268,7 @@ test("看片按结果编号续跑：交接只要编号，续跑自己取、不�
   assert.match(resumed.out, /"status": "watched", "pending_jobs": 0/);
 });
 
-test("目录按结果编号续跑：rerun 填编号即可，不存文件，接上看片交接", async (t) => {
+test("directory resumes by result id: rerun needs only the id, stores no file, and chains into the video-watch handoff", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-deep-catalog-id-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const handed = JSON.parse(python("fetch_catalog.py", ["--workspace", workspace, "--platform", "instagram", "--account", "@neutral.creator"], { cwd: os.tmpdir() }).out);
@@ -281,8 +293,10 @@ test("目录按结果编号续跑：rerun 填编号即可，不存文件，接�
   }
 });
 
-// Web 宿主读交接的规则（kabo-agent-service src/tools/plugin-handover.ts 的 parsePluginHandover），照抄到这里，
-// 与 acv-video-media.test.mjs 同一份：读得懂，宿主就自己调用、把原样结果写进槽位文件、按续跑命令接着跑。
+// The rules by which the Web host reads a handoff (parsePluginHandover in kabo-agent-service
+// src/tools/plugin-handover.ts), copied here
+// and identical to acv-video-media.test.mjs: if it can be parsed, the host calls it itself, writes the
+// result as is into the slot file, and continues with the resume command.
 function hostHandover(stdout) {
   const lines = stdout.split("\n");
   const start = lines.findIndex((line) => line.startsWith("Hand-over: "));
@@ -315,12 +329,13 @@ function hostHandover(stdout) {
   return resume && found.length && files.length === found.length ? { calls: found, files, resume } : null;
 }
 
-test("watch_media.py 的交接是 Web 宿主读得懂的写法：两轮都由宿主写入原样结果、不带编号续跑，走到终态", async (t) => {
+test("the watch_media.py handoff is written in a form the Web host understands: both rounds have the host write the result verbatim and resume without an id, running to a terminal state", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-deep-host-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
   await writeFile(path.join(run, "account_analysis.json"), JSON.stringify(analysis));
-  // shell 里残留着另一个 run 的 KABO_STATIC_RUN_DIR：续跑仍要落在 cd 进去的那个 run。
+  // The shell still has KABO_STATIC_RUN_DIR from another run: resuming must still land in the run we cd'd
+  // into.
   const stray = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
   assert.notEqual(stray, run);
   const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1", KABO_STATIC_RUN_DIR: stray };
@@ -340,7 +355,8 @@ test("watch_media.py 的交接是 Web 宿主读得懂的写法：两轮都由宿
   assert.ok(!handover.resume.args.includes("<id>"));
   const args = handover.calls[0].arguments;
 
-  // 第一轮还有 job 在跑：再交一轮同样要让宿主认得（说明单独一行，槽位编号换成 02）。
+  // The first round still has jobs running: handing over another round must also be recognised by the host
+  // (the note is a single line, slot number changed to 02).
   await writeFile(handover.files[0], JSON.stringify(composite(args, new Set([`${ids[0]}/extract_keyframes`]))));
   const second = resume(handover);
   assert.equal(second.code, 0, second.out);
@@ -359,10 +375,13 @@ test("watch_media.py 的交接是 Web 宿主读得懂的写法：两轮都由宿
   await assert.rejects(readFile(path.join(stray, "watch_outcomes.json"), "utf8"));
 });
 
-// 2026-11 线上：YouTube 整批上游拒绝下载（"Sign in to confirm you're not a bot"），每个媒体 job 都失败，
-// 组合结果整体 status: failed，/mcp-pub 同时标 isError。续跑曾把它当「没有组合结果」退出 1；应照常落盘、
-// 记为 jobs_failed，并说明只用目录数字继续，不能停在看片这一步。
-test("看片整批上游失败：标 isError 的 failed 组合结果照常落盘，降级为只用目录数字继续，不退出 1", async (t) => {
+// 2026-11 production: YouTube rejected the whole batch of upstream downloads ("Sign in to confirm you're
+// not a bot"), every media job failed,
+// the combined result had overall status: failed, and /mcp-pub also flagged isError. Resuming used to
+// treat this as "no combined result" and exit 1; it should
+// write to disk as usual, record it as jobs_failed, and say it continues with the catalog numbers only,
+// not stopping at the watch-the-video step.
+test("whole video-watch batch fails upstream: a failed composite result marked isError is persisted as usual, degrades to continuing with directory numbers only, and does not exit 1", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-deep-media-failed-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();

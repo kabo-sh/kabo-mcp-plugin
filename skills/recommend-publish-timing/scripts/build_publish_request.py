@@ -130,10 +130,11 @@ SCHEMA = Path(__file__).resolve().parent.parent / "references" / "publish-reques
 
 
 def check_shape(intent: dict[str, Any]) -> None:
-    """按 publish-request 的必填结构先查一遍，缺块时指明缺什么，而不是让 compute_timing.py 读到 KeyError。
+    """Check against publish-request's required structure first, and name what is missing when a block is absent, instead of letting compute_timing.py hit a KeyError.
 
-    插件实测（T-20261029-12 R2）：模型把 platform / format / timezone 平铺写在顶层、没有 content 块，
-    这里照常通过，到 compute_timing.py 才以 KeyError: 'content' 失败，整轮没有交付。
+    Observed in the plugin (T-20261029-12 R2): the model wrote platform / format / timezone flat at the top level
+    with no content block; it passed here as usual and only failed in compute_timing.py with KeyError: 'content',
+    so nothing was delivered in the whole round.
     """
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     missing = [key for key in schema["required"] if key != "history" and key not in intent]

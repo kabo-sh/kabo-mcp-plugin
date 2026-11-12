@@ -443,12 +443,14 @@ def stage_report(args: argparse.Namespace) -> None:
         render_args += ["--language", language, "--presentation", str(candidate)]
     rendered = cd.script("render_creator_report.py", *render_args)
     if rendered and rendered.strip():
-        # 渲染器只在有译文槽位退回原文时输出 kept_source_text，原样转给 agent。
+        # The renderer emits kept_source_text only when a translation slot falls back to the source text; pass it
+        # to the agent unchanged.
         say(rendered.rstrip())
     report = Path(CREATOR_REPORT).resolve()
     say(f"creator_report: {report}")
     say(report.read_text(encoding="utf-8").rstrip())
-    # 交付方式紧跟报告打印：实测里短问题的回复常被模型改写成摘要。
+    # Print the delivery instructions right after the report: in real runs the model often rewrote short
+    # replies into a summary.
     say('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says), then this creator_report line.')
 
 

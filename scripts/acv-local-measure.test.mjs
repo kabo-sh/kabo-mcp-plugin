@@ -1,10 +1,12 @@
-// 本地文件抽帧/测量的时限回归：测量两遍各解码一路、命令到时限自己停、帧先落盘、--signals-only 单独测量。
-// 没装 ffmpeg 的机器上端到端用例自动跳过，mock 用例照跑。
+// Time-limit regression for local-file frame extraction/measurement: the two measurement passes each decode one
+// stream, the command stops itself at the deadline, frames are written to disk first, and --signals-only
+// measures on its own.
+// End-to-end cases are skipped automatically on machines without ffmpeg; the mock cases still run.
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-test("analyze-content-video 本地测量不再拖死抽帧", () => {
+test("analyze-content-video local measurement no longer hangs frame extraction", () => {
   execFileSync("python3", ["-B", "scripts/acv-local-measure-regression.py", "-v"], {
     cwd: fileURLToPath(new URL("..", import.meta.url)), encoding: "utf8", stdio: "pipe",
   });

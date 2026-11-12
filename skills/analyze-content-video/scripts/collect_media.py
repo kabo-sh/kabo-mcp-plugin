@@ -35,19 +35,22 @@ import static_host  # noqa: E402
 TOOL = "collect_video_media"
 CONNECTOR = "public-video-media"
 STATE = Path("collect-media.json")
-# 一次调用后台最多等 45 秒（Codex 工具超时 60 秒以内）；媒体一轮常要两三分钟，6 份结果够等满。
+# One call waits on the backend for at most 45 seconds (within the Codex tool timeout of 60 seconds); a media
+# round often takes two to three minutes, so 6 results are enough to wait it out.
 MAX_ROUNDS = 6
-# 选项名 → collect_video_media 的操作。元数据只在 Instagram / TikTok 走媒体工具（YouTube 用 youtube_get_video）。
+# Option name -> operation of collect_video_media. Metadata goes through the media tool only for Instagram /
+# TikTok (YouTube uses youtube_get_video).
 OPERATIONS = {
     "metadata": "collect_public_metadata",
     "transcript": "fetch_transcript",
     "keyframes": "extract_keyframes",
     "measure": "measure_media_signals",
 }
-# 与 static_host.job-call 的帧数上限同一个值。
+# The same value as the frame-count cap in static_host.job-call.
 MAX_FRAMES = static_host.FRAME_CAPS["public_video_extract_keyframes"]
-# 与 connector_driver.py 的交接同一个办法（kabo ADR-0084「2026-11-04」）：模型只交结果编号，续跑按编号自己取；
-# 存文件只是没有下载链接时的退路。
+# Same approach as the connector_driver.py handoff (kabo ADR-0084 "2026-11-04"): the model hands over only the
+# result id, and the resume fetches by id itself; saving to a file is only the fallback when there is no
+# download link.
 SAVE_RULE = ("Do not save the result. Its download url holds its result id: the 22 characters between "
              "`research-export/v1/` and `.json`. Put the id of your last call's result into the resume command "
              "below as `--id=<id>`. Only if that result has no download url, save it whole, as returned, to the "
@@ -73,7 +76,8 @@ def quote(text: str) -> str:
 
 
 def run_key() -> str:
-    # 同一个 run 恒得同一把键：重复调用只是接着等；别的 run 的键不同，不会回放别人的 job。
+    # The same run always gets the same key: a repeated call just continues the wait; another run's key differs, so
+    # it never replays someone else's job.
     return "acv:" + hashlib.sha256(str(static_host.run_dir().resolve()).encode()).hexdigest()[:32]
 
 
@@ -91,18 +95,20 @@ def resume_command(args: argparse.Namespace) -> str:
     run_directory = quote(str(static_host.run_dir()))
     argv = [str(SCRIPTS / "collect_media.py"), "--url", args.url, "--operations", ",".join(args.operations),
             "--max-frames", str(args.max_frames), "--placed"]
-    # 不带 KABO_STATIC_RUN_DIR=… 前缀：run 从当前目录找到（static_host.run_dir）。这一行和下面的槽位行与
-    # connector_driver.py 的交接同一种写法，Web 宿主（kabo-agent-service plugin-handover.ts）才认得出来、
-    # 自己调用并续跑；认不出时整段交接落到模型手里，模型常在暂存这一步失手（pre M3b/M4c/M5a）。
+    # No KABO_STATIC_RUN_DIR=... prefix: the run is found from the current directory (static_host.run_dir). This
+    # line and the slot lines below use the same format as the connector_driver.py handoff, which is the only way the
+    # Web host (kabo-agent-service plugin-handover.ts) can recognize it, make the call itself, and resume; if it
+    # cannot recognize it, the whole handoff falls to the model, which often fumbles the staging step (pre M3b/M4c/M5a).
     return (f"cd {run_directory} && python3 "
-            # `--id=<id>` 而不是 `--id <id>`：结果编号可能以「-」开头（实测 `-lNCEjm2WwISAEzMxbDqAA`），
-            # 分开写时 argparse 把它当成另一个选项，续跑直接报错。Web 宿主照样跳过 `--id=` 这个词。
+            # `--id=<id>` rather than `--id <id>`: a result id may start with "-" (observed `-lNCEjm2WwISAEzMxbDqAA`), and
+            # written as two words argparse takes it for another option and the resume errors out directly. The Web host
+            # skips the `--id=` word all the same.
             + " ".join(quote(part) for part in argv) + " --id=<id>")
 
 
 def bind_run_to_cwd() -> None:
-    """续跑命令只写 `cd '<run>' && python3 …`，不带环境变量；static_host.run_dir 却先读环境变量。shell 里
-    残留着别的 run 的 KABO_STATIC_RUN_DIR 时，媒体证据会写进那个 run。当前目录在某个 run 里，就以它为准。"""
+    """The resume command is only `cd '<run>' && python3 ...` with no environment variable, yet static_host.run_dir reads the environment variable first. When
+    the shell still holds another run's KABO_STATIC_RUN_DIR, the media evidence gets written into that run. If the current directory is inside a run, it takes precedence."""
     here = Path.cwd().resolve()
     run = next((path for path in (here, *here.parents) if (path / ".static-run.json").is_file()), None)
     if run is not None:
@@ -119,8 +125,9 @@ def hand_over_media(args: argparse.Namespace, note: str = "") -> None:
     save_state(current)
     wanted = ", ".join(args.operations)
     if note:
-        # 说明单独一行：Web 宿主（plugin-handover.ts）只认以「Hand-over: 」开头的行，前面带别的字，
-        # 还有 job 在跑、再交一轮时就认不出，整段交接又落回模型手里。
+        # The instruction goes on its own line: the Web host (plugin-handover.ts) recognizes only lines starting with
+        # "Hand-over: ", and if anything else precedes it, the host cannot recognize a re-sent round while jobs are still
+        # running, and the whole handoff falls back to the model.
         say(note)
     say(f"Hand-over: make this one call now with the arguments verbatim; the backend queues this video's {wanted} "
         f"jobs and waits for them. If its result still reports running jobs (coverage.pending above 0), make the "
@@ -161,7 +168,8 @@ def take_saved(result_id: str | None) -> None:
             continue
         if not path.is_file():
             if staged_since(current.get("handed_at")):
-                # 宿主已用自己的方式把结果落进本 run（例如直接 stage），没有另存文件：照用已落的那份。
+                # The host has already put the result into this run in its own way (e.g. staged directly) without saving a
+                # separate file: use the one already in place.
                 continue
             raise ValueError(f"no result for this hand-over: run the same resume command again with --id=<id>, the "
                              f"id from the last {TOOL} call's download url (only for a result with no download url, "
@@ -207,7 +215,8 @@ def finish(record: dict[str, Any]) -> None:
     for call in record.get("calls") or []:
         operation = str(call["group"]).rsplit("/", 1)[-1]
         if operation not in placed:
-            # 按信封实际作答的路线持久化（抽帧、度量在托管取件时 operation 带 _hosted_* 后缀）。
+            # Persist by the route the envelope actually answered on (for frame extraction and measurement, the operation
+            # carries a _hosted_* suffix when fetched via hosted retrieval).
             answered = json.loads(Path(call["path"]).read_text()).get("operation") or operation
             placed[operation] = persist(answered)
             save_state(current)
@@ -228,8 +237,10 @@ def finish(record: dict[str, Any]) -> None:
                 if isinstance(item, dict) and item.get("object_ref")]
         job_id = envelope.get("job_id") or (jobs.get(keyframes["group"]) or {}).get("job_id")
         if refs and job_id:
-            # 读帧调用本身把图片交给了模型（Web 宿主就是这样）时，帧已看过，报告也不需要帧的字节：builder 按
-            # keyframes 信封列帧。再要求逐帧暂存，59 帧就是 59 步，超过宿主每轮的步数，模型只好放弃（11-07 生产）。
+            # When the frame-read call itself hands the images to the model (as the Web host does), the frames have already
+            # been viewed and the report does not need the frame bytes: the builder lists the frames from the keyframes
+            # envelope. Requiring per-frame staging again would make 59 frames 59 steps, exceeding the host's per-turn step
+            # limit, and the model would have to give up (11-07 production).
             say("Frames: make this one read now. If its result shows you the images, they are viewed: do not save "
                 "or stage them, and go on to build_content_evidence.py. Only if it returns a download link instead, "
                 "save and fetch it the way the Skill says for read_research_data_artifacts, then open each image's "

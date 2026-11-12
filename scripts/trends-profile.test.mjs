@@ -7,16 +7,16 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import Ajv from "ajv";
 
-// 三份 trends Skill 接收后台账号画像（creator-skills #918 移植）：画像文件的读法、
-// start 的互斥、describe 不打印受众数、include 被拒后经交接重交。只测脚本行为，不加规范门禁。
-// 夹具先过钉住的 get_creator_profile outputSchema：重新钉制品后契约若变了，这里先红。
+// The three trends Skills accept the backend account profile (ported from creator-skills #918): how the profile file is read,
+// mutual exclusion of start, describe not printing audience numbers, and handing off again after include is rejected. Tests script behavior only, no spec gate is added.
+// The fixtures first pass the pinned get_creator_profile outputSchema: if the contract changes after the artifact is re-pinned, this goes red first.
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const scripts = (skill) => path.join(root, "skills", skill, "scripts");
 const tools = JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools;
 const pinned = new Map(tools.map((tool) => [tool.name, tool]));
 const fixture = async (platform) => JSON.parse(await readFile(path.join(root, "scripts/fixtures/creator-profile", `${platform}.json`), "utf8"));
-// 钉住的 schema 是 draft-07；uuid、date-time 这类 format 不在这里校验（它们另有 pattern 兜底）。
+// The pinned schema is draft-07; formats such as uuid and date-time are not validated here (they are backstopped by a pattern).
 const ajv = () => new Ajv({ allErrors: true, strict: false, logger: false });
 const profileSchema = ajv().compile(pinned.get("get_creator_profile").outputSchema);
 
@@ -50,7 +50,7 @@ async function newRun(temp, skill) {
   return made.stdout.trim();
 }
 
-/** 画像文件放在运行目录与 Skill 目录之外，SKILL.md 就是这么要求的。 */
+/** The profile file lives outside both the run directory and the Skill directory, as SKILL.md requires. */
 async function profileFile(temp, value, name = "creator-profile.json") {
   const file = path.join(temp, name);
   await writeFile(file, JSON.stringify(value));
@@ -76,21 +76,21 @@ async function authored(skill, run) {
   await writeFile(path.join(run, name), JSON.stringify(plan));
 }
 
-test("夹具与钉住的 get_creator_profile outputSchema 一致；无主打内容与 null 画像两种变体同样合法", async () => {
+test("fixtures match the pinned get_creator_profile outputSchema; the no-pillar and null-profile variants are equally valid", async () => {
   for (const platform of ["tiktok", "instagram", "youtube"]) {
     const value = await fixture(platform);
-    assert.ok(profileSchema(value), `${platform}：${JSON.stringify(profileSchema.errors)}`);
+    assert.ok(profileSchema(value), `${platform}: ${JSON.stringify(profileSchema.errors)}`);
     const none = { ...value, contentProfile: { ...value.contentProfile, signatureContentStatus: "insufficient_sample", signatureContent: [] } };
     assert.ok(profileSchema(none), JSON.stringify(profileSchema.errors));
     assert.ok(profileSchema({ ...value, contentProfile: null }), JSON.stringify(profileSchema.errors));
   }
-  // 读画像的入参确实是钉住的 include 取值；交出的调用里不会多出 schema 没有的键。
+  // The input for reading the profile is indeed a pinned include value; the handed-out call carries no keys the schema lacks.
   const input = pinned.get("get_creator_profile").inputSchema;
   assert.deepEqual(input.properties.include.items.enum, ["content_profile"]);
   assert.equal(input.additionalProperties, false);
 });
 
-test("提供方修复空元组后，全部钉住的工具 schema 均通过 draft-07 元模式", () => {
+test("once the provider fixes the empty tuple, every pinned tool schema passes the draft-07 meta-schema", () => {
   const strictAjv = new Ajv({ allErrors: true, strict: false, logger: false });
   for (const tool of tools) {
     for (const schema of [tool.inputSchema, tool.outputSchema].filter(Boolean)) {
@@ -99,26 +99,26 @@ test("提供方修复空元组后，全部钉住的工具 schema 均通过 draft
   }
 });
 
-test("start --profile：完整工具结果与裸 structuredContent 都能读，打印主打内容，不打印受众数", async (t) => {
+test("start --profile: both the full tool result and bare structuredContent are readable; pillars are printed, audience counts are not", async (t) => {
   for (const skill of [RTT, RIT, RYT]) {
     const value = await fixture(PLATFORM[skill]);
     for (const [label, shape] of [["complete", toolResult(value)], ["structured", value]]) {
       const temp = await workspace(t);
       const run = await newRun(temp, skill);
       const started = drive(skill, run, "start", "--profile", await profileFile(temp, shape));
-      assert.equal(started.exit, 0, `${skill} ${label}：${started.stderr}${started.stdout}`);
+      assert.equal(started.exit, 0, `${skill} ${label}: ${started.stderr}${started.stdout}`);
       assert.match(started.stdout, new RegExp(`^creator profile: @${value.account.handle.replace(/^@/, "").replace(".", "\\.")} on ${PLATFORM[skill]}$`, "m"));
       const items = started.stdout.split("\n").filter((line) => line.startsWith("signature content "));
       assert.equal(items.length, value.contentProfile.signatureContent.length, started.stdout);
-      // 受众数只留在文件里给资格过滤用，不进模型上下文（schema 里的字段说明除外，从画像那几行起查）。
+      // Audience numbers stay only in the file for eligibility filtering and do not enter the model context (except field descriptions in the schema; check from the profile lines onward).
       const printed = started.stdout.slice(started.stdout.indexOf("creator profile: "));
       assert.doesNotMatch(printed, /audience/i, `${skill} ${label}`);
       assert.doesNotMatch(printed, new RegExp(`\\b${value.account.audienceCount}\\b`));
-      // 运行目录里留的是原样字节，后面的 discover 从它读。
+      // The run directory keeps the bytes as is, and the later discover reads from it.
       assert.equal(await readFile(path.join(run, "creator-profile-source.json"), "utf8"), JSON.stringify(shape));
     }
   }
-  // TikTok 夹具的列表顺序与权重相反：打印按 weight 降序编号。
+  // The list order of the TikTok fixture is the reverse of the weights: printing numbers them in descending weight.
   const temp = await workspace(t);
   const run = await newRun(temp, RTT);
   const out = drive(RTT, run, "start", "--profile", await profileFile(temp, await fixture("tiktok"))).stdout;
@@ -126,7 +126,7 @@ test("start --profile：完整工具结果与裸 structuredContent 都能读，�
   assert.match(out, /^signature content 2 \(sc2, weight 0\.35\)/m);
 });
 
-test("start --profile：isError 结果、缺 contentProfile 键、不是账号读的文件一律拒收，且不占运行目录", async (t) => {
+test("start --profile: isError results, a missing contentProfile key, and files that are not an account read are all rejected and do not occupy the run directory", async (t) => {
   const value = await fixture("tiktok");
   const { contentProfile: _dropped, ...withoutKey } = value;
   const cases = [
@@ -141,16 +141,16 @@ test("start --profile：isError 结果、缺 contentProfile 键、不是账号�
       const temp = await workspace(t);
       const run = await newRun(temp, skill);
       const refused = drive(skill, run, "start", "--profile", await profileFile(temp, shape));
-      assert.notEqual(refused.exit, 0, `${skill}：${JSON.stringify(shape).slice(0, 80)}`);
+      assert.notEqual(refused.exit, 0, `${skill}: ${JSON.stringify(shape).slice(0, 80)}`);
       assert.match(refused.stderr + refused.stdout, message);
-      // 检查在占用运行目录之前：同一运行不带 --profile 照常开始。
+      // The check comes before the run directory is occupied: the same run without --profile starts as usual.
       const plain = drive(skill, run, "start");
       assert.equal(plain.exit, 0, plain.stderr);
     }
   }
 });
 
-test("start：--profile 与 --video / --post 互斥", async (t) => {
+test("start: --profile is mutually exclusive with --video / --post", async (t) => {
   for (const skill of [RTT, RIT, RYT]) {
     const temp = await workspace(t);
     const run = await newRun(temp, skill);
@@ -160,7 +160,7 @@ test("start：--profile 与 --video / --post 互斥", async (t) => {
   }
 });
 
-test("他平台和 null 画像不附加；零分类画像仍附加基础字段", async (t) => {
+test("other platforms and a null profile attach nothing; a zero-category profile still attaches the base fields", async (t) => {
   const instagram = await fixture("instagram");
   const tiktok = await fixture("tiktok");
   const none = { ...tiktok, contentProfile: { ...tiktok.contentProfile, signatureContentStatus: "no_qualifying_group", signatureContent: [] } };
@@ -202,7 +202,7 @@ test("他平台和 null 画像不附加；零分类画像仍附加基础字段",
   }
 });
 
-test("RTT discover 带画像：组合取数带 include；被拒后 --without-include 去掉 include 重交，再跑也不带", async (t) => {
+test("RTT discover with a profile: the composite fetch carries include; after rejection, --without-include drops include and resubmits, and later runs omit it too", async (t) => {
   const temp = await workspace(t);
   const run = await newRun(temp, RTT);
   assert.equal(drive(RTT, run, "start", "--profile", await profileFile(temp, toolResult(await fixture("tiktok")))).exit, 0);
@@ -210,14 +210,14 @@ test("RTT discover 带画像：组合取数带 include；被拒后 --without-inc
   const first = drive(RTT, run, "discover", "--policy", "default_1y");
   assert.equal(first.exit, 0, first.stderr);
   const calls = callsOf(first.stdout);
-  // 一次组合调用做完全部搜索（两种排序）与日榜；include 在顶层。
+  // One composite call finishes all searches (both sort orders) and the daily chart; include is at the top level.
   assert.deepEqual(calls.map((call) => call.tool), ["collect_tiktok_video_candidates"]);
   const searches = calls;
   assert.deepEqual(searches[0].arguments.include, ["content_signals"]);
   assert.deepEqual(searches[0].arguments.sorts, [0, 1]);
   assert.equal(searches[0].arguments.top_contents.fallback_days, 1);
   assert.match(first.stdout, /run this same command with --without-include instead of --placed/);
-  // 画像字段由脚本抄进 Request；语言只是检索标签，不写进 locale。
+  // Profile fields are copied into the Request by the script; language is only a retrieval label and is not written into locale.
   const request = JSON.parse(await readFile(path.join(run, "trend-research-request.json"), "utf8"));
   assert.equal(request.creator_profile.handle, "Bead.Studio");
   assert.equal(request.creator_profile.content_language, "en");
@@ -228,27 +228,27 @@ test("RTT discover 带画像：组合取数带 include；被拒后 --without-inc
   assert.equal(fallback.exit, 0, fallback.stderr);
   assert.match(fallback.stdout, /Kabo refused `include` on collect_tiktok_video_candidates/);
   const again = callsOf(fallback.stdout);
-  // 被拒的组合调用去掉 include 重交一次，其余入参不变。
+  // A rejected composite call is resubmitted once with include removed, other input unchanged.
   assert.deepEqual(again, searches.map((call) => ({ ...call, arguments: Object.fromEntries(Object.entries(call.arguments).filter(([key]) => key !== "include")) })));
   const state = JSON.parse(await readFile(path.join(run, ".drive.json"), "utf8"));
   assert.deepEqual(state.include_refused, ["collect_tiktok_video_candidates"]);
-  // 再不带 --placed 跑：同一轮照常交出，被拒的操作不再带 include，也不再提示。
+  // Run again without --placed: the same round is handed out as usual, the rejected operation no longer carries include, and no hint is shown any more.
   const rerun = drive(RTT, run, "discover", "--policy", "default_1y");
   assert.equal(rerun.exit, 0, rerun.stderr);
   for (const call of callsOf(rerun.stdout)) assert.equal(call.arguments.include, undefined);
   assert.doesNotMatch(rerun.stdout, /--without-include/);
 });
 
-test("--without-include 没有可回应的交接时报错，不改状态", async (t) => {
+test("--without-include errors when there is no handoff to answer, and leaves state unchanged", async (t) => {
   for (const profiled of [true, false]) {
     const temp = await workspace(t);
     const run = await newRun(temp, RTT);
     if (profiled) {
-      // 带画像但还没有交接过任何一轮。
+      // With a profile, but no round has been handed off yet.
       assert.equal(drive(RTT, run, "start", "--profile", await profileFile(temp, await fixture("tiktok"))).exit, 0);
       await authored(RTT, run);
     } else {
-      // 交接过一轮，但这一轮的调用都不带 include。
+      // One round has been handed off, but the calls in this round carry no include.
       drive(RTT, run, "start");
       await authored(RTT, run);
       drive(RTT, run, "discover", "--policy", "default_1y");
@@ -261,7 +261,7 @@ test("--without-include 没有可回应的交接时报错，不改状态", async
   }
 });
 
-test("RIT discover 带画像：两条车道的 collect 都带 include media_signals；--without-include 两条都去掉", async (t) => {
+test("RIT discover with a profile: both lanes' collect carry include media_signals; --without-include removes it from both", async (t) => {
   const temp = await workspace(t);
   const run = await newRun(temp, RIT);
   assert.equal(drive(RIT, run, "start", "--profile", await profileFile(temp, await fixture("instagram"))).exit, 0);
@@ -281,7 +281,7 @@ test("RIT discover 带画像：两条车道的 collect 都带 include media_sign
   assert.deepEqual(again, calls.map(({ tool, arguments: { include: _include, ...rest } }) => ({ tool, arguments: rest })));
 });
 
-test("RYT discover 带画像：collect 调用不带 include，Request 抄入画像字段", async (t) => {
+test("RYT discover with a profile: the collect call carries no include, and the Request copies the profile fields", async (t) => {
   const temp = await workspace(t);
   const run = await newRun(temp, RYT);
   assert.equal(drive(RYT, run, "start", "--profile", await profileFile(temp, toolResult(await fixture("youtube")))).exit, 0);
@@ -299,10 +299,10 @@ test("RYT discover 带画像：collect 调用不带 include，Request 抄入画�
 });
 
 // ---------------------------------------------------------------------------------------------
-// 有效画像（creator-skills #920 移植，读口 get_creator_profile 带 effective:true）。
-// *-effective*.json 夹具：TikTok 三份取自 kabo effective-content-profile-v1 golden 的向量
-// （输入的后台画像放进 contentProfile，期望的合成结果放进 effectiveContentProfile），
-// Instagram / YouTube 两份是在第一批夹具上手写的镜像，加了本人设的排除话题与市场。全部先过钉住的 outputSchema。
+// Effective profile (ported from creator-skills #920; the read port get_creator_profile takes effective:true).
+// *-effective*.json fixtures: the three TikTok ones are vectors from the kabo effective-content-profile-v1 golden
+// (the input backend profile goes into contentProfile, the expected synthesis result into effectiveContentProfile),
+// and the Instagram / YouTube ones are hand-written mirrors of the first batch of fixtures, with the creator's own excluded topics and market added. All pass the pinned outputSchema first.
 
 const EFFECTIVE = ["tiktok-effective", "tiktok-effective-main", "tiktok-effective-no-base", "instagram-effective", "youtube-effective"];
 const RTT_EFFECTIVE_PLAN = { schema_version: "tiktok-trend-query-plan.v1", request_id: "tt-profile", intents: [{ intent_id: "legs", search_query: "leg day routine" }, { intent_id: "prep", search_query: "meal prep ideas" }] };
@@ -311,17 +311,17 @@ async function startedWith(t, skill, value) {
   const temp = await workspace(t);
   const run = await newRun(temp, skill);
   const started = drive(skill, run, "start", "--profile", await profileFile(temp, value));
-  assert.equal(started.exit, 0, `${skill}：${started.stderr}${started.stdout}`);
+  assert.equal(started.exit, 0, `${skill}: ${started.stderr}${started.stdout}`);
   return { temp, run, started };
 }
 
-test("有效画像夹具与钉住的 schema 一致；读画像有 effective 开关，effectiveContentProfile 可缺可为 null", async () => {
+test("effective-profile fixtures match the pinned schema; reading the profile has an effective switch, and effectiveContentProfile may be absent or null", async () => {
   const input = pinned.get("get_creator_profile").inputSchema;
   assert.deepEqual(input.properties.effective, { description: input.properties.effective.description, type: "boolean" });
   assert.ok(!input.required.includes("effective"));
   for (const name of EFFECTIVE) {
     const value = await fixture(name);
-    assert.ok(profileSchema(value), `${name}：${JSON.stringify(profileSchema.errors)}`);
+    assert.ok(profileSchema(value), `${name}: ${JSON.stringify(profileSchema.errors)}`);
     assert.ok("contentProfile" in value, name);
     assert.equal(value.effectiveContentProfile.ruleVersion, "effective-content-profile.v1");
     assert.ok(profileSchema({ ...value, effectiveContentProfile: null }), name);
@@ -330,7 +330,7 @@ test("有效画像夹具与钉住的 schema 一致；读画像有 effective 开�
   }
 });
 
-test("start --profile 有效画像：打印本人修改、主打标记、排除话题与市场，不打印受众数；两种文件形状一样读", async (t) => {
+test("start --profile effective profile: prints the owner's edits, pillar marks, excluded topics, and market, but not audience counts; both file shapes read the same", async (t) => {
   const tiktok = await fixture("tiktok-effective");
   for (const shape of [toolResult(tiktok), tiktok]) {
     const { started } = await startedWith(t, RTT, shape);
@@ -343,22 +343,22 @@ test("start --profile 有效画像：打印本人修改、主打标记、排除�
     assert.doesNotMatch(printed, /audience/i);
     assert.doesNotMatch(printed, new RegExp(`\\b${tiktok.account.audienceCount}\\b`));
   }
-  // 主打项排第一并标 main，同权时也在前。
+  // The main item ranks first and is marked main; at equal weight it is also first.
   const { started: main } = await startedWith(t, RTT, await fixture("tiktok-effective-main"));
   assert.match(main.stdout, /^signature content 1 \(sc4, main, weight 0\.31\): Form checks/m);
   assert.match(main.stdout, /^signature content 2 \(sc1, weight 0\.31\)/m);
-  // 没有后台画像、只有本人设定：照样用，说明没有主打内容，列出对不上的修改。
+  // No backend profile, only the creator's own settings: still used, stating that there is no main content, and listing the edits that do not match.
   const { started: noBase } = await startedWith(t, RTT, await fixture("tiktok-effective-no-base"));
   assert.match(noBase.stdout, /no signature content \(settings_only \(no_profile\)\); plan as without signature content, keeping the Creator's settings below/);
   assert.match(noBase.stdout, /^excluded topics \(never search for them\): \["Pranks"\]$/m);
   assert.match(noBase.stdout, /1 of the Creator's edits no longer match the current profile and are not applied: \["Leg workouts"\]/);
   assert.doesNotMatch(noBase.stdout, /it is not used in this run|plan as without a profile/);
-  // Instagram 没有地区参数：市场照印，但写明不用。
+  // Instagram has no region parameter: the market is still printed, but with a note that it is not used.
   const { started: instagram } = await startedWith(t, RIT, toolResult(await fixture("instagram-effective")));
   assert.match(instagram.stdout, /^market: BR \(set by the Creator; Instagram search takes no region, so it is not used here\)$/m);
 });
 
-test("有效画像字面量不认得时退回 contentProfile；两份都不认得时按未使用", async (t) => {
+test("falls back to contentProfile when the effective-profile literal is unrecognized; when both are unrecognized, treated as unused", async (t) => {
   const value = await fixture("tiktok-effective-main");
   const unknown = { ...value, effectiveContentProfile: { ...value.effectiveContentProfile, version: 2 } };
   const { started } = await startedWith(t, RTT, unknown);
@@ -369,7 +369,7 @@ test("有效画像字面量不认得时退回 contentProfile；两份都不认�
   assert.match(none.stdout, /no signature content to attach \(content_profile_version_not_recognized/);
 });
 
-test("RTT discover 有效画像：Request 抄入排除话题、市场与本人作品；市场只在 Request 与 --region 都没给时作搜索地区", async (t) => {
+test("RTT discover effective profile: the Request copies excluded topics, market, and the owner's posts; the market serves as the search region only when neither the Request nor --region gives one", async (t) => {
   const value = await fixture("tiktok-effective");
   const discover = async (locale, ...extra) => {
     const { run } = await startedWith(t, RTT, toolResult(value));
@@ -389,13 +389,13 @@ test("RTT discover 有效画像：Request 抄入排除话题、市场与本人�
   assert.equal(creator.profile_basis, "profile_with_edits");
   assert.deepEqual(creator.own_content_ids, value.effectiveContentProfile.ownContentIds);
   assert.equal(creator.content_language, "es");
-  // 语言与市场都不进 locale。
+  // Neither language nor market goes into locale.
   assert.deepEqual(request.locale, { region: null, language: null });
   assert.deepEqual((await discover({ region: "US", language: null })).regions, ["US"]);
   assert.deepEqual((await discover({ region: null, language: null }, "--region", "CA")).regions, ["CA"]);
 });
 
-test("计划里带排除话题一律被拒：有主打内容与只有设定两种画像都一样", async (t) => {
+test("a plan carrying excluded topics is always rejected: same for a profile with pillars and one with settings only", async (t) => {
   for (const [name, query] of [["tiktok-effective", "crossfit leg day"], ["tiktok-effective-no-base", "pranks gone wrong"]]) {
     const { run } = await startedWith(t, RTT, await fixture(name));
     await writeFile(path.join(run, "trend-research-request.json"), JSON.stringify(REQUEST[RTT]));
@@ -407,19 +407,19 @@ test("计划里带排除话题一律被拒：有主打内容与只有设定两�
   }
 });
 
-test("同一运行中途换画像文件被拒；同一份文件重跑 start 照常", async (t) => {
+test("swapping the profile file mid-run is rejected; rerunning start with the same file works as usual", async (t) => {
   for (const skill of [RTT, RIT, RYT]) {
-    // 同一条命令（同一路径）重跑：字节没变照常；用户在网页改了画像、宿主重读后覆盖了同一文件：拒收。
+    // Rerun the same command (same path): if the bytes are unchanged it proceeds as usual; if the user edited the profile on the web and the host re-read it and overwrote the same file: reject.
     const { temp, run } = await startedWith(t, skill, await fixture(PLATFORM[skill]));
     const same = drive(skill, run, "start", "--profile", await profileFile(temp, await fixture(PLATFORM[skill])));
-    assert.equal(same.exit, 0, `${skill}：${same.stderr}`);
+    assert.equal(same.exit, 0, `${skill}: ${same.stderr}`);
     const changed = drive(skill, run, "start", "--profile", await profileFile(temp, await fixture(`${PLATFORM[skill]}-effective`)));
     assert.notEqual(changed.exit, 0, skill);
     assert.match(changed.stderr + changed.stdout, /the profile changed during the run\. Start a new run with the new file/, skill);
   }
 });
 
-test("RYT 有效画像：collect 只在 locale.region 为空时带市场，language 不取画像；RIT collect 不带地区", async (t) => {
+test("RYT effective profile: collect carries the market only when locale.region is empty, language is not taken from the profile; RIT collect carries no region", async (t) => {
   const collect = async (locale) => {
     const { run } = await startedWith(t, RYT, await fixture("youtube-effective"));
     await writeFile(path.join(run, "trend-research-request.json"), JSON.stringify({ schema_version: "trend-research-request.v3", request_id: "yt-profile", mode: "current_popular", niche: "fuse bead tutorials", platforms: ["youtube"], locale, formats: ["youtube_short"] }));

@@ -3,7 +3,8 @@ import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";
 import test from "node:test";
 
-// fetch 给出的终审转述只看 review.qc.failed；交付说明里的自检与 qc 行不进 notes_for_user。
+// The final-review paraphrase that fetch gives looks only at review.qc.failed; the self-check and qc lines in
+//   the delivery notes do not go into notes_for_user.
 const scripts = path.resolve("skills/remake-viral-video/scripts");
 const notes = [
   "# Delivery notes", "", "## Rewritten lines", "", "- [cta] \"Follow me\" (replaces \"RSVP\") -- creator's sign-off.", "",
@@ -21,7 +22,7 @@ print(json.dumps(m.review_relay(json.loads(sys.argv[2]))))`;
   return JSON.parse(execFileSync("python3", ["-c", code, path.join(scripts, "static_host.py"), JSON.stringify(structured)], { encoding: "utf8" }));
 }
 
-test("failed 不空时不论 status 都逐项说，measured 也一样", () => {
+test("when failed is non-empty, report each item regardless of status, measured included", () => {
   assert.match(relay({ status: "measured", failed: ["framing"] }).review_message, /framed differently/);
   const two = relay({ status: "failed", failed: ["caption_overlap", "loudness"] }).review_message;
   assert.match(two, /captions overlap/);
@@ -29,13 +30,13 @@ test("failed 不空时不论 status 都逐项说，measured 也一样", () => {
   assert.match(relay({ status: "failed", failed: ["new_item"] }).review_message, /new_item/);
 });
 
-test("failed 为空：measured 与 null 不说终审，incomplete 用固定句子", () => {
+test("when failed is empty: measured and null do not announce a final review, incomplete uses a fixed sentence", () => {
   assert.equal(relay({ status: "measured", failed: [] }).review_message, null);
   assert.equal(relay(null).review_message, null);
   assert.equal(relay({ status: "incomplete", failed: [] }).review_message, "Some of Kabo's final checks could not be measured.");
 });
 
-test("notes_for_user 只留改了什么，去掉自检与 qc 行", () => {
+test("notes_for_user keeps only what changed, dropping self-check and qc lines", () => {
   const { notes_for_user } = relay({ status: "measured", failed: [] });
   assert.equal(notes_for_user.length, 2);
   assert.match(notes_for_user[0], /Follow me/);
@@ -43,7 +44,7 @@ test("notes_for_user 只留改了什么，去掉自检与 qc 行", () => {
   assert.deepEqual(relay(null, null).notes_for_user, []);
 });
 
-test("render-args 的可选档优先取 talking_model_choices（all_models），旧服务端退回 talking_models", () => {
+test("render-args optional tiers prefer talking_model_choices (all_models), and fall back to talking_models for older servers", () => {
   const code = `import importlib.util,json,sys,tempfile,os
 sys.dont_write_bytecode=True
 spec=importlib.util.spec_from_file_location("c",sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -61,7 +62,7 @@ print(json.dumps(out))`;
   assert.deepEqual(out, [[wan, "vivix/vivix-a1"], ["vivix/vivix-a1"]]);
 });
 
-test("稿件模式 copy-drafts：四份文件就是草稿；只许改分行，改字或改其他字段都拒", async () => {
+test("script mode copy-drafts: the four files are the drafts; only line breaks may change, and changing wording or any other field is rejected", async () => {
   const { mkdtempSync, mkdirSync, writeFileSync, readFileSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const run = mkdtempSync(path.join(tmpdir(), "remake-script-run-"));
@@ -80,14 +81,14 @@ test("稿件模式 copy-drafts：四份文件就是草稿；只许改分行，�
   const copied = run_("copy-drafts");
   assert.equal(copied.status, 0, copied.stdout + copied.stderr);
   assert.equal(JSON.parse(copied.stdout).kind, "script");
-  // 只改分行：通过
+  // Only the line breaks changed: pass.
   const scriptPath = path.join(run, "script", "script.json");
   writeFileSync(scriptPath, JSON.stringify({ ...draft, lines: [{ text: "Plant tomatoes deep." }, { text: "Water at the base." }] }));
   assert.equal(run_("check").status, 0);
-  // 改一个字：拒
+  // A single character changed: reject.
   writeFileSync(scriptPath, JSON.stringify({ ...draft, lines: [{ text: "Plant tomatoes deeply." }, { text: "Water at the base." }] }));
   assert.match(run_("check").stdout, /word for word/);
-  // 改别的字段：拒
+  // Other fields changed: reject.
   writeFileSync(scriptPath, JSON.stringify({ ...draft, receipt: { sha256: "x" } }));
   assert.match(run_("check").stdout, /only lines may change/);
   assert.equal(JSON.parse(readFileSync(path.join(run, "script", "decisions.json"), "utf8")).input_kind, "script");
