@@ -41,6 +41,7 @@ OAuth 通过 `securitySchemes` 与 `_meta.securitySchemes` 同值声明。下表
 | make_video_step | video | false | false | true | 在账号自己的项目或已交付复刻的工作区里启动一步生成或剪辑（Runner 调视频、配音、图像供应商；op 封闭枚举、只收工作区句柄），按实际花费计费、超出任务预算拒收；同键同入参只回当前状态、不重复启动。 |
 | edit_remake_video | video | false | false | true | 改账号自己已交付的视频（台词重配音并对口型、字幕、叠图、换背景、插镜），按实际花费计费，登记新版本、旧版本保留；同键同入参只回当前状态、不重复启动。 |
 | finish_video_project | video | false | false | false | 把账号自己项目里的一个成片句柄做相似度检查后登记为新版本成片并签发下载链接；不访问第三方；同键同入参只回当前状态。 |
+| upload_file | video | false | false | false | 在账号自己的文件空间登记待上传文件并签发短期上传地址，或核对刚传完的文件（大小、类型、内容）并标记可用；同键同文件重放同一结果；不访问第三方、不占额度。 |
 | get_research_capabilities | data | true | false | false | 只读 Kabo 自有状态（任务、制品、快照或目录），不访问第三方、不占额度。 |
 | youtube_search_videos | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | youtube_search_channels | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |

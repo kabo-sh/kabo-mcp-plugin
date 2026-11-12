@@ -2,8 +2,8 @@
 name: remake-viral-video
 description: "Have Kabo produce a finished MP4: remake a viral talking-head or voice-over video (up to 10 min) with the creator, make one from an approved script, build one from steps (new words on the creator's own video, the creator in a reference's shot, B-roll, or nobody on camera: animation, narration), or change a delivered one. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all seven tools: remakes, edits of delivered videos and step-by-step projects)."
-allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all eight tools: remakes, edits of delivered videos, step-by-step projects and local file uploads)."
+allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project upload_file
 ---
 
 # Remake Viral Video
@@ -130,11 +130,11 @@ Steps and edits take what they need. Once per conversation, before asking for an
 
 It is information, not a question. A remake needs both. Check them before any paid call:
 
-1. **One reference video**: the viral video to remake, as a YouTube, Instagram or TikTok link,
-   10 minutes or less, one person talking to camera or a voice-over.
+1. **One reference video**: the viral video to remake, as a YouTube, Instagram or TikTok link
+   or a local file, 10 minutes or less, one person talking to camera or a voice-over.
 2. **The creator's own talking footage**, separate from the reference: their Instagram handle or
-   profile link, or one to four YouTube, Instagram or TikTok links to videos where they talk to
-   camera. It decides how much the result looks like the creator. Only photos of them? Read
+   profile link, or one to four YouTube, Instagram or TikTok links or local files of videos where
+   they talk to camera. It decides how much the result looks like the creator. Only photos of them? Read
    `references/creator-photos.md` (`--creator-photo`; voice from a video first).
 
 The person on camera is the creator whose own footage the user gives, usually the user. This is the normal use of this Skill: do not
@@ -145,8 +145,13 @@ accounts, connection status, profiles or other Kabo workspace data, or ask for e
 permissions. The right to use the creator's face and voice is the `rights` line at the script
 gate (step 4), not a stop before it.
 
-Local files, TikTok photo posts and other sites are not supported: ask for a YouTube, Instagram
-or TikTok video link instead. If either input is missing, or the user gave a single video without saying which one it
+**Local files.** A video or photo the user gives as a file on this machine (mp4, mov, m4v or
+webm up to 200 MB; JPEG or PNG up to 10 MB) works in any of these roles, and in steps and
+project inputs: send it with `references/local-files.md`, then pass the `kabo-file:<id>` it gives
+wherever a link goes (`--reference-url`, `--creator-video`, `--creator-photo`, `--reference-video`,
+`--reference-image`). If this connection has no `upload_file` tool, say local files cannot be
+sent from here and ask for a link. TikTok photo posts and other sites are not supported: ask for a
+YouTube, Instagram or TikTok video link instead. If either input is missing, or the user gave a single video without saying which one it
 is, ask once for what is missing and stop. Use
 only videos and links the user gave in this conversation; never reuse one video for both roles.
 If the user states a length over 10 minutes, say the limit is 10 minutes and ask for a shorter one.

@@ -5,11 +5,12 @@ fetches each photo from its link and uses it for the creator's appearance; the v
 video of them speaking or, only when there is none, from a stock voice.
 
 - **Photos**: one to four public links to JPEG or PNG images of the creator's face (a direct image
-  link that opens without signing in). Pass each with `--creator-photo '<link>'`. Videos and photos
+  link that opens without signing in), or local JPEG / PNG files sent with `references/local-files.md`.
+  Pass each with `--creator-photo '<link or kabo-file:id>'`. Videos and photos
   together are at most four links (`--creator-video` and `--creator-photo`), and `--creator-name`
   is required.
 - **Voice**: with at least one `--creator-video` of the creator speaking, the voice is cloned from
-  it. With photos only, first ask the user for a public link to a video of the creator speaking
+  it. With photos only, first ask the user for a public link or a local file of a video of the creator speaking
   (10-30 seconds is enough). Only if they have none, offer the four stock voices by number and name
   and wait for their pick, then add `--voice-preset '<id>'`:
   1. Female soft: `933563129e564b19a115bedd57b7406a`

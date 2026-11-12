@@ -81,6 +81,7 @@
     "start_skill_run",
     "start_video_project",
     "update_content_preferences",
-    "update_script"
+    "update_script",
+    "upload_file"
   ]
 }
