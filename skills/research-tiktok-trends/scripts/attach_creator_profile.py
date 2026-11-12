@@ -61,7 +61,9 @@ from typing import Any, Iterator
 
 PROFILE_SOURCE = "creator-profile-source.json"
 PLATFORMS = ("instagram", "tiktok", "youtube")
-# 前五个随账号读口而来，后四个只来自带本人修改的有效画像。全部只由本脚本写，所以没有画像文件时一并删掉。
+# The first five come with the account read, and the last four come only from a valid profile that carries the
+# user's own edits. All of them are written only by this script, so they are deleted together when there is no
+# profile file.
 INTAKE_FIELDS = ("content_language", "accepted_languages", "audience_count", "formats", "signature_content",
                  "excluded_topics", "market_region", "own_content_ids", "profile_basis")
 FORMATS = ("short_video", "long_video")
@@ -70,11 +72,13 @@ SEED_LIMIT = 5
 EXAMPLE_TITLES = 2
 EXAMPLE_IDS = 3
 ACCEPTED_LIMIT = 5
-# 两份画像的字面量写死比对：版本不认得就当没有画像，不去猜新版本字段的含义。
+# Hard-coded literal comparison of the two profiles: an unrecognized version is treated as no profile, and we
+# do not guess what fields in a newer version mean.
 CONTENT_PROFILE_LITERALS = (1, "content-profile.v1")
 EFFECTIVE_PROFILE_LITERALS = (1, "effective-content-profile.v1")
-# 上限与 kabo 写口一致（排除话题至多 10 项、每项 1..60 字；本人作品 id 至多 12 个）。超长的话题是坏数据，
-# 整条丢掉而不是截断：截断后的话题可能成了另一个意思，再拿去剔除候选就错了。
+# The limits match the kabo write endpoint (at most 10 excluded topics, each 1..60 characters; at most 12 of the
+# user's own post ids). An over-long topic is bad data and is dropped whole rather than truncated: a truncated
+# topic may mean something else, and using it to filter out candidates would then be wrong.
 EXCLUDED_LIMIT = 10
 EXCLUDED_MAX_LENGTH = 60
 OWN_IDS_LIMIT = 12
@@ -117,7 +121,8 @@ def unwrap_tool_result(value: Any) -> Any:
                            "start without --profile")
     structured = value.get("structuredContent")
     if structured is None:
-        # 有的宿主只导出 content：单个 text 块里是同一份 JSON（与 static_host.complete_result 同一读法）。
+        # Some hosts export only content: a single text block holds the same JSON (read the same way as
+        # static_host.complete_result).
         blocks = value.get("content")
         if (isinstance(blocks, list) and len(blocks) == 1 and isinstance(blocks[0], dict)
                 and blocks[0].get("type") == "text" and isinstance(blocks[0].get("text"), str)):
@@ -138,8 +143,9 @@ def read_profile(value: Any) -> dict[str, Any]:
     content profile carries no handle, so nothing could check that it belongs to this Creator.
     The `contentProfile` key is required even beside `effectiveContentProfile`.
     """
-    # 外壳只是可选的输入形状；拆开之后与宿主直接写的顶层对象走同一套检查，contentProfile 键照样必须有：
-    # 只认这个键的旧版 skill 读同一份文件也不会失败。
+    # The wrapper is only an optional input shape; once unwrapped it goes through the same checks as the top-level
+    # object the host writes directly, and the contentProfile key is still required: an old skill that recognizes
+    # only this key will not fail reading the same file either.
     value = unwrap_tool_result(value)
     if not isinstance(value, dict):
         raise ProfileError("the profile file must hold one JSON object")
@@ -251,8 +257,10 @@ def _signature_item(item: Any, excluded: list[str], effective: bool) -> dict[str
     if any(value is None for value in fields.values()):
         return None
     representative = [row for row in item.get("representativeContent") or [] if isinstance(row, dict)]
-    # 与排除话题互相包含的种子词先剔掉：计划校验要求 intent 原样带种子词，同时拒收带排除话题的 intent，
-    # 留着这些词两条规则就会互相打架。没有排除话题时取到的前五个与原来逐字相同。
+    # Drop seed words that contain, or are contained in, an excluded topic first: plan validation requires the
+    # intent to carry the seed words verbatim while also rejecting an intent that carries an excluded topic, so
+    # keeping those words would make the two rules fight each other. With no excluded topics, the first five taken
+    # are identical to the original.
     terms = [term for term in _strings(item.get("seedTerms"), SEED_LIMIT * 2) if not overlaps_topic(term, excluded)]
     hashtags = []
     for tag in _strings(item.get("seedHashtags"), SEED_LIMIT * 2):
@@ -281,7 +289,8 @@ def _language(language: dict[str, Any], effective: bool) -> dict[str, Any]:
     fields: dict[str, Any] = {}
     primary = _text(language.get("primary"))
     usable = primary is not None and not primary.casefold().startswith("und")
-    # 创作者自己设的语言不论置信度都写，并排在可接受语言第一位；它和后台判出的语言一样只是检索标签。
+    # A language the creator set themselves is written regardless of confidence and ranked first among acceptable
+    # languages; like the language the backend infers, it is only a retrieval label.
     chosen = effective and language.get("source") == "user"
     if usable and (language.get("confidence") == "high" or chosen):
         fields["content_language"] = primary
@@ -308,11 +317,13 @@ def projection(profile: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
     region = content.get("region") if effective and content.get("regionSource") == "user" else None
     market = region if isinstance(region, str) and REGION.match(region) else None
     status = content.get("signatureContentStatus") or "none listed"
-    # 主打内容为空、但创作者自己设过排除话题、语言或市场时照写这些设定：用户把主打内容全删了，
-    # 设定仍然要生效。没有主打分类时仍保留可信语言、受众和格式。
+    # When the signature content is empty but the creator has set excluded topics, a language, or a market, write
+    # those settings anyway: the user deleted all signature content, but the settings must still take effect. With
+    # no signature categories, the trusted language, audience, and format are still kept.
     settings = bool(excluded) or market is not None or (effective and language.get("source") == "user")
-    # 主打的那项排第一：用于闸门编号和名额分配，不改写本次搜索目标。平台保证主打项的权重
-    # 不低于任何非主打项，这里再按主打标记排一次，同权时也不会被 id 排到后面。
+    # The signature item goes first: used for gate numbering and slot allocation, without rewriting this search's
+    # target. The platform guarantees the signature item's weight is no lower than any non-signature item; sorting
+    # again by the signature flag here keeps it from being ordered behind by id when weights tie.
     items.sort(key=lambda item: (not item.get("primary", False), -item["weight"], item["id"]))
     fields: dict[str, Any] = _language(language, effective)
     audience = account.get("audienceCount")
@@ -428,7 +439,8 @@ def attach(request: dict[str, Any], profile: dict[str, Any], platform: str) -> t
               "signature_content": len(fields.get("signature_content") or []),
               "content_language": fields.get("content_language")}
     if "profile_basis" in fields:
-        # 只有有效画像才多报这几项；只读 contentProfile 时报告与第一期逐字相同。
+        # Only a valid profile reports these extra items; when only contentProfile is read, the report is identical to
+        # the first phase verbatim.
         result.update(profile_basis=fields["profile_basis"], excluded_topics=len(fields.get("excluded_topics") or []),
                       market_region=fields.get("market_region"))
     return updated, result

@@ -59,8 +59,9 @@ sys.dont_write_bytecode = True
 
 
 def _sibling(name: str):
-    # 排除话题与计划校验用同一套匹配，所以直接借画像接收脚本的实现；按路径加载本包自己那份，
-    # 不借别的包留在 sys.modules 里的同名模块。
+    # Excluded topics and plan validation use the same matching, so borrow the profile-intake script's
+    # implementation directly; load this package's own copy by path,
+    # and do not borrow a module of the same name that another package left in sys.modules.
     path = Path(__file__).with_name(name + ".py")
     spec = importlib.util.spec_from_file_location(f"{path.parent.parent.name}:{name}", path)
     module = importlib.util.module_from_spec(spec)
@@ -71,7 +72,7 @@ def _sibling(name: str):
 
 intake = _sibling("attach_creator_profile")
 
-# v2 加了 excluded_topic 规则，本人作品也改认 own_content_ids。
+# v2 added the excluded_topic rule, and the creator's own posts are now also identified by own_content_ids.
 RULE_VERSION = "candidate-eligibility.v2"
 PLATFORMS = ("instagram", "tiktok", "youtube")
 AUDIENCE_RANGE = (0.3, 3.0)
@@ -177,8 +178,9 @@ def creator_fields(request: dict[str, Any]) -> dict[str, Any]:
                if isinstance(value, str) and value.strip()}
     own_ids |= {value.strip() for value in creator.get("own_content_ids") or []
                 if isinstance(value, str) and value.strip()}
-    # 有画像字段就判：主打内容被用户删光、只留排除话题时，过滤照样要跑。字段只能来自画像文件
-    # （画像接收会删掉模型手写的），没有画像时这里一项都不会有。
+    # Judge whenever profile fields exist: when the user deleted all main content and left only excluded
+    # topics, the filter still has to run. The fields can only come from the profile file
+    # (profile intake removes anything the model wrote by hand), so without a profile there are none here.
     return {"handle": handle_key(creator.get("handle")), "audience": _count(creator.get("audience_count")),
             "formats": formats, "own_ids": own_ids, "excluded": intake.excluded_topics(request),
             "attached": intake.profile_fields_attached(request)}

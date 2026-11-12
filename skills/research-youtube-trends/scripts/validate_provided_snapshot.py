@@ -97,7 +97,7 @@ def validate(request: dict[str, Any], snapshot: dict[str, Any]) -> None:
     for value, name in ((request, "trend-research-request"), (snapshot, "public-content-snapshot")):
         schema = json.loads((ROOT / "references" / f"{name}.schema.json").read_text(encoding="utf-8"))
         schema_check(value, schema, name)
-    # 这份副本只属于 YouTube 趋势 Skill；名字对不上（被改名或拷错）时拒绝，而不是猜平台。
+    # This copy belongs only to the YouTube trends Skill; if the name does not match (renamed or copied wrongly) it is rejected rather than guessing the platform.
     platform = "youtube" if skill_name() == "research-youtube-trends" else None
     if not platform or snapshot["platform"] != platform or request["platforms"] != [platform]:
         raise ValueError("Request and Snapshot must both match this skill's platform")

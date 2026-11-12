@@ -35,17 +35,20 @@ HERE = Path(__file__).resolve().parent
 LIBRARY_FORMAT = "kabo.creator-library.v1"
 PLATFORMS = ("instagram", "tiktok", "youtube")
 METRICS = ("views", "likes", "comments", "shares", "saves")
-# 复盘的三个时点；band 是「算作这个时点」的观测区间（小时），用来给别的作品取同龄基线。
-# 每天只看一次账号，所以 24 小时时点的区间放宽到 24–48 小时：一天一次的观测正好有一次落在里面。
+# The three review time points; band is the observation range (hours) that counts as this time point, used
+# to take an equal-age baseline from other posts.
+# The account is looked at once a day, so the 24-hour band is widened to 24-48 hours: one observation per
+# day lands in it exactly once.
 CHECKPOINTS = {"1h": (1.0, 3.0), "24h": (24.0, 48.0), "7d": (168.0, 192.0)}
 CHECKPOINT_ORDER = ("1h", "24h", "7d")
-# 默认只做 24 小时复盘；1 小时与 7 天是可选时点（due --with-optional）。
+# By default only the 24-hour review runs; 1 hour and 7 days are optional time points (due --with-optional).
 LATE_AFTER_HOURS = 48.0
-# 发布满 72 小时的作品才算播放基本稳定，用于内容支柱表现和账号常规水平。
+# Only posts at least 72 hours old count as having stable views, used for content-pillar performance and
+# the account's typical level.
 SETTLED_HOURS = 72.0
-# 画像里的主打内容最多取 4 项作为支柱（与后台画像的上限一致）。
+# At most 4 signature-content items from the profile are taken as pillars (same cap as the backend profile).
 MAX_PILLARS = 4
-# 照片、图文不是视频，没有播放量，不进素材库。
+# Photos and image posts are not videos and have no view counts, so they do not enter the library.
 NON_VIDEO_FORMATS = {"instagram_feed", "tiktok_photo"}
 USABLE_STATUSES = {"completed", "completed_partial"}
 PROFILE_OPERATIONS = {"resolve_profile", "get_channel"}
@@ -84,7 +87,8 @@ def read_json(path, default=None):
 
 
 def write_json(path, value):
-    # 先写临时文件再替换：定时任务被中断时不会留下半份 JSON。
+    # Write a temp file first, then replace: if a scheduled task is interrupted, no half-written JSON is left
+    # behind.
     path = Path(path)
     temp = path.with_name(path.name + ".tmp")
     temp.write_text(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -130,7 +134,8 @@ def publish_time(platform, item):
     if published is None:
         return None, "missing"
     if platform == "tiktok" and published.hour == 0 and published.minute == 0 and published.second == 0:
-        # TikTok 视频编号的高 32 位是创建时间。定时发布的视频创建得早，只有落在同一天才采用。
+        # The high 32 bits of a TikTok video id are the creation time. A scheduled video is created early, so it is
+        # used only when it falls on the same day.
         try:
             created = datetime.fromtimestamp(int(item["content_id"]) >> 32, tz=timezone.utc)
         except (KeyError, ValueError, OverflowError, OSError):
@@ -142,7 +147,8 @@ def publish_time(platform, item):
 
 
 def age_anchor(post):
-    # 只有日期的发布时间不能算小时级年龄，改用第一次看到它的时间，并在输出里说明。
+    # A date-only publish time cannot be used for an hourly age, so use the time it was first seen instead, and
+    # say so in the output.
     if post.get("published_at_source") == "date_only":
         return parse_time(post.get("first_seen_at")), "first_seen"
     return parse_time(post.get("published_at")), "published"
@@ -171,7 +177,8 @@ def times_words(value):
 
 
 def share_words(share):
-    # 占比说成创作者听得懂的话：接近常见分数时用分数，否则用百分比。
+    # Say the share in terms the creator understands: use a fraction when it is close to a common one,
+    # otherwise a percentage.
     if not isinstance(share, (int, float)) or isinstance(share, bool) or share <= 0:
         return None
     for value, words in ((0.25, "about a quarter"), (1 / 3, "about a third"), (0.5, "about half"),
@@ -187,10 +194,11 @@ def ratio(value, base):
     return round(value / base, 2)
 
 
-# ---------------------------------------------------------------- 取数请求与快照
+# ---------------------------------------------------------------- fetch requests and snapshot
 
 def cmd_path(args):
-    # 只打印目录：三个 Skill 都会调用它，其中两个无人值守，这里不能带任何要对创作者说的话。
+    # Print the directory only: all three Skills call it and two of them run unattended, so it cannot carry
+    # anything to be said to the creator.
     directory = library_path(args.workspace, args.platform, args.handle)
     say({"library": str(directory), "exists": (directory / "library.json").exists()})
 
@@ -198,9 +206,9 @@ def cmd_path(args):
 def connect_key(platform, handle, binding_version):
     """Idempotency key for connect_public_account: the same for a retry of one request, different for another request.
 
-    键 = library:<平台>:<小写 handle>:<被替换绑定的 binding_version，首次绑定为 new>。只把账号放进键时，
-    「绑 A → 换成 B → 再换回 A」会拿同一个键发不同的请求，后台按 conflict 永久拒绝（Codex 实测 @MrBeast）。
-    长度最多 8+9+1+64+1+36=119，契约上限 128；字符集 A-Za-z0-9._:-。"""
+    Key = library:<platform>:<lowercase handle>:<binding_version of the binding being replaced, or new for a first binding>. With only the account in the key,
+    "bind A -> switch to B -> switch back to A" would send different requests under the same key, and the backend rejects it permanently as a conflict (Codex measured @MrBeast).
+    Maximum length 8+9+1+64+1+36=119, under the contract limit of 128; character set A-Za-z0-9._:-."""
     version = str(binding_version or "new").lower()
     if version != "new" and not re.fullmatch(r"[0-9a-f-]{36}", version):
         fail("--expected-binding-version must be the bindingVersion uuid from list_connected_accounts")
@@ -227,7 +235,7 @@ def cmd_connect_result(args):
     """What to tell the creator after connect_public_account; the raw error stays in `reported` for the assistant."""
     payload, is_error = tool_payload(read_json(args.result))
     handle = "@" + normalize_handle(args.handle)
-    # 成功的出参是 {"account": {...}}（钉住契约），账号 id 在 account.id。
+    # On success the output is {"account": {...}} (pinned in the contract), and the account id is in account.id.
     account = payload.get("account") if isinstance(payload.get("account"), dict) else {}
     if not is_error and first_text(account.get("id")):
         say({"linked": True, "account_id": account["id"], "binding_version": account.get("bindingVersion"),
@@ -248,7 +256,8 @@ def cmd_history_request(args):
         fail("--channel-id is only for YouTube")
     account = {"channel_id": args.channel_id} if args.channel_id else {"handle": normalize_handle(args.handle)}
     full = args.depth == "full"
-    # 建库那一次读得多（账号常规水平与同龄基线的样本更稳），每天的复盘只需要最近的作品。
+    # Building the library reads more (a steadier sample for the account's typical level and the equal-age
+    # baseline); each daily review needs only the most recent posts.
     if args.platform == "instagram":
         history = {"max_items": 100 if full else 30, "max_pages": 40 if full else 10,
                    "instagram_formats": {"posts": False, "reels": True, "balance": "fewer_rows_first"}}
@@ -322,12 +331,12 @@ def cmd_ingest(args):
         handle = normalize_handle(args.handle)
         owner = next((row for row in creators if normalize_handle(row.get("handle") or "x") == handle), None)
         if owner is None and len(creators) == 1:
-            owner = creators[0]  # YouTube 的频道名与自定义链接可能不同；只读了一个账号时它就是本人
+            owner = creators[0]  # A YouTube channel name can differ from its custom link; when only one account was read, it is the creator's own
         if owner is None:
             fail(f"The snapshot holds no posts from @{handle}; check the handle and platform")
         directory.mkdir(parents=True, exist_ok=True)
         (directory / "reviews").mkdir(exist_ok=True)
-        # 绑定时间取服务端抓取时间：此后发布的作品才进入复盘。
+        # The binding time is the server fetch time: only posts published afterward enter the review.
         write_json(directory / "library.json", {
             "format": LIBRARY_FORMAT, "platform": platform, "handle": handle,
             "creator_id": owner.get("creator_id"), "bound_at": iso(observed), "fresh": False,
@@ -337,14 +346,16 @@ def cmd_ingest(args):
     if library["platform"] != platform:
         fail(f"This library is for {library['platform']}, not {platform}")
     if library.get("fresh") and any(post.get("observations") for post in (store.get("posts") or {}).values()):
-        # 库里已有上一次的读数，说明宿主保留了文件：此后的复盘有历史可比。
+        # The library already holds an earlier reading, which means the host kept the file: later reviews have
+        # history to compare against.
         library["fresh"] = False
     if library.get("bound_at") is None:
         library["bound_at"] = iso(observed - timedelta(hours=library.get("lookback_hours", 0)))
     bound = parse_time(library["bound_at"])
     posts = store.setdefault("posts", {})
     if library.get("creator_id") is None:
-        # bootstrap 建的库还不知道账号编号：按账号名认领，只读了一个账号时它就是本人。
+        # A library built by bootstrap does not know the account id yet: claim it by account name; when only one
+        # account was read, it is the creator's own.
         claimed = next((row for row in creators if normalize_handle(row.get("handle") or "x") == library["handle"]), None)
         if claimed is None and len(creators) == 1:
             claimed = creators[0]
@@ -359,7 +370,7 @@ def cmd_ingest(args):
     new_posts, updated = [], 0
     for item in snapshot.get("items") or []:
         if item.get("creator_id") != library.get("creator_id") or item.get("format") in NON_VIDEO_FORMATS:
-            continue  # 别人的作品（合拍、转发）和照片图文不进素材库
+            continue  # Other people's posts (duets, reposts) and photo/image posts do not enter the library
         content_id = str(item["content_id"])
         post = posts.get(content_id)
         if post is None:
@@ -370,7 +381,7 @@ def cmd_ingest(args):
                 "published_at": iso(published) if published else None, "published_at_source": source,
                 "first_seen_at": iso(observed), "pillar_id": None, "observations": [], "reviews": {},
             }
-            # 只有绑定之后发布的作品才复盘；只有日期的按第一次看到的时间判断。
+            # Only posts published after binding are reviewed; for date-only ones, judge by the time first seen.
             anchor, _ = age_anchor(post)
             post["tracked"] = bool(anchor and anchor >= bound and not created)
             if post["tracked"]:
@@ -415,8 +426,11 @@ def post_row(post, typical):
             "url": post.get("url"), "title": (post.get("title") or "")[:200]}
 
 
-# 开场两句由脚本给出，模型换成创作者的语言后各发一条，再问一个问题（账号）。说的必须是这次真会发生的事：
-# 先读作品、一起定支柱（本地提议、创作者确认后同步到 Kabo），推荐来自后台的「为你推荐」。
+# The two opening sentences come from the script; the model translates them into the creator's language and
+# sends one message per sentence, then asks one question (the account). What is said must be what will
+# actually happen this time:
+# first read the posts and settle the pillars together (proposed locally, synced to Kabo after the creator
+# confirms), and the picks come from the backend's "For you".
 OPENING = [
     "I'm Kabo. I find the most-watched recent videos in your kind of content and help you make your own version.",
     "First I link your account and read your recent videos. Then we agree on your content pillars, and I show you "
@@ -434,7 +448,8 @@ def cmd_posts(args):
     posts = store["posts"]
     typical = median([views for _, views in settled_views(posts)])
     ordered = sorted(posts.values(), key=lambda post: post.get("published_at") or "", reverse=True)[: args.limit]
-    # 读完作品马上要对创作者说的话：条数、常规播放、最好的一条。模型只负责换成对方的语言原样转述。
+    # What is said to the creator right after the posts are read: count, typical views, best one. The model
+    # only translates it into the other person's language and relays it as is.
     best = max(settled_views(posts), key=lambda row: row[1], default=None)
     tell = f"I read {len(posts)} of your videos."
     if typical:
@@ -445,7 +460,8 @@ def cmd_posts(args):
     result = {"handle": library["handle"], "platform": library["platform"],
               "typical_settled_views": typical, "settled_posts": len(settled_views(posts)),
               "posts": [post_row(post, typical) for post in ordered]}
-    # 这句只在读完作品后说一次（--tell）；之后再列作品不重复（实测里同一句被发了两遍）。
+    # This sentence is said only once, after the posts are read (--tell); later post listings do not repeat it
+    # (in a measured run the same sentence was sent twice).
     if args.tell:
         result = {"tell_creator_now": tell, **result}
     say(result)
@@ -459,7 +475,8 @@ def cmd_media_request(args):
     posts = store["posts"]
     ids = list(args.content_id or [])
     if not ids:
-        # 播放最高的 4 条稳定作品，再补最近发布的、没选过的，凑满上限；一条也不重复。
+        # The 4 stable posts with the most views, then fill up to the cap with recently published ones not yet
+        # chosen; no duplicates.
         top = [row[0]["content_id"] for row in sorted(settled_views(posts), key=lambda row: -row[1])[:4]]
         recent = [post["content_id"] for post in sorted(posts.values(), key=lambda post: post.get("published_at") or "", reverse=True)]
         ids = top + [cid for cid in recent if cid not in top]
@@ -507,10 +524,12 @@ def cmd_transcripts(args):
     say({"status": record.get("status"), "pending": coverage.get("pending"), "transcripts": out})
 
 
-# ---------------------------------------------------------------- local pillar proposal（本地提议，创作者确认后同步到 Kabo）
+# ---------------------------------------------------------------- local pillar proposal (proposed locally,
+# synced to Kabo after the creator confirms)
 
-# 支柱的形状与长度上限照后台 update_content_preferences 的 declare_pillars（kabo#2185）：在这里先查，超限就让助手改短，
-# 不等后台拒。
+# The shape and length limits of pillars follow the backend update_content_preferences declare_pillars
+# (kabo#2185): check here first and have the assistant shorten anything over the limit,
+# without waiting for the backend to reject it.
 DECLARED_LIMITS = {"name": 60, "definition": 200, "phrase": 60, "phrases": 3}
 
 
@@ -553,8 +572,8 @@ def check_pillar_set(pillars, posts, require_ids=True):
 def cmd_propose_pillars(args):
     """Numbers for the assistant's own grouping of the posts. Writes nothing and recommends nothing.
 
-    原来写死的「中位播放 ≥ 0.8 倍、第二支柱 ≥ 20% 播放」不再由脚本裁定：这里只给各组的条数、中位播放、
-    播放占比作参考，决定权在创作者；这些数字是本地对这次读到的作品的计算，不是 Kabo 的统计结论。"""
+    The previously hard-coded rule "median views >= 0.8x, second pillar >= 20% of views" is no longer decided by the script: it only gives each group's post count, median views, and
+    share of views for reference, and the decision is the creator's; these numbers are local calculations over the posts read this time, not Kabo's statistical conclusions."""
     library, store = load_library(args.library)
     posts = store["posts"]
     raw = read_json(args.clusters)
@@ -670,7 +689,8 @@ def cmd_record_sync(args):
         say({"sync": "synced", "tell_creator_now": SYNC_LINES["synced"]})
         return
     if ("conflict" in text or "preferences_changed" in text) and not args.retried:
-        # 版本冲突：重读 get_creator_profile 拿新版本，再交一次（只一次）。整份替换，重交不会叠加。
+        # Version conflict: re-read get_creator_profile to get the new version, then submit again (only once). It
+        # replaces the whole set, so resubmitting does not accumulate.
         say({"sync": "conflict", "action": "reread_and_retry",
              "then": "read get_creator_profile again, rerun declare-request, call update_content_preferences once more, "
                      "then record-sync with --retried"})
@@ -699,8 +719,8 @@ def slug_of(text, taken):
 def tool_payload(value):
     """The structured answer inside a saved MCP tool result, and whether the host marked it as an error.
 
-    宿主存下来的可能是整份 MCP 结果（structuredContent，或只有 content[0].text 里的 JSON），也可能已经是
-    结构化内容本身；三种都认。"""
+    What the host saved may be the whole MCP result (structuredContent, or JSON only in content[0].text), or it may already be
+    the structured content itself; all three are accepted."""
     if not isinstance(value, dict):
         return {}, False
     is_error = value.get("isError") is True
@@ -720,7 +740,7 @@ def tool_payload(value):
 
 def reference_line(name, count, share, multiple):
     """One plain line for the "What your numbers show" block, e.g. 'Hooks: 15 of your recent videos, about a third;
-    they get about 1.8 times your usual views.' 不用 sample / baseline 这类词，数字由这里格式化好。"""
+    they get about 1.8 times your usual views.' Avoids words like sample / baseline; the numbers are formatted here."""
     parts = []
     if isinstance(count, int) and not isinstance(count, bool) and count > 0:
         parts.append(f"{count} of your recent videos" + (f", {share_words(share)}" if share_words(share) else ""))
@@ -748,7 +768,7 @@ def declared_pillars(structured):
 def read_profile(path):
     """Niche and content pillars from the creator's Kabo profile (get_creator_profile with effective: true).
 
-    只整理后台画像里的主打内容（signature content），不从作品里另行推导；后台没有就是没有。"""
+    Only organizes the signature content in the backend profile and does not derive anything separately from the posts; if the backend has none, there is none."""
     structured, is_error = tool_payload(read_json(path))
     if is_error:
         fail("get_creator_profile was refused: " + json.dumps(structured, ensure_ascii=False)[:300])
@@ -759,9 +779,11 @@ def read_profile(path):
     diagnosis = structured.get("diagnosis") if isinstance(structured.get("diagnosis"), dict) else {}
     insight = diagnosis.get("insight") if isinstance(diagnosis.get("insight"), dict) else {}
     review = ((diagnosis.get("accountReview") or {}).get("sections") or {}).get("niche") or {}
-    # 赛道先读顶层 niche：prepare_creator_profile 推断或创作者口述后写入的赛道在这里（kabo get_creator_profile 组装处
-    # 的 niche / nicheId）；没有复盘诊断时 diagnosis 里是空的（Codex 实测 @veritasium：顶层 "Science education"，
-    # diagnosis 无赛道）。顶层为空再回退到诊断里的两处。
+    # Read the top-level niche first: the niche written by prepare_creator_profile's inference or the creator's
+    # own words is here (where kabo get_creator_profile assembles
+    # niche / nicheId); with no review diagnosis, diagnosis is empty (Codex measured @veritasium: top level
+    # "Science education",
+    # diagnosis has no niche). When the top level is empty, fall back to the two places in diagnosis.
     niche = (first_text(structured.get("niche")) or first_text(insight.get("niche"))
              or first_text(review.get("label")) or first_text(review.get("summary")))
     items = [item for item in ((source or {}).get("signatureContent") or []) if isinstance(item, dict)]
@@ -778,10 +800,12 @@ def read_profile(path):
         candidates.append({
             "id": slug, "name": name[:60], "definition": (definition or name)[:300], "source": "kabo_profile",
             "profile_item_id": item.get("id"),
-            # 合并项（m_…）的 origin.baseIds 列出合并进来的原项；单项就是它自己。刷新支柱时据此把作品归到合并后的项。
+            # A merged item's (m_...) origin.baseIds lists the original items merged into it; a single item is itself.
+            # When refreshing pillars, posts are assigned to the merged item accordingly.
             "profile_base_ids": [str(base) for base in ((item.get("origin") or {}).get("baseIds") or [item.get("id")])
                                  if isinstance(base, (str, int)) and str(base)],
-            # 画像的 share 是条数占比（contentCount / 进了格式的作品数），不是播放占比。
+            # The profile's share is a share of counts (contentCount / number of posts that entered a format), not a
+            # share of views.
             "say_line": reference_line(name[:60], item.get("contentCount"), share, item.get("medianMultiplier")),
             "evidence": {"share_of_posts": share, "median_multiple": item.get("medianMultiplier"),
                          "content_count": item.get("contentCount"),
@@ -802,7 +826,8 @@ def read_profile(path):
             "language": (source or {}).get("language", {}).get("primary") if isinstance((source or {}).get("language"), dict) else None,
             "candidates": candidates,
             "hidden_by_creator": [row.get("name") for row in (effective or {}).get("hiddenSignatureContent") or [] if isinstance(row, dict)],
-            # 创作者声明的支柱（get_creator_profile 带 pillars: true 时才有这个键；没带或旧后台时为 None，不当成「没有」）。
+            # Pillars declared by the creator (this key exists only when get_creator_profile is called with pillars:
+            # true; when not requested or on an old backend it is None, which is not treated as "none").
             "declared_pillars": declared_pillars(structured),
             "update_context": {"account_id": account.get("id"), "expected_version": preferences.get("version") or 0,
                                "basis": first_text(generated or (base or {}).get("generatedAt"))},
@@ -816,13 +841,20 @@ def cmd_profile_pillars(args):
 
 # ---------------------------------------------------------------- waiting on Kabo
 
-# 后台还在生成时严格按 retry_after_seconds 再查，不缩短也不加长；总等待有上限，先到者为准。
-# 宿主的单次命令与整次运行都有时限，不能无限等。两处上限按后台的真实节奏定（kabo#2176）：
-# - 每日推荐：后台通常给 120 秒，补画像阶段给 300 秒。首次之后最多再查 3 次、累计最多 600 秒，
-#   正好容得下两次 300 秒的补画像等待；定时运行也用这个上限，超限就随下次运行送达。
-# - 画像：后台一档 60 秒，推断赛道加生成画像整条链路要几分钟。首次之后最多再查 8 次、累计最多 480 秒；
-#   超限就说稍后再看，引导对话继续往下走。
-# 下一次要等的时间会超出剩余额度时直接停，不提前去查（提前查只会再拿到一次 generating）。
+# While the backend is still generating, re-query strictly per retry_after_seconds, neither shortening nor
+# lengthening it; the total wait has a cap, whichever comes first.
+# The host limits both a single command and the whole run, so waiting cannot be unbounded. The two caps
+# follow the backend's real pace (kabo#2176):
+# - Daily picks: the backend usually gives 120 seconds, and 300 seconds during profile fill. At most 3 more
+# queries after the first, cumulative at most 600 seconds,
+#   which exactly fits two 300-second profile-fill waits; scheduled runs use this cap too, and anything
+# over the limit is delivered with the next run.
+# - Profile: the backend uses a 60-second tier, and the whole chain of inferring the niche plus generating
+# the profile takes several minutes. At most 8 more queries after the first, cumulative at most 480
+# seconds;
+#   over the limit, say to look again later and let the onboarding conversation continue.
+# When the next wait would exceed the remaining budget, stop directly and do not query early (an early
+# query would only get another generating).
 POLL_LIMITS = {"for_you": {"max_retries": 3, "max_wait": 600, "default_wait": 120},
                "profile": {"max_retries": 8, "max_wait": 480, "default_wait": 60}}
 
@@ -842,8 +874,10 @@ def poll_decision(payload, attempt, waited, limits):
             "next_flags": {"--attempt": attempt + 1, "--waited": waited + wait}}
 
 
-# 等待时对创作者说的话：进入等待说一次，第 3 次调用（等得明显变长）时最多再补一句，总共不超过两句。
-# 其余轮询不出话，并用 say_to_creator: false 明确告诉助手这次不用说（实测里同一句被发了 6 遍）。
+# What is said to the creator while waiting: say it once on entering the wait, add at most one more
+# sentence on the 3rd call (when the wait has clearly grown), at most two sentences in total.
+# Other polls say nothing and explicitly tell the assistant with say_to_creator: false that nothing needs
+# to be said this time (in a measured run the same sentence was sent 6 times).
 STILL_WORKING = "Still working on it."
 
 
@@ -856,8 +890,9 @@ def wait_line(attempt, first):
 
 
 def status_of(payload, is_error):
-    # 宿主标了 isError（工具错误，如 validation_error、not_found）、没有 status 或 status 不是字符串的，
-    # 一律按失败处理，并把原样内容带回去报告。
+    # Results the host marked isError (tool errors such as validation_error, not_found), with no status, or
+    # with a non-string status
+    # are all handled as failures, with the original content returned for reporting.
     status = payload.get("status")
     if is_error or not isinstance(status, str) or not status:
         return "failed"
@@ -865,14 +900,16 @@ def status_of(payload, is_error):
 
 
 def failure_detail(payload):
-    # failure_code 是契约字段；工具错误只有 message / error，宽容读取。
+    # failure_code is a contract field; tool errors only have message / error, so read them leniently.
     return (first_text(payload.get("failure_code")) or first_text(payload.get("message"))
             or first_text(payload.get("error")))
 
 
 def needs_write_access(payload, is_error):
-    # 宿主的 Kabo 授权里没有 workspace:write 时，写工具返回 Insufficient scope 的工具错误（不是某个 status）。
-    # 这是授权问题，重试没用：要创作者在宿主里重新授权并批准写权限。
+    # When the host's Kabo authorization has no workspace:write, the write tool returns an Insufficient scope
+    # tool error (not a status).
+    # This is an authorization problem and retrying is useless: the creator must re-authorize in the host and
+    # approve write permission.
     text = " ".join(str(payload.get(key) or "") for key in ("failure_code", "error", "message", "code")).lower()
     return is_error and ("insufficient_scope" in text or "insufficient scope" in text)
 
@@ -943,9 +980,11 @@ def cmd_profile_status(args):
         else:
             result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["gave_up"]})
     elif status == "niche_required" and not args.niche_sent:
-        # 后台从公开内容推断不出赛道：问创作者一句话，原话作为 niche 重试一次。模型不能替创作者编。
+        # The backend cannot infer a niche from public content: ask the creator one sentence and retry once with
+        # their own words as niche. The model must not make one up for the creator.
         result.update({"action": "ask_niche", "tell_creator_now": PROFILE_STATUS_LINES["niche_required"],
-                       # niche_not_inferred，或分析器的错误码（如 profile_private）；只作说明，不改流程。
+                       # niche_not_inferred, or an analyzer error code (such as profile_private); explanation only, does not
+                       # change the flow.
                        "failure_code": failure_detail(payload),
                        "question": PROFILE_STATUS_LINES["niche_question"],
                        "then": "call prepare_creator_profile again with the same account_id and niche set to the "
@@ -957,15 +996,18 @@ def cmd_profile_status(args):
         result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["insufficient_posts"],
                        "retry_after_seconds": seconds(payload.get("retry_after_seconds"))})
     elif status == "failed" and not is_error and payload.get("retryable") is True:
-        # 执行偶发（kabo#2180）：retry_after_seconds 很短，到时再调同一个工具后台会自动重跑一次复盘、回 generating。
-        # 这类重试与 generating 共用同一个轮询上限（最多再查 8 次、总等待 480 秒）；后台 24 小时内至多重跑 2 次，
-        # 到上限会回 retryable=false。不说成「作品不够」。
+        # Occasional execution failure (kabo#2180): retry_after_seconds is very short, and calling the same tool
+        # again at that time makes the backend rerun the review automatically and return generating.
+        # Such retries share the same polling cap as generating (at most 8 more queries, total wait 480 seconds);
+        # the backend reruns at most 2 times within 24 hours,
+        # and returns retryable=false at the limit. Do not describe it as "not enough posts".
         code = failure_detail(payload)
         decision = poll_decision(payload, args.attempt, args.waited, POLL_LIMITS["profile"])
         result.update(decision)
         result["failure_code"] = code
         if decision["action"] == "wait":
-            # 失败码只放在 failure_code 字段给助手看，不进对创作者说的话。
+            # The failure code goes only in the failure_code field for the assistant, not into what is said to the
+            # creator.
             line = PROFILE_STATUS_LINES["classification_unavailable"] if code == "classification_unavailable" else (
                 PROFILE_STATUS_LINES["retrying"])
             result["tell_creator_now"] = line
@@ -973,8 +1015,9 @@ def cmd_profile_status(args):
             result.update({"action": "continue_without_profile", "tell_creator_now": PROFILE_STATUS_LINES["gave_up"],
                            "reported": reported(payload)})
     else:
-        # failed（retryable=false 或工具错误），以及契约之外的任何 status：按失败处理，原样带回，不自己推导画像；
-        # 有冷却就说大约多久后能再试。
+        # failed (retryable=false or a tool error) and any status outside the contract: handled as failure,
+        # returned as is, with no self-derived profile;
+        # if there is a cooldown, say roughly how long until a retry is possible.
         line = PROFILE_STATUS_LINES["failed"]
         when = about_time(payload.get("retry_after_seconds"))
         if when:
@@ -987,13 +1030,14 @@ def cmd_profile_status(args):
 def cmd_bootstrap(args):
     """A new library built by review-new-posts when none exists: pillars, if any, come from the creator's Kabo profile.
 
-    第一次运行（引导对话不再在本地建库）和不留文件的宿主每次运行都走这里。没有画像或画像没有支柱时照样建库，
-    复盘与账号回顾照做，只是不带支柱小节。"""
+    The first run (onboarding no longer builds the library locally) and every run on a host that keeps no files go through here. With no profile or a profile with no pillars, the library is still built,
+    and the review and account recap still run, just without the pillar section."""
     directory = Path(args.library)
     if (directory / "library.json").exists():
         fail("This library already exists; use it instead of rebuilding it")
     proposal = read_profile(args.profile) if args.profile else None
-    # 与 refresh-pillars 同一优先级：创作者声明的支柱 → 后台统计的主打内容 → 没有。
+    # Same priority as refresh-pillars: pillars declared by the creator -> signature content from backend
+    # statistics -> none.
     declared = (proposal or {}).get("declared_pillars") or []
     candidates = declared or (proposal or {}).get("candidates") or []
     handle, when = normalize_handle(args.handle), now_utc()
@@ -1007,8 +1051,10 @@ def cmd_bootstrap(args):
         pillars.append(pillar_record({**row, "id": local}))
     niche = (proposal or {}).get("niche")
     language = (proposal or {}).get("language")
-    # 回看 48 小时：第一次读历史时按那次的抓取时间定绑定时间，让每条作品恰好在 24–48 小时的那一天进入一次复盘。
-    # fresh 表示库里还只有这一次的读数；下一次在同一个库上读到历史时，ingest 把它改成 false。
+    # Look back 48 hours: on the first history read, the binding time is set from that read's fetch time, so
+    # each post enters the review exactly once on its day in the 24-48 hour band.
+    # fresh means the library still holds only this one reading; the next time history is read on the same
+    # library, ingest sets it to false.
     write_json(directory / "library.json", {
         "format": LIBRARY_FORMAT, "platform": args.platform, "handle": handle, "creator_id": None,
         "bound_at": None, "lookback_hours": 48, "fresh": True,
@@ -1039,14 +1085,15 @@ def pillar_record(row):
 def align_pillars(old_pillars, candidates):
     """New local pillars from Kabo's profile, and where each old local pillar id now goes (None: unassigned).
 
-    对齐规则（以后台画像为准，只按画像项的稳定 id 对，不看名字）：
-    1. 画像项 id 不变（改名、改话题也一样）：沿用原来的本地 id，作品归属不动。
-    2. 原项被合并：新合并项（m_…）的 origin.baseIds 含原项 id，原项的作品归到合并项。
-    3. 原项被删除、隐藏、跌出前 4 项，或原合并项被拆开（对应关系不唯一）：作品置为未归类（pillar_id 为空）。
-    历史读数与已记录的复盘都不动；"other" 归属保持。"""
+    Alignment rules (the backend profile is authoritative; match only by the profile item's stable id, never by name):
+    1. Profile item id unchanged (even if renamed or its topic changed): keep the original local id; post assignments do not move.
+    2. Original item merged: the new merged item (m_...) has origin.baseIds containing the original item id, and the original item's posts go to the merged item.
+    3. Original item deleted, hidden, or dropped out of the top 4, or an original merged item split (the correspondence is not unique): posts become unassigned (pillar_id empty).
+    Historical readings and recorded reviews are untouched; "other" assignments stay."""
     by_item = {str(row.get("profile_item_id")): row for row in old_pillars if row.get("profile_item_id")}
     taken, pillars, moves = set(), [], {}
-    # 先给 id 不变的项保留原本地 id，再给新项按名字起 id，避免撞名。
+    # First keep the original local id for items whose id is unchanged, then derive ids for new items from
+    # their names, to avoid name collisions.
     kept = {}
     for row in candidates:
         old = by_item.get(str(row.get("profile_item_id")))
@@ -1069,7 +1116,7 @@ def align_pillars(old_pillars, candidates):
 def align_declared(old_pillars, declared):
     """Declared pillars have no stable id: match by name, ignoring case. A renamed pillar's posts become unassigned.
 
-    声明的支柱没有后台 id，只按名称（忽略大小写、去首尾空白）对齐；名称变了就置未归类，不做模糊匹配。"""
+    Declared pillars have no backend id and are matched only by name (case-insensitive, leading/trailing whitespace stripped); if the name changes they become unassigned, with no fuzzy matching."""
     by_name = {pillar_key(row.get("name")): row["id"] for row in old_pillars}
     taken, pillars = set(), []
     for row in declared:
@@ -1096,7 +1143,8 @@ def cmd_refresh_pillars(args):
         except (ValueError, OSError, json.JSONDecodeError) as error:
             problem = str(error)[:300]
     if proposal is None:
-        # 读不到画像：沿用上一次的支柱，在复盘与回顾的 limits 里说明，不让整次复盘失败。
+        # Profile unreadable: keep the previous pillars, explain in the limits of the review and recap, and do not
+        # let the whole review fail.
         library["pillars_refresh"] = {"ok": False, "at": when, "reason": problem or "no profile result"}
         write_json(directory / "library.json", library)
         say({"refreshed": False, "reason": library["pillars_refresh"]["reason"],
@@ -1105,7 +1153,8 @@ def cmd_refresh_pillars(args):
     old = library.get("pillars") or []
     sync = library.get("pillars_sync") or {}
     if sync.get("state") == "pending":
-        # 本地有创作者确认、还没同步到 Kabo 的支柱：不拿后台的结果盖掉它，只补赛道；等补同步成功再以后台为准。
+        # Local pillars confirmed by the creator but not yet synced to Kabo: do not overwrite them with the backend
+        # result, only fill in the niche; once the catch-up sync succeeds, the backend is authoritative again.
         niche = proposal.get("niche")
         if niche:
             library["niche"] = {"text": niche, "source": "kabo_profile"}
@@ -1114,7 +1163,8 @@ def cmd_refresh_pillars(args):
         say({"refreshed": False, "reason": "local pillars not yet synced to Kabo; kept as they are",
              "pillars": [row["id"] for row in old], "sync": "pending"})
         return
-    # 支柱来源的优先级：创作者声明的（declaredPillars 非空）→ 后台统计的主打内容 → 没有。
+    # Priority of pillar sources: declared by the creator (declaredPillars non-empty) -> signature content from
+    # backend statistics -> none.
     declared = proposal.get("declared_pillars")
     if declared:
         pillars, moves = align_declared(old, declared)
@@ -1149,7 +1199,8 @@ def cmd_refresh_pillars(args):
          "pillar_moves": {old_id: target for old_id, target in moves.items() if target != old_id}})
 
 
-# 会写进复盘与回顾、转述给创作者的话：不出现 library、run、host 之类的词。
+# Text that is written into the review and recap and relayed to the creator: it must not contain words like
+# library, run, host.
 AGE_WORDS = {"1h": "1 hour", "24h": "24 hours", "7d": "7 days"}
 FIRST_READING_LINE = ("This is the first time I've read your account here, so there is no earlier reading to compare "
                       "with yet (no follower change either). If this app doesn't keep files between days, every report "
@@ -1158,7 +1209,8 @@ FIRST_READING_LINE = ("This is the first time I've read your account here, so th
 
 def pillar_refresh_limit(library):
     state = library.get("pillars_refresh") or {}
-    # 对创作者说的话：原因（state["reason"]）只留在库里给助手排障，不念出来。
+    # What is said to the creator: the reason (state["reason"]) stays in the library for the assistant to
+    # troubleshoot and is not read out.
     if state.get("ok") is False:
         if library.get("pillars"):
             day = str(library.get("pillars_read_at") or "")[:10]
@@ -1350,7 +1402,8 @@ def cmd_recap(args):
     followers = {"available": False, "now": readings[-1]["value"] if readings else None}
     if len(readings) >= 2:
         newest = parse_time(readings[-1]["observed_at"])
-        # 取一天以前最近的一次读数作对比；没有满一天的读数就取最早的一次，并标明间隔。
+        # Take the most recent reading from at least a day earlier for comparison; if there is no reading a full
+        # day old, take the earliest one and state the interval.
         older = [row for row in readings[:-1] if (newest - parse_time(row["observed_at"])) >= timedelta(hours=20)]
         base = older[-1] if older else readings[0]
         gap_hours = round((newest - parse_time(base["observed_at"])).total_seconds() / 3600, 1)
@@ -1459,7 +1512,7 @@ def cmd_evidence(args):
     """Staged evidence files in staging order, with the tool that produced each one."""
     directory = Path(args.dir)
     rows = []
-    # 文件名以暂存时间开头，按名字排序就是调用顺序。
+    # File names start with the staging time, so sorting by name gives call order.
     for meta_path in sorted(directory.glob("*.meta")):
         body = meta_path.with_suffix(".json")
         if not body.is_file():
@@ -1475,21 +1528,30 @@ def cmd_evidence(args):
 # ---------------------------------------------------------------- daily picks
 
 def remake_note(platform):
-    # 复刻只接 10 分钟以内的口播或旁白视频；后台推荐不给时长，是否符合条件由复刻自己在收费前检查，这里不臆测。
+    # Remake accepts only talking-head or voice-over videos under 10 minutes; backend picks give no duration,
+    # and whether one qualifies is checked by remake itself before charging, so nothing is guessed here.
     if platform is None or platform in ("instagram", "youtube", "tiktok"):
         return "checked first: before a remake, Kabo checks whether this video qualifies"
     return "not supported for this platform"
 
 
-# 每日推荐只取后台 get_for_you_videos 的结果：后台按「与账号同领域、语言匹配」筛选并按公开播放量排序，
-# 规则以后台为准。这里只做展示上的限制：每天最多 3 条；先 7 天、再 30 天、再 24 小时；跳过以前某天展示过的、
-# 创作者本人的、与已选同一作者的；不够就有几条给几条，绝不凑数。
+# Daily picks take only the get_for_you_videos result from the backend: the backend filters by "same field
+# as the account, matching language" and sorts by public views,
+# and the backend decides the rules. Only display limits are applied here: at most 3 per day; 7 days first,
+# then 30 days, then 24 hours; skip those shown on an earlier day,
+# the creator's own, and the same author as one already chosen; if there are not enough, give as many as
+# there are and never pad.
 PICK_WINDOWS = ("7d", "30d", "24h")
 PICKS_PER_DAY = 3
-# 按窗口的相对播放量门槛：低于该窗口第 1 名播放量 10% 的不选，没有 views 的也不选。
-# 后台按播放量排序，但一个窗口里常常只有榜首一条真正出圈（实测 YouTube 7d：63,831 后面是 1,266、1,240），
-# 照 rank 取前 3 会把明显没起量的视频当成推荐。只用后台给的 views，不引入作者基线倍数这类后台没有的口径；
-# 每个窗口用自己的榜首算门槛，补位时也一样。过门槛的不足 3 条就不凑数。
+# Per-window relative views threshold: anything below 10% of that window's #1 views is not selected, and
+# neither is anything without views.
+# The backend sorts by views, but often only the top entry in a window truly broke out (measured YouTube
+# 7d: 63,831 followed by 1,266, 1,240),
+# and taking the first 3 by rank would recommend videos that clearly did not take off. Use only the views
+# the backend gives and do not introduce bases the backend lacks, such as a multiple of the author's
+# baseline;
+# each window computes its threshold from its own top entry, including when filling in. If fewer than 3
+# pass the threshold, do not pad.
 VIEWS_FLOOR_SHARE = 0.10
 
 FOR_YOU_NOT_ELIGIBLE = {
@@ -1508,8 +1570,10 @@ def read_picks(directory):
                      for day, rows in days.items()}}
 
 
-# 链接里标识视频的查询参数：YouTube 的 watch 链接只靠 ?v= 区分视频。其余查询参数（igsh、si、utm_…）是分享追踪，去掉。
-# 曾经整串丢掉查询参数，所有 youtube.com/watch?v=… 被当成同一条视频（Codex 实测 30 条只选出 1 条）。
+# The query parameter in a link that identifies the video: a YouTube watch link is distinguished only by
+# ?v=. Other query parameters (igsh, si, utm_...) are share tracking and are removed.
+# Previously the whole query string was dropped, so all youtube.com/watch?v=... links were treated as the
+# same video (Codex measured: only 1 selected out of 30).
 URL_ID_PARAMS = ("v",)
 
 
@@ -1537,14 +1601,15 @@ def video_keys(item):
     url = normalize_url(item.get("url"))
     if url:
         keys.add("url:" + url)
-    for key in item.get("keys") or []:  # 已记录的推荐自带 keys
+    for key in item.get("keys") or []:  # Recorded picks carry their own keys
         if isinstance(key, str) and key.strip():
             keys.add(key.strip())
     return keys
 
 
 def platform_of(item):
-    # 缺 platform 时从链接的域名认；认不出就是 None（复刻提示退回「复刻前会先检查」）。
+    # When platform is missing, infer it from the link domain; if it cannot be inferred it is None (the remake
+    # hint falls back to "will check before remaking").
     named = (first_text(item.get("platform")) or "").lower()
     if named:
         return named
@@ -1559,8 +1624,8 @@ def platform_of(item):
 def author_of(item):
     """The key that says two picks share an author: author_id first, then author_handle; None when neither is given.
 
-    作者未知（null 或空串）时不参与「同一作者不重复」：YouTube 结果目前不给 author_handle，
-    把空值当成同一个作者会只剩一条。后台若补上 author_id 就优先用它。"""
+    An unknown author (null or empty string) does not take part in "no repeated author": YouTube results currently give no author_handle,
+    and treating empty values as the same author would leave only one pick. If the backend adds author_id, it takes priority."""
     author_id = item.get("author_id")
     if isinstance(author_id, (str, int)) and not isinstance(author_id, bool) and str(author_id).strip():
         return "id:" + str(author_id).strip()
@@ -1572,8 +1637,8 @@ def author_of(item):
 def author_label(item):
     """The author as the creator should see it: a channel name for YouTube, @handle elsewhere.
 
-    kabo#2181 起 YouTube 的 author_handle 是频道名称（视频接口不给 @handle，可能重名），不能加 @；
-    Instagram / TikTok 是平台 handle，加 @。由脚本给出，模型不必自己判断加不加 @。"""
+    Since kabo#2181 the YouTube author_handle is the channel name (the video endpoint gives no @handle, and names can collide), so no @ is added;
+    Instagram / TikTok use the platform handle, with @ added. The script supplies this, so the model need not decide whether to add @."""
     handle = first_text(item.get("author_handle"))
     if not handle:
         return "author not supplied"
@@ -1583,7 +1648,8 @@ def author_label(item):
 
 
 def own_handle_of(item):
-    # 本人作品后台已排除；这里只是在给了作者名时再核一次。作者未知时不判。
+    # The backend already excludes the creator's own posts; this only re-checks when an author name is given.
+    # When the author is unknown, no judgment is made.
     handle = first_text(item.get("author_handle"))
     if not handle:
         return None
@@ -1629,7 +1695,8 @@ def select_picks(payload, shown, own_handle, count):
             elif seconds(views) is None or views < floor:
                 skipped["below_views_floor"] += 1
             elif keys & used_keys:
-                # 同一条视频（content_id 或归一后的链接相同）出现在多个时间窗；只看视频标识，不看作者。
+                # The same video (same content_id or same normalized link) appearing in several time windows; look only at
+                # the video identifier, not the author.
                 skipped["same_video_in_another_window"] += 1
             elif keys & shown:
                 skipped["shown_on_earlier_day"] += 1
@@ -1663,7 +1730,8 @@ def cmd_for_you(args):
     day = args.date or now_utc().date().isoformat()
     history = read_picks(directory)
     if day in history["days"]:
-        # 同一天再跑（定时任务重试、手动再叫）：不重选、不覆盖，原样给出已记录的那份。
+        # Running again the same day (scheduled-task retry, manual rerun): do not reselect or overwrite, give the
+        # already recorded set as is.
         say({"status": "ready", "action": "deliver", "date": day, "already_recorded": True,
              "picks": history["days"][day], "found": len(history["days"][day])})
         return
@@ -1684,7 +1752,8 @@ def cmd_for_you(args):
                 result["note"] += (" The others had far fewer views than the top video of their list (under "
                                    f"{int(VIEWS_FLOOR_SHARE * 100)}% of it, see `views_floor`), so they were not picked.")
         if args.write:
-            # 零条的日子也记下：今天已查过，同一天再跑不再触发。
+            # Days with zero picks are recorded too: it was already checked today, and running again the same day does
+            # not trigger again.
             directory.mkdir(parents=True, exist_ok=True)
             history["days"][day] = picks
             write_json(directory / "picks.json", history)
@@ -1700,14 +1769,17 @@ def cmd_for_you(args):
     elif status == "not_eligible":
         reason = first_text(payload.get("reason")) or "unknown"
         result.update({"action": "stop", "reason": reason,
-                       # 距离可再次触发的秒数；没有绑定账号时为 null。
+                       # Seconds until it can be triggered again; null when no account is bound.
                        "retry_after_seconds": seconds(payload.get("retry_after_seconds")),
-                       # 未知原因码只在 reason 字段里，不念给创作者。
+                       # Unknown reason codes appear only in the reason field and are not read out to the creator.
                        "message": FOR_YOU_NOT_ELIGIBLE.get(reason, "Kabo can't make picks for this account right now.")})
     else:
-        # failed、工具错误（validation_error、not_found），以及契约之外的任何 status：按失败处理，原样报告，不搜索、不兜底。
-        # failed 不轮询（kabo#2180 起一律 retryable=false；能立即重来的情形后台直接回 generating）。
-        # retry_after_seconds 是距下次可触发的秒数：换成「大约多久后再来」。旧后台的 retryable=true 加约 24 小时同样处理。
+        # failed, tool errors (validation_error, not_found), and any status outside the contract: handled as
+        # failure, reported as is, with no searching and no fallback.
+        # failed is never polled (since kabo#2180 it is always retryable=false; cases that can be retried
+        # immediately get generating directly from the backend).
+        # retry_after_seconds is the seconds until it can next be triggered: turn it into "roughly how long until
+        # you come back". An old backend's retryable=true plus about 24 hours is handled the same way.
         retryable = payload.get("retryable") is True
         detail = failure_detail(payload)
         when = about_time(payload.get("retry_after_seconds"))

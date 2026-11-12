@@ -166,7 +166,7 @@ def missing_artifacts(args: argparse.Namespace) -> list[dict[str, Any]]:
 
 
 def unavailable_intent(intent_path: Path, attempts: int, detail: str) -> int:
-    """报告尚未读取的调用输入，不消耗或重置业务校验预算。"""
+    """Report call input that has not been read yet, without consuming or resetting the business validation budget."""
     issue = RequestInputError(
         f"{intent_path} cannot be read: {detail}", code="unavailable_intent_path", field="--intent",
         next_action="Correct the --intent path or file permissions and rerun prep in the same run directory. Do not change the user request, replace evidence or reset this run.").issue
@@ -205,7 +205,8 @@ def run_prep(args: argparse.Namespace) -> int:
         if any((run_dir / name).exists() for name in ("request.json", "decision.json", "idea_set.json", "RESULT.md", "IDEA_REPORT_FULL.md")):
             raise ValueError("existing generation artifacts without an open prep; refusing to overwrite them")
         state_checked = True
-        # 尚未读取业务输入：调用路径错误不算业务校验失败。保留计数和终态，直接返回。
+        # Business input has not been read yet: a wrong call path does not count as a business validation failure.
+        #   Keep the count and terminal state, and return directly.
         if not intent_path.is_file():
             return unavailable_intent(intent_path, attempts, "not an available file")
         attempts += 1
@@ -218,7 +219,8 @@ def run_prep(args: argparse.Namespace) -> int:
                              "Use the original upstream JSON artifact, not its Markdown report. Do not hand-write a replacement.")).issue
                 for row in not_json)
         files_available = not issues
-        # 即使独立上游文件缺失，也要合报可读聊天的引用错误，避免恢复文件后才耗尽修订预算。
+        # Even if an independent upstream file is missing, still merge and report the reference errors of the readable
+        #   chat, so the revision budget is not exhausted only after the file is restored.
         if (args.conversation_context is not None and args.conversation_context.is_file()
                 and not any(row["flag"] == "--conversation-context" for row in not_json)):
             try:
@@ -235,7 +237,7 @@ def run_prep(args: argparse.Namespace) -> int:
         except (json.JSONDecodeError, UnicodeDecodeError) as error:
             issues.append(RequestInputError(str(error), code="invalid_json").issue)
         else:
-            # schema 或后台读取错误不归入调用方输入文件的异常处理。
+            # Schema or backend read errors are not handled as exceptions of the caller's input file.
             try:
                 issues.extend(validation_issue(error) for error in dict.fromkeys(
                     validate_authored_intent(intent, has_previous_ideas=args.previous_ideas is not None,
@@ -345,7 +347,7 @@ def collect_validation_errors(idea_set: dict[str, Any], request: dict[str, Any],
 
 
 def compact_revision_errors(errors: list[str]) -> list[str]:
-    """相同候选字段错误合并索引；完整原错误仍保存在修订文件中。"""
+    """Identical candidate field errors are merged in the index; the full original errors are still saved in the revision file."""
     groups = {}
     for error in errors:
         match = re.match(r"(idea_set schema \$\.ideas)\[(\d+)\](.*)", error)
@@ -552,7 +554,8 @@ def run_core(args: argparse.Namespace) -> int:
             rendered=True,
             validation_errors=[],
         )
-        # 绑定本次实际校验的输入；导出不能借用旧成功状态交付后来重写的内容。
+        # Bound to the input actually validated this time; an export cannot borrow an old success state to deliver
+        #   content that was rewritten later.
         core["validated_input_sha256"] = {
             "request": hashlib.sha256(request_bytes).hexdigest(),
             "idea_set": hashlib.sha256(idea_set_bytes).hexdigest(),

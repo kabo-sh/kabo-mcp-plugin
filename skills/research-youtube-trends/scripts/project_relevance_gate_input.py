@@ -43,21 +43,23 @@ def matched_queries(item: dict[str, Any]) -> list[str]:
     return found
 
 
-# 表格里的一行就是 Gate 对一条候选能看到的全部内容。平台写的摘要只给一个有上限的短位置，
-# 放在作者原文之后，不跟作者原文抢分页预算。
+# A row in the table is everything the Gate can see about one candidate. The platform-written summary gets
+#   only a short capped position,
+# placed after the author's original text so it does not compete with the author's text for the pagination
+#   budget.
 PLATFORM_SUMMARY_LIMIT = 160
 SIGNATURE_CONTENT_LIMIT = 4
 EXCLUDED_TOPICS_LIMIT = 10
 
 
 def platform_summary(item: dict[str, Any]) -> str | None:
-    """平台对这条内容的描述，和作者自己写的文字分开放。
+    """The platform's description of this content, kept separate from the author's own text.
 
-    只有拿到平台信号的候选构建器才会写 `platform_summary_source`（目前是带
-    `include: ["content_signals"]` 的 TikTok 搜索行）。这段文字是平台写的，表格里要标明：
-    如果当成作者原话来打分，平台生成的一句描述会被读成作者亲口点出了做法。这里不取任何数据，
-    没有来源的候选就没有摘要。YouTube 只有 search 结果自带的 description，那是作者写的，
-    已经在 visible_text 里，不另做摘要。
+    Only candidate builders that obtained platform signals write `platform_summary_source` (currently TikTok search rows with
+    `include: ["content_signals"]`). This text was written by the platform and must be labeled as such in the table:
+    if it were scored as the author's own words, a one-line platform-generated description would be read as the author personally spelling out the technique. No data is fetched here,
+    so a candidate without a source has no summary. YouTube has only the description that comes with search results, which the author wrote
+    and is already in visible_text, so no separate summary is made.
     """
     source = item.get("platform_summary_source")
     if not isinstance(source, dict):
@@ -79,10 +81,10 @@ def platform_summary(item: dict[str, Any]) -> str | None:
 
 
 def signature_subject(profile: dict[str, Any]) -> list[dict[str, Any]]:
-    """按闸门编号列出创作者的主打内容：编号就是它在 Request 数组里的下标 + 1。
+    """List the creator's main content by gate number: the number is its index in the Request array + 1.
 
-    画像接收已经把 Request 数组排好序（weight 降序，同权按 id），编号在那里定一次，这里不再
-    重排。id 一并写进投影文件，是为了让打分脚本不读 Request 也能把模型填的编号换回 id。
+    Profile intake has already sorted the Request array (weight descending, ties by id); numbers are fixed there and not re-sorted here.
+    The id is also written into the projection file so the scoring script can map the numbers the model filled in back to ids without reading the Request.
     """
     items = profile.get("signature_content")
     if items is None:
@@ -109,10 +111,10 @@ def signature_subject(profile: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def excluded_subject(profile: dict[str, Any]) -> list[str]:
-    """创作者排除的话题，原样交给闸门。
+    """Topics the creator excludes, passed to the gate as they are.
 
-    资格过滤只剔除字面命中的候选；换了说法或换了语言的同一话题只有闸门看得出来，所以把话题印进表头，
-    让闸门把这类条目的 topic_relevance 打 0。没有排除话题时 subject 不加这个键，表头逐字节不变。
+    Eligibility filtering removes only candidates that match literally; the same topic in different wording or another language is visible only to the gate, so the topics are printed into the table header
+    and the gate scores topic_relevance 0 for such entries. When there are no excluded topics, subject does not get this key, and the header is byte-for-byte unchanged.
     """
     topics = profile.get("excluded_topics")
     if topics is None:
@@ -238,8 +240,9 @@ def table_parts(output: dict[str, Any]):
         "no historical class, and a class match does not make an off-topic item relevant."
     )
     if subject.get("signature_content"):
-        # 模型只按打印出的编号作答。id 只留在投影文件里给打分脚本用，表头不印 id，
-        # 免得模型在编号那一列写成 id。
+        # The model answers only by the printed number. The id stays only in the projection file for the scoring
+        #   script, and the header does not print it,
+        # so the model does not write the id into the number column.
         header["subject"] = {**subject, "signature_content": [
             {key: entry[key] for key in ("number", "name", "topic", "approach", "examples") if key in entry}
             for entry in subject["signature_content"]]}

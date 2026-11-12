@@ -1,6 +1,9 @@
-// review-creator-account-deep 一个请求只有一个 run（1.0.14 生产回归暴露）：模型先跑 static_host.py init、
-// 按那个 run 记了一次 start_skill_run，又跑 fetch_catalog.py --workspace 另预留一个 run，同一请求被记两次用量。
-// 现在 --workspace 先认领本 workspace 里刚预留、仍是空的本 Skill run；已经开始的 run 不认领。
+// review-creator-account-deep has only one run per request (exposed by the 1.0.14 production regression):
+// the model first ran static_host.py init,
+// recorded one start_skill_run against that run, then ran fetch_catalog.py --workspace, which reserved
+// another run, so the same request recorded usage twice.
+// Now --workspace first claims a run of this Skill that was just reserved in this workspace and is still
+// empty; a run that has already started is not claimed.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -27,7 +30,7 @@ async function workspace(t) {
   return dir;
 }
 
-test("init 之后再跑 --workspace，认领刚预留的空 run，不另建", async (t) => {
+test("after init, running --workspace claims the just-reserved empty run instead of creating another", async (t) => {
   const dir = await workspace(t);
   const init = python("static_host.py", ["init", "--workspace", dir], dir);
   assert.equal(init.code, 0, init.out);
@@ -38,7 +41,7 @@ test("init 之后再跑 --workspace，认领刚预留的空 run，不另建", as
   assert.equal((await readdir(path.join(dir, ".kabo-runs"))).length, 1);
 });
 
-test("已经开始的 run 不认领：另建一个", async (t) => {
+test("a run that has already started is not claimed: create another", async (t) => {
   const dir = await workspace(t);
   const init = python("static_host.py", ["init", "--workspace", dir], dir);
   const started = init.out.trim();

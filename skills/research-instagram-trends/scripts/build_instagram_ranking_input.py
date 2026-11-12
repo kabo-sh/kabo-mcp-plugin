@@ -26,10 +26,12 @@ def instant(value: str) -> datetime:
 
 
 def clamp_to_discovery(window: dict[str, Any], discovery: Any) -> tuple[str, str]:
-    """收窄到发现窗口内。
+    """Narrow to the discovery window.
 
-    发现调用常传相对窗口(last-month)，后端解析成滚动区间；请求里的窗口却往往写成自然月。
-    后端要求补全窗口被发现窗口包含，两者错开一天就会整批打回，所以这里取交集而不是原样透传。
+    Discovery calls often pass a relative window (last-month), which the backend resolves to a rolling interval,
+    while the window in the request is often written as a calendar month. The backend requires the completion window
+    to be contained in the discovery window, and a one-day offset between the two sends the whole batch back, so we
+    take the intersection here rather than passing it through unchanged.
     """
     since, until = window["since"], window["until"]
     if not isinstance(discovery, dict):
@@ -63,13 +65,15 @@ def anchor_handle(request: dict[str, Any]) -> str | None:
 
 
 def by_anchor(item: dict[str, Any], anchor: str | None) -> bool:
-    """锚定账号自己的帖子不该占交付位——报告是给他看别人的。
+    """The anchor account's own posts must not take a delivery slot - the report is for showing them other people's posts.
 
-    竞品那边 select_accounts.py 早就按 subject handle 剔了(标 excluded_subject)，
-    趋势这条链路一直没有,v4.7 终版第 4 位就是创作者本人。这里补齐,与竞品口径一致。
+    On the competitor side select_accounts.py has long excluded by subject handle (marked excluded_subject); the
+    trend chain never did, and position 4 of the v4.7 final was the creator themselves. This fills the gap, matching
+    the competitor basis.
 
-    只在提交富化前摘掉交付位,不动发现层:锚定账号被自己的检索词捞到,
-    恰恰是这组词选对了的信号,intent_yield 要用。
+    Drop them from the delivery slots only before submitting enrichment, and leave the discovery layer alone: the
+    anchor account being caught by its own search terms is exactly the signal that this set of terms was well
+    chosen, and intent_yield needs it.
     """
     if anchor is None:
         return False
@@ -91,12 +95,13 @@ def write_once(path: Path, value: dict[str, Any]) -> None:
 
 
 def semantic_total(scores: dict[str, float]) -> float:
-    """三项加权；缺 creator_transferability 时把它的权重按比例摊给另外两项。
+    """Three-item weighting; when creator_transferability is missing, its weight is spread proportionally over the other two.
 
-    Gate 只在 Request 带上 anchor 信息时才打 creator_transferability——没有 anchor 就没有
-    「这个 Creator 接不接得住」可判。省略它时把那 0.25 按原比例归一化到 topic_relevance 与
-    locale_fit（0.5:0.25 → 2/3:1/3），总分仍落在 0–100，同一份 Gate 内的相对次序也只由真正
-    打过的维度决定。跨运行的总分不可直接比较：有无 anchor 衡量的维度本就不同。
+    The Gate scores creator_transferability only when the Request carries anchor information - without an anchor
+    there is nothing to judge about whether this Creator can carry it. When it is omitted, its 0.25 is renormalized
+    in the original proportion onto topic_relevance and locale_fit (0.5:0.25 -> 2/3:1/3), the total still falls in
+    0-100, and the relative order within one Gate is decided only by the dimensions actually scored. Totals across
+    runs are not directly comparable: with and without an anchor the dimensions measured are different.
     """
     topic = scores["topic_relevance"] * 0.5
     locale = scores["locale_fit"] * 0.25
@@ -111,9 +116,10 @@ def eligible_of(
     candidates: dict[str, Any],
     gate: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """一条车道内的合格候选与它们的语义分，已按本车道的确定序排好。
+    """Qualified candidates within one lane and their semantic scores, already sorted in this lane's deterministic order.
 
-    分数是**本车道池内的相对位置**，跨车道不可直接比较——名额分配交给后端按车道做。
+    The score is the **relative position within this lane's pool** and is not directly comparable across lanes - slot
+    allocation is left to the backend, per lane.
     """
     if candidates.get("schema_version") != "trend-candidate-set.v1":
         raise ValueError("candidates must be trend-candidate-set.v1")
@@ -166,8 +172,9 @@ def build(
     two_lane = reach_candidates is not None and reach_gate is not None
     if two_lane:
         reach_eligible, reach_scores = eligible_of(request, reach_candidates, reach_gate)
-        # 相关车道优先占位：同一条内容被两条车道都捞到时算相关车道，
-        # 因为它已经证明自己在窗口内且强相关，没必要再占到达车道的名额。
+        # The relevance lane takes a slot first: when the same content is caught by both lanes it counts as the relevance
+        # lane, because it has already proven itself within the window and as strongly relevant, so there is no need for
+        # it to also take a slot from the reach lane.
         seen = {str(item["content_key"]) for item in eligible}
         reach_eligible = [
             item for item in reach_eligible if str(item["content_key"]) not in seen
@@ -176,8 +183,9 @@ def build(
             scores.setdefault(key, value)
         for item in reach_eligible:
             lane_of[str(item["content_key"])] = "reach"
-        # 两条车道各自先拿一半名额，谁不够再由另一条补满，避免一条车道把
-        # 另一条整个挤出去——名额怎么分是后端的事，这里只保证两条都进得来。
+        # Each of the two lanes first takes half the slots, and whichever falls short is filled up by the other, so one
+        # lane cannot crowd the other out entirely - how slots are split is the backend's business, and this only
+        # guarantees both lanes get in.
         half = limit // 2
         head = eligible[:half] + reach_eligible[: limit - half]
         tail = eligible[half:] + reach_eligible[limit - half :]
@@ -188,8 +196,9 @@ def build(
         raise ValueError("request window must contain exact since and until timestamps")
     discovery = candidates.get("discovery_window")
     if two_lane:
-        # 候选来自两条发现窗口，报告窗口的上界就是两者的并集（再与请求窗口取交）。
-        # 只按相关车道那 30 天收窄会把到达车道的内容全部挡在窗口外。
+        # Candidates come from two discovery windows, so the report window's upper bound is the union of the two (then
+        # intersected with the request window). Narrowing only to the relevance lane's 30 days would put all of the reach
+        # lane's content outside the window.
         reach_discovery = reach_candidates.get("discovery_window")
         if isinstance(discovery, dict) and isinstance(reach_discovery, dict):
             discovery = {
@@ -198,9 +207,10 @@ def build(
             }
     since, until = clamp_to_discovery(window, discovery)
     if two_lane:
-        # 请求窗口本身太窄时直接报错，不悄悄放宽——放宽等于交付用户没有要的时间段。
-        # 而窗口盖不住到达车道时后端会把它整批滤掉，那是一条静默失效的车道：
-        # 产出看着正常，只是热度内容一条都进不来。
+        # Raise an error directly when the request window itself is too narrow, and do not widen it quietly - widening
+        # amounts to delivering a time period the user did not ask for.
+        # When the window does not cover the reach lane, the backend filters out that whole batch, which is a silently
+        # failing lane: the output looks normal, but none of the hot content gets in.
         reach_since = (reach_candidates.get("discovery_window") or {}).get("since")
         if isinstance(reach_since, str) and instant(since) > instant(reach_since):
             raise ValueError(
@@ -212,8 +222,9 @@ def build(
         "ranking_mode": "relevance_saturated.v1" if two_lane else "evidence_ranked.v1",
         "window": {"since": since, "until": until},
     }
-    # 句柄形态:候选集留在服务端，入参只带编号与本次选中的 content_key。
-    # 两条车道有两个候选集编号，而句柄形态只能绑一个，所以两车道走内联形态。
+    # Handle form: the candidate set stays on the server, and the input carries only the id and the content_key
+    # selected this time. The two lanes have two candidate-set ids, while the handle form can bind only one, so the
+    # two lanes use the inline form.
     candidate_set_id = None if two_lane else candidates.get("candidate_set_id")
     if candidate_set_id is not None:
         if not isinstance(candidate_set_id, str) or not candidate_set_id:
@@ -270,7 +281,8 @@ def main() -> int:
     parser.add_argument("--request", type=Path, required=True)
     parser.add_argument("--candidates", type=Path, required=True)
     parser.add_argument("--gate", type=Path, required=True)
-    # 到达车道是可选的第二条发现车道：跨更长窗口捞高热度内容。给了就走顶档饱和。
+    # The reach lane is an optional second discovery lane: it pulls high-popularity content across a longer window.
+    # When given, it goes through top-tier saturation.
     parser.add_argument("--reach-candidates", type=Path)
     parser.add_argument("--reach-gate", type=Path)
     parser.add_argument("--output", type=Path, required=True)
@@ -282,11 +294,13 @@ def main() -> int:
             raise ValueError("limit must be between 1 and 60")
         if bool(args.reach_candidates) != bool(args.reach_gate):
             raise ValueError("--reach-candidates and --reach-gate must be given together")
-        # 到达车道被丢掉的时候没有任何症状：产出照样是一份合法的单车道排序输入，
-        # 只是窗口塌回一个月、到达车道那几十条独有候选一条都进不来，而它们的
-        # provider 预算已经花掉了。2026-09-07 实测撞到一次：两条车道都采集并过了
-        # 语义门，构建这一步用的却是单车道那条命令，到达车道 58 条独有候选 0 条入选。
-        # 所以这里主动看一眼同目录：文件在、没传进来，就报错，别静默降级。
+        # When the reach lane is dropped there is no symptom at all: the output is still a valid single-lane ranking
+        # input, only the window collapses back to one month and the several dozen candidates unique to the reach lane
+        # do not get in at all, even though their provider budget has already been spent. Hit once in a real run on
+        # 2026-09-07: both lanes were collected and passed the semantic gate, but this build step used the single-lane
+        # command, and 0 of the 58 candidates unique to the reach lane were selected.
+        # So look in the same directory proactively here: if the file exists and was not passed in, raise an error
+        # rather than silently degrading.
         sibling = args.candidates.with_name(
             f"{args.candidates.stem}-reach{args.candidates.suffix}"
         )
@@ -310,7 +324,8 @@ def main() -> int:
         selected = result.get("selected", result.get("items"))
         print(json.dumps({"status": "ok", "eligible": len(selected), "path": str(args.output)}))
         if args.print:
-            # enrich 的入参就是这份文件的原文；打印紧凑形式，模型不必再 jq 一次。
+            # The enrich input is the verbatim content of this file; print the compact form so the model does not need to
+            # run jq again.
             print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
         return 0
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:

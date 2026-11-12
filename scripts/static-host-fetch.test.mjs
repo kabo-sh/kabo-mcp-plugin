@@ -10,8 +10,8 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-// 在同一进程里替换 urllib 的 opener：真实的 NoRedirect、状态码处理与流式校验都照常运行，
-// 只有 HTTPS 收发被假处理器接管。命令行入口没有任何开关能做到这一点，测试也就不联网。
+// Replace urllib's opener in the same process: the real NoRedirect, status-code handling and streaming validation all still run,
+// and only the HTTPS send/receive is taken over by a fake handler. No command-line switch can do this, so the tests never touch the network.
 const HARNESS = String.raw`
 import base64, contextlib, http.client, io, json, os, runpy, sys, urllib.request, urllib.response
 
@@ -51,7 +51,7 @@ for scenario in scenarios:
     _, run_dir, _ = run(["init", "--workspace", workspace])
     run_dir = run_dir.strip()
     os.environ["KABO_STATIC_RUN_DIR"] = run_dir
-    # before：同一运行目录里先跑的命令（重复落盘等场景），它们的输出不进报告。
+    # before: commands run earlier in the same run directory (duplicate-persist scenarios etc.); their output is not part of the report.
     for index, step in enumerate(scenario.get("before", [])):
         prior = os.path.join(run_dir, f"before-{index}.json")
         with open(prior, "w") as stream:
@@ -98,7 +98,7 @@ const secrets = ["storage.googleapis.com", "X-Goog", "SIGNATURE", "CRED", "_temp
 
 function noSecrets(result) {
   for (const stream of [result.stdout, result.stderr])
-    for (const secret of secrets) assert.equal(stream.includes(secret), false, `输出泄露了 ${secret}：${stream}`);
+    for (const secret of secrets) assert.equal(stream.includes(secret), false, `output leaked ${secret}: ${stream}`);
 }
 
 const envelope = {
@@ -111,7 +111,7 @@ const envelope = {
   data: { rows: [{ id: "abc", title: "Ünïcode title" }] },
 };
 const { data: _data, ...inlineEnvelope } = envelope;
-// 服务端的下载字节是 JSON.stringify(envelope)：紧凑、非 ASCII 原样 UTF-8。
+// The bytes the server serves for download are JSON.stringify(envelope): compact, non-ASCII kept as raw UTF-8.
 const envelopeBytes = Buffer.from(JSON.stringify(envelope));
 
 function downloadResult({ url = SIGNED, bytes = envelopeBytes.length, digest = sha256(envelopeBytes), result = inlineEnvelope } = {}) {
@@ -123,10 +123,10 @@ function downloadResult({ url = SIGNED, bytes = envelopeBytes.length, digest = s
 }
 
 const ok = (body = envelopeBytes) => [200, body.toString("base64"), { "Content-Type": "application/json" }];
-// GCS 按签名里的 response-content-type 回类型头，产物下载的假响应照此给出。
+// GCS returns the content-type header given by response-content-type in the signature; the fake artifact-download responses do the same.
 const served = (body, type) => [200, body.toString("base64"), { "Content-Type": type }];
 
-test("fetch：envelope 下载核对大小与 sha256 后走 stage 的同一套校验落盘；stage 拒绝只有链接的结果", async (t) => {
+test("fetch: envelope download is checked for size and sha256, then persisted through the same validation as stage; stage rejects link-only results", async (t) => {
   const report = await harness(t, "analyze-content-video", [
     { name: "valid", command: "fetch", tool: "youtube_get_video", result: downloadResult(), responses: { [SIGNED]: ok() } },
     { name: "stageRefuses", command: "stage", tool: "youtube_get_video", result: downloadResult() },
@@ -161,7 +161,7 @@ test("fetch：envelope 下载核对大小与 sha256 后走 stage 的同一套校
   assert.deepEqual(report.mismatch.files, {});
 });
 
-test("fetch：sha256 不符、大小不符、非白名单主机、重定向、过期一律失败且不落盘、不复述链接", async (t) => {
+test("fetch: sha256 mismatch, size mismatch, non-allowlisted host, redirect, and expiry all fail without persisting and without repeating the link", async (t) => {
   const report = await harness(t, "analyze-content-video", [
     { name: "sha", command: "fetch", tool: "youtube_get_video", result: downloadResult({ digest: sha256(Buffer.from("other")) }), responses: { [SIGNED]: ok() } },
     { name: "short", command: "fetch", tool: "youtube_get_video", result: downloadResult({ bytes: envelopeBytes.length + 5 }), responses: { [SIGNED]: ok() } },
@@ -192,8 +192,8 @@ test("fetch：sha256 不符、大小不符、非白名单主机、重定向、�
     },
   ]);
   for (const [name, result] of Object.entries(report)) {
-    assert.equal(result.exit, 1, `${name} 应失败：${result.stdout}`);
-    assert.deepEqual(result.files, {}, `${name} 不得落盘`);
+    assert.equal(result.exit, 1, `${name} should fail: ${result.stdout}`);
+    assert.deepEqual(result.files, {}, `${name} must not be persisted`);
     noSecrets(result);
   }
   assert.match(report.sha.stderr, /sha256 does not match/);
@@ -201,16 +201,16 @@ test("fetch：sha256 不符、大小不符、非白名单主机、重定向、�
   assert.match(report.long.stderr, /size does not match/);
   for (let index = 0; index < 6; index++) {
     assert.match(report[`host${index}`].stderr, /not a Kabo signed storage link/);
-    assert.deepEqual(report[`host${index}`].requests, [], "非白名单链接不得发出请求");
+    assert.deepEqual(report[`host${index}`].requests, [], "non-allowlisted links must not issue a request");
   }
   assert.match(report.redirect.stderr, /redirected \(HTTP 302\)/);
-  assert.deepEqual(report.redirect.requests, ["GET"], "重定向不得被跟随");
-  // 同步数据结果的链接过期后按 evidence_ref 重签，不重跑取数。
+  assert.deepEqual(report.redirect.requests, ["GET"], "redirects must not be followed");
+  // After the link of a synchronous data result expires, re-sign by evidence_ref instead of re-running the fetch.
   assert.match(report.expiredData.stderr, /expired.*get_research_data_download with \{"evidence_ref": "ev-1"\}.*no allowance cost/);
   assert.match(report.expiredJob.stderr, /expired.*get_research_data_job again with delivery "download" \(it only reads/);
 });
 
-test("fetch：没有就绪下载时提示回退宿主导出 + stage；排队任务提示轮询", async (t) => {
+test("fetch: when no download is ready, hint to fall back to host export + stage; queued jobs hint to poll", async (t) => {
   const report = await harness(t, "analyze-content-video", [
     {
       name: "unavailable",
@@ -239,7 +239,7 @@ test("fetch：没有就绪下载时提示回退宿主导出 + stage；排队任�
   }
 });
 
-test("fetch：产物（文本与帧都默认走下载）逐项下载或按 _meta 配对回退正文，旁注带 job_id/object_ref/sha256，不含链接", async (t) => {
+test("fetch: artifacts (text and frames both default to download) are downloaded one by one or paired by _meta to fall back to the body; the side note carries job_id/object_ref/sha256 and no link", async (t) => {
   const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
   const vtt = Buffer.from("WEBVTT\n\n00:00.000 --> 00:01.000\nhello\n");
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 9, 9]);
@@ -291,15 +291,15 @@ test("fetch：产物（文本与帧都默认走下载）逐项下载或按 _meta
     assert.equal(meta.delivery, index < 2 ? "download" : undefined);
   }
   assert.equal(names.length, 6);
-  // 任何一项对不上都不写入其他项。
+  // If any item fails to match, none of the other items is written.
   assert.equal(report.tampered.exit, 1);
   assert.match(report.tampered.stderr, /sha256 does not match/);
   assert.deepEqual(report.tampered.files, {});
 });
 
-// 3.1.1：帧默认走下载（Claude Code 2.1.308 把内联图片另存进自己的会话目录，导出的工具结果里没有它，stage 连续失败）。
-// 帧经 fetch 落成与 stage 相同的 <id>-<i>.<ext> + .meta，后续 build_content_evidence.py 按 sha256 在 snapshot/ 下找到它们。
-test("fetch：帧图片下载落成 stage 同款文件并被证据构建读到；sha256、超限、重定向、主机、类型、单项不可用与断网各自正确处理", async (t) => {
+// 3.1.1: frames are downloaded by default (Claude Code 2.1.308 saves inline images into its own session directory, which is not in the exported tool result, so stage failed repeatedly).
+// Frames are written by fetch as the same <id>-<i>.<ext> + .meta as stage; build_content_evidence.py then finds them under snapshot/ by sha256.
+test("fetch: frame image downloads are persisted as the same files stage writes and are read by the evidence build; sha256, oversize, redirect, host, type, single-item unavailable, and network-down cases are each handled correctly", async (t) => {
   const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 5, 6, 7, 8]);
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 1]);
   const webp = Buffer.from("RIFF\x00\x00\x00\x00WEBPVP8 ", "latin1");
@@ -384,7 +384,7 @@ test("fetch：帧图片下载落成 stage 同款文件并被证据构建读到�
     assert.equal(meta.delivery, "download");
     assert.equal(JSON.stringify(meta).includes("storage.googleapis.com"), false);
   }
-  // 后续脚本不用改：build_content_evidence.py 按 sha256 在 snapshot/ 下找帧，按 frame_id 落成规范别名。
+  // Downstream scripts need no change: build_content_evidence.py finds frames under snapshot/ by sha256 and writes them out as the canonical aliases by frame_id.
   const probe = String.raw`
 import json, runpy, sys
 from pathlib import Path
@@ -399,7 +399,7 @@ print(json.dumps(sorted(path.name for path in (run / "analysis").iterdir() if pa
   const aliases = JSON.parse(execFileSync("python3", ["-I", "-B", "-c", probe, path.join(root, "skills/analyze-content-video/scripts"), frames.run_dir, JSON.stringify(items)], { encoding: "utf8" }));
   assert.deepEqual(aliases, items.map((item, index) => `frame-${sha256(Buffer.from(item.frame_id))}${[".jpg", ".png", ".webp"][index]}`).sort());
 
-  // 任何一项校验不过都整次失败、不落盘、不复述链接。
+  // If any single validation fails, the whole run fails, nothing is written to disk, and the link is not echoed.
   const failures = {
     sha: /Download does not match its artifact record/,
     shaBoth: /sha256 does not match the declared value/,
@@ -413,15 +413,15 @@ print(json.dumps(sorted(path.name for path in (run / "analysis").iterdir() if pa
   };
   for (const [name, pattern] of Object.entries(failures)) {
     const failed = report[name];
-    assert.equal(failed.exit, 1, `${name} 应失败：${failed.stdout}`);
+    assert.equal(failed.exit, 1, `${name} should fail: ${failed.stdout}`);
     assert.match(failed.stderr, pattern, name);
-    assert.deepEqual(failed.files, {}, `${name} 不得落盘`);
+    assert.deepEqual(failed.files, {}, `${name} must not be persisted`);
     noSecrets(failed);
   }
-  for (const name of ["sha", "oversize", "host", "svg", "recordType"]) assert.deepEqual(report[name].requests, [], `${name} 不得发出请求`);
-  assert.deepEqual(report.redirect.requests, ["GET"], "重定向不得被跟随");
+  for (const name of ["sha", "oversize", "host", "svg", "recordType"]) assert.deepEqual(report[name].requests, [], `${name} must not issue a request`);
+  assert.deepEqual(report.redirect.requests, ["GET"], "redirects must not be followed");
 
-  // 单项不可用：其余照常落盘，该项指向内联重读 + stage，且明说不要从宿主自己的目录拼结果。
+  // One item unavailable: the rest are written as usual; that item points to an inline re-read + stage, and explicitly says not to assemble the result from the host's own directory.
   const partial = report.partial;
   assert.equal(partial.exit, 0, partial.stderr);
   const partialOut = JSON.parse(partial.stdout);
@@ -431,7 +431,7 @@ print(json.dumps(sorted(path.name for path in (run / "analysis").iterdir() if pa
   assert.match(partialOut.next, /never rebuild it from the host's own session or tool-result folders/);
   assert.equal(Object.keys(partial.files).length, 2);
 
-  // 脚本不能联网：产物只能内联重读；不能指回 stage（stage 对下载模式的结果会指回 fetch）。
+  // The script cannot reach the network: the artifact can only be re-read inline; it must not point back to stage (for download-mode results stage points back to fetch).
   const offline = report.offline;
   assert.equal(offline.exit, 1);
   assert.match(offline.stderr, /Download failed \(\w+(?:: [^)]*)?\); if this host blocks network access for scripts, call read_research_data_artifacts again for those object_refs without delivery/);
@@ -439,7 +439,7 @@ print(json.dumps(sorted(path.name for path in (run / "analysis").iterdir() if pa
   noSecrets(offline);
 });
 
-test("fetch 与 stage 不互相指回：产物全部不可用时指向缺口记录与内联重读，stage 接受内联重读结果", async (t) => {
+test("fetch and stage do not point back at each other: when all artifacts are unavailable, point to the gap record and the inline re-read; stage accepts the inline re-read result", async (t) => {
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 7, 7]);
   const gone = (ref, reason) => ({ object_ref: ref, kind: "frame", bytes: 3, sha256: sha256(Buffer.from("abc")), content_type: "application/octet-stream", download: { status: "unavailable", reason } });
   const allMissing = { job_id: "job-1", artifacts: [gone("creator-media/job-1/epoch-1/a.jpg", "not_found"), gone("creator-media/job-1/epoch-1/b.png", "service_unavailable")] };
@@ -459,7 +459,7 @@ test("fetch 与 stage 不互相指回：产物全部不可用时指向缺口记�
   assert.match(printed.next, /not_found are missing evidence: record them as gaps/);
   assert.match(printed.next, /without delivery/);
   assert.deepEqual(fetched.files, {});
-  // stage 不再要求改跑 fetch，而是给出同一条出路。
+  // stage no longer asks to run fetch instead; it gives the same way out.
   assert.equal(report.stageAllMissing.exit, 1);
   assert.doesNotMatch(report.stageAllMissing.stderr, /run static_host\.py fetch/);
   assert.match(report.stageAllMissing.stderr, /without delivery/);
@@ -468,7 +468,7 @@ test("fetch 与 stage 不互相指回：产物全部不可用时指向缺口记�
   assert.deepEqual(Buffer.from(staged.files[Object.keys(staged.files).find((name) => name.endsWith("-0.png"))], "base64"), png);
 });
 
-test("各份 static_host.py 的共用部分逐字相同；交给模型的调用带 delivery，且钉住的 tools/list 声明了它", async (t) => {
+test("the shared part of every static_host.py copy is identical verbatim; calls handed to the model carry delivery, and the pinned tools/list declares it", async (t) => {
   const tools = new Map(JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools.map((tool) => [tool.name, tool]));
   const shared = new Set();
   for (const id of fetchSkills) {
@@ -476,7 +476,7 @@ test("各份 static_host.py 的共用部分逐字相同；交给模型的调用�
     shared.add(text.slice(text.indexOf("def evidence_id():")));
   }
   assert.equal(fetchSkills.length, 18);
-  assert.equal(shared.size, 1, "evidence_id 之后的共用函数在各副本间不一致");
+  assert.equal(shared.size, 1, "shared functions after evidence_id differ between copies");
   const probe = String.raw`
 import json, runpy, sys
 module = runpy.run_path(sys.argv[1])
@@ -491,7 +491,7 @@ if "public_calls" in module:
             calls += module["public_calls"]({"tool": name, "arguments": {"job_id": "job-1"}})
         except ValueError:
             pass
-    # 聚合工具同样带 delivery 交出，入参原样在顶层。
+    # Aggregate tools are also handed off with delivery; the input arguments stay at the top level unchanged.
     for name in sorted(module.get("AGGREGATE_SCHEMAS", {})):
         calls += module["public_calls"]({"tool": name, "arguments": {"window": "x"}})
 print(json.dumps({"declared": sorted(set(tools.values()) | module["JOB_TOOLS"]), "calls": calls}))
@@ -500,15 +500,15 @@ print(json.dumps({"declared": sorted(set(tools.values()) | module["JOB_TOOLS"]),
   for (const id of fetchSkills) {
     const output = JSON.parse(execFileSync("python3", ["-I", "-B", "-c", probe, path.join(root, "skills", id, "scripts/static_host.py")], { encoding: "utf8" }));
     for (const name of output.declared)
-      assert.ok(tools.get(name)?.inputSchema?.properties?.delivery, `${id}：${name} 在钉住的 tools/list 里没有 delivery 入参`);
+      assert.ok(tools.get(name)?.inputSchema?.properties?.delivery, `${id}: ${name} has no delivery input in the pinned tools/list`);
     for (const call of output.calls) {
-      // 产物读取（含帧）同样带 delivery：内联图片在 Claude Code 里进不了可导出的工具结果，帧改由 fetch 落盘。
-      assert.equal(call.arguments.delivery, "download", `${id}：${call.tool} 交接时缺 delivery`);
+      // Artifact reads (including frames) also carry delivery: inline images cannot enter the exportable tool result in Claude Code, so frames are written to disk by fetch.
+      assert.equal(call.arguments.delivery, "download", `${id}: ${call.tool} handoff is missing delivery`);
       assert.ok(tools.get(call.tool).inputSchema.properties.delivery.enum.includes("download"));
-      // 交接的入参必须是钉住的 inputSchema 声明过的字段：lookup 在顶层收 post，单操作工具套 parameters。
+      // The arguments of a handoff must be fields declared by the pinned inputSchema: lookup takes post at the top level, single-operation tools wrap parameters.
       for (const field of Object.keys(call.arguments)) {
-        if (field === "window" && call.tool.match(/^(collect|enrich)_/)) continue; // 探针的占位入参
-        assert.ok(tools.get(call.tool).inputSchema.properties[field], `${id}：${call.tool} 的入参没有 ${field}`);
+        if (field === "window" && call.tool.match(/^(collect|enrich)_/)) continue; // placeholder arguments for the probe
+        assert.ok(tools.get(call.tool).inputSchema.properties[field], `${id}: ${call.tool} has no input ${field}`);
       }
       handed++;
     }
@@ -516,8 +516,8 @@ print(json.dumps({"declared": sorted(set(tools.values()) | module["JOB_TOOLS"]),
   assert.ok(handed > 20);
 });
 
-// 聚合工具的 delivery 只多给一份供脚本下载的完整副本，items 照旧内联。
-// 下载字节是去掉 download 的整份出参，fetch 按 schema_version 判形状；stage 也接受，落盘前去掉 download。
+// An aggregate tool's delivery only adds a full copy for the script to download; items stay inline.
+// The downloaded bytes are the whole output with download removed; fetch decides the shape by schema_version; stage accepts it too and strips download before writing to disk.
 const candidateSet = {
   candidate_set_id: "cs-1",
   schema_version: "trend-candidate-set.v1",
@@ -539,9 +539,9 @@ function aggregateResult({ url = SIGNED, bytes = candidateBytes.length, digest =
   return { content: [{ type: "text", text: JSON.stringify(structured) }], structuredContent: structured };
 }
 
-test("聚合工具 fetch：副本核对后按 schema_version 落盘；sha256 不符、超限、重定向、非白名单主机、过期一律不落盘；unavailable 与就绪结果都能 stage 内联", async (t) => {
+test("aggregate tool fetch: the copy is validated, then persisted by schema_version; sha256 mismatch, oversize, redirect, non-allowlisted host, and expiry are never persisted; unavailable and ready results can both be staged inline", async (t) => {
   const tool = "collect_instagram_trend_candidates";
-  // 另一个聚合工具的出参（补全结果）交在采集工具名下：身份字段自洽，只有 schema_version 对不上。
+  // The output of another aggregate tool (a completion result) delivered under the collector tool's name: the identity fields are self-consistent, only schema_version does not match.
   const otherSet = { ...candidateSet, schema_version: "trend-enrichment.v1" };
   const otherBytes = Buffer.from(JSON.stringify(otherSet));
   const report = await harness(t, "research-instagram-trends", [
@@ -571,8 +571,8 @@ test("聚合工具 fetch：副本核对后按 schema_version 落盘；sha256 不
   assert.equal("connector_id" in metaOf(valid), false);
 
   for (const name of ["sha", "overLimit", "short", "redirect", "host", "expired", "gcsExpired", "otherSchema", "mismatch"]) {
-    assert.equal(report[name].exit, 1, `${name} 应失败：${report[name].stdout}`);
-    assert.deepEqual(report[name].files, {}, `${name} 不得落盘`);
+    assert.equal(report[name].exit, 1, `${name} should fail: ${report[name].stdout}`);
+    assert.deepEqual(report[name].files, {}, `${name} must not be persisted`);
     noSecrets(report[name]);
   }
   assert.match(report.sha.stderr, /sha256 does not match/);
@@ -580,10 +580,10 @@ test("聚合工具 fetch：副本核对后按 schema_version 落盘；sha256 不
   assert.deepEqual(report.overLimit.requests, []);
   assert.match(report.short.stderr, /size does not match/);
   assert.match(report.redirect.stderr, /redirected \(HTTP 307\)/);
-  assert.deepEqual(report.redirect.requests, ["GET"], "重定向不得被跟随");
+  assert.deepEqual(report.redirect.requests, ["GET"], "redirects must not be followed");
   assert.match(report.host.stderr, /not a Kabo signed storage link/);
   assert.deepEqual(report.host.requests, []);
-  // 过期判定两条：expires_at 已过就不发请求；GCS 回 403。聚合工具的内联结果本来完整，指向导出 + stage，不重调。
+  // Two expiry conditions: expires_at has passed, so no request is sent; GCS returns 403. An aggregate tool's inline result is already complete, so point to export + stage and do not re-call.
   assert.match(report.expired.stderr, /expires_at has passed.*inline result is complete.*stage --tool collect_instagram_trend_candidates/);
   assert.deepEqual(report.expired.requests, []);
   assert.match(report.gcsExpired.stderr, /expired or was refused \(HTTP 403\).*calling the tool again would re-run it/);
@@ -592,7 +592,7 @@ test("聚合工具 fetch：副本核对后按 schema_version 落盘；sha256 不
 
   assert.equal(report.unavailable.exit, 0, report.unavailable.stderr);
   assert.match(JSON.parse(report.unavailable.stdout).next, /run static_host\.py stage --tool collect_instagram_trend_candidates/);
-  // 不可用与就绪两种结果的内联 items 都完整：stage 落下的就是去掉 download 的整份出参，不含签名链接。
+  // In both the unavailable and ready results the inline items are complete: what stage writes is the whole output with download removed, containing no signed link.
   for (const name of ["stageUnavailable", "stageReady"]) {
     const staged = report[name];
     assert.equal(staged.exit, 0, staged.stderr);
@@ -601,7 +601,7 @@ test("聚合工具 fetch：副本核对后按 schema_version 落盘；sha256 不
   }
 });
 
-test("链接过期：expires_at 已过不发请求；同步数据按 evidence_ref 指向重签，任务再读，lookup 再调原工具", async (t) => {
+test("link expiry: no request once expires_at has passed; synchronous data points to re-signing by evidence_ref, jobs are re-read, lookup re-calls the original tool", async (t) => {
   const channel = { ...inlineEnvelope, connector_id: "youtube-public", operation: "get_channel", evidence_ref: "ev-9" };
   const past = "2020-01-01T00:00:00Z";
   const withExpiry = (value, expires) => {
@@ -612,7 +612,7 @@ test("链接过期：expires_at 已过不发请求；同步数据按 evidence_re
   const report = await harness(t, "analyze-creator-competitors", [
     { name: "sync", command: "fetch", tool: "youtube_get_channel", result: withExpiry(downloadResult({ result: channel }), past), responses: { [SIGNED]: ok() } },
     { name: "syncNoRef", command: "fetch", tool: "youtube_get_channel", result: downloadResult({ result: { ...channel, evidence_ref: undefined } }), responses: { [SIGNED]: [400, "", {}] } },
-    // 重签拿回的链接也会过期：再重签一次；退路指回信封作答路线所属的原数据工具，不是重签工具本身。
+    // A link obtained by re-signing also expires: re-sign again; the fallback points to the raw data tool that owns the envelope's answering route, not to the re-sign tool itself.
     { name: "resign", command: "fetch", tool: "get_research_data_download", result: withExpiry(downloadResult({ result: channel }), past), responses: { [SIGNED]: ok() } },
     { name: "resignNoRef", command: "fetch", tool: "get_research_data_download", result: downloadResult({ result: { ...channel, evidence_ref: undefined } }), responses: { [SIGNED]: [400, "", {}] } },
     { name: "resignProjection", command: "fetch", tool: "get_research_data_download", result: downloadResult({ result: { ...channel, connector_id: "instagram-detail-proxy", operation: "get_post" } }), responses: { [SIGNED]: [403, "", {}] } },
@@ -632,16 +632,16 @@ test("链接过期：expires_at 已过不发请求；同步数据按 evidence_re
     },
   ]);
   for (const [name, result] of Object.entries(report)) {
-    assert.equal(result.exit, 1, `${name} 应失败：${result.stdout}`);
+    assert.equal(result.exit, 1, `${name} should fail: ${result.stdout}`);
     assert.deepEqual(result.files, {});
     noSecrets(result);
   }
   assert.match(report.sync.stderr, /expires_at has passed.*get_research_data_download with \{"evidence_ref": "ev-9"\}.*new sha256 and bytes/);
-  assert.deepEqual(report.sync.requests, [], "已过期的链接不发请求");
-  // 重签本身失败（not_found / service_unavailable）时，退回再调原工具（会重跑），已收费的结果不就此丢掉。
+  assert.deepEqual(report.sync.requests, [], "an expired link must not issue a request");
+  // If re-signing itself fails (not_found / service_unavailable), fall back to calling the original tool again (which re-runs); a result that was already charged is not discarded.
   assert.match(report.sync.stderr, /If get_research_data_download itself fails, call youtube_get_channel again with the same parameters and delivery "download" \(this re-runs it\)/);
   assert.match(report.syncNoRef.stderr, /HTTP 400.*youtube_get_channel again with the same parameters/);
-  // 重签工具的入参只有 evidence_ref：退路必须是原数据工具，绝不能是「带 delivery 再调 get_research_data_download」。
+  // The re-sign tool takes only evidence_ref as input: the fallback must be the original data tool, never "call get_research_data_download again with delivery".
   assert.match(report.resign.stderr, /expires_at has passed.*get_research_data_download with \{"evidence_ref": "ev-9"\}.*If get_research_data_download itself fails, call youtube_get_channel again with the same parameters and delivery "download" \(this re-runs it\)/);
   assert.deepEqual(report.resign.requests, []);
   assert.match(report.resignNoRef.stderr, /HTTP 400.*Call youtube_get_channel again with the same parameters/);
@@ -649,14 +649,14 @@ test("链接过期：expires_at 已过不发请求；同步数据按 evidence_re
   for (const name of ["resign", "resignNoRef", "resignProjection"]) {
     assert.doesNotMatch(report[name].stderr, /call get_research_data_download again/i, name);
   }
-  // lookup 的重签结果是作答路线的原始信封、不是投影：只能再调 lookup。
+  // The re-signed result for lookup is the raw envelope of the answering route, not the projection: it can only call lookup again.
   assert.match(report.lookup.stderr, /lookup_instagram_post again with the same parameters/);
   assert.doesNotMatch(report.lookup.stderr, /get_research_data_download/);
   assert.match(report.job.stderr, /expires_at has passed.*get_research_data_job again with delivery "download" \(it only reads/);
   assert.deepEqual(report.job.requests, []);
 });
 
-test("重签工具 get_research_data_download：下载核对后按原操作落盘；签不出时 stage 内联信封；未声明的操作与投影路线被拒", async (t) => {
+test("re-sign tool get_research_data_download: after the download is validated, persist under the original operation; when signing fails, stage the inline envelope; undeclared operations and projection routes are rejected", async (t) => {
   const channel = { ...envelope, schema_version: "1.0", connector_id: "youtube-public", operation: "get_channel", evidence_ref: "ev-9" };
   const channelBytes = Buffer.from(JSON.stringify(channel));
   const { data: _channelData, ...inlineChannel } = channel;
@@ -683,15 +683,15 @@ test("重签工具 get_research_data_download：下载核对后按原操作落�
   assert.match(report.undeclared.stderr, /not from one of this Skill's data tools/);
   assert.equal(report.projection.exit, 1);
   assert.match(report.projection.stderr, /raw envelope, not the projection; call lookup_instagram_post again/);
-  // 重签链接再过期：再重签一次，仍按新的 sha256 / bytes 校验。
+  // When a re-signed link expires again: re-sign once more, still validating against the new sha256 / bytes.
   assert.match(report.expired.stderr, /get_research_data_download with \{"evidence_ref": "ev-9"\}/);
 });
 
-// 2026-10-22 Codex 0.163 实测：模型把 youtube_get_video 的完整 MCP 结果存进 snapshot/，fetch 正常暂存，
-// persist_envelope.py 却报 "no complete host record"——统计「已放置」时把原始结果里的 envelope
-// 当成已放置，扣掉了唯一的暂存候选。下面在真实运行目录里逐份副本验证：原始结果放在哪里都不算放置，
-// 真正放置过的仍然去重。暂存文件按 static_host.py store 的格式直接写入，不经网络。
-// 九份副本按内容分组，每种内容测一份：逐字相同的副本行为相同，哪份改出了差异就自成一组被测到。
+// Measured on Codex 0.163 on 2026-10-22: the model saved the full MCP result of youtube_get_video into snapshot/, and fetch staged it normally,
+// but persist_envelope.py reported "no complete host record": when counting "already placed" it treated the envelope inside the raw result
+// as placed, which subtracted the only staging candidate. Below, each copy is verified in a real run directory: a raw result is never counted as placed wherever it sits,
+// and anything genuinely placed is still deduplicated. Staged files are written directly in the format of static_host.py store, without the network.
+// The nine copies are grouped by content, one test per kind of content: copies that are byte-identical behave identically, and any copy that diverges forms its own group and gets tested.
 const persistCopies = new Map();
 for (const id of skills) {
   const text = await readFile(path.join(root, "skills", id, "scripts/persist_envelope.py"), "utf8").catch(() => null);
@@ -739,7 +739,7 @@ const mcp = (structured, extra = {}) => ({ content: [{ type: "text", text: JSON.
 const VIDEO = ["--connector", "youtube-public", "--operation", "get_video"];
 const VIDEO_META = { connector_id: "youtube-public", operation: "get_video", delivery: "download" };
 
-test("persist：宿主导出的原始工具结果放在 snapshot/、host-results/ 或运行目录根都不算已放置；放置过的照旧去重", async (t) => {
+test("persist: raw tool results exported by the host and placed under snapshot/, host-results/, or the run directory root do not count as placed; already-placed ones are still deduplicated", async (t) => {
   assert.equal(persistCopies.size, 15);
   assert.equal(persistVariants.length, 3);
   const raw = (full) => downloadResult({ result: withoutData(full) });
@@ -747,10 +747,10 @@ test("persist：宿主导出的原始工具结果放在 snapshot/、host-results
     ["snapshot/tool-metadata-initial.json", raw],
     ["host-results/01-youtube_get_video.json", raw],
     ["tool-metadata-initial.json", raw],
-    // 去掉 MCP 外壳的 structuredContent 本体：带下载描述的，以及只有内联 result 的。
+    // The structuredContent body with the MCP wrapper removed: one with a download descriptor, and one with only an inline result.
     ["snapshot/structured.json", (full) => raw(full).structuredContent],
     ["snapshot/inline.json", (full) => ({ result: full })],
-    // 纯 content 块的 MCP 结果。
+    // An MCP result made of plain content blocks.
     ["snapshot/content-only.json", (full) => ({ content: [{ type: "text", text: JSON.stringify(full) }] })],
   ];
   for (const { id } of persistVariants) {
@@ -762,7 +762,7 @@ test("persist：宿主导出的原始工具结果放在 snapshot/、host-results
       const first = run.persist("--dest", "snapshot/envelope-01.json", ...VIDEO, "--any-status");
       assert.equal(first.exit, 0, `${id} ${where}: ${first.out}`);
       assert.deepEqual(await run.read("snapshot/envelope-01.json"), staged, `${id} ${where}`);
-      // 同一个槽位重跑是幂等的；换一个槽位就没有剩下的响应了。
+      // Re-running the same slot is idempotent; switching to another slot leaves no response to take.
       assert.equal(run.persist("--dest", "snapshot/envelope-01.json", ...VIDEO, "--any-status").exit, 0, `${id} ${where}`);
       const second = run.persist("--dest", "snapshot/envelope-02.json", ...VIDEO, "--any-status");
       assert.equal(second.exit, 1, `${id} ${where}: ${second.out}`);
@@ -771,9 +771,9 @@ test("persist：宿主导出的原始工具结果放在 snapshot/、host-results
   }
 });
 
-test("persist：bundle 与 --schema 的放置照旧计入；失败 envelope 不带 --any-status 被拒，带上则照常放置", async (t) => {
+test("persist: bundle and --schema placements still count; a failed envelope is rejected without --any-status and placed as usual with it", async (t) => {
   for (const { id } of persistVariants) {
-    // bundle：两次响应依次填两个位置，原始结果都在 snapshot/；第三个位置没有响应可取。
+    // bundle: two responses fill two positions in order, with the raw results both in snapshot/; the third position has no response to take.
     let run = await persistRun(t, id);
     for (const n of [1, 2]) {
       await run.stage(fullVideo(n), VIDEO_META);
@@ -786,7 +786,7 @@ test("persist：bundle 与 --schema 的放置照旧计入；失败 envelope 不�
     }
     assert.match(run.persist("--into", "bundle.json", "--at", "runs", "--at", "c", ...VIDEO).out, /no complete host record/, id);
 
-    // 类型化结果：原始出参（带 download 描述、没有 MCP 外壳）放在运行目录根。
+    // Typed result: the raw output (with the download descriptor, without the MCP wrapper) sits at the run directory root.
     run = await persistRun(t, id);
     const staged = await run.stage(candidateSet, { schema_version: candidateSet.schema_version, delivery: "download" });
     await run.save("collect.json", aggregateResult().structuredContent);
@@ -795,7 +795,7 @@ test("persist：bundle 与 --schema 的放置照旧计入；失败 envelope 不�
     assert.deepEqual(await run.read("snapshot/candidates.json"), staged);
     assert.match(run.persist("--dest", "snapshot/candidates-2.json", "--schema", candidateSet.schema_version).out, /no complete host record/, id);
 
-    // 失败 envelope：MCP 错误结果存在 snapshot/。
+    // Failure envelope: the MCP error result is stored in snapshot/.
     run = await persistRun(t, id);
     const failed = { ...withoutData(fullVideo(3)), status: "failed", error_code: "invalid_input", summary: "Invalid video id" };
     const failedBytes = await run.stage(failed, VIDEO_META);
@@ -811,7 +811,7 @@ test("persist：bundle 与 --schema 的放置照旧计入；失败 envelope 不�
   }
 });
 
-test("persist --drained：带 MCP 外壳的来源记录原样放置后仍算已放置，不会被放第二次", async (t) => {
+test("persist --drained: a source record with the MCP wrapper still counts as placed after being placed verbatim, and is not placed a second time", async (t) => {
   const drainedSkills = persistVariants.filter((skill) => skill.drained);
   assert.equal(drainedSkills.length, 2);
   for (const { id } of drainedSkills) {
@@ -827,15 +827,15 @@ test("persist --drained：带 MCP 外壳的来源记录原样放置后仍算已�
   }
 });
 
-test("stage：状态为完成却没有 data 的结果（下载结果丢了 download 只剩摘要）被拒收，指回 fetch", async (t) => {
+test("stage: a result whose status is complete but has no data (a download result that lost its download and kept only the summary) is rejected, pointing back to fetch", async (t) => {
   let checked = 0;
   for (const id of await readdir(path.join(root, "skills"))) {
     const script = path.join(root, "skills", id, "scripts", "static_host.py");
     const text = await readFile(script, "utf8").catch(() => "");
     if (!text.includes("completed status but no data")) continue;
-    // 引导与每日推荐的副本不收任何取数结果（数据操作白名单为空），没有可拿来试的数据工具。
+    // The onboarding and daily-recommendation copies accept no fetched results (the data-operation allowlist is empty), so there is no data tool to try.
     if (/^CONNECTOR_TOOLS: dict\[str, str\] = \{\}$/m.test(text)) continue;
-    // 取这份副本声明的第一个普通数据工具（投影查找与聚合工具另有规则）。
+    // Take the first ordinary data tool declared by this copy (projection lookups and aggregate tools have their own rules).
     const declared = text.slice(text.indexOf("CONNECTOR_TOOLS = {"), text.indexOf("\n}\n", text.indexOf("CONNECTOR_TOOLS = {")));
     const entry = [...declared.matchAll(/"([a-z-]+)\/([a-z_]+)": "([a-z_]+)"/g)]
       .find(([, connector, , tool]) => !tool.startsWith("lookup_") && !connector.startsWith("creator-trending"));
@@ -857,9 +857,9 @@ test("stage：状态为完成却没有 data 的结果（下载结果丢了 downl
   assert.ok(checked >= 9, String(checked));
 });
 
-// 组合取数工具（kabo-composite-fetch.v1，KS8）：calls[i].result 与单个数据工具的结果信封完全相同。
-// stage / fetch 把 calls[] 拆开，每项落盘与对同一信封单独 stage 逐字节相同（旁注只多 composite_* 与 delivery），
-// 另写一份整体记录；任何一项不过整份不落盘。
+// Composite fetch tool (kabo-composite-fetch.v1, KS8): calls[i].result is exactly the same as the result envelope of a single data tool.
+// stage / fetch split calls[] apart; each item written to disk is byte-identical to staging the same envelope on its own (the sidecar only adds composite_* and delivery),
+// and a whole-run record is written as well; if any item fails, nothing is written for the whole run.
 const COMPOSITE = "kabo-composite-fetch.v1";
 const env = (connector_id, operation, n, data, extra = {}) => ({
   connector_id, operation, status: "completed", summary: `Found ${n} rows`, limitations: [],
@@ -935,11 +935,11 @@ const decoded = (files, name) => Buffer.from(files[name], "base64");
 const COMPOSITE_MARKS = ["composite_tool", "composite_id", "composite_index", "composite_group", "composite_parameters", "delivery", "staged_at"];
 const withoutMarks = (meta) => Object.fromEntries(Object.entries(meta).filter(([key]) => !COMPOSITE_MARKS.includes(key)));
 
-// 读出组合落盘：整体记录（旁注 schema_version 为记录 schema）与逐项调用的正文和旁注。
+// Read back the composite write: the whole-run record (the sidecar schema_version is the record schema) and the body and sidecar of each individual call.
 function splitFiles(files) {
   const metas = Object.keys(files).filter((name) => name.endsWith(".meta")).map((name) => ({ name, meta: JSON.parse(decoded(files, name)) }));
   const record = metas.find(({ meta }) => meta.schema_version === "kabo-composite-fetch.record.v1");
-  assert.ok(record, "缺整体记录");
+  assert.ok(record, "missing overall record");
   const recordBody = JSON.parse(decoded(files, record.name.replace(/\.meta$/, ".json")));
   const calls = recordBody.calls.map((entry) => ({
     entry,
@@ -968,11 +968,11 @@ function checkSplit(fixture, result, singles, { delivery } = {}) {
   const recordId = record.name.replace(/\.meta$/, "");
   calls.forEach(({ entry, body, meta }, index) => {
     const call = fixture.calls[index];
-    // 与对同一信封单独 stage 逐字节相同；旁注只多组合标记。
+    // Byte-identical to staging the same envelope on its own; the sidecar only adds the composite markers.
     const single = singles[index];
     const singleBody = Object.entries(single.files).find(([name]) => name.endsWith(".json"));
     const singleMeta = JSON.parse(decoded(single.files, singleBody[0].replace(/\.json$/, ".meta")));
-    assert.deepEqual(body, decoded(single.files, singleBody[0]), `${fixture.tool} calls[${index}] 正文与单独 stage 不同`);
+    assert.deepEqual(body, decoded(single.files, singleBody[0]), `${fixture.tool} calls[${index}] body differs from a standalone stage`);
     assert.deepEqual(withoutMarks(meta), withoutMarks(singleMeta));
     assert.equal(meta.tool, call.tool);
     assert.equal(meta.composite_tool, fixture.tool);
@@ -983,7 +983,7 @@ function checkSplit(fixture, result, singles, { delivery } = {}) {
     assert.equal(meta.delivery, delivery);
     assert.equal(entry.tool, call.tool);
   });
-  // 输出整体是合法 JSON，逐项调用各占一行。
+  // The output as a whole is valid JSON, with each individual call on its own line.
   const printed = JSON.parse(result.stdout);
   assert.equal(printed.composite, fixture.tool);
   assert.equal(printed.staged, fixture.calls.length);
@@ -995,7 +995,7 @@ function checkSplit(fixture, result, singles, { delivery } = {}) {
 }
 
 for (const fixture of compositeFixtures) {
-  test(`组合结果 ${fixture.tool}：stage 与下载 fetch 都逐项拆开落盘，与单工具 stage 逐字节相同；坏一项整份不落盘`, async (t) => {
+  test(`composite result ${fixture.tool}: stage and download fetch both split and persist item by item, byte-identical to single-tool stage; one bad item means nothing is persisted`, async (t) => {
     const composite = compositeOf(fixture);
     const bytes = Buffer.from(JSON.stringify(composite));
     const { calls: _calls, ...inline } = composite;
@@ -1028,8 +1028,8 @@ for (const fixture of compositeFixtures) {
     assert.equal(report.stageDownloadOnly.exit, 1);
     assert.match(report.stageDownloadOnly.stderr, new RegExp(`run static_host\\.py fetch --tool ${fixture.tool}`));
     for (const name of ["stageDownloadOnly", "stageBroken", "fetchBroken", "fetchMismatch"]) {
-      assert.equal(report[name].exit, 1, `${name} 应失败`);
-      assert.deepEqual(report[name].files, {}, `${name} 不得落盘`);
+      assert.equal(report[name].exit, 1, `${name} should fail`);
+      assert.deepEqual(report[name].files, {}, `${name} must not be persisted`);
       noSecrets(report[name]);
     }
     for (const name of ["stageBroken", "fetchBroken"]) assert.match(report[name].stderr, /calls\[1\] .*does not match its declared operation; nothing was written/);
@@ -1040,7 +1040,7 @@ for (const fixture of compositeFixtures) {
   });
 }
 
-test("组合结果：未知组合工具名、借单工具名 stage 组合结果、本 Skill 未声明的调用、嵌套组合与错误结果一律拒收，不落盘", async (t) => {
+test("composite result: unknown composite tool names, staging a composite result under a single-tool name, calls this Skill does not declare, nested composites, and error results are all rejected without persisting", async (t) => {
   const fixture = compositeFixtures[0];
   const composite = compositeOf(fixture);
   const undeclared = structuredClone(composite);
@@ -1058,8 +1058,8 @@ test("组合结果：未知组合工具名、借单工具名 stage 组合结果�
     { name: "error", command: "stage", tool: fixture.tool, result: { isError: true, content: [{ type: "text", text: "budget exceeded" }] } },
   ]);
   for (const [name, result] of Object.entries(report)) {
-    assert.equal(result.exit, 1, `${name} 应失败：${result.stdout}`);
-    assert.deepEqual(result.files, {}, `${name} 不得落盘`);
+    assert.equal(result.exit, 1, `${name} should fail: ${result.stdout}`);
+    assert.deepEqual(result.files, {}, `${name} must not be persisted`);
   }
   assert.match(report.unknown.stderr, /Not a declared evidence tool/);
   assert.match(report.unknownFetch.stderr, /Not a declared evidence tool/);
@@ -1071,7 +1071,7 @@ test("组合结果：未知组合工具名、借单工具名 stage 组合结果�
   assert.match(report.error.stderr, /collect_account_history failed.*budget exceeded/);
 });
 
-test("组合结果：同一份再 stage 不重复落盘，记录指回原证据；composite_records 读出摘要与逐项证据路径", async (t) => {
+test("composite result: staging the same one again does not persist twice and the record points back to the original evidence; composite_records reads out the summary and per-item evidence paths", async (t) => {
   const fixture = compositeFixtures[1];
   const composite = { structuredContent: compositeOf(fixture) };
   const report = await harness(t, fixture.skill, [
@@ -1106,21 +1106,21 @@ print(json.dumps(host["composite_records"]("render_official_pages")))
   assert.deepEqual(JSON.parse(read[1]), []);
 });
 
-test("组合结果的读取与拆分段在各 Skill 的 static_host.py 中逐字相同", async () => {
+test("the composite-result read and split section is identical verbatim across each Skill's static_host.py", async () => {
   const blocks = [];
   for (const id of fetchSkills) {
     const text = await readFile(path.join(root, "skills", id, "scripts/static_host.py"), "utf8");
-    const start = text.indexOf("# 组合取数工具（kabo-composite-fetch.v1");
-    const end = text.indexOf("# 延迟媒体工具的幂等键");
+    const start = text.indexOf("# Composite fetch tool (kabo-composite-fetch.v1");
+    const end = text.indexOf("# Idempotency key for deferred media tools");
     assert.ok(start > 0 && end > start, id);
     blocks.push({ id, block: text.slice(start, end) });
     assert.match(text, /def stage\(tool, raw\):\n    if tool in COMPOSITE_TOOLS:\n        return stage_composite\(tool, raw\)\n/, id);
     assert.match(text, /    if tool in COMPOSITE_TOOLS:\n        return fetch_composite\(tool, raw\)\n/, id);
   }
-  for (const { id, block } of blocks) assert.equal(block, blocks[0].block, `${id} 与 ${blocks[0].id} 不同`);
+  for (const { id, block } of blocks) assert.equal(block, blocks[0].block, `${id} differs from ${blocks[0].id}`);
 });
 
-test("persist：媒体任务按请求名或托管变体名都能放置（宿主记哪一个都行），其他操作不借用", async (t) => {
+test("persist: a media job can be placed under either the request name or the hosted variant name (whichever the host records), and other operations do not borrow it", async (t) => {
   const variants = [...persistCopies].filter(([, text]) => text.includes("MEDIA_VARIANTS"));
   assert.ok(variants.length >= 1);
   for (const [id] of variants) {
@@ -1139,15 +1139,15 @@ test("persist：媒体任务按请求名或托管变体名都能放置（宿主�
   }
 });
 
-// 按结果编号取（kabo ADR-0084「2026-11-04」）：交接时模型只交编号（或含编号的下载链接），脚本向 Kabo 取同一份
-// 字节、按响应头的长度与 sha256 校验后照 fetch 落盘。每个带 fetch 的 static_host 副本都走一遍。
+// Fetch by result ID (kabo ADR-0084 "2026-11-04"): at handoff the model passes only the ID (or a download link containing it); the script fetches the same
+// bytes from Kabo, validates them against the length and sha256 in the response headers, and writes them to disk like fetch. Every static_host copy that has fetch goes through this.
 const RESULT_ID = "AbCdEfGhIjKlMnOpQrSt_-";
 const BY_ID = `https://kabo.sh/v1/research-downloads/${RESULT_ID}`;
 const byId = (body = envelopeBytes, { digest = sha256(body), length = body.length, code = 200 } = {}) =>
   [code, body.toString("base64"), { "Content-Type": "application/json", "Content-Length": String(length), "X-Content-SHA256": digest }];
 
 for (const skill of fetchSkills) {
-  test(`${skill} fetch --id：按编号取、核对长度与 sha256 后落盘；链接形式也认；不符、过期、错工具一律不落盘`, async (t) => {
+  test(`${skill} fetch --id: fetch by id, validate length and sha256, then persist; the link form is also accepted; mismatch, expiry, and wrong tool are never persisted`, async (t) => {
     const tool = "get_research_data_job";
     const report = await harness(t, skill, [
       { name: "valid", command: "fetch", tool, id: RESULT_ID, result: {}, responses: { [BY_ID]: byId() } },
@@ -1157,7 +1157,7 @@ for (const skill of fetchSkills) {
       { name: "expired", command: "fetch", tool, id: RESULT_ID, result: {}, responses: { [BY_ID]: [404, "", {}] } },
       { name: "malformed", command: "fetch", tool, id: "short", result: {}, responses: {} },
     ]);
-    // 读回任务结果只认本 Skill 声明的数据操作；不认的 Skill 至少要以 Job 字样拒收，不落盘。
+    // Reading back a task result accepts only the data operations declared by this Skill; for an undeclared one, reject at least with the word Job in the message, and write nothing to disk.
     const valid = report.valid;
     if (valid.exit === 0) {
       assert.deepEqual(valid.requests, ["GET"]);
@@ -1179,7 +1179,7 @@ for (const skill of fetchSkills) {
   });
 }
 
-test("fetch --id：聚合工具（collect_*）按编号取，按本副本的 schema 校验；编号带 .json 也认", async (t) => {
+test("fetch --id: aggregate tools (collect_*) are fetched by id and validated against this copy's schema; an id with .json is also accepted", async (t) => {
   const typed = Buffer.from(JSON.stringify({ schema_version: "youtube-trend-candidate-set.v1", items: [], coverage: {} }));
   const other = Buffer.from(JSON.stringify({ schema_version: "youtube-trend-enrichment.v1", items: [] }));
   const report = await harness(t, "research-youtube-trends", [

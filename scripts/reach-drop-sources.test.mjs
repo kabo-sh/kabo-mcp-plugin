@@ -1,6 +1,8 @@
-// diagnose-reach-drop 的多来源：用户口述的数字可以和导入的公开数据放进同一份计划，
-// 各自挂自己的来源、在报告里标出；比较只在同一来源内做，单组数字作为观察交出。
-// 夹具是中性的合成账号数据。
+// Multiple sources in diagnose-reach-drop: numbers the user stated verbally can go into the same plan as
+//   imported public data,
+// each tied to its own source and marked in the report; comparison is made only within the same source, and a
+//   single group of numbers is handed over as an observation.
+// The fixture is a neutral synthetic account's data.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -14,7 +16,7 @@ const workflow = path.join(root, "skills", "diagnose-reach-drop", "scripts", "ru
 const OBSERVED = "2026-11-01T00:00:00Z";
 const daysAgo = (days) => new Date(Date.parse(OBSERVED) - days * 86400000).toISOString().replace(".000", "");
 
-// 只含 from_analysis 读取的字段：账号、观察时间与每条内容的公开指标。
+// Contains only the fields from_analysis reads: the account, observation time and each post's public metrics.
 const analysis = {
   schema_version: "account-analysis.v3", analysis_id: "fixture", platform: "instagram",
   scope: { account: "@sample.account", observed_at: OBSERVED },
@@ -60,7 +62,7 @@ async function prepare(payload) {
     try {
       assessment = JSON.parse(await readFile(path.join(dir, "reach_drop_assessment.json"), "utf8"));
       evidence = await readFile(path.join(dir, "TRAFFIC_EVIDENCE.md"), "utf8");
-    } catch { /* needs_correction 时不产出 */ }
+    } catch { /* nothing is produced on needs_correction */ }
     return { out, assessment, evidence };
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -75,14 +77,16 @@ test("user-supplied numbers join imported public data under their own labelled s
   assert.equal(kinds[drop.facts[0].source_ref], "public");
   assert.ok(drop.facts[0].change, "the public comparison still runs");
   assert.equal(kinds[skip.facts[0].source_ref], "user_supplied");
-  // 单组：数值作为观察交出，没有变化比，也写明缺对照。
+  // Single group: the value is handed over as an observation, with no change ratio, and the missing comparison
+  //   is stated.
   assert.equal(skip.facts[0].change, null);
   assert.equal(skip.facts[0].groups[0].median, 80);
   assert.ok(skip.facts[0].limits.includes("no_comparison_group"));
   assert.ok(skip.missing.includes("earlier_and_recent_performance_records"));
   assert.match(evidence, /Source: user-supplied, not verified\./);
   assert.match(evidence, /One group only: these values are observations, not a comparison\./);
-  // 交给创作者的最终报告由 compose_traffic.compose 组装，同样要带出来源标注。
+  // The final report handed to the creator is assembled by compose_traffic.compose, and must likewise carry the
+  //   source labels.
   const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1" };
   const final = spawnSync("python3", ["-B", "-c",
     "import json,sys; sys.path.insert(0, sys.argv[1]); from compose_traffic import compose; "
@@ -99,7 +103,8 @@ test("values left on the plan's public source are sent back for their own source
   assert.match(out, /give each question that carries values its own source/);
 });
 
-// 用户只给了整组的约数（"之前大概 60%"）：记一次、标为约数，变化也只是近似。
+// The user gave only a rough figure for the whole group ("about 60% before"): record it once, mark it as
+//   approximate, and the change is likewise only approximate.
 const roughShare = {
   id: "share", kind: "recent_drop", intent: "diagnose", metric: "non_follower_reach_percent", format: "reel",
   ask: "Did the non-follower share fall?", selection_reason: "The user gave recent shares and a rough earlier figure.",
@@ -133,7 +138,8 @@ test("a rough figure is not repeated per post, and group errors name their group
 });
 
 test("one comparison never mixes sources", () => {
-  // 计划层面跨问题引用就会被拦；这里直接喂给比较函数，确认它自己也不跨来源比。
+  // Citing across questions at plan level is blocked; here it is fed straight into the comparison function to
+  //   confirm that it too does not compare across sources.
   const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1" };
   const code = [
     "import sys; sys.path.insert(0, sys.argv[1]); from analyze_traffic import performance",

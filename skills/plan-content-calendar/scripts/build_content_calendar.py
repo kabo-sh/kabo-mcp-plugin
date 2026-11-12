@@ -772,15 +772,16 @@ def build(request: dict[str, Any], request_path: Path, run_root: Path) -> dict[s
         decisions.append({"decision_id": f"decision-{index}", "question": gap["detail"], "affected_refs": gap["affected_refs"]})
     source_refs: dict[tuple[str, str, str, str], dict[str, Any]] = {}
 
-    # `safe_artifact_path` 内部是拿 `run_root.resolve()` 去判越界的(calendar_common.py),
-    # 返回的也是已解析路径。这里若直接用未解析的 `run_root` 去 relative_to,两端形态就不一致:
-    # macOS 上 `/var` 是 `/private/var` 的符号链接,调用方传进来的临时目录是 `/var/...`,
-    # 而 `resolved` 是 `/private/var/...`,于是抛
-    # `'/private/var/.../selected-1.json' is not in the subpath of '/var/.../'`。
-    # 生产入口(main)本来就 `.resolve()` 过 run_root,所以线上不触发;直接调 `build()` /
-    # `validate_calendar()` 的调用方(测试、生成脚本)传原始临时目录时才会炸。
-    # 在闭包外解析一次:既与 safe_artifact_path 的既有约定一致,也避免在 items 循环里
-    # 每条都多一次 syscall。
+    # `safe_artifact_path` internally uses `run_root.resolve()` to check for out-of-bounds paths (calendar_common.py),
+    # and the path it returns is also resolved. If we call relative_to with the unresolved `run_root` here, the two
+    # ends have inconsistent forms: on macOS `/var` is a symlink to `/private/var`, the temp directory passed in by
+    # the caller is `/var/...`, while `resolved` is `/private/var/...`, so it raises
+    # `'/private/var/.../selected-1.json' is not in the subpath of '/var/.../'`.
+    # The production entry point (main) already calls `.resolve()` on run_root, so this does not trigger online; it
+    # only blows up for callers that call `build()` / `validate_calendar()` directly (tests, generator scripts) with
+    # a raw temp directory.
+    # Resolving once outside the closure matches the existing convention of safe_artifact_path, and also avoids an
+    # extra syscall per item inside the items loop.
     resolved_run_root = run_root.resolve()
 
     def add_source_ref(ref: Any, owner_path: Path) -> None:

@@ -265,7 +265,8 @@ def adapt_snapshot(
             records.append(record)
         window = snapshot.get("scope", {}).get("window", {})
         source = snapshot.get("source", {})
-        # 公共快照不能用来源标签冒充私有测量，避免绕过公开证据边界。
+        # A public snapshot cannot use a source label to pass as a private measurement; this avoids bypassing the
+        # public-evidence boundary.
         source_mode = source.get("source_mode", "public")
         if not isinstance(source_mode, str) or not source_mode.startswith("public"):
             raise ValueError("public-content-snapshot requires a public source_mode")

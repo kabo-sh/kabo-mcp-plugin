@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
-// 只跑被修改的选题边界，不调用模型或外部服务。
+// Run only the modified idea boundaries, without calling the model or external services.
 test('ideas request and locale boundaries', () => {
   execFileSync('python3', ['-B', 'scripts/ideas-boundaries-regression.py'], { stdio: 'pipe' });
 });

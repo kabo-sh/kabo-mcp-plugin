@@ -1,8 +1,8 @@
-// research-youtube-trends 的短窗口取数是一次后台组合调用 collect_youtube_recent_videos（docs/skills-spec.md KS9）：
-// 搜索 → 去重 → get_video 每 50 个一块都在后台做完。static_host.py stage 拆开后，
-// complete_youtube_short_window.py place 把搜索写成 envelope-NN.json、详情写成 envelope-detail-NN.json
-// 并合并；下游的 build / render / verify 不变。任何一次搜索或详情块失败、缺失都整段拒绝。
-// 夹具全是合成的中性行（不含真实 creator 数据）。
+// The short-window fetch of research-youtube-trends is one backend composite call, collect_youtube_recent_videos (docs/skills-spec.md KS9):
+// search -> dedupe -> get_video in blocks of 50 are all finished by the backend. After static_host.py stage splits it,
+// complete_youtube_short_window.py place writes the searches as envelope-NN.json and the details as envelope-detail-NN.json
+// and merges them; downstream build / render / verify are unchanged. Any failed or missing search or detail block rejects the whole run.
+// The fixtures are all synthetic neutral rows (no real creator data).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -39,7 +39,7 @@ const envelope = (operation, rows, extra = {}) => ({
   retrieved_at: "2026-11-02T00:00:01.000Z", evidence_ref: `ev-${operation}-${rows[0]?.id ?? "none"}`, ...extra,
 });
 
-// 两个意图 × 两条通道：窗口通道各 20 行（窗口内），热度通道各 25 行（近 30 天，与窗口通道有重叠），共 60 个去重 id → 两块详情。
+// Two intents x two channels: the window channel has 20 rows each (within the window), the heat channel 25 rows each (last 30 days, overlapping with the window channel), 60 deduplicated ids in all -> two detail blocks.
 function collection({ failSearch, wrongChunk, dropChunk, audioLanguage } = {}) {
   const lanes = [
     { q: "desk setup", window: true, ids: Array.from({ length: 20 }, (_, n) => id("w0", n)) },
@@ -90,7 +90,7 @@ async function staged(t, value) {
 
 const place = (run) => python("complete_youtube_short_window.py", ["place", "--since", SINCE, "--until", UNTIL, "--output", "short-window-input.json"], { cwd: run, run });
 
-test("组合取数的音频语言声明穿过 place 和详情合并，英语标题不能掩盖冲突", async (t) => {
+test("the composite fetch's audio-language declaration survives place and the detail merge, and an English title cannot mask a conflict", async (t) => {
   const run = await staged(t, collection({ audioLanguage: "hi" }));
   const placed = place(run);
   assert.equal(placed.code, 0, placed.out);
@@ -115,7 +115,7 @@ test("组合取数的音频语言声明穿过 place 和详情合并，英语标�
   assert.deepEqual(layers.in_window, []);
 });
 
-test("一次 collect_youtube_recent_videos 拆成逐次搜索与详情 envelope，合并后走完 build → render → verify", async (t) => {
+test("one collect_youtube_recent_videos split into per-search and detail envelopes runs through build → render → verify after merging", async (t) => {
   const run = await staged(t, collection());
   const placed = place(run);
   assert.equal(placed.code, 0, placed.out);
@@ -125,7 +125,7 @@ test("一次 collect_youtube_recent_videos 拆成逐次搜索与详情 envelope�
   assert.deepEqual(result.merge, { status: "ok", search_ids: 60, detail_rows: 60, merged: 60, views_filled: 60 });
   const chunks = JSON.parse(await readFile(path.join(run, "video-id-chunks.json"), "utf8"));
   assert.deepEqual(chunks.chunks.map((chunk) => chunk.length), [50, 10]);
-  // 每个 envelope 与 stage 落下的那份逐字节相同。
+  // Each envelope is byte-for-byte identical to the one stage wrote.
   const value = collection();
   const first = JSON.parse(await readFile(path.join(run, "envelope-01.json"), "utf8"));
   assert.deepEqual(first, value.calls[0].result);
@@ -162,11 +162,11 @@ test("一次 collect_youtube_recent_videos 拆成逐次搜索与详情 envelope�
 });
 
 for (const [name, options, message] of [
-  ["一次搜索失败", { failSearch: 1 }, /query-1 search status is failed.*cannot be completed/],
-  ["一块详情没回来", { dropChunk: 1 }, /1 of 2 get_video chunks came back.*cannot be completed/],
-  ["详情块问的不是这些搜索的 id", { wrongChunk: 0 }, /detail-0 asked for other video ids than chunk 1/],
+  ["one search failed", { failSearch: 1 }, /query-1 search status is failed.*cannot be completed/],
+  ["one detail chunk did not come back", { dropChunk: 1 }, /1 of 2 get_video chunks came back.*cannot be completed/],
+  ["the detail chunk asked for ids other than these searches'", { wrongChunk: 0 }, /detail-0 asked for other video ids than chunk 1/],
 ]) {
-  test(`place 拒绝不完整的组合结果：${name}`, async (t) => {
+  test(`place rejects an incomplete composite result: ${name}`, async (t) => {
     const run = await staged(t, collection(options));
     const placed = place(run);
     assert.equal(placed.code, 2, placed.out);
@@ -174,8 +174,8 @@ for (const [name, options, message] of [
   });
 }
 
-// place 自己取走存好的结果（没有就绪下载时 stage）：模型只存文件、跑 place，不再单独跑 static_host.py。
-test("place 自己 stage 存在 host-results/ 的整份组合结果；没存时点名该存的文件", async (t) => {
+// place takes the saved result by itself (and stages when there is no ready download): the model only saves the file and runs place, and no longer runs static_host.py separately.
+test("place stages the whole composite result stored in host-results/ itself; when it is not stored, it names the file to store", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-ytsw-save-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
