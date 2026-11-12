@@ -305,6 +305,41 @@ test("画像只整理后台结果：可见的主打内容按占比成为支柱�
 const prepared = (status, extra = {}) => ({ structuredContent: { status, account_id: "00000000-0000-4000-8000-000000000001",
   job_id: null, failure_code: null, retryable: null, retry_after_seconds: null, ...extra } });
 
+test("赛道先读 get_creator_profile 顶层的 niche，再回退到诊断里的两处；都没有就是 null；建库与刷新支柱用同一读法", async t => {
+  const temp = await workspace(t);
+  const file = path.join(temp, "profile.json");
+  const items = [signature("sc1", "Physics explained", 0.6)];
+  const shaped = (top, diagnosis) => {
+    const value = profileResult(items);
+    value.structuredContent.niche = top;
+    value.structuredContent.nicheId = top ? "science_education" : null;
+    value.structuredContent.diagnosis = diagnosis;
+    return value;
+  };
+  // Codex 实测（@veritasium）：顶层有赛道、诊断为空。
+  await writeFile(file, JSON.stringify(shaped("Science education", {})));
+  assert.equal(run("profile-pillars", "--profile", file).niche, "Science education");
+  // 顶层优先于诊断。
+  await writeFile(file, JSON.stringify(shaped("Science education", { insight: { niche: "Old diagnosis niche" } })));
+  assert.equal(run("profile-pillars", "--profile", file).niche, "Science education");
+  // 只有诊断有：照原来的两处读。
+  await writeFile(file, JSON.stringify(shaped(null, { insight: { niche: "From insight" } })));
+  assert.equal(run("profile-pillars", "--profile", file).niche, "From insight");
+  await writeFile(file, JSON.stringify(shaped("  ", { accountReview: { sections: { niche: { label: "From review" } } } })));
+  assert.equal(run("profile-pillars", "--profile", file).niche, "From review");
+  // 都没有：null，不编。
+  await writeFile(file, JSON.stringify(shaped(null, null)));
+  assert.equal(run("profile-pillars", "--profile", file).niche, null);
+  // review-new-posts 建库与刷新支柱经同一个函数，也读到顶层赛道。
+  await writeFile(file, JSON.stringify(shaped("Science education", {})));
+  const library = path.join(temp, "lib");
+  run("bootstrap", "--library", library, "--platform", "youtube", "--handle", "veritasium", "--profile", file);
+  assert.equal(run("show", "--library", library).niche.text, "Science education");
+  await writeFile(file, JSON.stringify(shaped("Physics and engineering", {})));
+  run("refresh-pillars", "--library", library, "--profile", file);
+  assert.equal(run("show", "--library", library).niche.text, "Physics and engineering");
+});
+
 test("prepare_creator_profile：ready 去读画像；generating 严格按 retry_after 等，首次后最多再查 8 次、总等待不超过 480 秒；niche_required 问一次领域后带 niche 重试；其余照常往下走", async t => {
   const temp = await workspace(t);
   const file = path.join(temp, "prepare.json");
