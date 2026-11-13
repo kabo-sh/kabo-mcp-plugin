@@ -11,9 +11,10 @@
 - The repository root is the plugin root. Maintain one `skills/` directory, one `kabo` entry and one
   build entry point. Codex, Claude Code and Cursor add only host metadata; do not copy business content
   or remove features for a particular host.
-- The user selected twenty-one Skills; see `skills.lock.json`. Eighteen were adapted from
-  creator-skills and are now edited directly in this repository; three more for the creator's daily
-  routine (`start-with-kabo`, `pick-daily-viral-videos`, `review-new-posts`) were written here. Do not
+- The user selected twenty-two Skills; see `skills.lock.json`. Eighteen were adapted from
+  creator-skills and are now edited directly in this repository; four more were written here: three for
+  the creator's daily routine (`start-with-kabo`, `pick-daily-viral-videos`, `review-new-posts`) and
+  `review-thumbnail`, which reviews uploaded images and calls no Kabo data tool. Do not
   overwrite any of them with a new creator-skills import. The lock file records only the starting point of the adaptation.
   Follow `docs/skills-spec.md` when changing a Skill. Enforcement stays off: keep `enforced` in
   `skills-spec.json` empty and do not add entries.

@@ -73,7 +73,12 @@ for scenario in scenarios:
 print(json.dumps(report))
 `;
 
-const skills = (await readdir(path.join(root, "skills"))).sort();
+// review-thumbnail reviews uploaded images and calls no Kabo data tool, so it ships no static_host.py runtime.
+// Every other Skill must still carry one.
+const IMAGE_ONLY_SKILLS = ["review-thumbnail"];
+const allSkills = (await readdir(path.join(root, "skills"))).sort();
+for (const id of IMAGE_ONLY_SKILLS) assert.ok(allSkills.includes(id), `${id} is listed as image-only but is not a Skill`);
+const skills = allSkills.filter((id) => !IMAGE_ONLY_SKILLS.includes(id));
 const fetchSkills = [];
 for (const id of skills) {
   const text = await readFile(path.join(root, "skills", id, "scripts/static_host.py"), "utf8");

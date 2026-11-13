@@ -23,7 +23,7 @@
   <a href="https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/kabo-sh/kabo-mcp-plugin?style=flat&color=blueviolet&label=release" /></a>
   <a href="../../LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat" /></a>
   <a href="#install"><img alt="works with" src="https://img.shields.io/badge/works%20with-Claude%20%C2%B7%20ChatGPT%20%C2%B7%20Grok%20Bot%20%C2%B7%20Muse-black?style=flat" /></a>
-  <a href="#what-you-can-do"><img alt="skills" src="https://img.shields.io/badge/skills-21-d8ff74?style=flat" /></a>
+  <a href="#what-you-can-do"><img alt="skills" src="https://img.shields.io/badge/skills-22-d8ff74?style=flat" /></a>
   <a href="#install"><img alt="install" src="https://img.shields.io/badge/install-1%20message-green?style=flat" /></a>
 </p>
 
@@ -38,7 +38,7 @@
 <p align="center"><a href="../../README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.es.md">Español</a> · <b>Português</b></p>
 
 O Kabo é um parceiro de IA para criadores do YouTube, Instagram e TikTok. Este repositório é o plugin do Kabo:
-uma única conexão com o Kabo e vinte e uma Skills para criadores que funcionam dentro do assistente de IA que você já usa.
+uma única conexão com o Kabo e vinte e duas Skills para criadores que funcionam dentro do assistente de IA que você já usa.
 Dois pontos fazem a diferença:
 
 - **Um Kabo, quatro assistentes.** A mesma conta, o mesmo perfil salvo e as mesmas Skills funcionam no
@@ -170,6 +170,7 @@ do seu assistente e ler os resultados quando chegarem.
 | **Analisar uma conta** | O que funciona, o que atrapalha e o que continuar, parar ou testar. A análise aprofundada também assiste aos vídeos. Diagnostica uma queda de alcance | `review-creator-account` · `review-creator-account-deep` · `diagnose-reach-drop` |
 | **Dissecar um vídeo** | Uma leitura com marcações de tempo do gancho, do ritmo e da estrutura de um vídeo público ou de um arquivo local | `analyze-content-video` |
 | **Decidir o que fazer a seguir** | Ideias de conteúdo a partir da sua conta, das tendências e dos concorrentes, e depois o roteiro, o gancho e o título da ideia que você escolher | `develop-content-ideas` · `create-script-and-packaging` |
+| **Avaliar thumbnails** | Dez verificações de aprovado ou reprovado em uma a três thumbnails enviadas, com um motivo e uma correção para cada, as primeiras mudanças a fazer e qual candidata usar | `review-thumbnail` |
 | **Planejar quando postar** | Um calendário de conteúdo e horários de postagem baseados no seu próprio histórico | `plan-content-calendar` · `recommend-publish-timing` |
 | **Construir a marca e ganhar dinheiro** | Nomes, bios e um media kit; metas mínimas para monetização; precificação item por item para uma proposta de publi | `optimize-creator-brand` · `plan-platform-monetization` · `price-creator-brand-deals` |
 | **Conferir uma regra da plataforma** | Verifica uma regra, um limite ou um boato nas páginas oficiais de ajuda, com citações e datas | `verify-platform-rule` |

@@ -12,17 +12,17 @@ mcp.json                        # Production MCP connection
 .claude-plugin/marketplace.json  # Claude Code marketplace (not included in the ZIP)
 .agents/plugins/marketplace.json # Codex marketplace (not included in the ZIP)
 .mcp.json                       # Claude Code HTTP MCP configuration
-skills/                         # Twenty-one complete Skills and their resources
+skills/                         # Twenty-two complete Skills and their resources
 skills.lock.json                # Original Skill source and versions
 runtime-contract.json           # Fixed tool and Skill inventory
 INSTALL.md                      # Installation steps written for an AI assistant to follow
 CHANGELOG.md                    # Version history
 ```
 
-The twenty-one Skills cover video analysis, standard and deep account reviews, scripts and packaging,
+The twenty-two Skills cover video analysis, standard and deep account reviews, scripts and packaging,
 content ideas, Instagram/TikTok/YouTube trends, creator/TikTok competitor research, reach-drop
 diagnosis, publish-timing recommendations, platform monetization plans, official platform rule checks,
-brand identity options and media kits, content calendars, brand-deal pricing, and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 10 minutes or less
+brand identity options and media kits, content calendars, brand-deal pricing, thumbnail reviews (`review-thumbnail`), and `remake-viral-video`, which remakes a viral talking-head or voice-over video of 10 minutes or less
 (talking videos may cut to screen recordings or show a product) with the creator in it. Three more form a daily routine
 for a creator: `start-with-kabo` (first session: link one public account, read its posts, propose content pillars for the
 creator to confirm and save them to Kabo, give today's picks, offer three daily jobs), `pick-daily-viral-videos` (three picks a day

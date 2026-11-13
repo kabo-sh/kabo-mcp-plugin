@@ -15,5 +15,5 @@ test("launching the validation CLI through a directory alias still runs the chec
     [path.join(alias, "scripts", script), ...args], { encoding: "utf8" });
   assert.match(run("package-check.mjs"), /submissionReady=false/);
   const findings = JSON.parse(run("skills-lint.mjs", "--json"));
-  assert.equal(findings.length, 21);
+  assert.equal(findings.length, 22);
 });

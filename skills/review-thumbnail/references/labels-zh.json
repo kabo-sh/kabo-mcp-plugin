@@ -1,0 +1,17 @@
+{
+  "topic_match": "主题匹配",
+  "emotion": "情绪触发",
+  "harmony": "视觉协调",
+  "eye_catching": "吸睛元素",
+  "uncluttered": "构图简洁",
+  "color_contrast": "色彩与对比",
+  "unique_concept": "独特概念",
+  "execution": "创意执行",
+  "curiosity": "引发好奇",
+  "resolution_aspect": "分辨率与比例",
+  "pass": "过",
+  "fail": "不过",
+  "tie": "并列",
+  "neither": "都不理想",
+  "insufficient": "依据不足"
+}

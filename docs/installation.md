@@ -265,7 +265,7 @@ Normal update commands:
 
 The connection and OAuth resource stay at `/mcp-pub` when moving from the old 3.0.1 or 3.1.x versions.
 Renumbering alone does not change authorization. Older installations using `/mcp-directory` must
-reauthorize for `/mcp-pub`. The current package has twenty-one fixed Skills, downloads full evidence, and
+reauthorize for `/mcp-pub`. The current package has twenty-two fixed Skills, downloads full evidence, and
 stores raw tool results in each run's `host-results/` directory. The old dynamic menu, channel switch,
 download cache and Node runner are no longer included. Validate in a separate workspace before
 updating the existing `kabo` entry. Old research directories are not migrated or deleted automatically.
