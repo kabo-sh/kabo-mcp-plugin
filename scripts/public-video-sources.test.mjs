@@ -358,6 +358,26 @@ test("只要字幕、只有一条 cue：用字幕结果带回的平台申报时�
   assert.match(refused.out, /final_cue_end_unavailable/);
 });
 
+test("来源视频本身取不到（B 站被删或锁区）：逐字稿不说成「没有字幕轨」，原因进 limitations，SKILL.md 叫模型停下", async (t) => {
+  // 开发机第五轮实录：锁区视频四条结果各说各的，字幕说成「这条视频没有字幕轨」，模型据此写了口播观察。
+  const BV = "BV1GJ411x7h7";
+  const reason = "The source video itself could not be fetched: the platform reports it deleted or available only in some regions, which this service cannot reach.";
+  const gone = (operation, jobId, data) => mediaEnvelope(operation, jobId, { ...data, source_unavailable: true, artifacts: [] },
+    { status: "completed_partial", limitations: [{ code: "no_data_retrieved", message: reason }] });
+  const { built, evidence } = await buildOnly(t, "bilibili-source-unavailable", { platform: "bilibili", url: `https://www.bilibili.com/video/${BV}`, content_id: BV }, [
+    gone("fetch_transcript", uuid(2), { cues: [], cue_count: 0 }),
+    gone("extract_keyframes", uuid(3), { frame_count: 0, selection: "none", duration_s: null, sampling_plan: null, frames: [] }),
+  ]);
+  assert.equal(built.code, 0, built.out);
+  assert.equal(evidence.transcript.status, "provider_error");
+  assert.match(evidence.transcript.status_basis, /source video itself could not be fetched/);
+  assert.doesNotMatch(JSON.stringify(evidence.transcript), /subtitle track/);
+  assert.equal(evidence.frames.status, "unavailable");
+  assert.ok(evidence.limitations.includes(reason), evidence.limitations.join(" | "));
+  const skill = await readFile(path.join(root, "skills/analyze-content-video/SKILL.md"), "utf8");
+  assert.match(skill, /`data\.source_unavailable: true`/);
+});
+
 test("Facebook 播放数读不到（withheld）时为 null：不收进公开计数，不当 0，说明照传", async (t) => {
   const withheld = "The view count was withheld: the only figure this path could read does not match what the page shows, so treat views as unknown rather than zero.";
   const { built, evidence } = await buildOnly(t, "facebook-withheld", { platform: "facebook", url: `https://www.facebook.com/reel/${FACEBOOK_ID}`, content_id: FACEBOOK_ID }, [
