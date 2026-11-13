@@ -115,7 +115,9 @@ def prepare(source, run):
         require(isinstance(value, str) and 0 < len(value.strip()) <= 12000, 'Context must contain nonblank evidence text')
     check_ratio(request['context'])
     require(isinstance(request['images'], list) and 1 <= len(request['images']) <= 3, 'Upload 1 to 3 images')
-    require(not run.exists(), 'Use a new run directory; never overwrite an earlier review')
+    # Hosts often create the working folder to hold request-input.json, so name the fix, not just the rule.
+    require(not run.exists(), 'Use a new run directory; never overwrite an earlier review. --run-dir must not exist yet: '
+            'pass a new subdirectory such as --run-dir review, not "." or the folder holding the input file')
     # Validate every input before creating the run directory; keep failed directories and never reuse an earlier success receipt.
     sources = []
     for value in request['images']:

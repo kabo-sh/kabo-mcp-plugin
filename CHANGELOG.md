@@ -2,6 +2,14 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.50 (unreleased)
+
+- `review-thumbnail` 0.1.5: SKILL.md now runs `prepare` and `deliver` with `--run-dir review` and says the run
+  directory must not exist yet. In production the host wrote `request-input.json` into a working folder and
+  passed that folder (`--run-dir .`) as the run directory, so the first `prepare` call failed with "Use a new run
+  directory" in almost every run and only a retry succeeded. The error now names the fix (a new subdirectory);
+  the no-reuse rule is unchanged.
+
 ## 1.0.49 (unreleased)
 
 - `develop-content-ideas`: the final batch's omitted `gates` lists (`selection_missing`, `production_missing`,
