@@ -8,6 +8,8 @@ from pathlib import Path
 
 from validate_ideas import IDEA_SET_SCHEMA, load as load_schema, schema_ref, validate_schema_value
 
+GATE_LISTS = ("selection_missing", "production_missing", "blocked_reasons")
+
 BATCH_SIZE = 10
 PLAN = "idea_work_plan.json"
 SCHEMA = "idea-batches.v1"
@@ -193,6 +195,12 @@ def append_batch(run_dir, payload):
         report = payload.get("report")
         if not isinstance(report, dict) or set(report) & (set(state["metadata"]) | {"ideas"}):
             raise ValueError("Last batch needs report fields, without deterministic metadata or ideas")
+        # Production 2026-11-13: the final batch omitted gates.blocked_reasons and the host could not
+        # repair the stored batch file, so the user received nothing. An omitted gate list means "none";
+        # status rules (e.g. a blocked status still needs a non-empty blocked_reasons) are still checked.
+        gates = report.get("gates")
+        if isinstance(gates, dict):
+            report = {**report, "gates": {key: [] for key in GATE_LISTS if key not in gates} | gates}
         entry["report"] = report
     elif "report" in payload:
         raise ValueError("Report fields belong only to the final batch")

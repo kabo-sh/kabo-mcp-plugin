@@ -140,6 +140,18 @@ class Batches(fixture.Delivery):
                 report = Path(receipt['report_path']).read_text(encoding='utf-8')
                 self.assertIn(f'### 1. Workflow decision {top[-3:]} (first choice)', report.split('### 2. ')[0])
 
+    def test_omitted_gate_lists_default_to_empty(self):
+        # Production 2026-11-13: the final batch omitted gates.blocked_reasons; the host could not repair the
+        # stored batch file and the user got nothing. Omitted gate lists now mean "none".
+        def mutate(batch, payload):
+            if 'report' in payload:
+                payload['report']['gates'].pop('blocked_reasons', None)
+        result = self.run_batches(20, mutate)
+        self.assertEqual('ready_for_core', result['status'], result)
+        code, result = self.stage(self.root, 'core')
+        self.assertEqual('ok', result['status'], result)
+        self.assertEqual([], json.loads((self.root / 'idea_set.json').read_text())['gates']['blocked_reasons'])
+
     def test_rank_error_message_names_both_ids(self):
         self.prepare(self.root, 5)
         data = self.output(5)

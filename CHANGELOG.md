@@ -2,7 +2,14 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
-## 1.0.48 (unreleased)
+## 1.0.49 (unreleased)
+
+- `develop-content-ideas`: the final batch's omitted `gates` lists (`selection_missing`, `production_missing`,
+  `blocked_reasons`) now default to empty. In production a final batch without `blocked_reasons` was rejected,
+  the host could not repair the stored batch file, and the user received no ideas. Status rules still apply
+  (a blocked status still needs non-empty `blocked_reasons`).
+
+## 1.0.48 (2026-11-13; GitHub Release)
 
 - `develop-content-ideas`: prep writes `idea_work_plan.json` and the host authors candidates in batches of at
   most ten (`ceil(idea_count / 10)` passes) through `run_ideas_stages.py batch`; the script fills IDs, ranks
