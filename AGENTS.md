@@ -51,7 +51,7 @@
 - Kabo Web serves the Skills of the latest GitHub release (desktop stays on its frozen channel). Publishing a
   release runs `.github/workflows/web-publish.yml`, which packs each Skill and rewrites the Web overlay
   (`scripts/web-publish/plugin-web.mjs`; it never writes a channel index) when the `web-publish` environment
-  variable `PLUGIN_WEB_AUTO` is `on`; `PLUGIN_WEB_HOLD` keeps listed Skills on their Registry version in production (the pre test target ignores it; `PLUGIN_WEB_TEST_HOLD` is its own list). To
+  variable `PLUGIN_WEB_AUTO` is `on`; `PLUGIN_WEB_HOLD` keeps listed Skills on their Registry version in production (the pre test target ignores it; `PLUGIN_WEB_TEST_HOLD` is its own list). A Skill on no channel and not yet on the overlay is skipped unless it is in `PLUGIN_WEB_DEBUT` (both targets), in which case it debuts at its SKILL.md `metadata.version` (required); hold wins over debut, and listing an already-live Skill has no effect. To
   publish by hand, or to the pre test accounts, run `gh workflow run web-publish.yml -f tag=<tag> -f target=index|test`
   (idempotent; a no-op when Web is already on the release). Check with
   `curl -s https://agent.kabo.sh/health | jq '.skill_channels.production.runtime.plugin_overlay'`.

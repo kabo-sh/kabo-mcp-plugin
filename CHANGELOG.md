@@ -19,6 +19,14 @@ The version number follows `plugin.json`; the root package version in `.claude-p
   before the next batch is a failed run; the result carries `turn_complete: false`. SKILL.md and
   `references/batched-authoring.md` say the same.
 - New `scripts/ideas-batches-regression.py` covers 3, 15 and 20 candidate sets.
+- Web publishing: bump the three Skills that declare `metadata.version` by one patch so the Web overlay accepts
+  them: `optimize-creator-brand` 0.3.25, `plan-content-calendar` 0.1.28 (including the `candidate_skill` constant
+  in the schema) and `price-creator-brand-deals` 0.4.15. Their content changed after 1.0.43 (the English-only
+  rewrite), but the declared versions still equalled the versions already on the overlay, so the v1.0.47
+  web-publish run failed with "metadata.version 0.3.24 must be above the live version 0.3.24".
+- `review-thumbnail` 0.1.3 -> 0.1.4: the pre test overlay still holds the earlier 0.1.3 package, whose content
+  differs from the English-only port in 1.0.47, so publishing to the test target needs a higher declared
+  version. No other content changes.
 
 ## 1.0.47 (unreleased)
 

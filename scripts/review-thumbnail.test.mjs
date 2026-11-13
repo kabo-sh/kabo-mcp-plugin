@@ -8,7 +8,7 @@ test('thumbnail input, binary verdict, evidence, priorities and unchanged delive
 
 test('the native thumbnail skill produces a complete, readable Web bundle', async () => {
   const { buildPluginBundle, validateBundle } = await import('./web-publish/bundle.mjs');
-  const bundle = buildPluginBundle({ skillDirectory: new URL('../skills/review-thumbnail', import.meta.url).pathname, sourceCommit: 'a'.repeat(40), version: '0.1.3' });
+  const bundle = buildPluginBundle({ skillDirectory: new URL('../skills/review-thumbnail', import.meta.url).pathname, sourceCommit: 'a'.repeat(40), version: '0.1.4' });
   assert.equal(validateBundle(bundle).id, 'review-thumbnail');
   for (const path of ['SKILL.md','scripts/review_thumbnail.py','references/rubric.json','references/labels-zh.json','references/contract.md','references/rubric.md'])
     assert.ok(bundle.files.some(file=>file.path===path),path);
