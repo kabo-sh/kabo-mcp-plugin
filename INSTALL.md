@@ -86,6 +86,76 @@ Muse Code (the command-line agent): add a `streamable_http` server named `kabo` 
 `mcp_servers`, run `muse mcp login kabo`, and install the Skills with
 `npx skills add 'kabo-sh/kabo-mcp-plugin#stable' --skill '*'`.
 
+## Doubao Work, Qwen Work, DeepSeek Harness and WorkBuddy
+
+On the user's computer, one command installs the Skills and the connection where the host allows it
+(kabo-sh 0.0.3 or later handles Doubao Work, Qwen Work and DeepSeek Harness; WorkBuddy is handled
+through its bundled CodeBuddy command line, after which the user clicks Trust on Kabo in WorkBuddy's
+connector management and signs in):
+
+```sh
+npx -y kabo-sh install
+```
+
+If it cannot run, do the steps below by hand. In every one of these hosts, the first message to the
+assistant should name the Skill, for example "Please use the start-with-kabo skill to get me started":
+Doubao Work runs a Skill only when it is named, and the others pick it more reliably that way.
+
+**Read-only connection.** In Doubao Work, Qwen Work and WorkBuddy, Kabo currently connects with read
+permission only. Linking an account and saving pillars are unavailable there until the server grants
+write permission on first sign-in; the Skills detect this and continue with reading, picks and
+reviews. Do not call a write tool to test it: Doubao Work treats the refusal as a lost sign-in and
+drops the whole Kabo connection.
+
+### Doubao Work
+
+1. Skills: copy every Skill folder in full from branch `stable` of the repository into
+   `~/.agents/skills`.
+2. Connection, added by hand in the app: Plugins, Skills and Workbench, then Manage, then Connectors,
+   then Add, then Custom connector. Choose type HTTP, address `https://kabo.sh/mcp-pub`, no headers.
+   Doubao Work then asks to authorize and opens the browser; the user signs in there.
+
+### Qwen Work
+
+1. Skills: copy every Skill folder in full from branch `stable` into `~/.qwenworkcn/skills`.
+2. Connection: put this entry in `~/.qwenworkcn/mcp.json` (merge it into any existing servers):
+
+   ```json
+   {"mcpServers":{"kabo":{"url":"https://kabo.sh/mcp-pub"}}}
+   ```
+
+3. Restart Qwen Work and sign in to Kabo in the browser when asked.
+
+### DeepSeek Harness
+
+1. Skills: copy every Skill folder in full from branch `stable` into `~/.agents/skills`.
+2. Connection: DeepSeek Harness has no browser sign-in for remote servers, so use a local bridge.
+   Add this entry to `~/.dsh/profiles/desktop/cordis.patch.yml` (never edit `cordis.yml`), with the
+   absolute path of `npx` on this computer:
+
+   ```yaml
+   - insert:
+       - id: mcp-kabo
+         name: '@deepseek-ai/dsh-mcp-client'
+         config:
+           serverName: kabo
+           transport: stdio
+           command: /absolute/path/to/npx
+           args: ['-y', 'mcp-remote', 'https://kabo.sh/mcp-pub', '--static-oauth-client-metadata', '{"scope":"openid profile email offline_access data video workspace:read workspace:write"}']
+           toolCallTimeoutMs: 120000
+   ```
+
+3. Restart DeepSeek Harness and sign in to Kabo in the browser. With that scope argument Kabo grants
+   write permission on first sign-in.
+
+`~/.agents/skills` is also read by Codex: a user with Kabo installed in Codex will see the Skills twice.
+
+### WorkBuddy
+
+Use `npx -y kabo-sh install`, then ask the user to open WorkBuddy's connector management, click Trust
+on Kabo and sign in. By hand, add the Skills to WorkBuddy's Skills folder and the connection
+`https://kabo.sh/mcp-pub` as a remote server.
+
 ## Any other assistant
 
 You need three things: a remote MCP connection with OAuth, a workspace with files that you can read and

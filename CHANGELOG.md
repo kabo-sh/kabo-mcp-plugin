@@ -2,7 +2,29 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
-## 1.0.49 (unreleased)
+## 1.0.50 (unreleased)
+
+- `start-with-kabo`: the description now starts with "Start here when a creator is new to Kabo ..." and lists
+  natural phrases, so a host picks the Skill from a plain request (tested in Qwen Work, which loaded it by
+  itself with this text).
+- Every line sent to the creator, including the opening and each `tell_creator_now`, is translated into the
+  language the creator writes in; `opening` now prints a `language_note` saying the lines are English source
+  text. The same rule is in `pick-daily-viral-videos` and `review-new-posts`. `creator_library.py` stays
+  identical in the three Skills.
+- Read-only connections: `start-with-kabo` reads `granted_scopes` from `get_kabo_info` first; without
+  `workspace:write` it calls no write tool (a refused write made Doubao Work drop the whole Kabo
+  connection), tells the creator once, skips the profile start and the pillar save, and continues on the
+  read-only paths. `review-new-posts` makes the same check before saving pillars that are waiting to sync
+  (`get_kabo_info` added to its `allowed-tools`).
+- Workspace: when a host starts every conversation in a new dated or numbered folder, the Skills use
+  `~/kabo-workspace` and the daily jobs' task text names it (`docs/workspace.md`).
+- `references/host-schedules.md`: new sections for Qwen Work, Doubao Work, DeepSeek Harness and WorkBuddy,
+  and a rule to report the time zone the host gives for the created task.
+- `INSTALL.md`, `docs/installation.md` and the README host lists (and translations): Doubao Work, Qwen Work,
+  DeepSeek Harness and WorkBuddy, with `npx -y kabo-sh install` and the manual steps. Not yet accepted on
+  real hosts after this change.
+
+## 1.0.49 (2026-11-13; GitHub Release)
 
 - `develop-content-ideas`: the final batch's omitted `gates` lists (`selection_missing`, `production_missing`,
   `blocked_reasons`) now default to empty. In production a final batch without `blocked_reasons` was rejected,

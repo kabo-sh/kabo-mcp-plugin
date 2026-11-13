@@ -197,11 +197,11 @@ Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable
 [INSTALL.md](INSTALL.md) is written for the assistant: it tells it how to add the Kabo connection, load
 the Skills and check that everything works. Sign-in happens in your browser. There is no API key to copy.
 
-**Using Claude Code or Codex on your computer?** One command installs the plugin for whichever of
-the two it finds, then tells you the sign-in steps that are left:
+**Using Claude Code, Codex, Doubao Work, Qwen Work, DeepSeek Harness or WorkBuddy on your computer?** One command installs the plugin for whichever of
+them it finds, then tells you the sign-in steps that are left:
 
 ```sh
-npx kabo-sh install
+npx -y kabo-sh install
 ```
 
 Add `--dry-run` to see what it would run without changing anything. Grok Bot and Muse use the message
@@ -213,6 +213,7 @@ above instead.
 | **ChatGPT and Codex** (Codex 0.163 or later) | ✅ Supported | Open Plugins, find Kabo and add it. From a terminal: `codex plugin marketplace add kabo-sh/kabo-mcp-plugin`, then `codex plugin add kabo@kabo-plugin-openai`. |
 | **Grok Bot** | ✅ Supported | Paste the message above into the Bot. It adds Kabo as an app and loads the Skills on the Bot's computer. |
 | **Muse** | ✅ Supported | Paste the message above. Muse adds Kabo as a custom connector and loads the Skills on its computer. |
+| **Doubao Work, Qwen Work, DeepSeek Harness and WorkBuddy** | ✅ Supported | Run `npx -y kabo-sh install`, or follow [INSTALL.md](INSTALL.md#doubao-work-qwen-work-deepseek-harness-and-workbuddy) by hand. Start with a message that names the Skill, for example "Please use the start-with-kabo skill to get me started". Doubao Work, Qwen Work and WorkBuddy currently connect Kabo read-only, so linking an account and saving pillars are unavailable there. |
 | **Cursor and other MCP clients** | Not yet tested | Add `https://kabo.sh/mcp-pub` as a remote MCP server with OAuth, then add the Skills. |
 
 You need a Kabo account; signing in with Google creates one. The workflows need Python 3 and a

@@ -1,8 +1,8 @@
 ---
 name: start-with-kabo
-description: "First session with Kabo for a creator: explain what Kabo does, link one public Instagram, TikTok or YouTube account, read its recent posts, propose 2-4 content pillars for the creator to confirm, save them to Kabo once, give today's picks, then offer three daily jobs (picks, new-post review, account review). Use for 'get me started', 'set me up', 'onboard me', 'what are my content pillars'. Not a full account review."
+description: "Start here when a creator is new to Kabo or asks, in any language, to get started, set up, be onboarded or be shown how to use Kabo (for example: first time using Kabo, get me started, set me up, onboard me, what are my content pillars). First session with Kabo: explain what Kabo does, link one public Instagram, TikTok or YouTube account, read its recent posts, propose 2-4 content pillars for the creator to confirm, save them to Kabo once, give today's picks, then offer three daily jobs (picks, new-post review, account review). Not a full account review."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, a persistent workspace the daily Skills reuse (without one, picks can repeat), and script access to kabo.sh and the signed storage.googleapis.com links in Kabo results. Kabo permissions: data to read the posts; workspace:read for the linked account, profile and picks; workspace:write only to link the account, start the profile and save the confirmed pillars, when the creator agrees."
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, a persistent workspace the daily Skills reuse (a fixed folder such as ~/kabo-workspace when the host makes a new working folder for every conversation; without one, picks can repeat), and script access to kabo.sh and the signed storage.googleapis.com links in Kabo results. Kabo permissions: data to read the posts; workspace:read for the linked account, profile and picks; workspace:write only to link the account, start the profile and save the confirmed pillars, when the creator agrees."
 allowed-tools: get_kabo_info list_connected_accounts connect_public_account prepare_creator_profile get_creator_profile update_content_preferences get_for_you_videos collect_account_history collect_video_media get_research_data_download get_research_data_job
 ---
 
@@ -42,6 +42,10 @@ creator waiting in silence. The steps are the same for every platform and every 
   | `remake-viral-video` | remake it with me in it |
   | `review-new-posts` | I'll review it 24 hours after you post |
   | `pick-daily-viral-videos` | today's picks |
+- **Language.** Every line you send the creator is in the language they write in, including each
+  `tell_creator_now` line, `message`, `question` and the opening. The scripts print English source
+  text: translate it before sending, and send English only to a creator who writes English. Never
+  relay a script line unchanged to a creator who writes another language.
 - **Kabo never publishes.** It never posts, comments, follows or messages anyone. Posting stays with
   the creator, or with a posting tool of their host that they approve post by post.
 - Kabo reads public data only. Retention, reach, watch time and revenue are unknown: never infer or
@@ -72,18 +76,32 @@ The first command of the run prints the opening:
 python3 '<skill directory>/scripts/creator_library.py' opening
 ```
 
-Send each of the two lines of `tell_creator_now` as its own short message, in the creator's language
-and otherwise unchanged, before any Kabo tool call. Then ask one question only: which account (step
+Translate the two lines of `tell_creator_now` into the language the creator writes in (they are
+English source text) and send each as its own short message, otherwise unchanged, before any Kabo
+tool call. Then ask one question only: which account (step
 2). When the creator already named it, say in one line which account you will use instead of asking.
 
 **`tell_creator_now` everywhere.** Several commands below print a `tell_creator_now` value. It is a
-message for the creator: send it at once, in their language, before the next tool call. Do not list
+message for the creator: translate it into their language and send it at once, before the next tool call. Do not list
 every feature and do not recite limits here: the other Skills are introduced with the first picks,
 and a limit is stated when the creator asks for something Kabo does not do.
 
 ## 2. Link one account
 
-- Call `get_kabo_info`, then `list_connected_accounts`. If one account is linked, name it and offer
+- **Check what this connection may do, before any write.** Call `get_kabo_info` and read
+  `granted_scopes`. When it does not include `workspace:write`, this app connected Kabo with
+  read-only permission: **call no write tool in this run** (`connect_public_account`,
+  `prepare_creator_profile`, `update_content_preferences` or any other that saves to the creator's
+  Kabo account). Some apps never ask for more permission, and an app can treat even one refused call
+  as a lost sign-in and drop the whole Kabo connection, so never call a write tool just to see
+  whether it works. Tell the creator once, in plain words, that this app connected Kabo with
+  read-only permission, so Kabo cannot link a new account or save their pillars here, and that
+  reading, picks and reviews still work. Then go on with the read-only paths: an account that is
+  already linked is still used for reading and picks (skip the profile start in step 3 and step 5,
+  and keep the pillars on this computer); with no linked account follow "No linked account" below.
+  When `granted_scopes` is missing from the answer, the permission is unknown: handle a refused
+  write as steps 3 and 5 say.
+- Call `list_connected_accounts`. If one account is linked, name it and offer
   "use this one" as the first option; ask which one only when several fit. If none is linked, ask one
   question: the platform and the public handle. X (Twitter) is not supported yet: say so and ask for
   an Instagram, TikTok or YouTube account. A creator with several platforms starts with the one they
@@ -107,9 +125,10 @@ and a limit is stated when the creator asks for something Kabo does not do.
   keeps it for you.
 - Note the account's Kabo `id` (`account_id` from `connect-result`, or `list_connected_accounts`),
   its platform and handle. When linking failed, go on as below for "No linked account".
-- **No linked account** (the creator said not now, the host refused write access, or the handle did
-  not resolve as a Kabo link): say in one line that saving pillars to Kabo and the daily picks need an
-  account linked in Kabo. Do steps 3 and 4 with the handle (the pillars stay on this computer), skip
+- **No linked account** (the creator said not now, the connection is read-only, the host refused
+  write access, or the handle did not resolve as a Kabo link): say in one line that saving pillars to
+  Kabo and the daily picks need an account linked in Kabo (when the connection is read-only, the
+  sentence about read-only permission above already covers it). Do steps 3 and 4 with the handle (the pillars stay on this computer), skip
   steps 5 and 6, and offer only the two review jobs in step 7. For a handle that does not resolve at
   all, ask the creator to confirm it once; never use a different account in its place.
 
@@ -117,6 +136,10 @@ and a limit is stated when the creator asks for something Kabo does not do.
 
 `<skill directory>` is the folder holding this `SKILL.md`; `<workspace>` is a folder that persists
 between sessions (the creator's project or home workspace), the one the daily jobs will use.
+**When the host creates a new working folder for every conversation** (a folder named by date or
+number that is different next time), that folder is not kept: use the folder `kabo-workspace` in the
+creator's home folder (`~/kabo-workspace`) as `<workspace>` instead, written as an absolute path in
+the commands because a quoted `~` is not expanded. The daily jobs use the same folder (step 7).
 
 ```sh
 mkdir -p '<workspace>'
@@ -130,7 +153,8 @@ commands, so every command that touches the run starts with
 `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>'`. Every command here is complete as
 written: do not run scripts with `--help` or read their source. Quote paths.
 
-**Start Kabo's profile, without waiting.** When the account is linked in Kabo, call
+**Start Kabo's profile, without waiting.** When the account is linked in Kabo and the connection
+may write (step 2), call
 `prepare_creator_profile` once with `{"account_id": "<id>"}` so Kabo starts building its own profile
 in the background (it is free). Save the result to `<run directory>/prepare-1.json` with the host's
 file-write tool and run
@@ -138,7 +162,8 @@ file-write tool and run
 Act on two of its actions only:
 - `ask_write_access`: send `tell_creator_now`. When the creator says they reconnected Kabo with write
   access, call `prepare_creator_profile` once more; otherwise send `no_write_access_line` and go on
-  (saving pillars in step 5 needs the same access).
+  (saving pillars in step 5 needs the same access). An app that cannot ask for more permission
+  stays read-only after a reconnect: then do not ask the creator to reconnect again.
 - `ask_niche`: send `tell_creator_now` and ask `question`, as one question with no options; call
   `prepare_creator_profile` once more with `"niche"` set to the creator's own words (3 to 200
   characters; shorten only by cutting, never by rewording). Never write the niche yourself. If the
@@ -253,7 +278,9 @@ cd '<run directory>' && python3 '<skill directory>/scripts/creator_library.py' s
 
 ## 5. Save the pillars to Kabo, once
 
-Saving replaces the whole set Kabo holds with exactly the confirmed pillars. Read the profile again
+Skip this step when the connection has no `workspace:write` (step 2): the pillars stay on this
+computer, and the read-only sentence you already sent covers it. Saving replaces the whole set Kabo
+holds with exactly the confirmed pillars. Read the profile again
 for the current version, print the request and make one call with it, unchanged:
 
 ```sh
@@ -293,6 +320,9 @@ breakdown, a script, a remake). If there are none today, send its one line and g
 
 Propose them in one short message, with a time each and the creator's time zone already filled in.
 Take the time zone from the host (its settings, or the computer's own zone); do not ask for it.
+After a task is created, state the time zone the host reports for that task, and the next run time in
+it: a host can create a task in a zone other than the computer's clock (seen once: Asia/Shanghai on a
+computer set to Pacific time). When the two disagree, say the host's zone and offer to change it.
 Defaults:
 
 - **Daily picks**, 8:00: three of the most-watched recent videos in the creator's niche, from Kabo's
@@ -304,7 +334,8 @@ Defaults:
 
 The reviews use data allowance on each run. One question with options: create them at these times,
 change the times, or skip. Read `references/host-schedules.md`, use the section for this host, and
-create the tasks with the host's own scheduled tasks only after the creator agrees. Never say a
+create the tasks with the host's own scheduled tasks only after the creator agrees, with the
+workspace folder from step 3 written into each task's text. Never say a
 schedule exists unless the host confirmed it, and tell the creator the next run time the host gave.
 If the host has no scheduled tasks, give the phrases from the reference instead.
 

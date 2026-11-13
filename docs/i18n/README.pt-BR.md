@@ -207,7 +207,7 @@ carregar as Skills e conferir se tudo funciona. O login acontece no seu navegado
 encontrar dos dois e depois mostra os passos de login que faltam:
 
 ```sh
-npx kabo-sh install
+npx -y kabo-sh install
 ```
 
 Acrescente `--dry-run` para ver o que ele executaria sem alterar nada. O Grok Bot e o Muse continuam
@@ -219,6 +219,7 @@ usando a mensagem acima.
 | **ChatGPT e Codex** (Codex 0.163 ou mais recente) | ✅ Compatível | Abra Plugins, encontre o Kabo e adicione. Pelo terminal: `codex plugin marketplace add kabo-sh/kabo-mcp-plugin`, depois `codex plugin add kabo@kabo-plugin-openai`. |
 | **Grok Bot** | ✅ Compatível | Cole a mensagem acima no Bot. Ele adiciona o Kabo como app e carrega as Skills no computador do Bot. |
 | **Muse** | ✅ Compatível | Cole a mensagem acima. O Muse adiciona o Kabo como conector personalizado e carrega as Skills no computador dele. |
+| **Doubao Work, Qwen Work, DeepSeek Harness e WorkBuddy** | ✅ Compatível | Execute `npx -y kabo-sh install` ou siga o [INSTALL.md](../../INSTALL.md#doubao-work-qwen-work-deepseek-harness-and-workbuddy) manualmente. Comece com uma mensagem que cite a Skill, por exemplo "Use a skill start-with-kabo para me ajudar a começar". Doubao Work, Qwen Work e WorkBuddy conectam o Kabo por enquanto só com leitura, então lá não é possível vincular uma conta nem salvar pilares. |
 | **Cursor e outros clientes MCP** | Ainda não testado | Adicione `https://kabo.sh/mcp-pub` como servidor MCP remoto com OAuth e depois adicione as Skills. |
 
 Você precisa de uma conta do Kabo; entrar com o Google já cria uma. Os fluxos de trabalho precisam de Python 3 e de um
