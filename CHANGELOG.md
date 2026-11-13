@@ -2,6 +2,24 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.47 (unreleased)
+
+- New Skill `review-thumbnail` (Skill version 0.1.3): reviews and compares one to three uploaded PNG/JPEG/WebP
+  thumbnails with ten editorial pass/fail checks (topic match, emotion, harmony, eye-catching element,
+  uncluttered, color and contrast, unique concept, execution, curiosity, resolution and aspect ratio). Each check
+  gives one concrete reason and, when it fails, a fix; each candidate lists its first 2-3 changes, and pairwise
+  comparisons explain both sides before recommending one candidate, a tie or none. There are no scores, no CTR
+  prediction and no backend checker; the review is platform-independent and needs no Kabo data tool or account.
+- Before judging, the host records per-image `observations` (verbatim visible text, main subject, disclosure
+  labels). `scripts/review_thumbnail.py deliver` rejects quoted text that is not on that candidate, comparison
+  quotes from outside the pair, and any reason or fix that asks to remove or hide a recorded source,
+  AI-generated, cloned-voice or financial disclosure. It renders a validated `FINAL_REVIEW.md` (English, or
+  Chinese labels from `references/labels-zh.json`) that the host displays unchanged through its file-display
+  capability. Python 3 and Pillow prepare local copies and 320px previews.
+- Integration: registered in `skills.lock.json`, `runtime-contract.json` and the package checks; the fetch-runtime
+  tests skip it explicitly because it ships no `static_host.py`. Pre web testing passed; cross-host acceptance
+  on Claude Code, Codex and ChatGPT is pending.
+
 ## 1.0.46 (unreleased)
 
 - Declare `extensions.com.openai.onboardingSkill` as `./skills/start-with-kabo/SKILL.md` so Codex's

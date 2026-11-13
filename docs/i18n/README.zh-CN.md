@@ -23,7 +23,7 @@
   <a href="https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/kabo-sh/kabo-mcp-plugin?style=flat&color=blueviolet&label=release" /></a>
   <a href="../../LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat" /></a>
   <a href="#install"><img alt="works with" src="https://img.shields.io/badge/works%20with-Claude%20%C2%B7%20ChatGPT%20%C2%B7%20Grok%20Bot%20%C2%B7%20Muse-black?style=flat" /></a>
-  <a href="#what-you-can-do"><img alt="skills" src="https://img.shields.io/badge/skills-21-d8ff74?style=flat" /></a>
+  <a href="#what-you-can-do"><img alt="skills" src="https://img.shields.io/badge/skills-22-d8ff74?style=flat" /></a>
   <a href="#install"><img alt="install" src="https://img.shields.io/badge/install-1%20message-green?style=flat" /></a>
 </p>
 
@@ -38,7 +38,7 @@
 <p align="center"><a href="../../README.md">English</a> · <b>简体中文</b> · <a href="README.es.md">Español</a> · <a href="README.pt-BR.md">Português</a></p>
 
 Kabo 是 YouTube、Instagram 和 TikTok 创作者的 AI 搭档。这个仓库就是 Kabo 插件：
-一个通往 Kabo 的连接，加上二十一个创作者技能（Skills），都直接运行在你已经在用的 AI 助手里。
+一个通往 Kabo 的连接，加上二十二个创作者技能（Skills），都直接运行在你已经在用的 AI 助手里。
 它有两点与众不同：
 
 - **一个 Kabo，四个助手。** 同一个账号、同一份已保存的个人档案、同一套技能，在
@@ -168,6 +168,7 @@ Kabo 是设计来天天用的，不是用一次就丢。
 | **复盘账号** | 什么有效、什么在拖后腿，以及哪些该继续、停掉或试一试。深度复盘还会真正去看视频。也能诊断流量下滑 | `review-creator-account` · `review-creator-account-deep` · `diagnose-reach-drop` |
 | **拆解一条视频** | 带时间戳地解读一条公开视频或本地文件的开头钩子、节奏和结构 | `analyze-content-video` |
 | **决定下一条做什么** | 根据你的账号、趋势和同行给出内容选题，再为你选中的那个写出脚本、开头钩子和标题 | `develop-content-ideas` · `create-script-and-packaging` |
+| **评测封面** | 对上传的一到三张封面做十项过/不过检查，每项给出理由和改法，指出最先要改的地方，并建议用哪一张 | `review-thumbnail` |
 | **规划什么时候发** | 内容日历，以及根据你自己的历史数据得出的发布时间 | `plan-content-calendar` · `recommend-publish-timing` |
 | **打造个人品牌并变现** | 名字、简介和媒体资料包；变现门槛；针对品牌合作需求单的分项报价 | `optimize-creator-brand` · `plan-platform-monetization` · `price-creator-brand-deals` |
 | **核对平台规则** | 对照官方帮助页，核实某条规则、门槛或传言，附上引文和日期 | `verify-platform-rule` |

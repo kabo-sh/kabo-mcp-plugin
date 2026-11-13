@@ -21,7 +21,7 @@
   <a href="https://github.com/kabo-sh/kabo-mcp-plugin/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/kabo-sh/kabo-mcp-plugin?style=flat&color=blueviolet&label=release" /></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat" /></a>
   <a href="#install"><img alt="works with" src="https://img.shields.io/badge/works%20with-Claude%20%C2%B7%20ChatGPT%20%C2%B7%20Grok%20Bot%20%C2%B7%20Muse-black?style=flat" /></a>
-  <a href="#what-you-can-do"><img alt="skills" src="https://img.shields.io/badge/skills-21-d8ff74?style=flat" /></a>
+  <a href="#what-you-can-do"><img alt="skills" src="https://img.shields.io/badge/skills-22-d8ff74?style=flat" /></a>
   <a href="#install"><img alt="install" src="https://img.shields.io/badge/install-1%20message-green?style=flat" /></a>
 </p>
 
@@ -36,7 +36,7 @@
 <p align="center"><b>English</b> · <a href="docs/i18n/README.zh-CN.md">简体中文</a> · <a href="docs/i18n/README.es.md">Español</a> · <a href="docs/i18n/README.pt-BR.md">Português</a></p>
 
 Kabo is an AI partner for YouTube, Instagram and TikTok creators. This repository is the Kabo plugin:
-one connection to Kabo and twenty-one creator Skills that run inside the AI assistant you already use.
+one connection to Kabo and twenty-two creator Skills that run inside the AI assistant you already use.
 Two things set it apart:
 
 - **One Kabo, four assistants.** The same account, the same saved profile and the same Skills work in
@@ -166,6 +166,7 @@ the results when they arrive.
 | **Review an account** | What works, what hurts, and what to continue, stop or test. The deep review also watches the videos. Diagnoses a reach drop | `review-creator-account` · `review-creator-account-deep` · `diagnose-reach-drop` |
 | **Break down a video** | A timestamped read of the hook, pacing and structure of a public video or a local file | `analyze-content-video` |
 | **Decide what to make next** | Content ideas from your account, trends and competitors, then the script, hook and title for the one you pick | `develop-content-ideas` · `create-script-and-packaging` |
+| **Review thumbnails** | Ten pass/fail checks on one to three uploaded thumbnails, with a reason and a fix for each, the first changes to make and which candidate to use | `review-thumbnail` |
 | **Plan when to post** | A content calendar and posting times drawn from your own history | `plan-content-calendar` · `recommend-publish-timing` |
 | **Build the brand and get paid** | Names, bios and a media kit; monetization thresholds; line-item pricing for a brand-deal brief | `optimize-creator-brand` · `plan-platform-monetization` · `price-creator-brand-deals` |
 | **Check a platform rule** | Verifies a rule, threshold or rumour against official help pages, with quotes and dates | `verify-platform-rule` |

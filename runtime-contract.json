@@ -25,7 +25,8 @@
     "price-creator-brand-deals",
     "start-with-kabo",
     "pick-daily-viral-videos",
-    "review-new-posts"
+    "review-new-posts",
+    "review-thumbnail"
   ],
   "requiredTools": [
     "analyze_content_video",

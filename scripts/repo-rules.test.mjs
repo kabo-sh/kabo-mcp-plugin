@@ -182,6 +182,8 @@ const LOCALIZED_SKILL_DATA = [
   "skills/review-creator-account/scripts/compose_review.py",
   "skills/review-creator-account/scripts/estimate_growth.py",
   "skills/review-creator-account/scripts/validate_creator_report.py",
+  "skills/review-thumbnail/references/labels-zh.json",
+  "skills/review-thumbnail/scripts/review_thumbnail.py",
   "skills/verify-platform-rule/references/sources/bilibili.json",
 ];
 // Test inputs and expected outputs that exercise the data above.
@@ -199,6 +201,7 @@ const NON_ENGLISH_TEST_DATA = [
   "scripts/reach-drop-age-reading.test.mjs",
   "scripts/reach-drop-calendar-windows.test.mjs",
   "scripts/remake-local-upload.test.mjs",
+  "scripts/review-thumbnail-regression.py",
   "scripts/short-window-topic-regression.py",
   "scripts/static-skills.test.mjs",
   "scripts/trends-profile.test.mjs",
