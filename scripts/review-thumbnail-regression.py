@@ -24,7 +24,7 @@ class Contract(unittest.TestCase):
         self.source = dict(images=['A.png', 'B.png', 'C.png'], language='en', context={'title':'A topic', 'target_aspect_ratio':'16:9'})
         m.write(self.root / 'input.json', self.source)
         m.prepare(self.root / 'input.json', self.run)
-        self.review = dict(schema_version='review-thumbnail.review.v2', request_sha256=m.digest((self.run / 'request.json').read_bytes()), candidates=[dict(id=i, items={j['id']:dict(verdict='pass', reason='Concrete visible feature.', fix='', basis='observed') for j in m.ITEMS}, priorities=[], suitable=True, suitability_reason='Clear topic and finished layout.') for i in 'ABC'], comparisons=[dict(pair=list(p), winner=p[0], reason='The first has a clearer subject; the second has competing text.') for p in [('A','B'),('A','C'),('B','C')]], recommendation=dict(candidate_id='A', reason='Clearer than both alternatives.'))
+        self.review = dict(schema_version='review-thumbnail.review.v2', request_sha256=m.digest((self.run / 'request.json').read_bytes()), candidates=[dict(id=i, observations=dict(visible_text=['TOPIC '+i, 'AI generated'], main_subject='A plain colored test card.', disclosures=['AI generated']), items={j['id']:dict(verdict='pass', reason='Concrete visible feature.', fix='', basis='observed') for j in m.ITEMS}, priorities=[], suitable=True, suitability_reason='Clear topic and finished layout.') for i in 'ABC'], comparisons=[dict(pair=list(p), winner=p[0], reason='The first has a clearer subject; the second has competing text.') for p in [('A','B'),('A','C'),('B','C')]], recommendation=dict(candidate_id='A', reason='Clearer than both alternatives.'))
         self.save()
 
     def save(self): m.write(self.run / 'review.json', self.review)
@@ -55,6 +55,39 @@ class Contract(unittest.TestCase):
         self.assertEqual(report.count(b'Concrete visible feature.'),30)
         self.assertEqual(m.deliver(self.run)['report_sha256'],receipt['report_sha256'])
         self.assertNotIn(b'| Score |',report)
+
+    def test_observations_are_required(self):
+        self.bad(lambda r: r['candidates'][0].pop('observations'))
+
+    def test_disclosure_must_be_in_visible_text(self):
+        self.bad(lambda r: r['candidates'][0]['observations'].update(disclosures=['cloned voice']))
+
+    def test_quoted_text_must_come_from_same_candidate(self):
+        # 回归：三图对比时把 A 的标题安到 C 上。
+        self.bad(lambda r: r['candidates'][2]['items']['topic_match'].update(reason='The headline “TOPIC A” matches the topic.'))
+
+    def test_quoted_text_from_own_candidate_passes(self):
+        self.review['candidates'][2]['items']['topic_match'].update(reason='The headline “TOPIC C” matches the topic.')
+        self.save()
+        m.deliver(self.run)
+
+    def test_comparison_quotes_must_belong_to_the_pair(self):
+        self.bad(lambda r: r['comparisons'][0].update(reason='A wins because “TOPIC C” is clearer.'))
+
+    def test_cannot_ask_to_remove_disclosure(self):
+        # 回归：把“AI generated”来源标识当杂物要求删除。
+        def edit(r):
+            c=r['candidates'][0];c['items']['execution'].update(verdict='fail',reason='The AI generated label looks like leftover clutter.',fix='Remove the AI generated label.');c['priorities']=['execution']
+        self.bad(edit)
+
+    def test_moving_disclosure_is_allowed(self):
+        c=self.review['candidates'][0];c['items']['uncluttered'].update(verdict='fail',reason='The AI generated label overlaps the face.',fix='Move the AI generated label to a corner and keep it readable.');c['priorities']=['uncluttered']
+        self.save()
+        m.deliver(self.run)
+
+    def test_report_lists_visible_text(self):
+        m.deliver(self.run)
+        self.assertIn(b'Text in image: TOPIC A', (self.run/'FINAL_REVIEW.md').read_bytes())
 
     def test_single_candidate(self):
         request=m.load(self.run/'request.json');request['images']=request['images'][:1];m.write(self.run/'request.json',request)

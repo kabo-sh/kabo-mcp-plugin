@@ -58,6 +58,39 @@ def sentence(value):
     require(isinstance(value, str) and 0 < len(value.strip()) <= 600 and '\n' not in value, 'Expected one nonblank reason, at most 600 characters')
 
 
+# 引号内的文字必须是该候选图上真实看到的字，防止把别的图的标题安到这张图上。
+QUOTE = re.compile(r'[“"「『]([^”"」』]{2,80})[”"」』]')
+# 平台或法规要求保留的来源/免责声明，不能被当成杂物要求删除或隐藏。
+REMOVAL = re.compile(r'(删除|删掉|去掉|去除|移除|拿掉|隐藏|遮住|淡化到看不见|remove|delete|drop|hide|erase|get rid of)', re.I)
+
+
+def norm(value):
+    return re.sub(r'\s+', ' ', value).strip().casefold()
+
+
+def observations(value):
+    keys(value, ('visible_text', 'main_subject', 'disclosures'))
+    require(isinstance(value['visible_text'], list) and all(isinstance(t, str) and t.strip() and len(t) <= 200 for t in value['visible_text']), 'visible_text must list each visible text exactly as seen (empty list if none)')
+    require(isinstance(value['disclosures'], list) and all(isinstance(t, str) and t.strip() for t in value['disclosures']), 'disclosures must list source/AI/financial disclosure labels seen (empty list if none)')
+    sentence(value['main_subject'])
+    seen = ' | '.join(norm(t) for t in value['visible_text'])
+    for label in value['disclosures']:
+        require(norm(label) in seen, 'Each disclosure must also appear in visible_text: ' + label)
+    return seen
+
+
+def grounded(textvalue, seen, where):
+    for quoted in QUOTE.findall(textvalue):
+        require(norm(quoted) in seen, f'{where} quotes text not recorded in visible_text: {quoted}')
+
+
+def keeps_disclosures(textvalue, disclosures, where):
+    low = norm(textvalue)
+    for label in disclosures:
+        if norm(label) in low and REMOVAL.search(textvalue):
+            raise ValueError(f'{where} asks to remove a required disclosure ({label}); disclosures must stay readable')
+
+
 def safe_file(run, relative):
     require(isinstance(relative, str), 'Expected a relative file path')
     p = (run / relative).resolve()
@@ -144,14 +177,21 @@ def validate(run):
     ids = [r['id'] for r in request['images']]
     require(isinstance(review['candidates'], list) and all(isinstance(c, dict) for c in review['candidates']) and [c.get('id') for c in review['candidates']] == ids, 'Missing, duplicate or reordered candidates')
     outcomes = {}
+    seen_by_id = {}
     for candidate in review['candidates']:
-        keys(candidate, ('id', 'items', 'priorities', 'suitable', 'suitability_reason'))
+        keys(candidate, ('id', 'observations', 'items', 'priorities', 'suitable', 'suitability_reason'))
+        seen = observations(candidate['observations'])
+        seen_by_id[candidate['id']] = seen
+        disclosures = candidate['observations']['disclosures']
+        grounded(candidate['suitability_reason'], seen, candidate['id'] + ' suitability')
         rows = candidate['items']
         require(isinstance(rows, dict) and set(rows) == {i['id'] for i in ITEMS}, 'All ten rubric items are required exactly once')
         for item in ITEMS:
             row = rows[item['id']]
             keys(row, ('verdict', 'reason', 'fix', 'basis'))
             sentence(row['reason'])
+            grounded(row['reason'], seen, f"{candidate['id']}.{item['id']} reason")
+            keeps_disclosures(row['reason'] + ' ' + row['fix'], disclosures, f"{candidate['id']}.{item['id']}")
             require(row['verdict'] in ('pass', 'fail'), 'Use only pass or fail; no scores or third verdict')
             require(row['basis'] in ('observed', 'missing_context'), 'Invalid evidence basis')
             if row['verdict'] == 'fail':
@@ -183,6 +223,7 @@ def validate(run):
         keys(row, ('pair', 'winner', 'reason'))
         require(row['pair'] == list(pair) and row['winner'] in (*pair, 'tie', 'neither', 'insufficient'), 'Invalid pair or winner')
         sentence(row['reason'])
+        grounded(row['reason'], seen_by_id[pair[0]] + ' | ' + seen_by_id[pair[1]], f'Comparison {pair[0]}/{pair[1]}')
         eligible = [i for i in pair if outcomes[i]['suitable']]
         require(row['winner'] not in pair or row['winner'] in eligible, 'Cannot prefer an unsuitable image')
         require(row['winner'] != 'tie' or len(eligible) == 2, 'Tie requires two suitable candidates')
@@ -190,6 +231,7 @@ def validate(run):
     rec = review['recommendation']
     keys(rec, ('candidate_id', 'reason'))
     sentence(rec['reason'])
+    grounded(rec['reason'], ' | '.join(seen_by_id.values()), 'Recommendation')
     require(rec['candidate_id'] is None or rec['candidate_id'] in ids, 'Unknown recommendation')
     if rec['candidate_id']:
         require(outcomes[rec['candidate_id']]['suitable'], 'Unsuitable candidates cannot be recommended')
@@ -210,7 +252,8 @@ def render(request, review, outcomes):
     lines = ['# ' + ('封面评测' if zh else 'Thumbnail review'), '',
              'AI编辑建议，不代表实际点击率。缺依据的“不过”会说明需补充什么。' if zh else 'AI editorial advice, not measured CTR. Evidence gaps appear as failed checks with a request for the missing context.', '']
     for c in review['candidates']:
-        lines += ['## ' + c['id'], '', text(c['suitability_reason']), '',
+        shown = '、'.join(text(t) for t in c['observations']['visible_text']) or ('（无文字）' if zh else '(no text)')
+        lines += ['## ' + c['id'], '', text(c['suitability_reason']), '', ('图中文字：' if zh else 'Text in image: ') + shown, '',
                   '| 项目 | 判断 | 一句理由 | 怎么改 |' if zh else '| Item | Verdict | Reason | How to improve |', '|---|---|---|---|']
         for item in ITEMS:
             r = c['items'][item['id']]

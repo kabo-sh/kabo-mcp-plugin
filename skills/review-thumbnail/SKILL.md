@@ -4,7 +4,7 @@ description: "Review and compare one to three uploaded video thumbnails using te
 license: MIT
 compatibility: "Requires a vision-capable host, local file read/write access, Python 3 and Pillow for static image decoding and small-image preparation. Inline file delivery requires a host capability that displays an existing Markdown file unchanged. No Kabo data permission or backend checker is required."
 metadata:
-  version: "0.1.2"
+  version: "0.1.3"
   platform_agnostic: "true"
 ---
 
@@ -46,10 +46,17 @@ The script copies the originals, binds hashes and dimensions, and creates aspect
 
 ## Judge and compare
 
-1. Open every original and small image using the host's image viewer. Inspect supplied visual
-   references before claiming a match. Record visible evidence, not filenames or prior labels.
-2. Apply the ten anchors in rubric order. Use the same criteria on all candidates and repeated
-   views. Cite the concrete element behind each verdict. If evidence needed for a check is
+1. Look before judging, one candidate at a time. Open each original and small image with the
+   host's image viewer and fill that candidate's `observations` first: every visible text exactly
+   as written (`visible_text`), the main subject, and any source, AI-generated, cloned-voice or
+   financial disclosure labels (`disclosures`). Write these from that image alone, before reading
+   or comparing the others. Never carry a title or element from one candidate into another.
+   Any text you quote later must already be in that candidate's `visible_text`; the script rejects
+   quotes it cannot find there. Inspect supplied visual references before claiming a match.
+2. Apply the ten anchors in rubric order, still per candidate and from its own observations, so
+   the same image gets the same verdicts whether it is reviewed alone or among others. Disclosure
+   labels are required, not clutter: never fail an item for their presence and never ask to
+   remove or hide them. Use the same criteria on all candidates and repeated views. Cite the concrete element behind each verdict. If evidence needed for a check is
    missing, use fail with `basis: missing_context`, say what is unknown and request that evidence
    as the fix. This means the check cannot pass yet, not that a visual defect was detected.
 3. Give each failed item an actionable fix. Select the first 2–3 failed items to change for each
@@ -59,7 +66,7 @@ The script copies the originals, binds hashes and dimensions, and creates aspect
 4. Judge whether each image is suitable for the stated use, with one reason. This is an editorial
    choice, not a pass-count threshold or veto. A minor weakness may coexist with suitability;
    missing essential context cannot establish suitability. Do not force a winner.
-5. Compare A–B for two images and A–B, A–C, B–C for three, using the same context. Explain the
+5. Only after every candidate is judged, compare A–B for two images and A–B, A–C, B–C for three, using the same context. Explain the
    winner's advantage AND the alternative's weakness. Allow a tie or insufficient evidence;
    when neither is suitable, say neither. If all are unsuitable, explicitly recommend none.
    A single candidate still gets a recommendation or a reason it needs changes first.

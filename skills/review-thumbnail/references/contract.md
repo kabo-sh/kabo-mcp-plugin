@@ -20,6 +20,7 @@ Author `review.json` with exactly these fields:
   "request_sha256":"<sha256 of exact request.json bytes>",
   "candidates":[{
     "id":"A",
+    "observations":{"visible_text":["CLAY INTO A POT","AI generated"],"main_subject":"Hands shaping clay on a wheel.","disclosures":["AI generated"]},
     "items":{
       "topic_match":{"verdict":"pass","reason":"The clay pot matches the lesson title.","fix":"","basis":"observed"}
     },
@@ -31,6 +32,14 @@ Author `review.json` with exactly these fields:
   "recommendation":{"candidate_id":"A","reason":"The subject and topic are immediately clear."}
 }
 ```
+
+`observations` is written per candidate before any judgment: `visible_text` lists each visible text
+exactly as written (empty list when the image has none), `main_subject` is one sentence, and
+`disclosures` lists source/AI/cloned-voice/financial disclosure labels, each of which must also appear
+in `visible_text`. Any quoted text (“…”, "…", 「…」) in an item reason, suitability reason, comparison
+or recommendation must appear in the relevant candidate's `visible_text`. A reason or fix may not ask
+to remove or hide a recorded disclosure. Suggested new wording belongs in `fix`, which is not checked
+against `visible_text`.
 
 The example abbreviates `items`; real reviews require all ten IDs from rubric.json exactly once,
 in every candidate. All objects reject extra fields (including scores). Candidate order is A/B/C.
