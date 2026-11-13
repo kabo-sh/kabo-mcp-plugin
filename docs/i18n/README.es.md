@@ -28,10 +28,10 @@
 </p>
 
 <p align="center">
-  <a href="https://kabo.sh/integrations/claude-code?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_claude"><img alt="Add to Claude" src="https://img.shields.io/badge/Add_to-Claude-1C1917?style=for-the-badge&logo=claude&logoColor=D97757" /></a>
-  <a href="https://chatgpt.com/plugins/plugin_asdk_app_6adac6e43f4481918fceac5ade2df2c6"><img alt="Add to ChatGPT and Codex" src="https://img.shields.io/badge/Add_to-ChatGPT_%C2%B7_Codex-1C1917?style=for-the-badge" /></a>
-  <a href="#install"><img alt="Add to Grok Bot" src="https://img.shields.io/badge/Add_to-Grok_Bot-1C1917?style=for-the-badge" /></a>
-  <a href="https://kabo.sh/integrations/muse?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_muse"><img alt="Add to Muse" src="https://img.shields.io/badge/Add_to-Muse-1C1917?style=for-the-badge" /></a>
+  <a href="https://kabo.sh/mcp/claude-code?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_claude"><img alt="Add to Claude" src="https://img.shields.io/badge/Add_to-Claude-1C1917?style=for-the-badge&logo=claude&logoColor=D97757" /></a>
+  <a href="https://kabo.sh/mcp/codex?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_chatgpt"><img alt="Add to ChatGPT and Codex" src="https://img.shields.io/badge/Add_to-ChatGPT_%C2%B7_Codex-1C1917?style=for-the-badge" /></a>
+  <a href="https://kabo.sh/mcp/grok-bot?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_grok"><img alt="Add to Grok Bot" src="https://img.shields.io/badge/Add_to-Grok_Bot-1C1917?style=for-the-badge" /></a>
+  <a href="https://kabo.sh/mcp/muse?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_muse"><img alt="Add to Muse" src="https://img.shields.io/badge/Add_to-Muse-1C1917?style=for-the-badge" /></a>
   <a href="https://kabo.sh/integrations/mcp?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_mcp"><img alt="Any MCP client" src="https://img.shields.io/badge/Any-MCP_client-1C1917?style=for-the-badge" /></a>
 </p>
 
@@ -206,7 +206,7 @@ los Skills y comprobar que todo funcione. El inicio de sesión se hace en tu nav
 de los dos y luego te indica los pasos de inicio de sesión que faltan:
 
 ```sh
-npx kabo-sh install
+npx -y kabo-sh install
 ```
 
 Agrega `--dry-run` para ver qué ejecutaría sin cambiar nada.
@@ -229,7 +229,7 @@ Install Kabo for me: run `npx -y kabo-sh@latest install` on your computer, read 
 Necesitas una cuenta de Kabo; iniciar sesión con Google crea una. Los flujos de trabajo necesitan Python 3 y un
 espacio de trabajo que el asistente pueda leer y escribir.
 
-Guías paso a paso: [kabo.sh/install](https://kabo.sh/install?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_install) ·
+Guías paso a paso: [kabo.sh/mcp/install](https://kabo.sh/mcp/install?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_install) ·
 [Configuración de MCP](https://kabo.sh/docs/mcp?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_install_mcp) ·
 [referencia completa de instalación](../installation.md#installation-and-authentication)
 

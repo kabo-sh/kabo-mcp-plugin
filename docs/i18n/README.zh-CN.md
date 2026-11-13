@@ -28,10 +28,10 @@
 </p>
 
 <p align="center">
-  <a href="https://kabo.sh/integrations/claude-code?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_claude"><img alt="添加到 Claude" src="https://img.shields.io/badge/Add_to-Claude-1C1917?style=for-the-badge&logo=claude&logoColor=D97757" /></a>
-  <a href="https://chatgpt.com/plugins/plugin_asdk_app_6adac6e43f4481918fceac5ade2df2c6"><img alt="添加到 ChatGPT 和 Codex" src="https://img.shields.io/badge/Add_to-ChatGPT_%C2%B7_Codex-1C1917?style=for-the-badge" /></a>
-  <a href="#install"><img alt="添加到 Grok Bot" src="https://img.shields.io/badge/Add_to-Grok_Bot-1C1917?style=for-the-badge" /></a>
-  <a href="https://kabo.sh/integrations/muse?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_muse"><img alt="添加到 Muse" src="https://img.shields.io/badge/Add_to-Muse-1C1917?style=for-the-badge" /></a>
+  <a href="https://kabo.sh/mcp/claude-code?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_claude"><img alt="添加到 Claude" src="https://img.shields.io/badge/Add_to-Claude-1C1917?style=for-the-badge&logo=claude&logoColor=D97757" /></a>
+  <a href="https://kabo.sh/mcp/codex?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_chatgpt"><img alt="添加到 ChatGPT 和 Codex" src="https://img.shields.io/badge/Add_to-ChatGPT_%C2%B7_Codex-1C1917?style=for-the-badge" /></a>
+  <a href="https://kabo.sh/mcp/grok-bot?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_grok"><img alt="添加到 Grok Bot" src="https://img.shields.io/badge/Add_to-Grok_Bot-1C1917?style=for-the-badge" /></a>
+  <a href="https://kabo.sh/mcp/muse?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_muse"><img alt="添加到 Muse" src="https://img.shields.io/badge/Add_to-Muse-1C1917?style=for-the-badge" /></a>
   <a href="https://kabo.sh/integrations/mcp?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_mcp"><img alt="任意 MCP 客户端" src="https://img.shields.io/badge/Any-MCP_client-1C1917?style=for-the-badge" /></a>
 </p>
 
@@ -203,7 +203,7 @@ Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable
 替你装上插件，然后告诉你还剩哪几步登录要你自己完成：
 
 ```sh
-npx kabo-sh install
+npx -y kabo-sh install
 ```
 
 加上 `--dry-run` 可以只看它会执行什么、不做任何改动。
@@ -225,7 +225,7 @@ Install Kabo for me: run `npx -y kabo-sh@latest install` on your computer, read 
 
 你需要一个 Kabo 账号；用 Google 登录就会自动创建。这些工作流需要 Python 3，以及一个助手可以读写的工作区。
 
-分步指南：[kabo.sh/install](https://kabo.sh/install?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_install) ·
+分步指南：[kabo.sh/mcp/install](https://kabo.sh/mcp/install?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_install) ·
 [MCP 设置](https://kabo.sh/docs/mcp?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_install_mcp) ·
 [完整安装参考](../installation.md#installation-and-authentication)
 
