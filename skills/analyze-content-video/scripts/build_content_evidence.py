@@ -840,6 +840,14 @@ def transcript_block(captions: dict[str, Any] | None, request: dict[str, Any]) -
     if native and data.get("status") != "available":
         block.update(status="provider_error", status_basis=f"{operation} did not return an available transcript")
         return block
+    if data.get("source_unavailable") is True:
+        # The backend could not fetch the video itself (deleted, or limited to regions its servers
+        # cannot reach). That is not "the video has no subtitle track", which would be a claim about
+        # the video; it is a fact about this run, and every other dimension is missing with it.
+        block.update(status="provider_error",
+                     status_basis=f"{operation}: the source video itself could not be fetched "
+                                  "(deleted or region-restricted), so no transcript exists for this run")
+        return block
     cues = cues_from(data.get("cues"))
     plain = data.get("plain_text") if isinstance(data.get("plain_text"), str) else None
     origin = data.get("origin") if data.get("origin") in TRANSCRIPT_ORIGINS else None
