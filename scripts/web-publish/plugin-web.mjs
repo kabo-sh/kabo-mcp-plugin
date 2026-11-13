@@ -18,6 +18,7 @@
 //
 // Subcommands:
 //   publish      --plugin-root <dir> --plugin-commit <sha> [--target index|test] [--skills a,b] [--hold a,b]
+//                [--debut a,b]
 //   restore      --sha <history digest> [--target index|test]
 //   clear        [--target index|test]          write an empty overlay (Web goes back to reading only the live
 //   index)
@@ -108,6 +109,21 @@ export function versionFor(id, checksum, liveIndexes, current, declared = null, 
   return `${major}.${minor}.${patch + 1}`;
 }
 
+/**
+ * Debut: the version a skill that is on no channel and not in the current overlay takes on its first Web publish.
+ * Only called for skills in the debut list (PLUGIN_WEB_DEBUT). The version is the one SKILL.md declares in
+ * metadata.version (required: there is no live version to continue from), and it must be above every version this
+ * skill has already used on an overlay (versions.json / the other target), so a number is never reused.
+ */
+export function debutVersion(id, declared, used = []) {
+  if (!declared) fail(`${id}: is in the debut list but SKILL.md has no metadata.version; declare one to debut it on Web`);
+  if (!SEMVER.test(declared)) fail(`${id}: SKILL.md metadata.version ${JSON.stringify(declared)} must be x.y.z to debut it on Web`);
+  const prior = used.filter((version) => SEMVER.test(version ?? '')).sort(compare).at(-1);
+  if (prior && compare(declared, prior) <= 0)
+    fail(`${id}: SKILL.md metadata.version ${declared} must be above ${prior}, already used on the Web overlay; bump it in kabo-mcp-plugin`);
+  return declared;
+}
+
 // expectedGeneration: the generation of the overlay when publish read it (0 = did not exist then); if someone
 //   else changed it in between, error out and rerun, rather than overwriting their newer write with old
 //   entries.
@@ -139,7 +155,7 @@ export const RELEASE_OBJECT = `${OVERLAY_PREFIX}release.json`;
  * `bundleStore` writes bundles/ (in CI this is the Internal publishing identity, the only one that can write bundles/); `store` reads channels and writes
  * the overlay (in CI this is the Production publishing identity, which can write channels/production/ but not bundles/). Locally both are the same.
  */
-export async function publish({ store, bundleStore = store, pluginRoot, pluginCommit, pluginTag = null, targetName = 'index', skills, hold = [], now = new Date() }) {
+export async function publish({ store, bundleStore = store, pluginRoot, pluginCommit, pluginTag = null, targetName = 'index', skills, hold = [], debut = [], now = new Date() }) {
   if (!COMMIT.test(pluginCommit ?? '')) fail('plugin commit must be 40 lowercase hex characters');
   const object = target(targetName);
   const readChannel = async (channel) => {
@@ -164,28 +180,39 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
     .filter((id) => SKILL_ID.test(id) && fs.existsSync(path.join(pluginRoot, 'skills', id, 'SKILL.md')));
   // hold: skills that do not go into the overlay this time (Web keeps using the original Registry version),
   //   passed in by the workflow's PLUGIN_WEB_HOLD.
+  // debut: skills allowed to make their first Web appearance (PLUGIN_WEB_DEBUT). Hold wins over debut: a skill in
+  //   both is filtered out by hold below and never reaches the debut check. Excluded skills cannot debut either.
+  const invalidDebut = debut.filter((id) => !SKILL_ID.test(id));
+  if (invalidDebut.length) fail(`debut list has invalid skill ids: ${invalidDebut.join(', ')}`);
   const wanted = (skills?.length ? skills : available.filter((id) => !EXCLUDED.has(id))).filter((id) => !hold.includes(id));
   const unknown = wanted.filter((id) => !available.includes(id));
   if (unknown.length) fail(`not in the plugin at ${pluginCommit}: ${unknown.join(', ')}`);
   // Package everything and compute versions first; if any one fails the checks, write nothing for the whole
   //   batch.
   const skipped = [];
+  const debuted = [];
   const bundles = [];
   const kept = {};
   for (const id of wanted) {
     const directory = path.join(pluginRoot, 'skills', id);
     const probe = buildPluginBundle({ skillDirectory: directory, sourceCommit: pluginCommit, version: '0.0.1', probe: true });
     const existing = current?.skills?.[id];
+    // New to Web (no channel has it and the current overlay does not either): only skills in the debut list may
+    //   go on, including by reusing an identical package from the other target (e.g. debuted on test first).
+    const isNew = !existing && !liveVersion(id, live);
+    if (isNew && !debut.includes(id)) { skipped.push({ id, reason: 'not live on any channel' }); continue; }
+    if (isNew) debuted.push(id);
     // Content unchanged: reuse the existing overlay entry as is (the package is already in the bucket, and
     //   source.commit records the commit that first released it).
     if (existing && existing.content_checksum === probe.content_checksum) { kept[id] = existing; continue; }
     const twin = others.map((index) => index?.skills?.[id]).find((entry) => entry?.content_checksum === probe.content_checksum);
     if (twin && (await bundleStore.read(twin.object))) { kept[id] = twin; continue; }
     const used = [...others.map((index) => index?.skills?.[id]?.version), highwater.skills?.[id]].filter(Boolean);
-    const version = versionFor(id, probe.content_checksum, live, current, probe.declared_version, used);
-    // A skill that has never been in the channel (e.g. plugin-only ones) does not debut here: Web has no entry
-    //   point or chip policy for it.
-    if (!version) { skipped.push({ id, reason: 'not live on any channel' }); continue; }
+    // A skill that has never been in the channel (e.g. plugin-only ones) does not debut unless it is in the debut
+    //   list (Web needs an entry point and chip policy for it first); then it takes its declared version.
+    const version = isNew
+      ? debutVersion(id, probe.declared_version, used)
+      : versionFor(id, probe.content_checksum, live, current, probe.declared_version, used);
     bundles.push(buildPluginBundle({ skillDirectory: directory, sourceCommit: pluginCommit, version }));
   }
   if (!bundles.length && !Object.keys(kept).length) fail('nothing to publish');
@@ -249,6 +276,7 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
     previous: current ? Object.fromEntries(Object.entries(current.skills).map(([id, entry]) => [id, entry.version])) : {},
     skills: overlay.skills,
     skipped,
+    debuted,
   };
 }
 
@@ -299,7 +327,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
         ? new GcsObjectStore({ bucket: store.bucket, accessToken: process.env.GCS_BUNDLE_ACCESS_TOKEN })
         : store;
       const hold = (option('--hold') ?? '').split(',').map((item) => item.trim()).filter(Boolean);
-      result = await publish({ store, bundleStore, pluginRoot: option('--plugin-root'), pluginCommit: option('--plugin-commit'), pluginTag: option('--plugin-tag') ?? null, targetName, skills, hold });
+      const debut = (option('--debut') ?? '').split(',').map((item) => item.trim()).filter(Boolean);
+      result = await publish({ store, bundleStore, pluginRoot: option('--plugin-root'), pluginCommit: option('--plugin-commit'), pluginTag: option('--plugin-tag') ?? null, targetName, skills, hold, debut });
     } else if (command === 'released') {
       // For the scheduled task: print the plugin commit the production overlay currently corresponds to (empty
       //   string if none).

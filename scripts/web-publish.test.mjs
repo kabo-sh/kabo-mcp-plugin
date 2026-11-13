@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { stableJson } from './web-publish/bundle.mjs';
 import { MemoryObjectStore } from './web-publish/store.mjs';
-import { TARGETS, TEST_ACCOUNTS_OBJECT, VERSIONS_OBJECT, clear, publish, restore, testAccounts, versionFor } from './web-publish/plugin-web.mjs';
+import { TARGETS, TEST_ACCOUNTS_OBJECT, VERSIONS_OBJECT, clear, debutVersion, publish, restore, testAccounts, versionFor } from './web-publish/plugin-web.mjs';
 
 const COMMIT = 'c'.repeat(40);
 
@@ -138,4 +138,71 @@ test('publish: if someone changed the overlay after it was read, error out and r
     },
   };
   await assert.rejects(publish({ store, bundleStore, pluginRoot: root, pluginCommit: COMMIT, targetName: 'test' }), /changed while publishing/);
+});
+
+const versioned = (id, version, body) => `---\nname: ${id}\ndescription: "A ${id} fixture"\nmetadata:\n  version: "${version}"\n---\n${body}\n`;
+const versionsOf = (skills) => Object.fromEntries(Object.entries(skills).map(([id, entry]) => [id, entry.version]));
+
+test('publish --debut: a listed skill on no channel debuts at its declared metadata.version; unlisted ones are still skipped', async () => {
+  const { store } = await liveStore();
+  const before = (await store.read('channels/production/index.json')).bytes;
+  const root = pluginRepo({ 'alpha-skill': '# a1', 'new-skill': '# n', 'other-new': '# o' });
+  fs.writeFileSync(path.join(root, 'skills', 'new-skill', 'SKILL.md'), versioned('new-skill', '0.1.4', '# n'));
+  const result = await publish({ store, pluginRoot: root, pluginCommit: COMMIT, debut: ['new-skill'] });
+  assert.deepEqual(versionsOf(result.skills), { 'alpha-skill': '1.2.6', 'new-skill': '0.1.4' });
+  assert.deepEqual(result.skipped, [{ id: 'other-new', reason: 'not live on any channel' }]);
+  assert.deepEqual(result.debuted, ['new-skill']);
+  assert.equal(JSON.parse((await store.read(result.skills['new-skill'].object)).bytes).version, '0.1.4');
+  assert.ok((await store.read('channels/production/index.json')).bytes.equals(before));
+  // Once on the overlay it is no longer new: later changes follow the normal rules with or without the list.
+  fs.writeFileSync(path.join(root, 'skills', 'new-skill', 'SKILL.md'), versioned('new-skill', '0.1.5', '# n2'));
+  const second = await publish({ store, pluginRoot: root, pluginCommit: 'd'.repeat(40) });
+  assert.equal(second.skills['new-skill'].version, '0.1.5');
+  assert.deepEqual(second.debuted, []);
+});
+
+test('publish --debut: a listed new skill without a valid metadata.version fails the whole publish and writes nothing', async () => {
+  const { store } = await liveStore();
+  const root = pluginRepo({ 'alpha-skill': '# a1', 'new-skill': '# n' });
+  await assert.rejects(publish({ store, pluginRoot: root, pluginCommit: COMMIT, debut: ['new-skill'] }), /new-skill: is in the debut list but SKILL\.md has no metadata\.version/);
+  fs.writeFileSync(path.join(root, 'skills', 'new-skill', 'SKILL.md'), versioned('new-skill', 'v1', '# n'));
+  await assert.rejects(publish({ store, pluginRoot: root, pluginCommit: COMMIT, debut: ['new-skill'] }), /must be x\.y\.z/);
+  assert.equal(await store.read(TARGETS.index), null);
+  await assert.rejects(publish({ store, pluginRoot: root, pluginCommit: COMMIT, debut: ['Bad Id'] }), /debut list has invalid skill ids/);
+});
+
+test('publish --debut: listing an already-live skill has no effect; hold wins over debut', async () => {
+  const { store } = await liveStore();
+  const root = pluginRepo({ 'alpha-skill': '# a1', 'beta-skill': '# b1', 'new-skill': '# n' });
+  fs.writeFileSync(path.join(root, 'skills', 'new-skill', 'SKILL.md'), versioned('new-skill', '0.1.0', '# n'));
+  const result = await publish({ store, pluginRoot: root, pluginCommit: COMMIT, debut: ['alpha-skill', 'beta-skill', 'new-skill'], hold: ['new-skill'] });
+  assert.deepEqual(versionsOf(result.skills), { 'alpha-skill': '1.2.6', 'beta-skill': '0.4.11' });
+  assert.deepEqual(result.debuted, []);
+  assert.deepEqual(result.skipped, []);
+});
+
+test('publish --debut: debuted on test first, production reuses the same package only when also listed; a used number is never reissued', async () => {
+  const { store } = await liveStore();
+  const root = pluginRepo({ 'alpha-skill': '# a1', 'new-skill': '# n' });
+  fs.writeFileSync(path.join(root, 'skills', 'new-skill', 'SKILL.md'), versioned('new-skill', '0.1.0', '# n'));
+  const onTest = await publish({ store, pluginRoot: root, pluginCommit: COMMIT, targetName: 'test', debut: ['new-skill'] });
+  assert.equal(onTest.skills['new-skill'].version, '0.1.0');
+  const unlisted = await publish({ store, pluginRoot: root, pluginCommit: COMMIT });
+  assert.equal(unlisted.skills['new-skill'], undefined);
+  assert.deepEqual(unlisted.skipped, [{ id: 'new-skill', reason: 'not live on any channel' }]);
+  const listed = await publish({ store, pluginRoot: root, pluginCommit: COMMIT, debut: ['new-skill'] });
+  assert.deepEqual(listed.skills['new-skill'], onTest.skills['new-skill']);
+  // Cleared everywhere and changed without a bump: 0.1.0 was already used, so the debut is refused.
+  await clear({ store });
+  await clear({ store, targetName: 'test' });
+  fs.writeFileSync(path.join(root, 'skills', 'new-skill', 'SKILL.md'), versioned('new-skill', '0.1.0', '# n2'));
+  await assert.rejects(publish({ store, pluginRoot: root, pluginCommit: COMMIT, debut: ['new-skill'] }), /must be above 0\.1\.0/);
+});
+
+test('debutVersion: requires a declared x.y.z above every used version', () => {
+  assert.equal(debutVersion('a', '0.2.0'), '0.2.0');
+  assert.equal(debutVersion('a', '0.2.0', ['0.1.9']), '0.2.0');
+  assert.throws(() => debutVersion('a', null), /no metadata\.version/);
+  assert.throws(() => debutVersion('a', '0.2'), /must be x\.y\.z/);
+  assert.throws(() => debutVersion('a', '0.2.0', ['0.2.0']), /must be above 0\.2\.0/);
 });
