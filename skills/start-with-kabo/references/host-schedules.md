@@ -130,14 +130,24 @@ it off.
 
 - Ask in chat. Qwen Work creates the tasks itself and shows a "scheduled task created" card for each
   one; send the three instructions above as three requests.
+- Qwen Work tends to rewrite the task text in its own words (in testing: "use the Kabo account review
+  flow for my TikTok account ..."), which dropped the Skill name and the workspace folder. Ask it to
+  use the task text exactly as given, which names the Skill and the absolute workspace folder. After it
+  confirms, read the created task back from the Automated tasks page and check that its text still
+  names the Skill and the folder; if not, ask Qwen Work to edit it.
 - The tasks are listed on the Automated tasks page ("My scheduled tasks") with their next run time.
   Read that time back to the creator. Tasks were created in a time zone that differed from the
   computer's own (Asia/Shanghai on a computer set to Pacific time), so state the zone the card or the
   page shows and offer to change it.
 - A local task runs only while the computer is awake; that page has a keep-awake switch. In busy
-  hours a run may queue behind others.
-- Whether a scheduled run delivered its result, and where it appeared, has not been confirmed yet:
-  do not promise a delivery place. Offer the "Prove delivery once" steps above.
+  hours a run may queue behind others (one run started about 4 minutes late).
+- Each run starts a new conversation titled "New session" with a timestamp, in its own fresh working
+  folder, and posts its result there. Tell the creator to look for that new conversation.
+- An unattended run in testing first tried an unrelated Skill, was told it was not in the
+  host's Skill snapshot and that inline commands are not authorized in the sandbox, then skipped Kabo's
+  Skills and called Kabo tools directly. Whether a Kabo Skill whose steps run Python scripts can run
+  in Qwen Work's unattended sandbox is not yet known. Tell the creator that the first unattended run
+  is the proof and that this is not yet confirmed; offer the "Prove delivery once" steps above.
 
 ## Doubao Work
 
