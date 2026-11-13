@@ -26,6 +26,8 @@ jobs:
           node-version-file: .node-version
       - name: Install the locked verification dependencies
         run: npm ci --ignore-scripts
+      - name: Install Pillow for the review-thumbnail regression
+        run: python3 -m pip install --user --disable-pip-version-check pillow==11.0.0
       - name: Check the package materials and run the tests
         run: npm run verify
       - name: Build twice from this commit and compare
