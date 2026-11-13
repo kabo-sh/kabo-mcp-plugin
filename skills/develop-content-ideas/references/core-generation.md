@@ -39,7 +39,7 @@ budget field, not evidence of two host calls for batch runs.
 1. Prep: evidence + `intent.json` → `cd '<run directory>' && python3 '<skill directory>/scripts/run_ideas_stages.py' prep --intent intent.json --run-dir .` (+ artifact flags).
 2. Only when decision status is `ready_for_generation`: one model pass writes a complete IdeaSet.
 3. `cd '<run directory>' && python3 '<skill directory>/scripts/run_ideas_stages.py' core --run-dir .`
-4. Read structured script stdout: `status="needs_revision"` and `revision_remaining=1` (exit `0`, still unvalidated) requires one model pass revising from the returned errors / `revision_brief.json`, then core again in the same run directory. Keep the attempt counter; do not restart prep or deliver unvalidated prose instead of this runnable step.
+4. Read structured script stdout: `status="needs_revision"` and `revision_remaining=1` (exit `0`, still unvalidated) requires targeted edits through `run_ideas_stages.py revise --run-dir . --input revision.json` (field-level `edits` from `error_details`; it dry-runs validation without an attempt), then core again in the same run directory once revise returns `ready_for_core`. Keep the attempt counter; do not restart prep or deliver unvalidated prose instead of this runnable step.
 5. `status="ok"` with report paths (exit `0`) makes the reports ready; `status="not_met"` (exit `3`) stops creative retries. A failed/missing status is not permission to claim completion or reset the budget. If execution is unavailable, report that the draft remains unvalidated.
 
 Run these commands from the run directory `SKILL.md` sets up. Every core call is non-final,

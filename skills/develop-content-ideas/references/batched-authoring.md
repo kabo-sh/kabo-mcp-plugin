@@ -19,6 +19,8 @@ Write `batch-N.json` with precisely:
   `evidence_summary` and any needed `evidence_gap_translations`. Review all accepted candidates
   when writing this aggregate report. Set `status` to `ready_for_selection` only when appropriate.
   Recommended IDs use the returned stable IDs, e.g. `idea-001`. Never include `ideas` inside report.
+  The script moves the first recommended ID to rank 1 (the "shoot first" idea); other candidates
+  keep their relative order, so the batch output may include `rank_adjustment`.
 
 The script supplies only deterministic root fields (`schema_version`, `idea_set_id`, `request_id`,
 `created_at`, `task_intent`, `source_mode`, `report_language`). It does not manufacture risk,
@@ -35,10 +37,13 @@ means all candidates are assembled; still run core, export and exact path-based 
 answering. Partial batches never produce a deliverable. Replaying identical content is idempotent;
 conflicting content, another request's digest, unknown batch IDs or wrong counts are rejected.
 Do not overwrite accepted batches. A network replay is not a new creative attempt.
+Each batch is schema-checked before acceptance. `status="needs_revision"` with `stage="batch"`
+means nothing from that batch was stored: fix exactly the listed `error_details` paths in that
+`batch-N.json` and rerun the same command.
 
 Initial authoring uses `ceil(N / 10)` batch passes. Core then validates the full set once, including
-cross-batch constraints and title uniqueness. If it returns `needs_revision`, revise the assembled
-`idea_set.json` once to fix all reported errors, then rerun core. Do not submit replacement batches
+cross-batch constraints and title uniqueness. If it returns `needs_revision`, fix the reported fields with the returned
+`revise_command` (targeted `edits`, never a full rewrite), then rerun core. Do not submit replacement batches
 or reset prep. Log initial authoring submissions separately from the two aggregate validation
 attempts; neither counter proves the host's actual model-call count. Keep the same iteration,
 output and wall-time budgets. Missing or invalid content never authorizes a short prose substitute.
