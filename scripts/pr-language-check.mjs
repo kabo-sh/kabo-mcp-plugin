@@ -13,10 +13,21 @@ import { readFileSync } from "node:fs";
 
 const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\uff01-\uff60]/u;
 
+// Drops every HTML comment, and everything after an unclosed "<!--". The text is never rendered; this
+// only decides which lines are checked.
+function withoutHtmlComments(text) {
+  return text
+    .split("<!--")
+    .map((part, i) => {
+      if (i === 0) return part;
+      const end = part.indexOf("-->");
+      return end === -1 ? "" : part.slice(end + 3);
+    })
+    .join("");
+}
+
 export function authorProse(text) {
-  return (text ?? "")
-    .replace(/<!-- This is an auto-generated comment[\s\S]*$/, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
+  return withoutHtmlComments((text ?? "").replace(/<!-- This is an auto-generated comment[\s\S]*$/, ""))
     .replace(/```[\s\S]*?```/g, "")
     .replace(/~~~[\s\S]*?~~~/g, "")
     .replace(/`[^`\n]*`/g, "")
