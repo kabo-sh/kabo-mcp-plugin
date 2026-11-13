@@ -11,7 +11,7 @@
 
 import { readFileSync } from "node:fs";
 
-const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\uff01-\uff60]/u;
+const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\uff01-\uff9f\u1100-\u11ff\u3130-\u318f]/u;
 
 // Drops every HTML comment, and everything after an unclosed "<!--". The text is never rendered; this
 // only decides which lines are checked.
