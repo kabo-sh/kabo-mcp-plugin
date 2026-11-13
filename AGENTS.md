@@ -48,6 +48,12 @@
   marketplace console or Publish. CI, a buildable ZIP, real-host and production acceptance, and
   marketplace review are separate facts. State any missing acceptance explicitly and never claim the
   plugin is ready for listing.
+- The one-command installer (`installer/`, published to npm as `kabo-sh`) is the only exception to "do not
+  Publish": pushing an `installer-v<version>` tag runs `.github/workflows/installer-publish.yml`, which publishes
+  it with npm trusted publishing. Only a maintainer pushes that tag, by hand, after the pull request merges; no
+  workflow creates it. `installer/` is not a plugin component and stays out of the release ZIP. Keep its
+  hard-coded values in step with this repository; `scripts/installer.test.mjs` fails when they drift. A plugin
+  release does not need an installer release (`docs/installer.md`).
 - Kabo Web serves the Skills of the latest GitHub release (desktop stays on its frozen channel). Publishing a
   release runs `.github/workflows/web-publish.yml`, which packs each Skill and rewrites the Web overlay
   (`scripts/web-publish/plugin-web.mjs`; it never writes a channel index) when the `web-publish` environment
