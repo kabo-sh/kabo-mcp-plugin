@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import fcntl
 import json
 import re
 import sys
@@ -36,6 +37,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_idea_request import RequestInputError, build, load as load_json  # noqa: E402
 from render_idea_report import concise, full, validate_concise  # noqa: E402
 from validate_ideas import bound_conversation_context, generation_decision, validate_authored_intent, validate_idea_set, validate_request  # noqa: E402
+
+from idea_batches import create_plan, progress, append_batch, check_core_plan, promote_top_choice, save as save_canonical
 
 STAGE_SCHEMA = "ideas-stage-timing.v1"
 MAX_GENERATION_ATTEMPTS = 2
@@ -325,11 +328,13 @@ def run_prep(args: argparse.Namespace) -> int:
     timing["core"] = core
     write_json(timing_path, timing)
 
+    work = progress(create_plan(run_dir, request), run_dir) if decision.get("status") == "ready_for_generation" else {}
     print(json.dumps({
+        **work,
         "status": "ok",
         "stage": "prep",
         "delivery_ready": False,
-        "next_action": ("Preparation is complete, not idea delivery. Author the complete idea_set.json using the ideaCandidate schema, then run core in this same run directory. Do not send ideas before core succeeds and the final report check passes."
+        "next_action": ("Preparation is complete, not delivery. Author only next_numbers (at most ten candidates) using submission_template, save batch-N.json and execute next_command. The script supplies IDs, ranks and request metadata, then assembles idea_set.json only when every batch is present. Continue missing batches, then core, export and emit; never answer from prep or fragments."
                         if decision.get("status") == "ready_for_generation" else "Follow decision.status; preparation alone never authorizes an idea report."),
         "next_core_command": [sys.executable, str(Path(__file__).resolve()), "core", "--run-dir", str(run_dir)],
         "decision": decision,
@@ -343,7 +348,11 @@ def run_prep(args: argparse.Namespace) -> int:
 
 def collect_validation_errors(idea_set: dict[str, Any], request: dict[str, Any], request_path: Path) -> list[str]:
     """Deduplicate idea-set validation errors for revision briefs."""
-    return list(dict.fromkeys(validate_idea_set(idea_set, request, request_path)))
+    errors = validate_idea_set(idea_set, request, request_path)
+    titles = [re.sub(r"\s+", " ", x.get("working_title", "").strip()).casefold() for x in idea_set.get("ideas", []) if isinstance(x, dict) and isinstance(x.get("working_title"), str)]
+    if len(titles) != len(set(titles)):
+        errors.append("Candidate titles must be distinct across the complete set")
+    return list(dict.fromkeys(errors))
 
 
 def compact_revision_errors(errors: list[str]) -> list[str]:
@@ -357,6 +366,164 @@ def compact_revision_errors(errors: list[str]) -> list[str]:
     return [items[0][1] if len(items) == 1 or items[0][0] is None
             else key + " (idea indexes: " + ", ".join(str(index) for index, _ in items) + ")"
             for key, items in groups.items()]
+
+
+def error_details(errors: list[str], idea_set: dict[str, Any]) -> list[dict[str, Any]]:
+    """Map validator messages to revise-ready targets (idea_id + field path)."""
+    ideas = idea_set.get("ideas") if isinstance(idea_set.get("ideas"), list) else []
+    ids = [x.get("idea_id") if isinstance(x, dict) else None for x in ideas]
+    details = []
+    for error in errors:
+        match = re.match(r"idea_set schema \$\.ideas\[(\d+)\]\.?([^:]*): (.*)$", error)
+        if match:
+            index = int(match[1])
+            details.append({"idea_id": ids[index] if index < len(ids) else None, "path": match[2],
+                            "message": match[3], "error": error})
+            continue
+        match = re.match(r"idea_set schema \$\.?([^:]*): (.*)$", error)
+        if match:
+            details.append({"idea_id": None, "path": match[1], "message": match[2], "error": error})
+            continue
+        match = re.match(r"(idea-\d{3}): (.*)$", error)
+        details.append({"idea_id": match[1], "path": None, "message": match[2], "error": error} if match
+                       else {"idea_id": None, "path": None, "message": error, "error": error})
+    return details
+
+
+REVISE_LOCKED_ROOT = {"schema_version", "idea_set_id", "request_id", "created_at", "task_intent",
+                      "source_mode", "report_language", "ideas"}
+REVISE_LOCKED_IDEA = {"idea_id", "rank"}
+REVISION_TEMPLATE = {"edits": [
+    {"idea_id": "idea-004", "path": "hook_preview.opening_line", "value": "<corrected value>"},
+    {"path": "overview.recommended_candidate_ids", "value": ["idea-002", "idea-007"]},
+    {"idea_id": "idea-009", "path": "unexpected_field", "delete": True},
+]}
+
+
+def revise_command(run_dir: Path) -> list[str]:
+    return [sys.executable, str(Path(__file__).resolve()), "revise", "--run-dir", str(run_dir), "--input", "revision.json"]
+
+
+def parse_edit_path(path: Any) -> list[str | int]:
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError("path must be a non-empty dotted field path such as hook_preview.opening_line")
+    tokens: list[str | int] = []
+    for part in path.split("."):
+        match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)((?:\[\d+\])*)", part)
+        if not match:
+            raise ValueError(f"invalid path segment {part!r}; use field names and [index], e.g. content_outline[1].text")
+        tokens.append(match[1])
+        tokens.extend(int(x) for x in re.findall(r"\[(\d+)\]", match[2]))
+    return tokens
+
+
+def apply_edit(target: Any, tokens: list[str | int], edit: dict[str, Any]) -> Any:
+    parent = target
+    for position, token in enumerate(tokens[:-1]):
+        child = parent.get(token) if isinstance(parent, dict) and isinstance(token, str) else (
+            parent[token] if isinstance(parent, list) and isinstance(token, int) and token < len(parent) else None)
+        if not isinstance(child, (dict, list)):
+            raise ValueError(f"{'.'.join(map(str, tokens[:position + 1]))} does not exist or is not an object/array")
+        parent = child
+    last = tokens[-1]
+    if isinstance(parent, dict) and isinstance(last, str):
+        if edit.get("delete") is True:
+            if last not in parent:
+                raise ValueError(f"cannot delete missing field {last!r}")
+            del parent[last]
+            return None
+        parent[last] = edit["value"]
+        return parent[last]
+    if isinstance(parent, list) and isinstance(last, int):
+        if edit.get("delete") is True:
+            if last >= len(parent):
+                raise ValueError(f"index {last} is out of range (length {len(parent)})")
+            parent.pop(last)
+            return None
+        if last > len(parent):
+            raise ValueError(f"index {last} is out of range (length {len(parent)}); use {len(parent)} to append")
+        if last == len(parent):
+            parent.append(edit["value"])
+        else:
+            parent[last] = edit["value"]
+        return parent[last]
+    raise ValueError("path does not match the shape of the IdeaSet (object field vs array index)")
+
+
+def run_revise(args: argparse.Namespace) -> int:
+    """Apply targeted edits to the assembled idea_set.json during the open core revision.
+
+    Rewriting a merged 15-20 item IdeaSet from the model is the failure the batch
+    workflow exists to avoid; this applies only the listed field edits, atomically,
+    then dry-runs validation without consuming a core attempt.
+    """
+    run_dir = args.run_dir.resolve()
+    timing = read_timing(run_dir / "stage_timing.json")
+    core = timing.get("core") or {}
+    if core.get("status") != "needs_revision" or core.get("rendered"):
+        raise ValueError("revise is only available while core reports needs_revision; run core first")
+    idea_set_path = run_dir / "idea_set.json"
+    idea_set = json.loads(idea_set_path.read_text(encoding="utf-8"))
+    request_path = run_dir / "request.json"
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    payload = load_json(args.input if args.input.is_absolute() or args.input.exists() else run_dir / args.input)
+    edits = payload.get("edits") if isinstance(payload, dict) else None
+    problems: list[str] = []
+    if not isinstance(edits, list) or not edits:
+        problems.append("revision file must be {\"edits\": [{\"idea_id\"?, \"path\", \"value\" | \"delete\": true}, ...]}")
+        edits = []
+    working = json.loads(json.dumps(idea_set))
+    by_id = {x.get("idea_id"): x for x in working.get("ideas", []) if isinstance(x, dict)}
+    applied = []
+    for number, edit in enumerate(edits):
+        label = f"edits[{number}]"
+        try:
+            if not isinstance(edit, dict) or set(edit) - {"idea_id", "path", "value", "delete"}:
+                raise ValueError("each edit has only idea_id (optional), path, and value or delete:true")
+            if ("value" in edit) == (edit.get("delete") is True):
+                raise ValueError("give exactly one of value or delete:true")
+            tokens = parse_edit_path(edit.get("path"))
+            if edit.get("idea_id") is not None:
+                if edit["idea_id"] not in by_id:
+                    raise ValueError(f"unknown idea_id {edit['idea_id']!r}; known: {sorted(by_id)}")
+                if tokens[0] in REVISE_LOCKED_IDEA:
+                    raise ValueError(f"{tokens[0]} is script-owned; to change the top choice edit overview.recommended_candidate_ids")
+                target = by_id[edit["idea_id"]]
+            else:
+                if tokens[0] in REVISE_LOCKED_ROOT:
+                    raise ValueError(f"{tokens[0]} is script-owned or needs idea_id; for a candidate field pass idea_id and its field path")
+                target = working
+            value = apply_edit(target, tokens, edit)
+            applied.append({"idea_id": edit.get("idea_id"), "path": edit["path"],
+                            **({"deleted": True} if edit.get("delete") is True else {"value": value})})
+        except ValueError as error:
+            problems.append(f"{label}: {error}")
+    if problems:
+        print(json.dumps({"status": "needs_revision", "stage": "revise", "delivery_ready": False, "applied": [],
+                          "edit_errors": problems, "revision_template": REVISION_TEMPLATE,
+                          "next_action": "No edit was applied. Correct revision.json and rerun revise.",
+                          "revise_command": revise_command(run_dir)}, ensure_ascii=False))
+        return 0
+    moved = promote_top_choice(working)
+    save_canonical(idea_set_path, working)
+    remaining = collect_validation_errors(working, request, request_path)
+    result = {
+        "status": "needs_revision" if remaining else "ready_for_core",
+        "stage": "revise",
+        "delivery_ready": False,
+        "applied": applied,
+        "remaining_errors": compact_revision_errors(remaining),
+        "error_details": error_details(remaining, working),
+        "core_attempts_used": core.get("generation_attempts", 0),
+        "next_action": ("Fix the remaining errors with another revise call before running core; this dry-run used no core attempt."
+                        if remaining else "All edits applied and the dry-run is clean. Run core now, then export and emit."),
+        "next_core_command": [sys.executable, str(Path(__file__).resolve()), "core", "--run-dir", str(run_dir)],
+        "revise_command": revise_command(run_dir),
+    }
+    if moved:
+        result["rank_adjustment"] = moved
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
 
 
 def finish_core(core: dict[str, Any], *, status: str, not_met_reason: str | None = None,
@@ -410,6 +577,7 @@ def run_core(args: argparse.Namespace) -> int:
         allowed_statuses = {"ready_for_generation", "blocked_missing_required_source", "needs_selection_context"}
         if prep.get("status") not in allowed_statuses or decision.get("status") not in allowed_statuses:
             raise ValueError("core requires prep and decision status ready_for_generation or a terminal selection gate")
+        check_core_plan(run_dir, core)
         if not idea_set_path.exists():
             raise ValueError(f"{idea_set_path.name} missing; write the IdeaSet before core")
         request_bytes = request_path.read_bytes()
@@ -525,16 +693,18 @@ def run_core(args: argparse.Namespace) -> int:
                 # authored revision. Exit 0 is not delivery: status remains
                 # needs_revision and neither report is rendered.
                 "next_action": (
-                    "Revise idea_set.json once using the listed errors, then run core "
-                    "again in the same run directory. Update parsed JSON fields for every listed index "
-                    "and read back the changed fields before core; a text replacement matching nothing is not a correction. "
-                    "Do not restart prep or reset "
-                    "the attempt counter. Deliver RESULT.md only after core succeeds; "
-                    "if execution cannot continue, report the draft as unvalidated."
+                    "Do not rewrite idea_set.json. Write revision.json with one edit per error_details "
+                    "entry (idea_id + path + corrected value, or delete:true) and run revise_command; it "
+                    "applies only those fields, reads them back and dry-runs validation without using a core "
+                    "attempt. When it returns ready_for_core, run next_core_command once. Do not restart prep "
+                    "or resubmit batches. Deliver RESULT.md only after core succeeds."
                 ),
                 "next_core_command": [sys.executable, str(Path(__file__).resolve()), "core", "--run-dir", str(run_dir)],
                 "errors": compact_revision_errors(errors),
+                "error_details": error_details(errors, idea_set),
                 "full_error_count": len(errors),
+                "revise_command": revise_command(run_dir),
+                "revision_template": REVISION_TEMPLATE,
                 "revision_brief": "revision_brief.json",
             }, ensure_ascii=False))
             return 0
@@ -603,6 +773,14 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ARTIFACT_FLAGS:
         prep.add_argument(f"--{name}", type=Path)
 
+    batch = commands.add_parser("batch", help="accept at most ten candidates and assemble when complete")
+    batch.add_argument("--run-dir", type=Path, required=True)
+    batch.add_argument("--input", type=Path, required=True)
+
+    revise = commands.add_parser("revise", help="apply targeted field edits during the open core revision")
+    revise.add_argument("--run-dir", type=Path, required=True)
+    revise.add_argument("--input", type=Path, required=True)
+
     core = commands.add_parser("core", help="validate idea-set, revise once if needed, then render")
     core.add_argument("--run-dir", type=Path, required=True)
     core.add_argument("--idea-set", default="idea_set.json",
@@ -618,6 +796,25 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    if args.command == "batch":
+        try:
+            run_dir = args.run_dir.resolve()
+            with (run_dir / ".idea-batches.lock").open("a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                print(json.dumps(append_batch(run_dir, load_json(args.input)), ensure_ascii=False))
+            return 0
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(json.dumps({"status": "failed", "stage": "batch", "delivery_ready": False, "error": str(error)}))
+            return 1
+    if args.command == "revise":
+        try:
+            run_dir = args.run_dir.resolve()
+            with (run_dir / ".idea-batches.lock").open("a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                return run_revise(args)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(json.dumps({"status": "failed", "stage": "revise", "delivery_ready": False, "error": str(error)}))
+            return 1
     if args.command == "prep":
         return run_prep(args)
     return run_core(args)

@@ -7,21 +7,28 @@ Split every run into **prep** and **core**. Do not move idea authorship or revis
 | Stage | Includes | Records |
 | --- | --- | --- |
 | Prep | Using upstream artifacts and comment evidence, intent authoring, request build, request validation, generation decision | `stage_timing.json` prep duration; host may also count prep model/tool calls |
-| Core | From `ready_for_generation` through idea authorship, at most one validation-triggered revision, final validate + render | `stage_timing.json` core duration and `generation_attempts` |
+| Core | From `ready_for_generation` through idea authorship, at most one aggregate validation-triggered revision, final validate + render | `stage_timing.json` core duration and `generation_attempts` |
 | Full task | User send → final delivery | Total wall clock; approval waits listed separately |
 
 Network / 5xx / host truncation retries are allowed and must be recorded with `cd '<run directory>' && python3 '<skill directory>/scripts/run_ideas_stages.py' core --run-dir . --record-network-retry "<note>"` (does not consume a generation attempt). Unlimited creative retries after two generation attempts are not allowed.
 
 ## Budget
 
-This skill cannot hard-cap the host's model-call count. The **acceptance metric** for latency work is: after prep reaches `ready_for_generation`, the host should need **at most two** model passes that author or revise `idea_set.json`.
+New generation follows `batched-authoring.md`: `ceil(idea_count / 10)` initial model authoring
+passes (at most ten candidates each), then at most one aggregate revision after validation.
+Initial batches are not validation retries. Do not label two initial batches plus a revision as
+“two model calls”. This script cannot hard-cap host calls; record actual host calls separately.
+Core's existing `generation_attempts` counts complete-set validation attempts (maximum two);
+`initial_authoring_submissions` records accepted batches and `aggregate_validation_attempts`
+labels the former counter explicitly for batch runs. `within_two_calls` is a legacy validation
+budget field, not evidence of two host calls for batch runs.
 
 ## Counting rules
 
 | Counted as one generation attempt | Not a generation attempt |
 | --- | --- |
-| Writing the first complete `idea_set.json` | Prep evidence, tool calls, approvals |
-| One revision of `idea_set.json` after `revision_brief.json` | `run_ideas_stages.py prep` / `core` themselves |
+| Validating the first assembled `idea_set.json` | Prep evidence, tool calls, approvals |
+| Validating one aggregate revision of `idea_set.json` after `revision_brief.json` | `run_ideas_stages.py prep` / `core` themselves |
 | | Host truncation continuation of the **same** response |
 | | Network / 5xx retries recorded via `--record-network-retry` |
 
@@ -32,7 +39,7 @@ This skill cannot hard-cap the host's model-call count. The **acceptance metric*
 1. Prep: evidence + `intent.json` → `cd '<run directory>' && python3 '<skill directory>/scripts/run_ideas_stages.py' prep --intent intent.json --run-dir .` (+ artifact flags).
 2. Only when decision status is `ready_for_generation`: one model pass writes a complete IdeaSet.
 3. `cd '<run directory>' && python3 '<skill directory>/scripts/run_ideas_stages.py' core --run-dir .`
-4. Read structured script stdout: `status="needs_revision"` and `revision_remaining=1` (exit `0`, still unvalidated) requires one model pass revising from the returned errors / `revision_brief.json`, then core again in the same run directory. Keep the attempt counter; do not restart prep or deliver unvalidated prose instead of this runnable step.
+4. Read structured script stdout: `status="needs_revision"` and `revision_remaining=1` (exit `0`, still unvalidated) requires targeted edits through `run_ideas_stages.py revise --run-dir . --input revision.json` (field-level `edits` from `error_details`; it dry-runs validation without an attempt), then core again in the same run directory once revise returns `ready_for_core`. Keep the attempt counter; do not restart prep or deliver unvalidated prose instead of this runnable step.
 5. `status="ok"` with report paths (exit `0`) makes the reports ready; `status="not_met"` (exit `3`) stops creative retries. A failed/missing status is not permission to claim completion or reset the budget. If execution is unavailable, report that the draft remains unvalidated.
 
 Run these commands from the run directory `SKILL.md` sets up. Every core call is non-final,

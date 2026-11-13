@@ -126,8 +126,9 @@ handle each prep decision. Also read the fields and definitions for this task in
 ## Core
 
 Core starts only after prep reports `ready_for_generation` (prep opens `stage_timing.json`
-core.started_at at that moment). The target is **at most two** model generation passes that write
-or revise `idea_set.json` (generate, then revise only if programmatic validation fails). Do not
+core.started_at at that moment). Author at most **ten candidates per batch**, using prep’s work
+plan and next command. The initial set takes `ceil(idea_count / 10)` authoring passes, followed by
+at most **one aggregate revision** only if final validation fails. These are not two model calls. Do not
 invent extra critique/rewrite loops. Record network, 5xx or truncation retries with
 `--record-network-retry` as `references/core-generation.md` says; they use no attempt.
 
@@ -136,7 +137,11 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    relationship and substitute only its open slots, keeping their kind and number. State this in
    `overview.portfolio_logic`; map every item's concrete input, progression and goal in
    `making_direction`. Follow *Continuations* for source binding and the per-item semantic check.
-2. In **one** generation pass, write the complete `idea_set.json`: distinct titles the Creator could publish, hooks, making direction, evidence basis, ranking, gates, and limitations. For an open batch, remove near-duplicates and rank by Creator fit, evidence strength, differentiation, timeliness, and realistic production cost. For variants of one selected example, preserve the shared scaffold and assess distinctness only in its variable slots, as above. A plain question or statement is sufficient for a title; keep teaching method detail in `making_direction`. Never invent loss amounts, customer outcomes, efficiency gains, market facts, policy facts, numbers, or URLs. Preserve artifact-level lineage in `upstream_sources`, context-level refs in `source_context_refs`, `must_avoid` as `must_differ`, and risk language. `assets_used` must stay within declared `available_assets`. For shortlist intents only, unconfirmed future `required_assets` are allowed with `production_feasibility.status="requires_user_confirmation"`, explicit `assumptions` and a `production_missing` gate; never treat them as owned or used. Capacity plans require all resources to be available; exclusions still apply. Do not edit, patch, or replace the skill scripts, schemas, or validators; fix a rejected IdeaSet by revising only `idea_set.json` once.
+2. Read `references/batched-authoring.md`. Write only the next planned batch, submit it with the
+   `batch` command, then continue the returned next batch. Do not create the whole set in a
+   single model response. While a batch returns `status="awaiting_batches"`, the task is not
+   finished: in the same turn, write the next `batch-N.json` and run its `next_command`. Ending
+   the turn or telling the user a batch is still pending at that point is a failed run. The script assembles `idea_set.json` only after all batches exist. Author: distinct titles the Creator could publish, hooks, making direction, evidence basis, ranking, gates, and limitations. For an open batch, remove near-duplicates and rank by Creator fit, evidence strength, differentiation, timeliness, and realistic production cost. For variants of one selected example, preserve the shared scaffold and assess distinctness only in its variable slots, as above. A plain question or statement is sufficient for a title; keep teaching method detail in `making_direction`. Never invent loss amounts, customer outcomes, efficiency gains, market facts, policy facts, numbers, or URLs. Preserve artifact-level lineage in `upstream_sources`, context-level refs in `source_context_refs`, `must_avoid` as `must_differ`, and risk language. `assets_used` must stay within declared `available_assets`. For shortlist intents only, unconfirmed future `required_assets` are allowed with `production_feasibility.status="requires_user_confirmation"`, explicit `assumptions` and a `production_missing` gate; never treat them as owned or used. Capacity plans require all resources to be available; exclusions still apply. Do not edit, patch, or replace the skill scripts, schemas, or validators; fix a rejected IdeaSet by revising only `idea_set.json` once.
 3. Put missing information into `gates.selection_missing` only when it prevents a valid choice.
    Put filming, editing, CTA, cadence, or other later details into `gates.production_missing`;
    these may coexist with `ready_for_selection`. If `production_missing` is nonempty, include
@@ -146,7 +151,8 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    `hook_preview.progressive_line=null`; two means a nonempty, distinct second line. Do not use an
    empty string for null. For chat-only continuations, both the set and per-item
    `source_context_refs=[]`; the conversation is bound separately, not as research evidence.
-4. Run the core stage (validate → render, or emit a revision brief):
+4. Only after the batch receipt says `ready_for_core`, run the core stage once over the
+   complete set (validate → render, or emit one aggregate revision brief):
 
    ```sh
    cd '<run directory>' && python3 '<skill directory>/scripts/run_ideas_stages.py' core --run-dir .
@@ -155,7 +161,7 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    as its exit code. Both `ok` and recoverable `needs_revision` exit `0`; the latter keeps the run
    open but does not validate or render a deliverable.
    - `status="ok"` with report paths (exit `0`): run step 7, then deliver. The `--concise` output is the sole Creator-facing artifact: `RESULT.md`. The `--full` output is an audit-only artifact; keep `IDEA_REPORT_FULL.md` in the run directory and never deliver it or copy it to `RESULT.md`.
-   - `status="needs_revision"` with `revision_remaining=1` (exit `0`, unvalidated): use the returned errors and `revision_brief.json` to revise `idea_set.json` **once**, then run the same core command in the same run directory. Do not rerun prep, reset the attempt counter, or replace this runnable revision with an unvalidated prose answer. If the working file cannot be read directly, write the corrected file into the same run directory from the retained IdeaSet content and returned errors.
+   - `status="needs_revision"` with `revision_remaining=1` (exit `0`, unvalidated): do not rewrite `idea_set.json`. Write `revision.json` (`{"edits": [{"idea_id", "path", "value" | "delete": true}]}`, one edit per `error_details` entry) into the run directory and run the returned `revise_command`; it applies only those fields, reads them back and dry-runs validation without using a core attempt. Repeat revise until it returns `ready_for_core`, then run the same core command once. Do not rerun prep, resubmit batches, reset the attempt counter, use `run_code` on run files, or replace this runnable revision with an unvalidated prose answer.
    - `status="not_met"` (exit `3`): stop; do not start another creative pass or loosen validation.
    - `status="failed"`, absent/unreadable script status, or an unavailable execution tool: diagnose
      the specific failure. Do not infer successful validation or permission for another creative

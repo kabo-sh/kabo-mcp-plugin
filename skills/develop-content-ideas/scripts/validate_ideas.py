@@ -1297,7 +1297,13 @@ def validate_idea_set(
     require(set(recommended) <= set(ids), "recommended_candidate_ids contain unknown ideas", errors)
     ranked = sorted(ideas, key=lambda item: item.get("rank", 10**9))
     if ranked and recommended:
-        require(recommended[0] == ranked[0].get("idea_id"), "rank 1 must be the first recommended candidate", errors)
+        require(
+            recommended[0] == ranked[0].get("idea_id"),
+            "rank 1 must be the first recommended candidate: overview.recommended_candidate_ids[0] is "
+            f"{recommended[0]!r} but rank 1 is {ranked[0].get('idea_id')!r}; the batch/revise scripts move "
+            "the first recommended idea to rank 1, or edit overview.recommended_candidate_ids",
+            errors,
+        )
 
     try:
         videos, evidence_by_video = collect_videos(request, request_path)

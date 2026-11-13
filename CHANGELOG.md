@@ -2,6 +2,24 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.48 (unreleased)
+
+- `develop-content-ideas`: prep writes `idea_work_plan.json` and the host authors candidates in batches of at
+  most ten (`ceil(idea_count / 10)` passes) through `run_ideas_stages.py batch`; the script fills IDs, ranks
+  and request metadata and assembles `idea_set.json` only when every batch is present. Batch replays are
+  idempotent and conflicting replays are rejected (`references/batched-authoring.md`).
+- Each batch is schema-checked before acceptance; a rejected batch returns `status="needs_revision"` with
+  `idea_id` and field paths, exit `0`, and nothing from it is stored.
+- Assembly moves `overview.recommended_candidate_ids[0]` to rank 1 (others keep their order) and reports
+  `rank_adjustment`, so "rank 1 must be the first recommended candidate" no longer fails batched sets.
+- New `run_ideas_stages.py revise --input revision.json`: field-level edits keyed by `idea_id`/path, read back
+  and dry-run validated without using a core attempt; script-owned fields are locked. Core `needs_revision`
+  returns `error_details`, `revise_command` and a template; the rank error names both IDs.
+- `awaiting_batches` results say how many batches remain, name the next IDs and state that ending the turn
+  before the next batch is a failed run; the result carries `turn_complete: false`. SKILL.md and
+  `references/batched-authoring.md` say the same.
+- New `scripts/ideas-batches-regression.py` covers 3, 15 and 20 candidate sets.
+
 ## 1.0.47 (unreleased)
 
 - New Skill `review-thumbnail` (Skill version 0.1.3): reviews and compares one to three uploaded PNG/JPEG/WebP
