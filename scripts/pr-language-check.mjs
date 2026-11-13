@@ -11,7 +11,7 @@
 
 import { readFileSync } from "node:fs";
 
-const CJK = /[぀-ヿ㐀-䶿一-鿿가-힯豈-﫿！-｠]/u;
+const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\uff01-\uff60]/u;
 
 export function authorProse(text) {
   return (text ?? "")
