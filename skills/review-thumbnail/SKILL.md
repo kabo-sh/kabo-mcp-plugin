@@ -4,7 +4,7 @@ description: "Review and compare one to three uploaded video thumbnails using te
 license: MIT
 compatibility: "Requires a vision-capable host, local file read/write access, Python 3 and Pillow for static image decoding and small-image preparation. Inline file delivery requires a host capability that displays an existing Markdown file unchanged. No Kabo data permission or backend checker is required."
 metadata:
-  version: "0.1.3"
+  version: "0.1.4"
   platform_agnostic: "true"
 ---
 
