@@ -50,10 +50,15 @@ Names found only in automatic transcripts remain role descriptions.
 
 **Deliver every part of the request.** Before prep, list each deliverable the creator asked for in
 this message and in the request it answers: a short reply such as a platform name ("YouTube
-Shorts") completes an earlier request, it does not replace it. For "three ideas, then a script for
-the strongest", this Skill delivers the three ideas and names the strongest; the script is the next
-part (`create-script-and-packaging`), continued in the same turn. Before the final reply, check the
-list and do not end with a part missing; if a part truly cannot be done now, say which and why.
+Shorts") completes an earlier request, it does not replace it, so `user_brief.text` keeps that
+earlier request. For "three ideas, then a script for the strongest", this Skill delivers the three
+ideas and names the strongest; the script is the next part (`create-script-and-packaging`),
+continued in the same turn. Record that next part in the intent as `generation_basis.follow_on`
+(`deliverable: "script"`, `quote`: the creator's exact words asking for it, from `user_brief.text`).
+The export receipt then carries `follow_on` with the top-ranked idea: after emitting the list, load
+`create-script-and-packaging` and write that idea's complete script in the same turn, without asking
+the creator to choose first. Before the final reply, check the list and do not end with a part
+missing; if a part truly cannot be done now, say which and why.
 
 **Keep the creator's facts.** Dates and relative days ("tomorrow" stays tomorrow), numbers,
 names, directions such as up or down and story events the creator gave are copied exactly into

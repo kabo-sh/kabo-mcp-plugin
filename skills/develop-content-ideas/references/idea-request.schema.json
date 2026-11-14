@@ -68,6 +68,16 @@
             "topic": {"type": "string", "minLength": 2}
           }
         },
+        "follow_on": {
+          "description": "Set only when the same request also asks for a piece built from the ideas once they exist, such as 'then write the strongest one as a script'. quote is that span of user_brief.text, copied verbatim; deliverable names what follows. The follow-on applies to the top-ranked idea. After the validated list is emitted, the same turn continues to that deliverable instead of ending at selection.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deliverable", "quote"],
+          "properties": {
+            "deliverable": {"enum": ["script"]},
+            "quote": {"type": "string", "minLength": 2}
+          }
+        },
         "brief_fallback_quote": {
           "description": "The span of user_brief.text in which the user gave that permission, copied verbatim. Supply it whenever allow_brief_fallback is true; the wording is the user's own, in whatever language they wrote, and it is accepted by being found in the brief rather than by how it is phrased.",
           "type": ["string", "null"],

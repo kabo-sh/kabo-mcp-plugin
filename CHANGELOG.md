@@ -20,6 +20,13 @@ Fixes for the remaining bad cases in the 7-day production review of ideas and sc
   do not end the turn with a part missing; "three ideas, then a script for the strongest" delivers both (I023).
   Creator facts (dates and relative days, numbers, names, directions, story events) are copied exactly and no
   facts about real people, companies or events are added (I051).
+- `develop-content-ideas`: a request that also asks for a piece built from the ideas ("three ideas, then write the
+  strongest as a script") records `generation_basis.follow_on` (the creator's exact words, checked against
+  `user_brief.text`). `deliver_ideas.py` then adds `follow_on` (the rank-1 idea's number, id and title) to the
+  receipt, and its `next_action` says to continue in the same turn with `create-script-and-packaging` instead of
+  ending at selection; `create-script-and-packaging` writes that idea's script without asking the creator to choose.
+  In the Pre test the host asked for the platform first, and after "YouTube Shorts" the reply ended at "reply with a
+  number" with no script (thread 6da25300). Requests without a follow-on are unchanged.
 - `create-script-and-packaging`: new `references/creator-facts.md` and `scripts/check_user_facts.py`, which checks a
   finished draft against the creator's facts and requires a basis for every real-world claim before delivery
   ("domani" turned into "oggi", "subir de nivel" into "bajar de nivel", invented team and company facts: S072,

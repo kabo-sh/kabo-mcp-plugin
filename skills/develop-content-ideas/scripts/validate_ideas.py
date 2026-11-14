@@ -567,6 +567,14 @@ def delegated_topic(request: dict[str, Any]) -> str | None:
     return None
 
 
+def follow_on(request: dict[str, Any]) -> dict[str, str] | None:
+    """The deliverable the same request asks for after the ideas, such as a script for the strongest."""
+    value = (request.get("generation_basis") or {}).get("follow_on")
+    if isinstance(value, dict) and value.get("deliverable") == "script" and has_text(value.get("quote")):
+        return {"deliverable": "script", "quote": value["quote"]}
+    return None
+
+
 def available_generation_sources(request: dict[str, Any]) -> set[str]:
     """Return evidence classes actually available to satisfy generation requirements."""
     context = request.get("idea_context") or {}
@@ -741,6 +749,13 @@ def validate_authored_fields(request: dict[str, Any], errors: list[str], *,
             require(has_brief and len(span) >= 2 and span in " ".join(str(brief.get("text") or "").split()),
                     "generation_basis.delegated_topic.quote must be copied verbatim from user_brief.text: the span "
                     "where the user handed you the choice of topic or niche", errors)
+        follow_on = basis.get("follow_on")
+        if isinstance(follow_on, dict):
+            span = " ".join(str(follow_on.get("quote") or "").split())
+            require(has_brief and len(span) >= 2 and span in " ".join(str(brief.get("text") or "").split()),
+                    "generation_basis.follow_on.quote must be copied verbatim from user_brief.text: the span where "
+                    "the user asked for the piece that follows the ideas (for example the script for the strongest)",
+                    errors)
         if has_direct_topic:
             topic = canonical_phrase(direct_topic)
             semantic_brief = canonical_phrase(brief_text_without_identifiers(brief.get("text")))

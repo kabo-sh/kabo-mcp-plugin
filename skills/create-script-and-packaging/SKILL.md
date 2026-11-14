@@ -39,8 +39,11 @@ finished draft before delivering it.
 and in the request it answers: a short reply such as a platform name completes an earlier request
 rather than replacing it. "Three ideas, then a script for the strongest" needs the three ideas
 (from `develop-content-ideas` when it is available, otherwise a short numbered list) and the script
-for the one you name as strongest. Check the list before the final reply; never end with a part
-missing, and if a part truly cannot be done now, say which and why.
+for the one you name as strongest. When `develop-content-ideas` hands over with a `follow_on`
+receipt in the same turn, write the complete script for the idea it names (`follow_on.title`) right
+after the emitted list: that idea is the selection, so do not ask the creator to choose one, and
+reuse the platform and facts already in the conversation. Check the list before the final reply;
+never end with a part missing, and if a part truly cannot be done now, say which and why.
 
 **Links that cannot be read.** When the request depends on a supplied link (a title for this Reel, a
 script from this video) and its content cannot be read or analysed, say so plainly and ask for the

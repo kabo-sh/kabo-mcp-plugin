@@ -130,6 +130,11 @@ lineage validation still apply. Collection failure does not authorize brief fall
      points to, else a broadly workable niche for the platform. Prep then treats it as the topic;
      the IdeaSet must state the assumption, with the exact `topic` text, in
      `evidence_summary.data_gaps` so the creator can change it. Do not ask them to choose first.
+   - `follow_on` is for a request that also asks for a piece built from the ideas, such as "then
+     write the strongest one as a script" (`deliverable: "script"`). Copy the creator's words for
+     that part into `quote` from `user_brief.text`; when the current message only answers a question
+     (a platform name), `user_brief.text` includes the earlier request it answers, so the quote is
+     there. The export receipt names the top-ranked idea for the script.
    - For a follow-up such as “10 more in the same style”, read *Continuations* in
      `references/core-generation.md` whole before writing the intent.
    - `required_sources` lists evidence the user explicitly requires: `creator`, `account`,

@@ -4,6 +4,9 @@
 I024/I035: right after an account review in the same conversation, the ideas run said the account
 material was missing and returned no ideas. I032/I033: the creator handed over the choice of niche
 ("help me choose a niche"), and the reply asked them to pick among three directions instead.
+Pre case 3 (thread 6da25300): "我做恐怖故事频道，推荐 3 个视频选题，然后把最强的那个写成脚本。", the host asked for
+the platform, the creator answered "YouTube Shorts", and the reply ended at "reply with a number" with no
+script. The request now records generation_basis.follow_on and the export receipt names the idea to script.
 These tests drive the real prep/core entry points; they do not grade creative quality.
 """
 import copy
@@ -209,6 +212,66 @@ class Followthrough(unittest.TestCase):
         intent["generation_basis"]["direct_topic"] = "sourdough shaping"
         errors = validator.validate_authored_intent(intent)
         self.assertTrue(any("delegated_topic is only for a brief without its own topic" in e for e in errors), errors)
+
+    # --- Pre case 3: "three ideas, then a script for the strongest" across a platform question ------
+
+    HORROR_TURN_1 = "我做恐怖故事频道，推荐 3 个视频选题，然后把最强的那个写成脚本。"
+    HORROR_TURN_2 = "YouTube Shorts"
+    HORROR_FOLLOW_ON = "然后把最强的那个写成脚本"
+
+    def horror_intent(self, follow_on_quote):
+        intent = self.delegated_intent(f"{self.HORROR_TURN_1}\n{self.HORROR_TURN_2}", None, None, count=3)
+        intent.update(task_intent="open_shortlist", report_language="zh-CN", language_targets=["zh-CN"])
+        intent["generation_basis"]["direct_topic"] = "恐怖故事"
+        if follow_on_quote is not None:
+            intent["generation_basis"]["follow_on"] = {"deliverable": "script", "quote": follow_on_quote}
+        return intent
+
+    def deliver(self, run, follow_on_quote):
+        self.write("intent.json", self.horror_intent(follow_on_quote), run)
+        code, prep = self.stage(run, "prep", "--intent", run / "intent.json")
+        self.assertEqual((0, "ok", "ready_for_generation"), (code, prep["status"], prep["decision"]["status"]), prep)
+        ideas = self.ideas(3, ["没有频道历史表现数据"], run=run)
+        ideas["report_language"] = "zh-CN"
+        ideas["overview"]["recommended_candidate_ids"] = ["idea-001"]
+        self.write("idea_set.json", ideas, run)
+        code, core = self.stage(run, "core")
+        self.assertEqual((0, "ok"), (code, core["status"]), core)
+        code, receipt = self.run_script(SKILL / "scripts/deliver_ideas.py", "--run-dir", run)
+        self.assertEqual((0, "validated"), (code, receipt["status"]), receipt)
+        self.assertEqual((run / "RESULT.md").read_text(), (run / "FINAL_IDEAS.md").read_text())
+        return receipt
+
+    def test_platform_answer_keeps_the_script_follow_on(self):
+        """The receipt names the recommended idea and tells the host the turn continues to its script."""
+        receipt = self.deliver(self.root / "case3", self.HORROR_FOLLOW_ON)
+        self.assertEqual({"deliverable": "script", "quote": self.HORROR_FOLLOW_ON, "number": 1,
+                          "idea_id": "idea-001", "title": "Two strangers, one locked door (1)"}, receipt["follow_on"])
+        self.assertIn("create-script-and-packaging", receipt["next_action"])
+        self.assertIn("same turn", receipt["next_action"])
+        self.assertIn("emit_block", receipt["next_action"])
+
+    def test_list_only_request_still_ends_at_selection(self):
+        """Without a follow-on the receipt is unchanged: emit the list and stop."""
+        receipt = self.deliver(self.root / "list-only", None)
+        self.assertNotIn("follow_on", receipt)
+        self.assertEqual("Call emit_block with block.type=markdown and block.path=report_path. Do not rewrite the report.",
+                         receipt["next_action"])
+
+    def test_follow_on_quote_must_be_the_creators_words(self):
+        """A follow-on cannot be invented: its quote must appear in user_brief.text."""
+        errors = validator.validate_authored_intent(self.horror_intent("then write a script for every idea"))
+        self.assertTrue(any("follow_on.quote" in error for error in errors), errors)
+        errors = validator.validate_authored_intent(self.horror_intent(self.HORROR_FOLLOW_ON))
+        self.assertFalse([error for error in errors if "follow_on" in error], errors)
+
+    def test_skills_tell_the_host_to_continue_to_the_script(self):
+        """Both Skills describe the same-turn hand-off the receipt triggers."""
+        ideas = (SKILL / "SKILL.md").read_text() + (SKILL / "references/delivery.md").read_text()
+        scripts = (ROOT / "skills/create-script-and-packaging/SKILL.md").read_text()
+        self.assertIn("generation_basis.follow_on", ideas)
+        self.assertIn("When the receipt has `follow_on`", ideas)
+        self.assertIn("(`follow_on.title`)", scripts)
 
 
 if __name__ == "__main__":
