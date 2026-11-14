@@ -196,6 +196,27 @@ default_tools_approval_mode = "approve"
 This configuration has been tested. The equivalent command-line `-c` override did not work for the
 plugin ID containing `@`.
 
+### Doubao Work, Qwen Work, DeepSeek Harness and WorkBuddy
+
+`npx -y kabo-sh install` (kabo-sh 0.0.3 or later) adds Doubao Work, Qwen Work and DeepSeek Harness.
+WorkBuddy is handled through its bundled CodeBuddy command line; afterwards click Trust on Kabo in
+WorkBuddy's connector management and sign in. The manual steps are the same as in
+[INSTALL.md](../INSTALL.md#doubao-work-qwen-work-deepseek-harness-and-workbuddy):
+
+| Host | Skills folder | Connection |
+| --- | --- | --- |
+| Doubao Work | `~/.agents/skills` (every Skill folder in full, from branch `stable`) | Added by hand: Plugins, Skills and Workbench, then Manage, Connectors, Add, Custom connector; type HTTP, address `https://kabo.sh/mcp-pub`, no headers. Doubao Work then asks to authorize in the browser. |
+| Qwen Work | `~/.qwenworkcn/skills` | `~/.qwenworkcn/mcp.json` with `{"mcpServers":{"kabo":{"url":"https://kabo.sh/mcp-pub"}}}`, then restart and sign in in the browser. |
+| DeepSeek Harness | `~/.agents/skills` | A local `mcp-remote` bridge entry in `~/.dsh/profiles/desktop/cordis.patch.yml` (never `cordis.yml`); see INSTALL.md for the entry. It requests `workspace:write`, and Kabo granted it on first sign-in. |
+| WorkBuddy | Its Skills folder, filled by the install command | Trust Kabo in connector management, then sign in. |
+
+Start with a message that names the Skill, for example "Please use the start-with-kabo skill to get me
+started"; Doubao Work runs a Skill only when it is named. `~/.agents/skills` is also read by Codex, so a
+user with Kabo installed in Codex sees the Skills twice. In Doubao Work, Qwen Work and WorkBuddy, Kabo
+currently connects read-only: linking an account and saving pillars are unavailable there until the server
+grants write permission on first sign-in. These hosts create a new working folder for every conversation,
+so the Skills keep their library in `~/kabo-workspace` (see [workspace.md](workspace.md)).
+
 ### Cursor
 
 Place the extracted package in a supported local plugin directory and reload it. The package uses the

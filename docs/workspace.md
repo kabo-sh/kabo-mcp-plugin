@@ -41,3 +41,19 @@ default search region (Instagram search takes none); it never filters results by
 Content-language checks follow the short-window rules above. An edit applies from the next trend run. Saving needs write access, which a
 connection made before this plugin asked for it lacks until you sign in again; without it, or when Kabo does not offer the
 tool yet, nothing is saved and the research runs as before.
+
+## Where the workspace folder lives
+
+The daily Skills keep their library in a `kabo-library` folder inside a workspace folder, and that folder
+has to be the same from one conversation to the next. Some hosts (Doubao Work, Qwen Work and WorkBuddy
+among them) start every conversation in a new dated or numbered working folder. A library written there
+cannot be found by the next conversation or by a scheduled run. In those hosts the Skills use the
+`kabo-workspace` folder in your home folder (`~/kabo-workspace`) instead, and the daily jobs' task text
+names that folder. In a host whose working folder is your own project, the project folder is used.
+
+## Read-only connections
+
+Some hosts (Doubao Work, Qwen Work and WorkBuddy) connect Kabo with read permission only and do not
+ask for more. There, linking a new account and saving pillars are unavailable; the Skills read
+`granted_scopes` from `get_kabo_info`, make no write call, say so once, and keep working on reading,
+daily picks and reviews for an account that is already linked.

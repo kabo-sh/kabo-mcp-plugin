@@ -440,7 +440,10 @@ OPENING = [
 
 def cmd_opening(args):
     """The two opening messages of the first session, to be relayed as they are in the creator's language."""
-    say({"tell_creator_now": OPENING, "then": "ask one question: the account (or name the one you will use)"})
+    say({"tell_creator_now": OPENING,
+         "language_note": "These lines are English source text. Translate each one into the language the creator "
+                          "writes in before sending; send English only to a creator who writes English.",
+         "then": "ask one question: the account (or name the one you will use)"})
 
 
 def cmd_posts(args):
