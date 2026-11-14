@@ -41,8 +41,10 @@ projection by hand.
 
 ## Bounded handling
 
-1. Reuse validated evidence already in the workspace. Preserve the exact query, requested count
-   and requirements; name only the missing evidence.
+1. Reuse validated evidence already in the workspace, and an account review already delivered in
+   this conversation (*Account review from this conversation* in `prep.md`). Preserve the exact
+   query, requested count and requirements; name only the missing evidence. For a named account
+   with no review anywhere, run `review-creator-account` first when the host offers it this turn.
 2. When a producing Skill exists, keep the request's required sources and let prep return the
    missing-source block, then name that Skill as the next step with the exact scope it should
    cover. Once its JSON output exists in the workspace, rerun this Skill in a new run with it.

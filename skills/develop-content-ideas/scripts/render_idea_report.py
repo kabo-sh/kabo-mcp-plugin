@@ -329,7 +329,10 @@ def concise(data: dict, request: dict | None = None) -> str:
         (tr('状态：`') + normalized_whitespace(display(data['status'])) + tr('`。')),
         "",
     ]
-    if data["source_mode"] == "brief_only":
+    # An account review bound from this conversation is the basis here; its own data gaps say it
+    # was not re-checked, so the "brief only" boundary line would contradict the report.
+    reference = ((request or {}).get("conversation_context") or {}).get("reference") or {}
+    if data["source_mode"] == "brief_only" and reference.get("kind") != "account_review":
         lines.extend(
             [
                 tr('> 证据边界：以下方向只来自你的 brief，是待验证假设；没有声称账号或趋势已验证。'),

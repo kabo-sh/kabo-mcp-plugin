@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kabo",
-  "version": "1.0.50",
+  "version": "1.0.51",
   "description": "Public creator research with bundled workflows and Kabo MCP evidence.",
   "author": {
     "name": "Dealism",
@@ -37,7 +37,7 @@
         ]
       },
       "publication": {
-        "release_notes": "Kabo 1.0.50 tells review-thumbnail to prepare into a new run subdirectory, so the first prepare step no longer fails when the host already created the input folder. Includes all twenty-two Skills. OpenAI marketplace review remains separate."
+        "release_notes": "Kabo 1.0.51 makes develop-content-ideas use an account review already in the conversation and proceed when the creator delegates the niche choice, and makes create-script-and-packaging keep the creator's facts, deliver every requested part, report unreadable links and keep the draft when a save fails. Includes all twenty-two Skills. OpenAI marketplace review remains separate."
       }
     }
   }
