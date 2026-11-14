@@ -7,7 +7,8 @@
   data: localized report strings, patterns that match non-English user input or platform content, and test
   fixtures that exercise them. `scripts/repo-rules.test.mjs` enforces this; a file that needs such data must be
   listed in its allowlist, and its comments, docstrings and messages stay in English (a comment may quote the
-  literal token it is about).
+  literal token it is about) `scripts/pr-language-check.mjs` (workflow `PR language`) fails a pull request whose title,
+  description or commit messages contain Chinese, Japanese or Korean prose.
 - The repository root is the plugin root. Maintain one `skills/` directory, one `kabo` entry and one
   build entry point. Codex, Claude Code and Cursor add only host metadata; do not copy business content
   or remove features for a particular host.

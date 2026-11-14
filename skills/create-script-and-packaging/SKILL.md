@@ -32,7 +32,11 @@ omit the detail or use a visible placeholder. A transcript-only name stays a rol
 **Actual media requests.** This Skill writes scripts and packaging; it renders no video. For "make
 this into a video", hand the resolved script and production requirements to the host's media
 capability as `references/media-delivery.md` says, and check that capability against the concrete
-subjects, essential actions and required sound before promising a finished video.
+subjects, essential actions and required sound before promising a finished video. When the host
+offers a separate procedure or tool that makes finished videos, that is the media capability: use
+it for the video part (load it when the host loads procedures), keep the script you wrote, and
+never tell the creator a finished video cannot be made here. Say video cannot be made only when
+the host offers no such capability.
 
 **Before any sequel, resolve its source.** Reuse available content. If the creator already supplied
 or confirmed the exact source link, follow the evidence boundary in `references/source-adaptation.md`;
