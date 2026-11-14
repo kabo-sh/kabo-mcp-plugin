@@ -48,6 +48,23 @@ invented numbers also covers personal experience and identity claims, including 
 Use evidence for the same person and claim; omit unsupported details or leave visible placeholders.
 Names found only in automatic transcripts remain role descriptions.
 
+**Deliver every part of the request.** Before prep, list each deliverable the creator asked for in
+this message and in the request it answers: a short reply such as a platform name ("YouTube
+Shorts") completes an earlier request, it does not replace it, so `user_brief.text` keeps that
+earlier request. For "three ideas, then a script for the strongest", this Skill delivers the three
+ideas and names the strongest; the script is the next part (`create-script-and-packaging`),
+continued in the same turn. Record that next part in the intent as `generation_basis.follow_on`
+(`deliverable: "script"`, `quote`: the creator's exact words asking for it, from `user_brief.text`).
+The export receipt then carries `follow_on` with the top-ranked idea: after emitting the list, load
+`create-script-and-packaging` and write that idea's complete script in the same turn, without asking
+the creator to choose first. Before the final reply, check the list and do not end with a part
+missing; if a part truly cannot be done now, say which and why.
+
+**Keep the creator's facts.** Dates and relative days ("tomorrow" stays tomorrow), numbers,
+names, directions such as up or down and story events the creator gave are copied exactly into
+titles, hooks and directions. Do not add new factual premises about history, science, people,
+companies or events as if established; ask them as a question or leave them out.
+
 **Check the requested deliverable first.** Continuing or completing an identified story, draft or
 published episode belongs to `create-script-and-packaging`, even when phrased as "how should I make
 part 2?"; it is not a request for a new batch of ideas. If the creator already supplied or confirmed
@@ -191,7 +208,8 @@ contract and ranking rules. In short:
   `brief_based` or `hypothesis`. `why_now` is evidence-backed only when a dated source supports it.
 - A request for account performance, trends, competitors, Creator context or a specific video never
   silently becomes brief-only: without the evidence and without explicit fallback, return the
-  missing-source block without ideas.
+  missing-source block without ideas. An account review bound from this conversation counts as
+  the account evidence; no review anywhere means producing one first (`references/prep.md`).
 - `selection_status` remains `candidate` until the user selects an idea.
 
 ## Report language and conversation context
@@ -201,6 +219,14 @@ separate from `language_targets`; read `references/report-language.md` whole bef
 `idea_set.json`. Before asking for a topic, audience, goal or evidence, reuse the conversation up to
 the current turn. Follow *Continuations* in `references/core-generation.md` to pass an earlier
 IdeaSet or exact visible chat through prep, while keeping the current request unchanged.
-When no explicit topic or usable evidence exists, ask only for the topic/niche (or
-an account/evidence source); a platform name and an idea count do not supply a niche. Clarification
-is not a completed idea-generation task.
+An account review delivered earlier in this conversation (standard or deep) is the account
+basis for "ideas based on the review": when its `account_review.json` is not in this workspace,
+bind the visible review with *Account review from this conversation* in `references/prep.md`
+instead of returning the missing-source block. When the earlier conversation already establishes
+the niche, use it through the chat route rather than asking again. When the creator hands you the
+choice ("you pick", "help me choose a niche"), do not ask them to choose: pick a niche from the
+conversation or, without any, a broadly workable one, record it as `generation_basis.delegated_topic`
+(their exact words in `quote`, your choice in `topic`), state that assumption in
+`evidence_summary.data_gaps` and deliver. Only when there is no topic, no usable context and no
+delegation, ask only for the topic/niche (or an account/evidence source); a platform name and an
+idea count do not supply a niche. Clarification is not a completed idea-generation task.

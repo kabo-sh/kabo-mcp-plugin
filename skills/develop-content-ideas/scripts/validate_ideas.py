@@ -102,6 +102,9 @@ def bound_conversation_context(path: Path, base: Path) -> dict[str, Any]:
         else:
             detail += "; no message contains a nonblank exact quote. Read the original message and copy its text verbatim"
         raise ValueError("conversation_context reference.quote must be copied verbatim from the referenced message; " + detail)
+    if reference.get("kind") == "account_review" and messages[index]["role"] != "assistant":
+        raise ValueError("conversation_context reference.kind=account_review must select the assistant message that "
+                         f"delivered the account review; zero-based message_index={index} is role={messages[index]['role']}")
     return {"path": os.path.relpath(path.resolve(), base.resolve()), "sha256": file_sha256(path), **source}
 
 
@@ -540,6 +543,38 @@ def has_usable_account_context(value: Any) -> bool:
     return isinstance(content_total, int) and not isinstance(content_total, bool) and content_total > 0
 
 
+def account_review_from_conversation(request: dict[str, Any]) -> bool:
+    """An account review the assistant already delivered in this conversation, bound verbatim.
+
+    On hosts that keep run files only within one turn, the review's JSON artifact is gone by the
+    time the creator asks for ideas, while the review itself is still visible. That visible review
+    is the account basis the creator expects; it is not re-verified research, so ideas stay
+    brief_based and the IdeaSet must say so in its data gaps.
+    """
+    conversation = request.get("conversation_context") or {}
+    reference = conversation.get("reference") or {}
+    messages = conversation.get("messages") or []
+    index = reference.get("message_index")
+    return (reference.get("kind") == "account_review" and isinstance(index, int)
+            and 0 <= index < len(messages) and messages[index].get("role") == "assistant")
+
+
+def delegated_topic(request: dict[str, Any]) -> str | None:
+    """The niche the assistant chose because the creator explicitly delegated that choice."""
+    value = (request.get("generation_basis") or {}).get("delegated_topic")
+    if isinstance(value, dict) and has_text(value.get("topic")) and has_text(value.get("quote")):
+        return value["topic"].strip()
+    return None
+
+
+def follow_on(request: dict[str, Any]) -> dict[str, str] | None:
+    """The deliverable the same request asks for after the ideas, such as a script for the strongest."""
+    value = (request.get("generation_basis") or {}).get("follow_on")
+    if isinstance(value, dict) and value.get("deliverable") == "script" and has_text(value.get("quote")):
+        return {"deliverable": "script", "quote": value["quote"]}
+    return None
+
+
 def available_generation_sources(request: dict[str, Any]) -> set[str]:
     """Return evidence classes actually available to satisfy generation requirements."""
     context = request.get("idea_context") or {}
@@ -553,7 +588,7 @@ def available_generation_sources(request: dict[str, Any]) -> set[str]:
         for field in ("markets", "audience", "positioning", "content_profile")
     ):
         available.add("creator")
-    if has_usable_account_context(context.get("account")):
+    if has_usable_account_context(context.get("account")) or account_review_from_conversation(request):
         available.add("account")
     if context.get("trend"):
         available.add("trend")
@@ -581,7 +616,8 @@ def generation_decision(request: dict[str, Any]) -> dict[str, Any]:
     )
     if missing and not fallback_used:
         status = "blocked_missing_required_source"
-    elif not available and not has_direct_topic and not (request.get("continuation_context") or request.get("conversation_context")):
+    elif (not available and not has_direct_topic and not delegated_topic(request)
+          and not (request.get("continuation_context") or request.get("conversation_context"))):
         status = "needs_selection_context"
     else:
         status = "ready_for_generation"
@@ -591,7 +627,14 @@ def generation_decision(request: dict[str, Any]) -> dict[str, Any]:
         "missing_required_sources": missing,
         "direct_topic_available": has_direct_topic,
         "brief_fallback_used": fallback_used,
+        "account_from_conversation": "account" in available and account_review_from_conversation(request)
+        and not has_usable_account_context(context_account(request)),
+        "delegated_topic": delegated_topic(request),
     }
+
+
+def context_account(request: dict[str, Any]) -> Any:
+    return (request.get("idea_context") or {}).get("account")
 
 
 def required_source_reasons(decision: dict[str, Any]) -> set[str]:
@@ -682,12 +725,37 @@ def validate_authored_fields(request: dict[str, Any], errors: list[str], *,
         if basis.get("allow_brief_fallback") is True:
             require(has_direct_topic,
                     "allow_brief_fallback=true requires an explicit generation_basis.direct_topic", errors)
+        delegated = basis.get("delegated_topic")
+        if isinstance(delegated, dict):
+            require(not has_direct_topic,
+                    "generation_basis.delegated_topic is only for a brief without its own topic; "
+                    "the user supplied direct_topic, so use it and drop delegated_topic", errors)
+            topic = delegated.get("topic")
+            if has_text(topic):
+                require("@" not in topic and not re.search(r"(?:https?://|www\.)", topic, re.IGNORECASE),
+                        "generation_basis.delegated_topic.topic must name a niche, not an account handle or URL", errors)
+                require(has_substantive_topic(topic),
+                        "generation_basis.delegated_topic.topic must name a concrete niche, not only a platform, "
+                        "format or generic idea request", errors)
 
     if ready("generation_basis", "user_brief"):
         quote = basis.get("continuation_quote")
         if quote is not None:
             require(has_brief and has_text(quote) and quote in brief.get("text", ""),
                     "generation_basis.continuation_quote must be copied verbatim from user_brief.text", errors)
+        delegated = basis.get("delegated_topic")
+        if isinstance(delegated, dict):
+            span = " ".join(str(delegated.get("quote") or "").split())
+            require(has_brief and len(span) >= 2 and span in " ".join(str(brief.get("text") or "").split()),
+                    "generation_basis.delegated_topic.quote must be copied verbatim from user_brief.text: the span "
+                    "where the user handed you the choice of topic or niche", errors)
+        follow_on = basis.get("follow_on")
+        if isinstance(follow_on, dict):
+            span = " ".join(str(follow_on.get("quote") or "").split())
+            require(has_brief and len(span) >= 2 and span in " ".join(str(brief.get("text") or "").split()),
+                    "generation_basis.follow_on.quote must be copied verbatim from user_brief.text: the span where "
+                    "the user asked for the piece that follows the ideas (for example the script for the strongest)",
+                    errors)
         if has_direct_topic:
             topic = canonical_phrase(direct_topic)
             semantic_brief = canonical_phrase(brief_text_without_identifiers(brief.get("text")))
@@ -876,8 +944,9 @@ def validate_request(request: dict[str, Any], request_path: Path) -> list[str]:
     if intent == "rework_content":
         require(any(source.get("source_type") == "video_analysis" for source in request.get("upstream_sources") or []), "rework_content requires at least one VideoAnalysis source", errors)
     if intent == "brief_only":
-        require(has_direct_topic or continuation is not None or conversation is not None,
-                "brief_only requires an explicit generation_basis.direct_topic or bound continuation_context/conversation_context", errors)
+        require(has_direct_topic or continuation is not None or conversation is not None or delegated_topic(request) is not None,
+                "brief_only requires an explicit generation_basis.direct_topic, a delegated_topic the user handed over, "
+                "or bound continuation_context/conversation_context", errors)
         require(not has_evidence, "brief_only must not include upstream artifacts or idea context", errors)
 
     validate_upstream_sources(request, request_path, errors)
@@ -1462,6 +1531,20 @@ def validate_idea_set(
     require(set(summary.get("data_gaps") or []) >= set(collect_values(context.get("account") or {}, "data_gaps")), "evidence_summary data_gaps dropped account gaps", errors)
     require(set(comment_context.get("limitations") or []) <= set(summary.get("data_gaps") or []),
             "evidence_summary data_gaps dropped comment collection limits", errors)
+    gaps = [str(item) for item in summary.get("data_gaps") or []]
+    if decision.get("delegated_topic") and ideas:
+        topic = " ".join(decision["delegated_topic"].casefold().split())
+        require(any(topic in " ".join(gap.casefold().split()) for gap in gaps),
+                "the user delegated the niche choice: state the assumed niche in evidence_summary.data_gaps, "
+                f"containing the exact delegated_topic.topic text {decision['delegated_topic']!r}, so the creator can change it",
+                errors)
+    if decision.get("account_from_conversation") and ideas:
+        require(bool(gaps),
+                "ideas based on an account review from earlier in this conversation must say in evidence_summary.data_gaps "
+                "that the review's figures were not re-checked in this run", errors)
+        require(all(item.get("evidence_basis") in {"brief_based", "hypothesis"} for item in ideas),
+                "an account review bound from the conversation is not research evidence: use evidence_basis "
+                "brief_based or hypothesis", errors)
     if decision.get("brief_fallback_used"):
         require(
             required_source_reasons(decision) <= set(summary.get("data_gaps") or []),

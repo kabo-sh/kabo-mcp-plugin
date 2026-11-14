@@ -2,6 +2,40 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.51 (unreleased)
+
+Fixes for the remaining bad cases in the 7-day production review of ideas and scripts.
+
+- `develop-content-ideas`: an account review delivered earlier in the conversation (standard or deep) is now the
+  account basis for new ideas. `prepare_conversation_inputs.py --reference-kind account_review` binds the visible
+  review message; prep accepts it for a required `account` source (`decision.account_from_conversation`), the ideas
+  stay `brief_based`/`hypothesis` and must say in `data_gaps` that the review's figures were not re-checked. In
+  production the review's JSON was gone by the next turn and the creator got "account material missing" and no
+  ideas (I024, I031, I035). With no review anywhere, `review-creator-account` runs first when the host offers it.
+- `develop-content-ideas`: when the creator hands over the choice of niche ("help me choose a niche"), the run
+  records `generation_basis.delegated_topic` (the creator's exact words plus the chosen niche), generates, and must
+  state the assumed niche in `data_gaps`. A niche established earlier in the conversation is reused through the chat
+  route. Before, the reply asked the creator to pick among three directions (I032, I033).
+- Both Skills: list every part of the request, including the request a short reply (a platform name) answers, and
+  do not end the turn with a part missing; "three ideas, then a script for the strongest" delivers both (I023).
+  Creator facts (dates and relative days, numbers, names, directions, story events) are copied exactly and no
+  facts about real people, companies or events are added (I051).
+- `develop-content-ideas`: a request that also asks for a piece built from the ideas ("three ideas, then write the
+  strongest as a script") records `generation_basis.follow_on` (the creator's exact words, checked against
+  `user_brief.text`). `deliver_ideas.py` then adds `follow_on` (the rank-1 idea's number, id and title) to the
+  receipt, and its `next_action` says to continue in the same turn with `create-script-and-packaging` instead of
+  ending at selection; `create-script-and-packaging` writes that idea's script without asking the creator to choose.
+  In the Pre test the host asked for the platform first, and after "YouTube Shorts" the reply ended at "reply with a
+  number" with no script (thread 6da25300). Requests without a follow-on are unchanged.
+- `create-script-and-packaging`: new `references/creator-facts.md` and `scripts/check_user_facts.py`, which checks a
+  finished draft against the creator's facts and requires a basis for every real-world claim before delivery
+  ("domani" turned into "oggi", "subir de nivel" into "bajar de nivel", invented team and company facts: S072,
+  S085, S094, S149).
+- `create-script-and-packaging`: when a supplied link cannot be read, say so and ask for the title and what the
+  video is about instead of answering with generic templates (S004). A failed save keeps the draft already shown and
+  says it was not saved (S055, S087, S099, S106, S126, S128).
+- New `scripts/ideas-followthrough-regression.py` and `scripts/script-followthrough-regression.py`.
+
 ## 1.0.50 (unreleased)
 
 - `review-thumbnail` 0.1.5: SKILL.md now runs `prepare` and `deliver` with `--run-dir review` and says the run
