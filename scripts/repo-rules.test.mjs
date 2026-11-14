@@ -196,6 +196,7 @@ const NON_ENGLISH_TEST_DATA = [
   "scripts/fixtures/creator-profile/youtube-effective.json",
   "scripts/fixtures/creator-profile/youtube.json",
   "scripts/ideas-context-regression.py",
+  "scripts/ideas-followthrough-regression.py",
   "scripts/mcp-pub-sync.test.mjs",
   "scripts/publish-timing-report.test.mjs",
   "scripts/reach-drop-age-reading.test.mjs",

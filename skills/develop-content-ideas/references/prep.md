@@ -38,8 +38,8 @@ projection.
 
 ## Chat-only continuation inputs
 
-For a follow-up referring to earlier visible ideas, with no new literal topic and no required
-external research, prepare the input mechanically before the usual prep command. This helper
+For a follow-up referring to earlier visible ideas, or a request whose niche the earlier visible
+conversation already establishes, with no new literal topic and no required external research, prepare the input mechanically before the usual prep command. This helper
 creates a `brief_only` request; it does not choose the referenced example, generate ideas, validate
 the style, or replace prep/core. Other requests retain the normal intent-authoring route below.
 
@@ -78,6 +78,29 @@ This uses the same input-correction and core budgets as every other request. Aft
 correct the existing named inputs under that budget; do not rerun the helper, delete its files or
 start another run to reset the budget. A failed prep does not authorize an unvalidated prose batch.
 
+## Account review from this conversation
+
+Hosts may keep run files only for one turn, so the `account_review.json` of a review delivered
+earlier in this conversation (standard or deep) can be gone while the review itself is visible.
+Do not return the missing-source block for "ideas based on the review" or "what else can I make
+for this account" in that case: bind the visible review. Export the visible messages as above,
+including the assistant message that delivered the review and the current request, save that
+review's exact text (or its findings and recommendations span) as `reference-quote.txt`, and run the
+helper with `--reference-kind account_review` and the review message's index:
+
+```sh
+cd '<run directory>' && python3 '<skill directory>/scripts/prepare_conversation_inputs.py' --messages '<visible-message-export.json>' --reference-index <review-message-index> --reference-quote-file reference-quote.txt --brief-file current-query.txt --idea-count <requested-count> --platform '<platform>' --language '<language>' --continuation-quote '<exact span from current query>' --reference-kind account_review --run-dir .
+```
+
+It writes an `open_shortlist` intent that requires `account`; prep accepts the bound review as the
+account source (`decision.account_from_conversation=true`). Build the ideas on the review's
+findings, keep every item `brief_based` or `hypothesis`, and add a data gap saying the account
+figures come from the earlier review and were not re-checked in this run. Reuse only numbers the
+review states; never add new ones. When the conversation has no review and the workspace has no
+account artifact, the account evidence comes from `review-creator-account`: if the host offers it
+in this turn, run that review for the named account first and then start this Skill's run with
+its `account_review.json`; return the missing-source block only when it is unavailable or fails.
+
 ## Prep steps
 
 Split every run into **prep** and **core**; do not move idea authorship or revision into prep to
@@ -101,6 +124,12 @@ lineage validation still apply. Collection failure does not authorize brief fall
      pair each pattern with its requested example. Label filled examples as illustrative, not as
      the user's industry or verified results. Do not require an industry just to deliver a general
      template; ask only when tailoring to an unspecified industry is part of the request.
+   - `delegated_topic` is only for a brief with no topic of its own in which the creator hands
+     you the choice ("you pick", "help me choose a niche"). Set `quote` to those
+     exact words from `user_brief.text` and `topic` to the niche you chose: one the conversation
+     points to, else a broadly workable niche for the platform. Prep then treats it as the topic;
+     the IdeaSet must state the assumption, with the exact `topic` text, in
+     `evidence_summary.data_gaps` so the creator can change it. Do not ask them to choose first.
    - For a follow-up such as “10 more in the same style”, read *Continuations* in
      `references/core-generation.md` whole before writing the intent.
    - `required_sources` lists evidence the user explicitly requires: `creator`, `account`,

@@ -58,6 +58,16 @@
           "description": "True only when the user explicitly permits generation from direct_topic if a requested evidence class is unavailable.",
           "type": "boolean"
         },
+        "delegated_topic": {
+          "description": "Set only when the user handed the choice of topic or niche to the assistant (for example 'you pick', 'help me choose a niche'). quote is that span of user_brief.text, copied verbatim; topic is the niche the assistant chose from the conversation or, without any context, a broadly workable default. The IdeaSet must state this assumption in evidence_summary.data_gaps.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["quote", "topic"],
+          "properties": {
+            "quote": {"type": "string", "minLength": 2},
+            "topic": {"type": "string", "minLength": 2}
+          }
+        },
         "brief_fallback_quote": {
           "description": "The span of user_brief.text in which the user gave that permission, copied verbatim. Supply it whenever allow_brief_fallback is true; the wording is the user's own, in whatever language they wrote, and it is accepted by being found in the brief rather than by how it is phrased.",
           "type": ["string", "null"],
@@ -129,6 +139,10 @@
         "quote": {
           "type": "string",
           "minLength": 1
+        },
+        "kind": {
+          "enum": ["example", "account_review"],
+          "description": "What the referenced visible message is. Omitted means an earlier example or list to continue. account_review marks an account review (standard or deep) that the assistant delivered earlier in this conversation; it can satisfy a required account source when that review's JSON artifact is no longer in the workspace."
         }
       }
     },
