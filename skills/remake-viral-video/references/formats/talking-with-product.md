@@ -1,15 +1,13 @@
 # Format: talking with a product
 
-> Host edition (ported from creator-remake-web 0.1.32, creator-skills `f74df60a`). The runner does
-> every picture step; take only the writing rules from this file. `brief_input.json` is
-> `brief/work/brief_input.json` in the run directory.
+> The runner does every picture step; take only the writing rules from this file.
 
 **When this applies**: `brief_input.json` has `reference.type: "talking_product"`. The speaker
 talks to the camera about a physical thing they show -- held up to the lens, standing on the
 desk, worn -- and the video cuts to close-ups of it. The runner measured this from the video; you
 do not decide it.
 
-Read `references/formats/talking-head.md` first: everything there about the content layer, the four rewrite slots
+Read `talking-head.md` first: everything there about the content layer, the four rewrite slots
 and sourcing applies unchanged. This file only adds what differs.
 
 ## What the runner does with the product

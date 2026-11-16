@@ -1,4 +1,7 @@
-# When a remake tool returns an error
+# When a remake tool returns an error (in the plugin)
+
+On Kabo Web the host turns these into its own messages; follow `host-web.md` and
+`when-it-does-not-finish.md`.
 
 ## start_remake_video
 

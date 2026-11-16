@@ -1,4 +1,7 @@
-# Local files
+# Local files (in the plugin)
+
+On Kabo Web this file does not apply: uploads are listed in the conversation and passed by their
+`file_id` (`host-web.md`).
 
 A video or photo the user gave as a file on this machine is sent to Kabo once and then used by its
 `kabo-file:<id>` reference wherever a link goes. Send each file separately, before the call that

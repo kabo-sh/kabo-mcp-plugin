@@ -1,6 +1,6 @@
 # Relaying Kabo's final review
 
-Read this at step 7, after `fetch` has saved the video. Its output carries two fields made from
+Read this in the plugin at delivery, after `fetch` has saved the video (`host-plugin.md`). Its output carries two fields made from
 `review` in the final `get_remake_video` result; use them, not the raw `review`:
 
 - `review_message`: Kabo's automated final review, already worded. If it is a string, tell the user

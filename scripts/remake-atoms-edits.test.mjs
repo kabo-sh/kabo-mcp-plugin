@@ -357,16 +357,18 @@ test("G8: description triggers only when a finished video is wanted or changed, 
   assert.match(description, /not for writing or adapting a script, breaking down a video, or reviewing an account/);
 });
 
-test("skill wording: cancel waits for a terminal state or says it is stopping; bg is priced per second; a running step hitting quota_exceeded is not described as the quota being used up", async () => {
+test("skill wording: cancel waits for a terminal state or says it is stopping; no prices in the step references; a running step hitting quota_exceeded is not described as the quota being used up", async () => {
   const doc = async (p) => readFile(path.join(root, "skills/remake-viral-video", p), "utf8");
-  const skill = await doc("SKILL.md");
-  assert.match(skill, /until the job or `last_step` is no longer running/);
-  assert.match(skill, /cancel was requested and is still stopping/);
-  const atoms = await doc("references/atoms.md");
-  assert.match(atoms, /`bg` about \$0\.02 per second/);
-  assert.doesNotMatch(atoms, /`bg`,\s*`overlay`/, "bg is no longer grouped with the low-cost or free steps");
-  assert.match(atoms, /still running: not a limit/);
-  const edits = await doc("references/edits.md");
-  assert.match(edits, /another remake or step is still running, wait for it/);
-  assert.match(edits, /the total,\s+with every edit, in `project\.spend_usd`/);
+  const host = await doc("references/host-plugin.md");
+  assert.match(host, /until the job or\s+`last_step` is no longer running/);
+  assert.match(host, /cancel was requested and is\s+still stopping/);
+  for (const p of ["plan.md", "atoms.md", "project.md", "edits.md", "motion-graphics.md"]) {
+    const text = await doc(`references/steps/${p}`);
+    assert.doesNotMatch(text, /\$\d|\bfree\b(?! of content| too)|costs? (?:little|nothing|next to)|billed|quote_usd|est_usd/i, p);
+  }
+  const project = await doc("references/steps/project.md");
+  assert.match(project, /still running:\s+not a limit/);
+  const edits = await doc("references/steps/edits.md");
+  assert.match(edits, /another remake or step is still running,\s+wait for it/);
+  assert.match(edits, /the total with every edit in\s+`project\.spend_usd`/);
 });
