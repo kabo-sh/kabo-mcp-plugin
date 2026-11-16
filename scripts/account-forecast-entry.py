@@ -59,6 +59,23 @@ class ForecastEntry(unittest.TestCase):
         self.assertEqual(result["estimate"]["value"], 800)
         self.assertIn("800.00", out)
 
+    def test_every_content_metric_uses_one_format(self):
+        path = self.snapshot()
+        data = json.loads(path.read_text())
+        data["items"][-1]["metrics"]["likes"] = {"status": "available", "value": 4000}
+        path.write_text(json.dumps(data))
+        self.run_forecast("Views and likes of my next short?", "--platform", "youtube", "--target", "@creator",
+                          "--metric", "views", "--metric", "likes", "--posts", "1", "--snapshot", str(path))
+        results = json.loads((self.root / "FORECAST_REPLY.json").read_text())["results"]
+        self.assertEqual({r["cohort"]["format"] for r in results}, {"short"})
+
+    def test_snapshot_that_is_not_an_object_is_a_reported_failure(self):
+        path = self.root / "bad.json"
+        path.write_text("[1, 2]")
+        out = self.run_forecast("views?", "--platform", "youtube", "--target", "@creator", "--metric", "views",
+                                "--snapshot", str(path), expect=2)
+        self.assertEqual(json.loads(out.strip().splitlines()[-1])["reason"], "forecast_request_invalid")
+
     def test_observed_cadence_is_the_default_plan(self):
         self.run_forecast("How many views next month?", "--platform", "youtube", "--target", "@creator",
                           "--metric", "views", "--snapshot", str(self.snapshot()))

@@ -28,6 +28,15 @@ class CreatorReportChecks(unittest.TestCase):
         markdown = "Their link shop.example.app.br and shop.example.app, plus storage.example.com and api.vendor.io"
         self.assertEqual(report.foreign_hosts(markdown, allowed), ["storage.example.com", "api.vendor.io"])
 
+    def test_service_records_and_sibling_sites_stay_foreign(self):
+        envelopes = [{"data": {"items": [{"caption": "https://mybrand.co.uk"}]},
+                      "result": {"artifact": {"description": "stored at files.example.net"}}}]
+        allowed = report.evidence_hosts({}) | report.public_text_hosts(envelopes)
+        foreign = report.foreign_hosts("mybrand.co.uk, scraper.co.uk, files.example.net", allowed)
+        self.assertIn("files.example.net", foreign)
+        self.assertTrue(any(host.startswith("scraper.") for host in foreign), foreign)
+        self.assertFalse(any(host.startswith("mybrand.") for host in foreign), foreign)
+
 
 class DisplayLength(unittest.TestCase):
     def test_sentence_then_word_boundary(self):

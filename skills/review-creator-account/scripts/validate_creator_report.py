@@ -157,6 +157,12 @@ PUBLIC_TEXT_KEYS = frozenset({
 })
 
 
+SERVICE_KEYS = frozenset({
+    "artifact", "artifacts", "download", "downloads", "download_url", "request", "requests", "job", "jobs",
+    "meta", "metadata", "provider", "providers", "source", "sources", "storage", "diagnostic", "diagnostics",
+})
+
+
 def public_text_hosts(envelopes: list[dict]) -> set[str]:
     """Hosts that appear in the fetched public text itself, read with the same patterns as the check."""
     hosts: set[str] = set()
@@ -164,7 +170,10 @@ def public_text_hosts(envelopes: list[dict]) -> set[str]:
     def visit(value: Any, public: bool) -> None:
         if isinstance(value, dict):
             for key, child in value.items():
-                visit(child, public or (isinstance(key, str) and key.lower() in PUBLIC_TEXT_KEYS))
+                name = key.lower() if isinstance(key, str) else ""
+                if name in SERVICE_KEYS:
+                    continue  # artifact, download and request records describe the service, not the creator
+                visit(child, public or name in PUBLIC_TEXT_KEYS)
         elif isinstance(value, list):
             for child in value:
                 visit(child, public)
@@ -181,11 +190,6 @@ def public_text_hosts(envelopes: list[dict]) -> set[str]:
     return hosts
 
 
-def site(host: str) -> str:
-    """The last two labels of a host: the part a creator's link and its mention share."""
-    return ".".join(host.split(".")[-2:])
-
-
 def foreign_hosts(markdown: str, allowed: set[str]) -> list[str]:
     seen: list[str] = []
     for pattern in (URL_HOST, BARE_HOST):
@@ -194,9 +198,6 @@ def foreign_hosts(markdown: str, allowed: set[str]) -> list[str]:
             if host in allowed or host in seen:
                 continue
             if any(host.endswith(f".{permitted}") for permitted in allowed):
-                continue
-            # Same site as a host the public text names (a shortened or differently prefixed mention).
-            if any(site(host) == site(permitted) for permitted in allowed if permitted not in PLATFORM_HOSTS):
                 continue
             seen.append(host)
     return seen

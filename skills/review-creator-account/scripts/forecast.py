@@ -107,6 +107,20 @@ def content_input(scope: dict, days: float, snapshot: dict | None, snapshot_path
     return data
 
 
+def common_format(snapshot: dict, platform: str, target: str, metrics: list[str], days: float) -> str:
+    """The format with the most captured items that carry any requested metric; ties keep snapshot order."""
+    formats: dict[str, str] = {}
+    for metric in metrics:
+        scope = {"platform": platform, "account": target, "metric": metric, "semantics": "per_content_cumulative"}
+        probe = with_snapshot({"schema_version": "growth-input.v1", "mode": "content_scenario", "scope": scope,
+                               "horizon_days": days, "cohort": {"format": "video", "age_min_days": 0, "age_max_days": 0},
+                               "plan": {"origin": "observed_cadence"}}, snapshot, None)
+        formats.update((row["content_id"], normalize_format(row["format"]))
+                       for row in probe["samples"] if row["value"] is not None)
+    counts = Counter(formats.values())
+    return counts.most_common(1)[0][0] if counts else "video"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--platform", required=True, choices=("instagram", "tiktok", "youtube"))
@@ -143,6 +157,12 @@ def main() -> int:
         target = args.target.strip()
         if not target:
             raise Refusal("--target is empty")
+        if snapshot is not None and not isinstance(snapshot, dict):
+            raise Refusal("--snapshot must be this run's saved public-content snapshot")
+        content = [m for m in metrics if m in CONTENT_METRICS and args.target_kind == "account"]
+        # One format for every content metric, so views and likes describe the same kind of item.
+        chosen_format = args.format or (common_format(snapshot, args.platform, target, content, args.horizon_days)
+                                        if snapshot is not None and content else None)
         inputs = []
         for metric in metrics:
             stock = metric in STOCK_METRICS or args.target_kind == "post"
@@ -154,7 +174,7 @@ def main() -> int:
                 if records[metric]:
                     raise Refusal(f"--record for {metric} applies to one post's own count; pass --target-kind post with that post as --target")
                 data = content_input(scope, args.horizon_days, snapshot, str(args.snapshot) if args.snapshot else None,
-                                     args.format, args.posts, question)
+                                     chosen_format, args.posts, question)
             path = work / f"forecast_input_{metric}.json"
             path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             inputs.append(path)
@@ -162,7 +182,7 @@ def main() -> int:
         (work / "forecast_scope.json").write_text(json.dumps(scope_file, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         results, report = compose(inputs, scope_file, question, snapshot, str(args.snapshot) if args.snapshot else None,
                                   args.correct_prior)
-    except (OSError, ValueError, TypeError, KeyError) as error:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
         reason = "forecast_request_invalid" if isinstance(error, Refusal) else "forecast_input_invalid"
         print(json.dumps({"status": "failed", "reason": reason, "error": f"{type(error).__name__}: {error}"}, ensure_ascii=False))
         return 2

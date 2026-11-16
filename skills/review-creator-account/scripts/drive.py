@@ -649,7 +649,7 @@ def growth_input(analysis: dict, snapshot: dict, question: str, args: argparse.N
               "age_max_days": int(ages["max"]) + 1 if ages else candidate["cohort"]["age_max_days"]}
     plan: dict[str, Any] = {"origin": "observed_cadence"}
     if args.posts is not None:
-        quantity = f"{args.posts:g}"
+        quantity = str(int(args.posts)) if float(args.posts).is_integer() else str(args.posts)
         plan = {"posts": args.posts, "origin": "user", "quote": question.strip(),
                 "binding": {"quantity_kind": "total", "quantity_quote": quantity}}
         if args.per:
