@@ -2,6 +2,14 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## Unreleased (1.0.55)
+
+- remake-viral-video: one Skill for Kabo Web and the plugin. In the plugin it plans the video
+  (storyboard), checks it and its quote with `check_video_plan`, and hands it to Kabo's producer with
+  `make_video`; questions come back through `get_remake_video` and answers go with
+  `reply_to_video`. The old remake tools are retired: older plugins get a `tool_retired` error asking
+  to update to 1.0.55 or later.
+
 ## 1.0.54 (2026-11-16)
 
 - `review-creator-account`: `forecast.py` turns a forecast request's facts (target, metrics, horizon,

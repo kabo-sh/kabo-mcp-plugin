@@ -50,7 +50,8 @@ Dois pontos fazem a diferença:
 - **Refaça um vídeo viral com você na câmera, direto do celular.** Envie o link de um vídeo de pessoa falando
   para a câmera que bombou. O Kabo analisa o vídeo, escreve o rascunho do seu roteiro e entrega um MP4
   vertical pronto. O vídeo é feito nos servidores do Kabo, então você pode começar pelo app de celular do
-  assistente e voltar depois para pegar o resultado.
+  assistente e voltar depois para pegar o resultado. Remakes exigem o plugin 1.0.55 ou mais recente:
+  atualize antes uma instalação anterior.
 
 Contas novas do Kabo recebem 100 créditos por dia durante os primeiros 7 dias. Os detalhes estão na [página de preços](https://kabo.sh/pricing?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_free).
 

@@ -50,6 +50,7 @@ Kabo 是 YouTube、Instagram 和 TikTok 创作者的 AI 搭档。这个仓库就
 - **用手机就能让一条爆款视频换成你本人出镜。** 发给 Kabo 一条爆火的口播视频链接，
   它会拆解这条视频、起草你的脚本，最后交付一条做好的竖屏 MP4。
   视频是在 Kabo 的服务器上制作的，所以你可以在助手的手机 App 里发起，过一会儿回来取成片。
+  复刻需要插件 1.0.55 或更新版本，旧版请先升级。
 
 新注册的 Kabo 账号，前 7 天每天有 100 点积分。详情见[价格页](https://kabo.sh/pricing?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_free)。
 
