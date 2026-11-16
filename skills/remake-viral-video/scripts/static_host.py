@@ -650,13 +650,13 @@ def _image_url(raw):
 
 def project_call(handle, video_urls, creator_name, attempt, photo_urls=(), reference_videos=(),
                  reference_images=(), job_id=None):
-    """Arguments of start_video_project. The creator's footage is 0-4 videos (or an Instagram profile) plus 0-8 photos, others' videos 0-4, and
+    """Arguments of start_video_project. The creator's footage is 0-4 videos (or an Instagram profile) plus 0-8 photos (counted separately), others' videos 0-4, and
     reference images 0-8 (contract v1.1/v1.3/v1.4). With --job-id, it appends photos, reference videos or reference images to an existing project."""
     photos = [_photo_url(url) for url in photo_urls or []]
     refs = [_url(url, "Reference video") for url in reference_videos or []]
     images = [_image_url(url) for url in reference_images or []]
-    if len(photos) + len(video_urls or []) > 4 or len(images) > 8 or len(refs) > 4:
-        raise ValueError("At most 4 creator videos and photos in total, 4 reference videos and 8 reference images")
+    if len(video_urls or []) > 4 or len(photos) > 8 or len(images) > 8 or len(refs) > 4:
+        raise ValueError("At most 4 creator videos, 8 creator photos, 4 reference videos and 8 reference images")
     for label, items in (("creator photo", photos), ("reference image", images)):
         if len(set(items)) != len(items):
             raise ValueError(f"The same {label} is listed twice")
