@@ -139,7 +139,9 @@ between sessions (the creator's project or home workspace), the one the daily jo
 **When the host creates a new working folder for every conversation** (a folder named by date or
 number that is different next time), that folder is not kept: use the folder `kabo-workspace` in the
 creator's home folder (`~/kabo-workspace`) as `<workspace>` instead, written as an absolute path in
-the commands because a quoted `~` is not expanded. The daily jobs use the same folder (step 7).
+the commands because a quoted `~` is not expanded. A host whose sandbox lets a session write only
+inside its own working folder (a prompt appears for any other folder) cannot use it: follow that
+host's section in `references/host-schedules.md`. The daily jobs use the same folder (step 7).
 
 ```sh
 mkdir -p '<workspace>'
@@ -335,7 +337,8 @@ Defaults:
 The reviews use data allowance on each run. One question with options: create them at these times,
 change the times, or skip. Read `references/host-schedules.md`, use the section for this host, and
 create the tasks with the host's own scheduled tasks only after the creator agrees, with the
-workspace folder from step 3 written into each task's text. Never say a
+workspace folder from step 3 and the language the creator writes in written into each task's text
+(an unattended run has no creator message to take the language from). Never say a
 schedule exists unless the host confirmed it, and tell the creator the next run time the host gave.
 If the host has no scheduled tasks, give the phrases from the reference instead.
 

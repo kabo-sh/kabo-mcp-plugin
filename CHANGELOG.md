@@ -18,6 +18,11 @@ The version number follows `plugin.json`; the root package version in `.claude-p
   (`get_kabo_info` added to its `allowed-tools`).
 - Workspace: when a host starts every conversation in a new dated or numbered folder, the Skills use
   `~/kabo-workspace` and the daily jobs' task text names it (`docs/workspace.md`).
+- Second round of real-host tests: the three daily task texts now end with "Reply in [language]" (an unattended
+  run has no creator message to take the language from); the install docs tell Qwen Work users to name the
+  Skill too; Qwen Work needs a project with a working folder instead of `~/kabo-workspace` (its sandbox allows
+  writes only in a session's own folder; not yet verified unattended); the Doubao Work section covers the
+  one-task limit of the free plan.
 - `references/host-schedules.md`: new sections for Qwen Work, Doubao Work, DeepSeek Harness and WorkBuddy,
   and a rule to report the time zone the host gives for the created task.
 - `INSTALL.md`, `docs/installation.md` and the README host lists (and translations): Doubao Work, Qwen Work,

@@ -211,11 +211,11 @@ WorkBuddy's connector management and sign in. The manual steps are the same as i
 | WorkBuddy | Its Skills folder, filled by the install command | Trust Kabo in connector management, then sign in. |
 
 Start with a message that names the Skill, for example "Please use the start-with-kabo skill to get me
-started"; Doubao Work runs a Skill only when it is named. `~/.agents/skills` is also read by Codex, so a
+started"; Doubao Work runs a Skill only when it is named, and Qwen Work picks it from a natural request only some of the time. `~/.agents/skills` is also read by Codex, so a
 user with Kabo installed in Codex sees the Skills twice. In Doubao Work, Qwen Work and WorkBuddy, Kabo
 currently connects read-only: linking an account and saving pillars are unavailable there until the server
 grants write permission on first sign-in. These hosts create a new working folder for every conversation,
-so the Skills keep their library in `~/kabo-workspace` (see [workspace.md](workspace.md)).
+so the Skills keep their library in `~/kabo-workspace` (see [workspace.md](workspace.md)); Qwen Work is the exception and needs a project with a working folder.
 
 ### Cursor
 

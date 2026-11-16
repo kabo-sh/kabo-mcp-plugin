@@ -21,15 +21,18 @@ Use the host section below. Fill the brackets and use these as the task texts:
 
 > Every day at [time] [time zone], use the pick-daily-viral-videos skill for [platform] @[handle]
 > with the Kabo library in [workspace]. Ask me nothing. Send me the picks here. Never post, comment,
-> follow or message anyone.
+> follow or message anyone. Reply in [language].
 
 > Every day at [time] [time zone], use the review-new-posts skill for [platform] @[handle] with the
 > Kabo library in [workspace], new-post reviews only. Ask me nothing. Send me the review of each
-> post that passed 24 hours, or one line when there is none. Never post, comment or reply to anyone.
+> post that passed 24 hours, or one line when there is none. Never post, comment or reply to anyone. Reply in [language].
 
 > Every day at [time] [time zone], use the review-new-posts skill for [platform] @[handle] with the
 > Kabo library in [workspace], account recap only. Ask me nothing. Send me the account recap here.
-> Never post, comment or reply to anyone.
+> Never post, comment or reply to anyone. Reply in [language].
+
+[language] is the language the creator writes in: an unattended run has no creator message to take
+it from, and in testing one answered a Chinese-speaking creator entirely in English.
 
 Never tell the creator a schedule exists unless the host confirmed creating it. After creating one,
 read back its name and next run time from the host's answer. If the host cannot schedule tasks, use
@@ -130,6 +133,15 @@ it off.
 
 - Ask in chat. Qwen Work creates the tasks itself and shows a "scheduled task created" card for each
   one; send the three instructions above as three requests.
+- **Workspace.** Qwen Work's sandbox lets a session write only inside its own working folder. Writing
+  to `~/kabo-workspace` raises a permission prompt (only "Deny" or "Allow this time", and the grant
+  ends with the session), and an unattended run stops on that prompt until a person allows it. A
+  project created without a working folder does not help (two sessions in it got different folders).
+  So for Qwen Work, do not use `~/kabo-workspace`: before the first run, ask the creator to create a
+  Qwen Work project with a working folder they choose (the project dialog's optional working folder,
+  which every session in the project can read and modify), and to start the onboarding and create the
+  daily tasks inside that project. Use that folder as the workspace. This has not been verified to
+  work unattended yet; say so.
 - Qwen Work tends to rewrite the task text in its own words (in testing: "use the Kabo account review
   flow for my TikTok account ..."), which dropped the Skill name and the workspace folder. Ask it to
   use the task text exactly as given, which names the Skill and the absolute workspace folder. After it
@@ -151,7 +163,13 @@ it off.
 
 ## Doubao Work
 
-This section follows the host's own description of its scheduled tasks; no run has been seen yet.
+This section follows the host's own description of its scheduled tasks; no unattended run has been seen yet.
+
+- The free plan allows one scheduled task at a time (Doubao Work created the first task and said the
+  other two need a higher plan). Offer to combine the three jobs into one daily task (picks, then
+  new-post reviews, then the account recap) or to keep only one, and mention that more tasks need a
+  higher plan.
+- Doubao Work wrote its library to `~/kabo-workspace` without a prompt, so that folder works there.
 
 - Ask in chat ("every day at 8:00, ..." followed by the instruction).
 - Doubao Work runs scheduled tasks in its cloud by default, where the creator's local Kabo library and

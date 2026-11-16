@@ -99,7 +99,8 @@ npx -y kabo-sh install
 
 If it cannot run, do the steps below by hand. In every one of these hosts, the first message to the
 assistant should name the Skill, for example "Please use the start-with-kabo skill to get me started":
-Doubao Work runs a Skill only when it is named, and the others pick it more reliably that way.
+Doubao Work runs a Skill only when it is named, and Qwen Work chose it from a natural request only some
+of the time.
 
 **Read-only connection.** In Doubao Work, Qwen Work and WorkBuddy, Kabo currently connects with read
 permission only. Linking an account and saving pillars are unavailable there until the server grants
@@ -125,6 +126,8 @@ drops the whole Kabo connection.
    ```
 
 3. Restart Qwen Work and sign in to Kabo in the browser when asked.
+4. Create a Qwen Work project with a working folder the user chooses, and run the first session and the
+   daily tasks inside it: Qwen Work lets a session write only inside its own working folder.
 
 ### DeepSeek Harness
 

@@ -49,7 +49,7 @@ has to be the same from one conversation to the next. Some hosts (Doubao Work, Q
 among them) start every conversation in a new dated or numbered working folder. A library written there
 cannot be found by the next conversation or by a scheduled run. In those hosts the Skills use the
 `kabo-workspace` folder in your home folder (`~/kabo-workspace`) instead, and the daily jobs' task text
-names that folder. In a host whose working folder is your own project, the project folder is used.
+names that folder. In a host whose working folder is your own project, the project folder is used. Qwen Work is the exception: its sandbox allows writes only inside a session's own working folder, so create a Qwen Work project with a working folder you choose and run Kabo inside that project (not yet verified to work for unattended runs).
 
 ## Read-only connections
 
