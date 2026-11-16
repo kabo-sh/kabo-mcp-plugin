@@ -24,13 +24,3 @@ videos (uploaded files listed in this conversation); a recording goes in `creato
 preset voices are the ones the host lists (number and name); pass the pick as `voice_preset` on
 `prepare` with the same inputs. When `prepare` returns `voice_sample_needed`, the host's message
 lists them.
-
-**In the plugin** (this Skill's scripts): pass each photo with `--creator-photo '<link or
-kabo-file:id>'` (a direct public image link that opens without signing in, or a local JPEG / PNG
-sent with `local-files.md`); `--creator-name` is required. A recording goes in with
-`--creator-video`. Pass the preset pick with `--voice-preset '<id>'`:
-
-1. Female soft: `933563129e564b19a115bedd57b7406a`
-2. Female bright: `b545c585f631496c914815291da4e893`
-3. Male calm: `536d3a5e000945adb7038665781a4aca`
-4. Male energetic: `802e3bc2b27e49c2995d23ef70e6ac89`

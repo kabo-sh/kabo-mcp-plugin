@@ -1,160 +1,104 @@
-# In the plugin: this Skill's tools and scripts
+# In the plugin: plan the video, Kabo makes it
 
-Tools: `start_remake_video`, `get_remake_video`, `render_remake_video`, `edit_remake_video`,
-`start_video_project`, `make_video_step`, `finish_video_project`, `upload_file`. Kabo runs every
-step on its servers; the scripts in this Skill only build tool arguments, download and check
-files. Never draw, record or assemble a picture yourself.
+In the plugin you do not run the steps yourself. You understand the request, look at the
+material, write the plan (an analysis and a storyboard), get the creator's go-ahead on the quote,
+and hand the plan to Kabo's producer, which makes the video on Kabo's servers with the rest of
+this Skill. You relay what the producer asks and deliver what it makes. Never draw, record or
+assemble a picture yourself, and never promise a video the producer has not delivered.
 
-## Set up one run
+Tools: `start_video_project`, `upload_file`, `check_video_plan`, `make_video`, `reply_to_video`,
+`get_remake_video`, `cancel_remake_video`, and the public video tools for looking at a reference
+(`public_video_fetch_transcript`, `public_video_extract_keyframes`).
 
-`<skill directory>` is the folder holding `SKILL.md`. Reserve one run per video (a remake, a
-project or its edits):
+## 1. Start the project
 
-```sh
-python3 '<skill directory>/scripts/static_host.py' init --workspace '<user-workspace>'
-```
+Every video in the plugin -- a remake of a reference, an approved script, a video from steps --
+lives in one project job. Collect what "Choose what to make" in `SKILL.md` needs (the reference,
+the creator's footage or photos, product pictures), then call `start_video_project` with them: the
+creator's own videos (an Instagram handle, or one to four video links), up to eight photos of the
+creator, reference videos and reference images, and the creator's name. A video or photo the user
+gives as a file on this machine is sent first with `local-files.md` and passed as its
+`kabo-file:<id>` wherever a link goes. Video links are YouTube, Instagram or TikTok; picture links
+are public JPEG or PNG. It returns the `job_id`; `fetching_inputs` means the files are still being
+fetched: say so in one line and call again with the same arguments after `retry_after_s` seconds.
+Use only material the user gave in this conversation; never reuse one video for two roles. A voice
+the creator has not recorded is asked for as `steps/project.md` says ("No voice to clone"), before
+the project starts.
 
-It prints the run directory. Run every later command from it with `KABO_STATIC_RUN_DIR` set to it
-in the same command (`cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 ...`):
-many hosts do not keep environment variables or the working directory between commands. Paths such
-as `host-results/...`, `brief/...` and `script/...` are relative to the run directory; `scripts/...`
-and `references/...` live in `<skill directory>` and are called by that absolute path. Quote
-filesystem paths in commands. Every command below is complete as written: do not run a script
-with `--help`, read its source or search other Skills.
+## 2. Look before you plan
 
-**Saving a tool result.** When a step says to save a result, write the complete
-`get_remake_video` or `render_remake_video` result (the host's result export, or the result
-unchanged) to `host-results/<NN>-<tool name>.json`, numbered in call order. Never retype the brief or
-rebuild a file from what was displayed.
+Plan from what the material shows, not from its words alone. For a public reference link, read
+its transcript (`public_video_fetch_transcript`) and look at its frames
+(`public_video_extract_keyframes`): the shots, who or what is in each, how big, how it moves, the
+text on screen, the look. Look at the creator's own clips and photos the same way when the plan
+uses them. What you cannot see, you do not describe: leave the analysis out rather than guess, and
+say in the storyboard's `picture` only what the row must show.
 
-**Local files.** A video or photo the user gives as a file on this machine (mp4, mov, m4v or webm
-up to 200 MB; JPEG or PNG up to 10 MB) works in any role: send it with `local-files.md`, then pass
-the `kabo-file:<id>` it gives wherever a link goes (`--reference-url`, `--creator-video`,
-`--creator-photo`, `--reference-video`, `--reference-image`). If this connection has no
-`upload_file` tool, say local files cannot be sent from here and ask for a link. TikTok photo posts
-and other sites are not supported: ask for a YouTube, Instagram or TikTok video link instead.
-Fetching the videos may use the daily data allowance even when no remake starts; do not claim
-nothing was used.
+## 3. Write the plan
 
-`--creator-name` is required with creator video links; with an Instagram handle it defaults to the
-lower-cased handle. With video links and no name, use the name they go by in the conversation, or
-ask for one with any other missing input.
+Write the analysis (plain text) and the storyboard (one JSON object) exactly as
+`steps/plan.md` says ("The plan: analysis and storyboard"): `form` and `total_s` at the top, then
+one row per shot with `shot`, `t0`, `t1`, `words`, `picture`, `sources`, `keep_change`, `motion`,
+`on_screen_text`, and optionally `speaker`, `how`, `prompt`, `captions`, `sound`, `transition`.
+Keep the reference's form (`steps/plan.md`, "Break the reference down first"): one picture per
+shot, motion where it moves, the voices and talking shots it has. For an approved script, put
+every word of it, unchanged and in order, into the rows' `words`. Leave `how` and `prompt` out
+when you are not sure; the producer chooses the steps from the rest of the row.
 
-## Start the job and wait for the script gate
+Then call `check_video_plan` with `{job_id, analysis, storyboard}`. It is free and starts nothing.
+Fix every row its `issues` name and check again until `ok` is true. It returns `quote_usd`: the
+code's estimate for making this plan.
 
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' start-call --reference-url '<reference link>' --instagram-handle '<handle or profile link>'
-```
+## 4. The go-ahead, then make it
 
-For creator video links, pass `--creator-video '<link>'` once per link (one to four) instead of
-`--instagram-handle`, and add `--creator-name '<name>'` (required then). Add `--language '<code>'`
-only as `SKILL.md` step 1 says. Photos: `creator-photos.md`. It checks the links and prints
-`{"tool": "start_remake_video", "arguments": {...}}`. Call `start_remake_video` with exactly those
-arguments. A refusal from the script is an input problem: relay it and ask for a corrected input;
-nothing was started.
+Tell the creator in two or three lines what will be made and in which order, and the quote
+(`quote_usd`, rounded up; the final charge is usually a little lower). Never work out a price
+yourself and never change the plan to spend less. End your reply there and wait. Read the answer
+by its meaning, in any language: a go-ahead makes it; a change goes back to step 3; a question is
+answered, then you wait again.
 
-- The `idempotency_key` is stable for the same inputs in this run. On a timeout or lost response,
-  call again with exactly the same arguments; the key returns the same job instead of creating and
-  charging another. Never create a second job for the same request.
-- `fetching_inputs` means the videos are still being fetched (`job_id` is null). Tell the user
-  `message` in one line, then call `start_remake_video` again with the same arguments after
-  `retry_after_s` seconds; the same fetches are picked up.
-- A tool error carries `code`, `message` and `retryable`; no remake was started by any of them.
-  Read `tool-errors.md` and follow it.
+After the go-ahead, call `make_video` with `{job_id, request, analysis, storyboard}`: `request` is
+the creator's own words for what they want (for an approved script, the script itself, marked to
+be used word for word), and `analysis` and `storyboard` exactly as checked. It is paid; call it
+once. It returns `status: "producing"`. When the creator asks for a video and you could not look
+at the material, you may call `make_video` with `request` alone: the producer plans it itself and
+asks for the go-ahead on its quote through `needs_reply` (below).
 
-Once there is a `job_id`, call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30, "all_models": true}`
-until the status is no longer `preparing`. Report each stage change in one line.
+## 5. While it is made
 
-**Supported kinds only.** `reference_type` `talking`, `talking_screen`, `talking_product` and
-`narration` go on. Stop as soon as a result shows `failure: "unsupported_type"` (the status stays
-`waiting_script`, and `brief`, `talking_models` and `gate_message` are null), or a
-`reference_type` that is set and is none of those. Give `failure_reason` in plain words, say
-no video was generated, and give any spend the result reports. Do not say whether it counts toward
-the daily limit. Do not call `render_remake_video`; this job is finished. A final status at this
-point (`out_of_scope`, `failed`, `timed_out`) is handled as in `when-it-does-not-finish.md`; when it
-comes from `start_remake_video`, its reason is in `message`.
+Call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30}` (at least half a minute apart;
+never in a tight loop) and report a stage change in one line. Its `producer` says who has the
+turn:
 
-## Save the brief
+- `working`: the producer is making it; keep waiting.
+- `needs_reply`: the producer asks the creator something (a model to choose, a go-ahead on a
+  quote, a voice, a missing file). Give the creator `producer.message` in their language, keeping
+  every option, number and name, with no recommendation of your own, and wait for their answer.
+  Then call `reply_to_video` with `{job_id, message}`: their answer in their own words. Never
+  answer for them.
+- `idle` with a delivered video: deliver (step 6).
 
-At `waiting_script` the result carries `brief.download`, `gate_message` and the model options.
-Save the result, then fetch the brief at once (the link is short-lived):
+A remake takes 30 min to 3 hours, mostly waiting. Do not promise a finish time.
 
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch --input 'host-results/<NN>-get_remake_video.json'
-```
+## 6. Delivery and changes
 
-It downloads and checks the bundle and writes the brief files under `brief/work/`. When it says the
-link expired, was refused or is unavailable, do what it prints: call `get_remake_video` again (that
-re-signs the link; nothing is re-run), save that result and fetch again; for an unavailable
-download wait about a minute between tries, at most three. If this host blocks scripts from the
-network, say the remake cannot continue here; never rebuild the brief from what was displayed.
+When the job lists a delivered video, give the creator its download link, what was made in two or
+three lines, the spend the job reports, and what the producer's message says about any part that
+looks less like the creator, a preset voice or an AI-generated presenter. Do not claim views,
+retention or likeness that nobody measured, and suggest they watch it in full before publishing.
 
-## Write and check the documents
+A change to a delivered video (other words in a line, captions, a picture over a moment, another
+clip) goes to the same job with `reply_to_video`, the creator's request in their own words; never
+a new project. Cancel a job (`cancel_remake_video`) only when the creator asks; spend so far stays
+charged. Stopping takes a minute or two: keep calling `get_remake_video` until it no longer says
+working; if you stop sooner, say the cancel was requested and is still stopping.
 
-Write the four documents as `../script-gate.md` says, to `script/script.json`,
-`script/opening_review.json`, `script/decisions.json` and `script/route_b_jobs.json`. Then:
+## 7. When it does not finish
 
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/check_documents.py' check
-```
-
-It prints `status`, `errors` and `warnings`. Fix every error it names and run it again; apply each
-warning that fits. Advance only on `status: ready` (structure only; the runner checks again).
-
-## Choose the talking model and render
-
-Nothing is generated or charged before this step. **Voice-over**: there is no model to choose.
-Tell the user the video will be made in their cloned voice with N pictures (M of them moving),
-then wait for a go-ahead. After it, preview the stills once (`formats/narration.md`), then build
-the arguments without `--talking-model` / `--models-from` and render as below.
-
-For a talking video, show the model options from the waiting_script result
-(`talking_model_choices`, else `talking_models`) in their order, each with its label and its
-estimated cost (`est_usd`). Each `est_usd` is the whole video's estimated total, rounded up; say
-the final charge is usually a little lower. Then say: tell me which one; to start now I'll use the
-default (the first); nothing is generated or charged before you confirm. Do not ask for a number or
-"OK". Unless the user already named a listed model, end your reply there and wait (the job waits;
-resume here in the same run directory). Read the answer as `SKILL.md` step 4 says. Then build the
-arguments (this repeats the check):
-
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/check_documents.py' render-args --talking-model '<id>' --models-from 'host-results/<NN>-get_remake_video.json'
-```
-
-It writes `render/render_remake_video.json`. Call `render_remake_video` with that file's content as
-its arguments, unchanged; it returns `status: "running"`. On a timeout or lost response call it
-again with the same arguments: an accepted render never launches twice. For a `conflict` or
-`quota_exceeded` error, read `tool-errors.md`. A result with `failure: "unsupported_type"` is
-handled as above. **The runner checks the documents first, after render returns.** If a later
-`get_remake_video` shows `waiting_script` again with `gate_message`, nothing paid was spent: follow
-`../script-gate.md` ("When the script comes back").
-
-## Production and delivery
-
-Call `get_remake_video` with `wait_s` 30, `include` `["review"]` and `all_models` `true` until the
-status is `delivered`, final, or `waiting_script` again: for a voice-over whose `fetch` reports
-`"saved": "review"` it is the one look at the finished pictures (`formats/narration.md`, last
-section); otherwise the documents were rejected (above). While it is `running`, report the stage in
-one line when it changes.
-
-At `delivered`, save the latest result and fetch the video at once:
-
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch --input 'host-results/<NN>-get_remake_video.json'
-```
-
-It checks the MP4 and prints its local `path`. A failed download is handled as for the brief. Give
-the local path with the rest of `SKILL.md` step 5, the spend the result reports (`spend_usd`), and
-what Kabo's final review found: read `final-review.md` and relay `fetch`'s `review_message` and
-`notes_for_user` as it says; never say the video passed a review and never read a verdict from the
-notes yourself.
-
-## Edits, projects and steps
-
-Edits, projects and steps follow `steps/*.md`, plugin blocks. Before the first paid step, say in
-two or three lines what you will make; there is no quote on this host yet: do not estimate a
-price; each step's `spend_usd` is what is charged, reported at delivery. Cancel a job
-(`get_remake_video` with `"cancel": true`) only when the user asks; spend so far stays charged.
-Stopping takes a minute or two: keep calling `get_remake_video` (30 s apart) until the job or
-`last_step` is no longer running; if you stop sooner, tell the user the cancel was requested and is
-still stopping, not that it stopped.
+A job that ends `failed`, `out_of_scope` or `timed_out` comes with a reason: tell the creator the
+reason in plain words and the spend the job reports, and never start a replacement on your own. A
+tool error carries `code`, `message` and `retryable`: relay `message` in plain words. A
+`quota_exceeded` that says another video is still being made is not a limit: wait for it and call
+again. Any other `quota_exceeded` is a daily limit or the spending safety stop: nothing was
+started; say so. A status call that fails: try once more; if it still fails, say the job is
+preserved and can be checked later with its job id.

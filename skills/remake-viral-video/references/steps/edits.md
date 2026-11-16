@@ -73,38 +73,3 @@ remake_video {request:{action:"edit", job_id, idempotency_key, edits:[ ... up to
 
 Steps on the delivered job are `atom` calls on its `job_id` (`project.md`). The host shows the
 new version as a file card.
-
-**In the plugin** (this Skill's scripts): use the run directory of the delivered video. Write the
-edits as a JSON list to `project/edits/<NN>.json`:
-
-```json
-[{"kind": "lines", "lines": [{"row": 3, "text": "the new words for that line"}]},
- {"kind": "captions", "color": "yellow"}]
-```
-
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' edit-call --job-id '<job id>' --edits 'project/edits/<NN>.json'
-```
-
-It checks each edit and prints the `edit_remake_video` arguments; call the tool with exactly those.
-A refusal from the script is a mistake in the edits file: fix it. On a timeout or lost response,
-call again with the same arguments (the key returns the same edit, not a second charge). For a new
-edit after this one finished, write a new edits file; a `conflict` error means the key was used
-with other arguments, so build again with `--attempt 2` (then 3, ...). A public picture link (a
-product, a place) can be added to the job first with `project-call --job-id` and
-`--reference-image` (`project.md`). A plain colour name for captions is turned into a fixed colour
-by `edit-call`.
-
-The call returns `working`. Call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30,
-"project": true, "include": ["review"]}` until `project.last_step.status` is `done` or `failed`.
-Save the result and run:
-
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch-revision --input 'host-results/<NN>-get_remake_video.json'
-```
-
-It saves the newest revision as `output/remake-<id>-r<N>.mp4` next to the earlier one and prints
-`revision_notes` (which parts were redone, whether anything outside them changed, the spend) and
-`last_step` (spend, face verdict). Give the user the new local path; the spend of this edit is in
-`last_step`, the total with every edit in `project.spend_usd`. Relay the final review as in
-`../final-review.md`.

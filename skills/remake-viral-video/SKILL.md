@@ -2,8 +2,8 @@
 name: remake-viral-video
 description: "Have Kabo make a finished MP4: remake a reference video with the creator (talking, with screens or a product, or narrated; up to 10 min), turn an approved script into a video, build one from steps (new words on their own video, B-roll, a product ad, animation or narration without a face), or change a delivered one. Use only when the user wants the video itself made or changed, script and captions included; not for writing or adapting a script, breaking down a video, or reviewing an account."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all eight tools: remakes, edits of delivered videos, step-by-step projects and local file uploads)."
-allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project upload_file
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
+allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video cancel_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
 
 # Remake Viral Video
@@ -16,11 +16,13 @@ A remake takes 30 min to 3 hours, mostly waiting on the runner. If the host has 
 sub-agents, run this Skill in one and relay its whole final result (path, spend, review); never run
 it in the background and promise the video later. Otherwise follow the steps in the main thread.
 
-**Your host.** If the `remake_video` tool is listed, you are on Kabo Web: every call and wait is
-as `references/host-web.md` says. Otherwise this Skill's remake tools and scripts are your host:
-follow `references/host-plugin.md`. Inside any reference, follow only the block for your host
-(`**On Kabo Web**` or `**In the plugin**`); everything else applies to both. If no tool a request
-needs is available, say that this kind of video is not available here and stop.
+**Your host.** If the `remake_video` tool is listed, you are on Kabo Web and you make the video
+yourself: every call and wait is as `references/host-web.md` says, and inside any reference follow
+the `**On Kabo Web**` block where one is given; everything else applies as written. Otherwise you
+are in the plugin: you plan the video and Kabo's producer makes it -- follow
+`references/host-plugin.md`, with "Choose what to make" below and `references/steps/plan.md` for
+the plan; the rest of this Skill is what the producer follows. If no tool a request needs is
+available, say that this kind of video is not available here and stop.
 
 ## Choose what to make
 

@@ -147,7 +147,7 @@ How to write `markup`, `style` and `script`, what the renderer accepts and what 
 
 The r30 runs that matched their references rendered every picture two to four times and looked
 at it each time; written once, blind, the map and result-image lines came out empty. After the
-four documents are written (and pass the check, in the plugin) and before production starts,
+four documents are written and before production starts,
 preview the pictures (host mechanics below). The runner renders every composition and component
 row for its lines (a plain-card row as its card; timed to an estimate of the voice) and returns
 pages (for a long video an even sample; the note says which): one strip per row with the row and lines, the line, and
@@ -180,27 +180,6 @@ remake_video {request:{action:"preview", job_id, files:{script, decisions}, stil
 The pages are attached to your next message. `rows` redoes only those rows; `stills: true` is the
 paid preview with stills.
 
-**In the plugin** (this Skill's scripts):
-
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/check_documents.py' render-args --preview pictures
-```
-
-It writes `render/preview_remake_video.json`; call `render_remake_video` with that file's content,
-unchanged. `--preview stills` is the paid preview with stills (only after the user's go-ahead in
-`../host-plugin.md`). The job stays at `waiting_script`. About 30 seconds later call
-`get_remake_video` with `wait_s` 30, save that result and fetch the pages (they ride in its brief
-link):
-
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch-preview --input 'host-results/<NN>-get_remake_video.json'
-```
-
-When it says the preview is still rendering, wait about 30 seconds and repeat both steps. It saves
-`preview/<n>/page_NN.jpg`: open every page listed in `open` (follow `open_note`); `errors` names
-rows that did not render. Fix rows in `script/decisions.json`, run the check again and preview
-again.
-
 ## One look at the finished pictures
 
 After the cut is made, a narration job stops once more at `waiting_script`, this time with a
@@ -210,12 +189,9 @@ current decisions and `beat_review.template.json`.
 
 **On Kabo Web**: the status carries `review`; the pages are attached and `brief` holds
 `work/decisions.json` and `production/review/beats/beat_review.template.json`.
-**In the plugin**: `get_remake_video` shows `waiting_script` with a `gate_message` asking you to
-look at every line's picture. Save that result and run `fetch` on it (`../host-plugin.md`); it
-reports `"saved": "review"` and saves `review/pages/page_NN.jpg` (open those listed in `open`)
-and `review/brief/` with the current decisions and the template.
 
-1. Open every page. Copy the template (in the plugin, to `script/beat_review.json`) and set `ok: true` for each line whose picture shows what the line says and
+
+1. Open every page. Copy the template and set `ok: true` for each line whose picture shows what the line says and
    reads at phone size; `ok: false` with a short `note` for the others. For each line with a
    reference picture set its `grammar` keys (`render`, `dimension`, `shot`, `layout`, `palette`,
    `type`, `elements`, `motion`) true or false: does ours match the reference's picture next to
@@ -231,10 +207,7 @@ and `review/brief/` with the current decisions and the template.
 2. For every line that is not ok, change its row's `make` in `decisions` (fix the composition,
    give the still a new prompt, or switch its kind) and preview that row.
 3. Answer -- not with a new start. **On Kabo Web**:
-   `remake_video {request:{action:"review", job_id, decisions, beat_review}}`. **In the plugin**:
-   build the answer and call `render_remake_video` with it, unchanged:
-   `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/check_documents.py' render-args --beat-review 'script/beat_review.json'`
-   writes `render/review_remake_video.json`.
+   `remake_video {request:{action:"review", job_id, decisions, beat_review}}`.
 
 Only the rows of the lines marked not ok -- and rows you changed -- are made again; everything
 else is kept. When a line is marked not ok but its row would make exactly the same picture (its

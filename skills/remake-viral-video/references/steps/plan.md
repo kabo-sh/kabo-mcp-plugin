@@ -87,10 +87,6 @@ again (the analysis may be left out to keep the saved one).
 lists the fields). Every later `status` of the job returns the analysis and the storyboard. A
 storyboard with prompts left for later is not the plan.
 
-**In the plugin** (this Skill's scripts): save the analysis as `project/plan/analysis.md` and the
-storyboard as `project/plan/storyboard.json` in the run directory, and read both again at the
-start of every later turn on this video before the next step.
-
 ### When a row has no `how` or `prompt`
 
 A storyboard may come with only `picture`, `sources`, `keep_change` and `motion` (another host or

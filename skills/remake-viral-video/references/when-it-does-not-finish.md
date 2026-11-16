@@ -41,7 +41,3 @@ incomplete.
 reason together with whether the remake was charged and counts toward the daily limit. Tell the
 creator everything in `relay`, in their language and in plain words. Describe where it stopped by
 the returned `failed_at` text, not the raw stage name.
-
-**In the plugin** (this Skill's scripts): from `start_remake_video` the reason is its `message`;
-from `get_remake_video`, `failure_reason` when it is not null. Tool errors before a job exists are
-read as in `tool-errors.md`.

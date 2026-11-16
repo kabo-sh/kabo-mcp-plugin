@@ -45,18 +45,6 @@ remake_video {request:{action:"prepare", input_kind:"script", idempotency_key:<s
 Upload ids must be listed in this conversation, as for a reference remake (`host-web.md`). Reuse
 the key and inputs on retries. Then wait as `host-web.md` says.
 
-**In the plugin** (this Skill's scripts): save the text to a file in the run directory without
-changing a character (for example `script/approved.txt`), then build the call:
-
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' start-call --script-file 'script/approved.txt' --instagram-handle '<handle or profile link>'
-```
-
-Use `--creator-video` (and `--creator-name`) instead of `--instagram-handle` exactly as on the
-reference path; `--language` does not apply. Call `start_remake_video` with the printed arguments
-and handle its results and errors as `host-plugin.md` says. `script_video_unavailable` comes as a
-`service_unavailable` error.
-
 ## 2. At the script gate: copy the drafts, do not write
 
 The brief's `brief_input.json` has `input_kind` `script`; its `approved_script` is the source of
@@ -71,20 +59,12 @@ The empty image-jobs document is expected: this mode has no reference scene or i
 **On Kabo Web**: read the drafts from the brief (`work/...`) and pass them as the four start files,
 with no model (`host-web.md`).
 
-**In the plugin**: fetch the brief (`host-plugin.md`), then
-
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/check_documents.py' copy-drafts
-```
-
-writes `script/*.json` from the drafts and checks them.
-
 ## 3. Model, production and delivery
 
 Show the model options and wait for the creator's choice exactly as for a reference remake
 (`SKILL.md` step 4); never preselect or skip the confirmation. At delivery, say the approved script
 was used word for word and only the line breaks may differ; do not say you rewrote anything.
 Anything else they asked for (B-roll, a close-up) is added before delivery. If the runner rejects
-the text check, restore the exact approved text (in the plugin, with `copy-drafts`); never change
+the text check, restore the exact approved text; never change
 the words or the snapshot to pass. A change to the words is a new approved script and needs a new
 job once the creator approves it.

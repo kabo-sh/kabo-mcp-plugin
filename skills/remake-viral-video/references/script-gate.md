@@ -171,8 +171,3 @@ what `gate_message` names, keep the rest of the documents as they were, and subm
 again. The model the creator chose is kept: do not ask again.
 
 **On Kabo Web**: call start again with all four files (`host-web.md`).
-
-**In the plugin**: save that result and run `fetch` on it; it keeps the earlier brief as
-`brief.previous-<N>/` and writes the fresh one to `brief/`, and your documents in `script/` stay.
-Run the local check again, build the render arguments again with `--models-from` pointing at this
-newest result and the same talking model, and call `render_remake_video` again (`host-plugin.md`).
