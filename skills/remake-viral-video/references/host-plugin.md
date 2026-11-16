@@ -7,7 +7,7 @@ this Skill. You relay what the producer asks and deliver what it makes. Never dr
 assemble a picture yourself, and never promise a video the producer has not delivered.
 
 Tools: `start_video_project`, `upload_file`, `check_video_plan`, `make_video`, `reply_to_video`,
-`get_remake_video`, `cancel_remake_video`, and the public video tools for looking at a reference
+`get_remake_video`, and the public video tools for looking at a reference
 (`public_video_fetch_transcript`, `public_video_extract_keyframes`).
 
 ## 1. Start the project
@@ -45,9 +45,9 @@ shot, motion where it moves, the voices and talking shots it has. For an approve
 every word of it, unchanged and in order, into the rows' `words`. Leave `how` and `prompt` out
 when you are not sure; the producer chooses the steps from the rest of the row.
 
-Then call `check_video_plan` with `{job_id, analysis, storyboard}`. It is free and starts nothing.
-Fix every row its `issues` name and check again until `ok` is true. It returns `quote_usd`: the
-code's estimate for making this plan.
+Then call `check_video_plan` with `{job_id, storyboard}`. It is free; nothing is made or saved.
+When `ok` is false, fix what `problem` names and check again until `ok` is true. It returns
+`quote_usd` (the code's estimate for making this plan), `rows` and `total_seconds`.
 
 ## 4. The go-ahead, then make it
 
@@ -57,40 +57,48 @@ yourself and never change the plan to spend less. End your reply there and wait.
 by its meaning, in any language: a go-ahead makes it; a change goes back to step 3; a question is
 answered, then you wait again.
 
-After the go-ahead, call `make_video` with `{job_id, request, analysis, storyboard}`: `request` is
-the creator's own words for what they want (for an approved script, the script itself, marked to
-be used word for word), and `analysis` and `storyboard` exactly as checked. It is paid; call it
-once. It returns `status: "producing"`. When the creator asks for a video and you could not look
-at the material, you may call `make_video` with `request` alone: the producer plans it itself and
-asks for the go-ahead on its quote through `needs_reply` (below).
+After the go-ahead, call `make_video` with `{job_id, request, analysis, storyboard, quote_usd,
+idempotency_key}`: `request` is the creator's own words for what they want, verbatim (for an
+approved script, the script itself, marked to be used word for word); `storyboard` exactly as
+checked, with `analysis` (required with a storyboard); `quote_usd` the quote the creator agreed
+to; a new `idempotency_key` (8-128 of `A-Za-z0-9._:-`), reused only to retry the same call after a
+timeout. It is paid; call it once. It returns `{job_id, producer}`. When the creator asks for a
+video and you could not look at the material, you may call `make_video` with `request` alone (and
+the key): the producer plans it itself and asks for the go-ahead on its quote through
+`needs_reply` (below).
 
 ## 5. While it is made
 
-Call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30}` (at least half a minute apart;
-never in a tight loop) and report a stage change in one line. Its `producer` says who has the
-turn:
+Call `get_remake_video` with `{"job_id": "<id>", "project": true, "producer": true, "wait_s": 30}`
+(at least half a minute apart; never in a tight loop) and report a stage change in one line. Its
+`producer.state` says who has the turn:
 
+- `not_started`: `make_video` has not been called yet.
 - `working`: the producer is making it; keep waiting.
 - `needs_reply`: the producer asks the creator something (a model to choose, a go-ahead on a
   quote, a voice, a missing file). Give the creator `producer.message` in their language, keeping
   every option, number and name, with no recommendation of your own, and wait for their answer.
-  Then call `reply_to_video` with `{job_id, message}`: their answer in their own words. Never
-  answer for them.
-- `idle` with a delivered video: deliver (step 6).
+  Then call `reply_to_video` with `{job_id, message, idempotency_key}`: their answer in their own
+  words, verbatim, with a new key. Never answer for them.
+- `done`: the video is delivered and the producer has said what it made: deliver (step 6).
+- `failed`: the last round broke off or the job failed. Tell the creator plainly what
+  `producer.message` says; if they want to go on, send their words with `reply_to_video` and the
+  producer carries on.
 
 A remake takes 30 min to 3 hours, mostly waiting. Do not promise a finish time.
 
 ## 6. Delivery and changes
 
-When the job lists a delivered video, give the creator its download link, what was made in two or
+When the job lists a delivered video (the newest of `project.revisions`, its `video.download`;
+links expire, so read the job again to re-sign), give the creator its download link, what was made in two or
 three lines, the spend the job reports, and what the producer's message says about any part that
 looks less like the creator, a preset voice or an AI-generated presenter. Do not claim views,
 retention or likeness that nobody measured, and suggest they watch it in full before publishing.
 
 A change to a delivered video (other words in a line, captions, a picture over a moment, another
 clip) goes to the same job with `reply_to_video`, the creator's request in their own words; never
-a new project. Cancel a job (`cancel_remake_video`) only when the creator asks; spend so far stays
-charged. Stopping takes a minute or two: keep calling `get_remake_video` until it no longer says
+a new project. Cancel a job (`get_remake_video` with `"cancel": true`) only when the creator asks;
+spend so far stays charged. Stopping takes a minute or two: keep calling `get_remake_video` until it no longer says
 working; if you stop sooner, say the cancel was requested and is still stopping.
 
 ## 7. When it does not finish
