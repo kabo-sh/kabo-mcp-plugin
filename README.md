@@ -30,6 +30,10 @@
   <a href="https://chatgpt.com/plugins/plugin_asdk_app_6adac6e43f4481918fceac5ade2df2c6"><img alt="Add to ChatGPT and Codex" src="https://img.shields.io/badge/Add_to-ChatGPT_%C2%B7_Codex-1C1917?style=for-the-badge" /></a>
   <a href="#install"><img alt="Add to Grok Bot" src="https://img.shields.io/badge/Add_to-Grok_Bot-1C1917?style=for-the-badge" /></a>
   <a href="https://kabo.sh/integrations/muse?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_muse"><img alt="Add to Muse" src="https://img.shields.io/badge/Add_to-Muse-1C1917?style=for-the-badge" /></a>
+  <a href="https://kabo.sh/mcp/workbuddy?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_workbuddy"><img alt="Add to WorkBuddy" src="https://img.shields.io/badge/Add_to-WorkBuddy-1C1917?style=for-the-badge" /></a>
+  <a href="https://kabo.sh/mcp/doubao-work?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_doubao_work"><img alt="Add to Doubao Work" src="https://img.shields.io/badge/Add_to-Doubao_Work-1C1917?style=for-the-badge&logo=bytedance&logoColor=white" /></a>
+  <a href="https://kabo.sh/mcp/qwen-work?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_qwen_work"><img alt="Add to Qwen Work" src="https://img.shields.io/badge/Add_to-Qwen_Work-1C1917?style=for-the-badge&logo=qwen&logoColor=white" /></a>
+  <a href="https://kabo.sh/mcp/deepseek-harness?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_deepseek_harness"><img alt="Add to DeepSeek Harness" src="https://img.shields.io/badge/Add_to-DeepSeek_Harness-1C1917?style=for-the-badge&logo=deepseek&logoColor=white" /></a>
   <a href="https://kabo.sh/integrations/mcp?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_mcp"><img alt="Any MCP client" src="https://img.shields.io/badge/Any-MCP_client-1C1917?style=for-the-badge" /></a>
 </p>
 
