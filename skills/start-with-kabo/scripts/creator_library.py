@@ -18,6 +18,7 @@ public-content-snapshot.v1 files that build_public_snapshot.py assembled from st
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
@@ -25,7 +26,10 @@ import re
 import statistics
 import subprocess
 import sys
+import tempfile
+import time
 import urllib.parse
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -87,12 +91,51 @@ def read_json(path, default=None):
 
 
 def write_json(path, value):
-    # Write a temp file first, then replace: if a scheduled task is interrupted, no half-written JSON is left
-    # behind.
+    # Each writer owns its temporary file; a failed replacement leaves the previous JSON intact.
     path = Path(path)
-    temp = path.with_name(path.name + ".tmp")
-    temp.write_text(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    os.replace(temp, path)
+    temp = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                         prefix=f".{path.name}.", suffix=".tmp", delete=False) as stream:
+            temp = Path(stream.name)
+            stream.write(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+        os.replace(temp, path)
+    finally:
+        if temp is not None:
+            temp.unlink(missing_ok=True)
+
+
+@contextmanager
+def library_lock(directory):
+    """Keep the complete read/modify/write operation exclusive across hosts and Skill copies."""
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    # Keep this file: unlinking it would let a new caller lock a different inode while another waits.
+    # The OS releases the lock when the stream closes, including when the owning process is killed.
+    with (directory / ".library.lock").open("a+b") as stream:
+        if os.name == "nt":
+            import msvcrt
+            if stream.tell() == 0:
+                stream.write(b"\0")
+                stream.flush()
+        else:
+            import fcntl
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                if os.name == "nt":
+                    stream.seek(0)
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError as error:
+                if error.errno not in (errno.EACCES, errno.EAGAIN):
+                    raise
+                if time.monotonic() >= deadline:
+                    fail("Another Kabo task is using this library. Retry when it finishes; do not delete the lock file.")
+                time.sleep(0.05)
+        yield
 
 
 def say(value):
@@ -1933,7 +1976,10 @@ HANDLERS = {"path": cmd_path, "opening": cmd_opening, "posts": cmd_posts, "conne
 
 def main():
     args = build_parser().parse_args()
-    HANDLERS[args.command](args)
+    # Readers take the same lock so they cannot observe half of a multi-file library update.
+    lock = library_lock(args.library) if hasattr(args, "library") else nullcontext()
+    with lock:
+        HANDLERS[args.command](args)
 
 
 if __name__ == "__main__":

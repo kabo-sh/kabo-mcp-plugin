@@ -127,7 +127,11 @@ are complete as written: do not run scripts with `--help` or read their source. 
   Readings and recorded reviews always stay.
 - **Pillars waiting to sync** (`show` reports `pillars_sync.state: pending`: the creator confirmed
   them but they never reached Kabo). The refresh keeps them as they are. In a run the creator started
-  by hand, save them once, but only when `get_kabo_info` lists `workspace:write` in `granted_scopes` (without it, call no write tool, say once that this app connected Kabo with read-only permission, and list the pillars as saved on this computer only): run `declare-request --library '<library directory>' --profile profile.json`,
+  by hand, first check `get_kabo_info`. If `granted_scopes` lacks `workspace:write`, call no write
+  tool; offer to reconnect once using `references/write-access.md` or keep the pillars on this
+  computer. After reconnecting, check `get_kabo_info` again. Save only when it confirms
+  `workspace:write`; otherwise keep them pending locally and continue the review. To save, run
+  `declare-request --library '<library directory>' --profile profile.json`,
   call `update_content_preferences` with the printed arguments, save the result to `declare.json` in
   the run and run `record-sync --library '<library directory>' --result declare.json` (after
   `reread_and_retry`, read the profile again and repeat once with `--retried`). A scheduled run never

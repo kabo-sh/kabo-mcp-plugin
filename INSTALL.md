@@ -102,11 +102,12 @@ assistant should name the Skill, for example "Please use the start-with-kabo ski
 Doubao Work runs a Skill only when it is named, and Qwen Work chose it from a natural request only some
 of the time.
 
-**Read-only connection.** In Doubao Work, Qwen Work and WorkBuddy, Kabo currently connects with read
-permission only. Linking an account and saving pillars are unavailable there until the server grants
-write permission on first sign-in; the Skills detect this and continue with reading, picks and
-reviews. Do not call a write tool to test it: Doubao Work treats the refusal as a lost sign-in and
-drops the whole Kabo connection.
+**Read-only connection.** A new Kabo authorization requests read and write access. An older grant
+can still be read-only after a plugin update or token refresh. The Skills check `granted_scopes`
+from `get_kabo_info`, offer one new browser authorization when writing is needed, and recheck the
+permission afterward. The creator can keep reading without granting write access. Never call a
+write tool to test it: Doubao Work can treat the refusal as a lost sign-in and drop the connection.
+See [write-access recovery](skills/start-with-kabo/references/write-access.md) for host controls.
 
 ### Doubao Work
 

@@ -14,8 +14,9 @@ Connecting Kabo asks for read and write access to your Kabo workspace (`workspac
 saves your pillar edits. Connections made before this change have read access only: sign in to Kabo
 again once to get write access (in Codex:
 `codex mcp login kabo --scopes openid,profile,email,offline_access,data,video,workspace:read,workspace:write`;
-in other hosts, disconnect and reconnect Kabo). Until then, a Skill that needs to write tells you to
-reconnect, and the original public research and local drafting workflows remain usable.
+in other hosts, disconnect and reconnect Kabo). The onboarding and daily-review Skills offer this
+once when you need to write, then check the permission again. The original public research and local
+drafting workflows remain usable.
 
 The three trends Skills can also start from your saved account profile. When you ask for trends for
 your own linked account, the agent reads the account's saved content profile (your signature
@@ -53,7 +54,17 @@ names that folder. In a host whose working folder is your own project, the proje
 
 ## Read-only connections
 
-Some hosts (Doubao Work, Qwen Work and WorkBuddy) connect Kabo with read permission only and do not
-ask for more. There, linking a new account and saving pillars are unavailable; the Skills read
-`granted_scopes` from `get_kabo_info`, make no write call, say so once, and keep working on reading,
-daily picks and reviews for an account that is already linked.
+An older connection can still have read permission only, including in Doubao Work, Qwen Work and
+WorkBuddy. The Skills read `granted_scopes` from `get_kabo_info` before writing. In an interactive
+run they offer a fresh browser authorization once, then check the permission again. You can decline
+and continue with public reading, local work, and daily picks for an account already linked in Kabo.
+Scheduled reviews do not ask you to reconnect or sync pending pillars.
+
+## Concurrent local tasks
+
+The three daily Skills use the same per-account library lock for each command, covering its reads
+and writes. Different accounts can run independently. A task waits up to 30 seconds if another task
+is using that library, then reports that it is busy so you can retry. Locks are released when a
+process exits, including an interrupted task; leave the `.library.lock` file in place. Each JSON
+replacement also uses its own temporary file. These local file guarantees do not prevent two hosts
+from sending the same day's already-recorded picks to their separate conversations.
