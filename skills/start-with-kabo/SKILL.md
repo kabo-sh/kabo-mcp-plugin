@@ -88,19 +88,18 @@ and a limit is stated when the creator asks for something Kabo does not do.
 
 ## 2. Link one account
 
-- **Check what this connection may do, before any write.** Call `get_kabo_info` and read
-  `granted_scopes`. When it does not include `workspace:write`, this app connected Kabo with
-  read-only permission: **call no write tool in this run** (`connect_public_account`,
-  `prepare_creator_profile`, `update_content_preferences` or any other that saves to the creator's
-  Kabo account). Some apps never ask for more permission, and an app can treat even one refused call
-  as a lost sign-in and drop the whole Kabo connection, so never call a write tool just to see
-  whether it works. Tell the creator once, in plain words, that this app connected Kabo with
-  read-only permission, so Kabo cannot link a new account or save their pillars here, and that
-  reading, picks and reviews still work. Then go on with the read-only paths: an account that is
-  already linked is still used for reading and picks (skip the profile start in step 3 and step 5,
-  and keep the pillars on this computer); with no linked account follow "No linked account" below.
-  When `granted_scopes` is missing from the answer, the permission is unknown: handle a refused
-  write as steps 3 and 5 say.
+- **Check access before any write.** Call `get_kabo_info` and read `granted_scopes`. Without
+  `workspace:write`, call no write tool (`connect_public_account`, `prepare_creator_profile`,
+  `update_content_preferences` or any other that saves to Kabo) unless a later permission check
+  confirms it. Never probe with a write: some apps treat a refusal as a lost sign-in and disconnect.
+  Explain once that this connection is read-only, so linking an account and saving pillars need a
+  new browser authorization. Offer to reconnect now or continue read-only; use
+  `references/write-access.md`. After the creator finishes reconnecting, call `get_kabo_info` again
+  and resume writes only if it now lists `workspace:write`. If they decline or write permission
+  remains absent or unknown, do not ask again: use an already linked account for reading and picks,
+  skip the profile start and step 5, and keep pillars locally; with no linked
+  account follow "No linked account" below. When `granted_scopes` is missing, access is unknown:
+  handle a refused write as steps 3 and 5 say.
 - Call `list_connected_accounts`. If one account is linked, name it and offer
   "use this one" as the first option; ask which one only when several fit. If none is linked, ask one
   question: the platform and the public handle. X (Twitter) is not supported yet: say so and ask for
@@ -162,10 +161,10 @@ in the background (it is free). Save the result to `<run directory>/prepare-1.js
 file-write tool and run
 `python3 '<skill directory>/scripts/creator_library.py' profile-status --result '<run directory>/prepare-1.json'`.
 Act on two of its actions only:
-- `ask_write_access`: send `tell_creator_now`. When the creator says they reconnected Kabo with write
-  access, call `prepare_creator_profile` once more; otherwise send `no_write_access_line` and go on
-  (saving pillars in step 5 needs the same access). An app that cannot ask for more permission
-  stays read-only after a reconnect: then do not ask the creator to reconnect again.
+- `ask_write_access`: send `tell_creator_now` and follow `references/write-access.md`. After the
+  creator reconnects, recheck `get_kabo_info`; only a confirmed `workspace:write` permits one more
+  `prepare_creator_profile` call. Otherwise send `no_write_access_line` and go on read-only (saving
+  pillars in step 5 needs the same access). Never repeat a reconnect request in this run.
 - `ask_niche`: send `tell_creator_now` and ask `question`, as one question with no options; call
   `prepare_creator_profile` once more with `"niche"` set to the creator's own words (3 to 200
   characters; shorten only by cutting, never by rewording). Never write the niche yourself. If the
@@ -350,7 +349,8 @@ next. No library path, no list of limits, nothing already said above. When the c
 change their pillars, repeat steps 4 and 5: the new set replaces the old one in Kabo.
 
 **Pillars waiting to sync.** When `show` on an existing library reports `pillars_sync.state: pending`,
-run step 5 once before anything else in this session.
+check access as in step 2 before step 5. Save once if write access is confirmed; otherwise keep the
+pillars pending locally and continue read-only.
 
 ## Hosts without saved files
 

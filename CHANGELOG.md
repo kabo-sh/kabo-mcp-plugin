@@ -2,6 +2,14 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## Unreleased
+
+- Offer one explicit reauthorization for an older read-only connection during onboarding or manual
+  pillar sync, verify the new granted scopes, and retain the read-only fallback. Update the installation
+  and workspace guidance to distinguish old grants from new authorizations.
+- Serialize creator-library commands across processes and Skill copies, including reads of multi-file
+  state. Use unique temporary JSON files and release locks on process exit.
+
 ## 1.0.52 (unreleased)
 
 - `start-with-kabo`: the description now starts with "Start here when a creator is new to Kabo ..." and lists
