@@ -8,6 +8,9 @@ CATALOG = json.loads((Path(__file__).resolve().parents[1] / 'references/report-l
 SPANISH = json.loads((Path(__file__).resolve().parents[1] / 'references/report-locales-es.json').read_text(encoding='utf-8'))
 for entry in CATALOG.values():
     entry['es'] = SPANISH[entry['en']]
+# Traditional Chinese (zh-TW, zh-HK, zh-MO, zh-Hant): the same program-owned labels, never the Simplified ones.
+TRADITIONAL = json.loads((Path(__file__).resolve().parents[1] / 'references/report-locales-zh-hant.json').read_text(encoding='utf-8'))
+TRADITIONAL_TAGS = {'hant', 'tw', 'hk', 'mo'}
 LEGACY_LANGUAGES = {'zh', 'en', 'fr', 'ar', 'es'}
 CHINESE_VALUES = {'low': '低', 'medium': '中', 'high': '高',
     'ready_for_selection': '可供选择', 'needs_selection_context': '需要主题或上下文',
@@ -85,6 +88,16 @@ def report_language(data):
     return parts[0]
 
 
+def ui_locale(data):
+    """The fixed-label catalog for the report: Traditional Chinese tags select their own catalog."""
+    language = report_language(data)
+    if language == 'zh' and isinstance(data.get('report_language'), str):
+        subtags = normalized_locale(data['report_language']).split('-')[1:]
+        if TRADITIONAL_TAGS & set(subtags):
+            return 'zh-hant'
+    return language
+
+
 def ui_label_sources(data):
     """One English source vocabulary; existing catalogs remain for old consumers."""
     return set() if report_language(data) in LEGACY_LANGUAGES else {entry['en'] for entry in CATALOG.values()}
@@ -93,9 +106,12 @@ def ui_label_sources(data):
 def translator(data):
     """Return a translator for owned report strings in the validated UI locale."""
     language = report_language(data)
+    traditional = ui_locale(data) == 'zh-hant'
     labels = presentation_translations(data) if language not in LEGACY_LANGUAGES else {}
     def translate(value):
         """Translate catalog entries and preserve creator text that is absent from the catalog."""
+        if traditional:
+            return TRADITIONAL['labels'].get(value, value)
         if language == 'zh':
             return value
         if value not in CATALOG:
@@ -218,7 +234,8 @@ def fixed_value_translations(data):
     language = report_language(data)
     if language not in LEGACY_LANGUAGES:
         return {}
-    return {value: (CHINESE_VALUES[value] if language == 'zh' else CATALOG[value][language])
+    chinese = TRADITIONAL['values'] if ui_locale(data) == 'zh-hant' else CHINESE_VALUES
+    return {value: (chinese[value] if language == 'zh' else CATALOG[value][language])
             for value in rendered_report_values(data) if value in CATALOG}
 
 
@@ -234,6 +251,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('language')
     parser.add_argument('--labels', action='store_true', help='list required English UI label sources for this report language')
+    parser.add_argument('--template', action='store_true',
+                        help='print the evidence_gap_translations entries to fill for this language (empty when it has a built-in catalog)')
     args = parser.parse_args()
     data = {'report_language': args.language}
-    print(json.dumps(sorted(ui_label_sources(data)), ensure_ascii=False) if args.labels else report_language(data))
+    if args.template:
+        print(json.dumps([{'source_text': source, 'report_text': ''} for source in sorted(ui_label_sources(data))], ensure_ascii=False, indent=1))
+    else:
+        print(json.dumps(sorted(ui_label_sources(data)), ensure_ascii=False) if args.labels else report_language(data))

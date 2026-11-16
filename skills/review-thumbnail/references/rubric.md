@@ -15,7 +15,7 @@ Use only pass/fail, one evidence-grounded sentence and a fix for each fail. Judg
 | unique_concept | Unique Concept | A specific, distinctive visual idea beyond a generic template. | Interchangeable treatment without a specific idea. Without peer examples, judge only visible conceptual specificity, never claim market-wide originality. |
 | execution | Creative Execution | The idea is polished and complete. | Visible roughness, stray fragments, broken lettering, unresolved placeholders or incomplete layout. Legitimate screen UI, source and AI disclosure labels and decoration are not defects merely for existing. |
 | curiosity | Curiosity Elicitation | A visible question, tension or incomplete reveal motivates learning more. | The image exhausts its point or lacks a clear question. Do not promise a result absent from the video. |
-| resolution_aspect | Resolution & Aspect Ratio | Sharp at intended display size, usable dimensions and the requested ratio. | Blur, insufficient detail or wrong ratio. Use measured pixels and the explicit target; a missing target fails for missing context, not for bad pixels. |
+| resolution_aspect | Resolution & Aspect Ratio | Sharp at intended display size, usable dimensions and the requested ratio. | Blur, insufficient detail or wrong ratio. The script measures the ratio against the explicit target and states it; you judge sharpness. A missing target fails for missing context, not for bad pixels; a screenshot or non-standard capture is not ratio-checked. |
 
 Repeated-review rule: freeze image bytes, context and these anchors. Do not change strictness
 because of candidate order or an earlier verdict. Each reason must identify a visible feature or
@@ -39,3 +39,8 @@ and the alternative's weakness; equally weak candidates may yield no recommendat
 YouTube long-form thumbnails serve search/recommendations. Short-form covers mainly serve profile
 or grid browsing; eye-catching elements and distinctive concepts matter there, without adding
 platform weights or claiming observed audience effects.
+
+A title, when given, is reviewed beside these ten checks and never changes them: the script measures
+its length; you judge its clarity and whether title and cover complement each other (the cover shows
+what the title promises without repeating its words). Platform interface in a screenshot (duration,
+title, channel, view count) is not cover text and is never judged as part of the cover.

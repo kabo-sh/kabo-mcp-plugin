@@ -10,7 +10,7 @@ The host inspects original and small images. Python/Pillow copy, decode and meas
 `deliver` validates complete records, evidence constraints, priorities and recommendations and
 renders a deterministic Markdown file for unchanged path-based emission. Missing context is an
 explicit failed check requesting evidence, not a detected visual defect. Scripts do not judge art.
-The v2 request/review/delivery schema rejects old v1 reviews. The Skill version (`metadata.version` in
+The v3 request/review/delivery schema (screenshot capture, script-owned ratio and title length, title review, labels in the creator's language) rejects older reviews. The Skill version (`metadata.version` in
 `SKILL.md`) is independent of the plugin release version.
 
 ## Focused validation

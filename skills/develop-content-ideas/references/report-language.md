@@ -9,7 +9,9 @@ Explain and generate new creative copy in the requested language; quotations can
 
 ## Fixed presentation is program-owned
 
-Built-in catalogs cover zh/en/fr/ar/es and their regional variants. The renderer deterministically
+Built-in catalogs cover zh/en/fr/ar/es and their regional variants; Traditional Chinese tags
+(`zh-TW`, `zh-HK`, `zh-MO`, `zh-Hant`) get the Traditional catalog, so a creator writing Traditional
+Chinese is tagged `zh-TW` (or their region), never plain `zh`. The renderer deterministically
 supplies all interface labels and displayed status/intent/source-mode/effort values. **Do not author
 translations of fixed UI labels or enum values for these languages.** Existing valid mappings in
 older artifacts remain accepted, but cannot override fixed presentation. Canonical data is unchanged.
@@ -20,10 +22,13 @@ Supply one `{source_text, report_text}` per such source; when already in the req
 repeat it. Use `[]` when none exist. A gap called "low" is still a gap: translate its real meaning,
 not the production-effort label. Do not add imaginary gaps to satisfy a diagnostic.
 
-For another valid language without a built-in catalog, list required labels using
-`python3 '<skill directory>/scripts/report_language.py' <report-language> --labels`.
-The existing authored-label route remains available; translate the listed UI labels and displayed
-values once in the same array, preserving Markdown markers and boundary spacing. If reliable
+For another valid language without a built-in catalog (Bosnian, Turkish, Portuguese, German …),
+keep that language's own tag as `report_language` (`bs`, `tr`, `pt-BR`); never set `en` or another
+catalog language because the labels are missing. Print the entries to fill with
+`python3 '<skill directory>/scripts/report_language.py' <report-language> --template` (or list them with
+`--labels`), translate every `report_text`, and add them with the rendered values to
+`evidence_gap_translations` in one pass, preserving Markdown markers and boundary spacing. The
+validator rejects a report in such a language until every label is translated. If reliable
 translation is unavailable, state the limitation; never silently switch language or bypass export.
 
 ## Repair and review
