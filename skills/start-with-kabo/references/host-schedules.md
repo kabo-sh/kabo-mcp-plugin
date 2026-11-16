@@ -2,7 +2,8 @@
 
 Three recurring jobs, created with the host's own scheduled tasks and only after the creator agrees.
 Propose the times and the time zone (read it from the host or the computer); the creator confirms
-or changes them.
+or changes them. After creating a task, tell the creator the time zone the host reports for that task,
+not the computer's clock: one host created its tasks in a zone different from the computer's.
 
 1. **Daily picks**, 8:00 by default, runs `pick-daily-viral-videos`.
 2. **New-post review**, 12:00 by default, runs `review-new-posts` for the reviews only.
@@ -20,15 +21,18 @@ Use the host section below. Fill the brackets and use these as the task texts:
 
 > Every day at [time] [time zone], use the pick-daily-viral-videos skill for [platform] @[handle]
 > with the Kabo library in [workspace]. Ask me nothing. Send me the picks here. Never post, comment,
-> follow or message anyone.
+> follow or message anyone. Reply in [language].
 
 > Every day at [time] [time zone], use the review-new-posts skill for [platform] @[handle] with the
 > Kabo library in [workspace], new-post reviews only. Ask me nothing. Send me the review of each
-> post that passed 24 hours, or one line when there is none. Never post, comment or reply to anyone.
+> post that passed 24 hours, or one line when there is none. Never post, comment or reply to anyone. Reply in [language].
 
 > Every day at [time] [time zone], use the review-new-posts skill for [platform] @[handle] with the
 > Kabo library in [workspace], account recap only. Ask me nothing. Send me the account recap here.
-> Never post, comment or reply to anyone.
+> Never post, comment or reply to anyone. Reply in [language].
+
+[language] is the language the creator writes in: an unattended run has no creator message to take
+it from, and in testing one answered a Chinese-speaking creator entirely in English.
 
 Never tell the creator a schedule exists unless the host confirmed creating it. After creating one,
 read back its name and next run time from the host's answer. If the host cannot schedule tasks, use
@@ -124,6 +128,79 @@ it off.
   minutes after the set time.
 - Muse Code, the command-line agent, loops only while its session stays open, and a loop expires
   after seven days: treat it as having no scheduled tasks.
+
+## Qwen Work
+
+- Ask in chat. Qwen Work creates the tasks itself and shows a "scheduled task created" card for each
+  one; send the three instructions above as three requests.
+- **Workspace.** Qwen Work's sandbox lets a session write only inside its own working folder. Writing
+  to `~/kabo-workspace` raises a permission prompt (only "Deny" or "Allow this time", and the grant
+  ends with the session), and an unattended run stops on that prompt until a person allows it. A
+  project created without a working folder does not help (two sessions in it got different folders).
+  So for Qwen Work, do not use `~/kabo-workspace`: before the first run, ask the creator to create a
+  Qwen Work project with a working folder they choose (the project dialog's optional working folder,
+  which every session in the project can read and modify), and to start the onboarding and create the
+  daily tasks inside that project. Use that folder as the workspace. This has not been verified to
+  work unattended yet; say so.
+- Qwen Work tends to rewrite the task text in its own words (in testing: "use the Kabo account review
+  flow for my TikTok account ..."), which dropped the Skill name and the workspace folder. Ask it to
+  use the task text exactly as given, which names the Skill and the absolute workspace folder. After it
+  confirms, read the created task back from the Automated tasks page and check that its text still
+  names the Skill and the folder; if not, ask Qwen Work to edit it.
+- The tasks are listed on the Automated tasks page ("My scheduled tasks") with their next run time.
+  Read that time back to the creator. Tasks were created in a time zone that differed from the
+  computer's own (Asia/Shanghai on a computer set to Pacific time), so state the zone the card or the
+  page shows and offer to change it.
+- A local task runs only while the computer is awake; that page has a keep-awake switch. In busy
+  hours a run may queue behind others (one run started about 4 minutes late).
+- Each run starts a new conversation titled "New session" with a timestamp, in its own fresh working
+  folder, and posts its result there. Tell the creator to look for that new conversation.
+- An unattended run in testing first tried an unrelated Skill, was told it was not in the
+  host's Skill snapshot and that inline commands are not authorized in the sandbox, then skipped Kabo's
+  Skills and called Kabo tools directly. Whether a Kabo Skill whose steps run Python scripts can run
+  in Qwen Work's unattended sandbox is not yet known. Tell the creator that the first unattended run
+  is the proof and that this is not yet confirmed; offer the "Prove delivery once" steps above.
+
+## Doubao Work
+
+This section follows the host's own description of its scheduled tasks; no unattended run has been seen yet.
+
+- The free plan allows one scheduled task at a time (Doubao Work created the first task and said the
+  other two need a higher plan). Offer to combine the three jobs into one daily task (picks, then
+  new-post reviews, then the account recap) or to keep only one, and mention that more tasks need a
+  higher plan.
+- Doubao Work wrote its library to `~/kabo-workspace` without a prompt, so that folder works there.
+
+- Ask in chat ("every day at 8:00, ..." followed by the instruction).
+- Doubao Work runs scheduled tasks in its cloud by default, where the creator's local Kabo library and
+  the custom Kabo connection may not be available. Say in the request that the task must run on this
+  computer because it uses local files.
+- A local task needs the computer awake and the app open; a run missed while the computer slept is
+  skipped. Busy hours may queue runs.
+- Each run is a fresh execution that posts its result back into the conversation where the task was
+  created. Write the workspace folder into the task text.
+- After creating the task, read it back from the host and tell the creator the next run time it gives.
+
+## DeepSeek Harness
+
+From the host's official schedule documentation.
+
+- Ask in chat, or open the Automation tasks page and press New, which opens a chat to describe the
+  task.
+- A daily time is set with an explicit time zone; state it in the request.
+- A task delivers to the current conversation, to one new conversation reused every time (the
+  default), or to a new conversation for each run. Choose one and tell the creator where results
+  will appear.
+- The app must be running to deliver. After a restart, a recurring task sends only its latest missed
+  run.
+
+## WorkBuddy
+
+- WorkBuddy has its own automation tool and creates tasks from chat; ask in chat with the
+  instructions above.
+- In testing it used the computer's time zone (GMT+8). Confirm the next run time from its answer and
+  repeat it to the creator.
+- No scheduled run has been seen delivering yet, so offer the "Prove delivery once" steps above.
 
 ## When the host has no scheduled tasks
 

@@ -150,6 +150,10 @@ test("the three Skills' instructions no longer reference removed commands, files
   // Opening: the script gives two sentences, and the instructions also say two sentences plus one question;
   // no longer promise to show account facts "within a minute".
   assert.equal(run("opening").tell_creator_now.length, 2);
+  assert.match(run("opening").language_note, /English source text.*Translate/);
+  for (const name of ["start-with-kabo", "pick-daily-viral-videos", "review-new-posts"]) assert.match(texts[name], /language they write in/, name);
+  assert.match(texts["start-with-kabo"], /granted_scopes/);
+  assert.match(texts["start-with-kabo"], /~\/kabo-workspace/);
   assert.match(texts["start-with-kabo"], /two short messages and one question/);
   assert.doesNotMatch(texts["start-with-kabo"], /within about a minute|three short messages/);
   // When the backend cannot infer the niche, ask the creator only once and retry with their own words as

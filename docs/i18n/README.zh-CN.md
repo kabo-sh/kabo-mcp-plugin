@@ -204,7 +204,7 @@ Install Kabo by following https://github.com/kabo-sh/kabo-mcp-plugin/blob/stable
 替你装上插件，然后告诉你还剩哪几步登录要你自己完成：
 
 ```sh
-npx kabo-sh install
+npx -y kabo-sh install
 ```
 
 加上 `--dry-run` 可以只看它会执行什么、不做任何改动。Grok Bot 和 Muse 请继续用上面那句话。
@@ -215,6 +215,7 @@ npx kabo-sh install
 | **ChatGPT 和 Codex**（Codex 0.163 或更高版本） | ✅ 已支持 | 打开插件，找到 Kabo 并添加。从终端安装：`codex plugin marketplace add kabo-sh/kabo-mcp-plugin`，然后 `codex plugin add kabo@kabo-plugin-openai`。 |
 | **Grok Bot** | ✅ 已支持 | 把上面的消息粘贴给 Bot。它会把 Kabo 作为应用添加进去，并在 Bot 的电脑上加载技能。 |
 | **Muse** | ✅ 已支持 | 粘贴上面的消息。Muse 会把 Kabo 添加为自定义连接器，并在它的电脑上加载技能。 |
+| **豆包工作、千问工作、DeepSeek Harness 和 WorkBuddy** | ✅ 已支持 | 运行 `npx -y kabo-sh install`，或按 [INSTALL.md](../../INSTALL.md#doubao-work-qwen-work-deepseek-harness-and-workbuddy) 手动安装。第一条消息请点名技能，例如“请用 start-with-kabo 技能带我上手”。豆包工作、千问工作和 WorkBuddy 目前以只读权限连接 Kabo，所以在那里无法关联账号或保存内容支柱。 |
 | **Cursor 和其他 MCP 客户端** | 尚未测试 | 把 `https://kabo.sh/mcp-pub` 作为支持 OAuth 的远程 MCP 服务器添加进去，再添加技能。 |
 
 你需要一个 Kabo 账号；用 Google 登录就会自动创建。这些工作流需要 Python 3，以及一个助手可以读写的工作区。
