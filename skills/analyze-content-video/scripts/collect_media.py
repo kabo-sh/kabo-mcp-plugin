@@ -8,8 +8,9 @@ Run it from the run directory.
   queues every job itself and waits for them; nothing is polled job by job.
 - `--placed --id=<id>`: fetches that result. While the backend still reports running jobs
   (`coverage.pending` above 0) it prints the same call again: nothing is queued or charged twice.
-  Once every job is terminal (or after `MAX_ROUNDS` results) it persists each terminal envelope as
-  `snapshot/envelope-NN.json`, prints the `--envelope` / `--pending` arguments for
+  Once every job is terminal (or about `WAIT_BUDGET_S` after the first hand-over, `MAX_ROUNDS` results at
+  most) it persists each terminal envelope as `snapshot/envelope-NN.json`, prints the `--envelope` /
+  `--deferred-incomplete` arguments for
   `build_content_evidence.py`, and the one `read_research_data_artifacts` call that brings the
   frames into the run.
 
@@ -31,15 +32,27 @@ sys.dont_write_bytecode = True
 SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 import static_host  # noqa: E402
+import public_video_sources  # noqa: E402
 
 TOOL = "collect_video_media"
 CONNECTOR = "public-video-media"
 STATE = Path("collect-media.json")
-# One call waits on the backend for at most 45 seconds (within the Codex tool timeout of 60 seconds); a media
-# round often takes two to three minutes, so 6 results are enough to wait it out.
-MAX_ROUNDS = 6
-# Option name -> operation of collect_video_media. Metadata goes through the media tool only for Instagram /
-# TikTok (YouTube uses youtube_get_video).
+# Media waits are measured in wall time, not rounds. One call waits on the backend for at most 45 seconds
+# (within the Codex tool timeout of 60 seconds). The old fixed 6 rounds stopped after about 338 seconds, while a
+# long video's transcript (speech recognition plus platform throttle backoff) reasonably takes 5-10 minutes: a
+# 31-minute Bilibili video's transcript finished at 370 seconds, after the plugin had given up, and the model
+# reported the still-running job as a backend service_unavailable (dev-box Codex run, 2026-11-12). A single
+# backend job's deadline is fetch_transcript's 600 seconds plus queueing, so the wait from the first hand-over
+# is at most about 15 minutes; it ends as soon as every job is terminal.
+WAIT_BUDGET_S = 15 * 60
+# A hard cap besides wall time: a normal round takes about 45-60 seconds, so 15 minutes is about 15-20 rounds;
+# if the host returns immediately every time, this stops the hand-overs from repeating forever.
+MAX_ROUNDS = 40
+# Within one hand-over, how many more times the model may call again on the spot while jobs are still running
+# (this only saves steps; how long to wait is still decided by the wall time above).
+CALLS_PER_HAND_OVER = 6
+# Option name -> operation of collect_video_media. Metadata goes through the media tool only on platforms whose
+# support-list metadata_route is media_call (YouTube uses youtube_get_video).
 OPERATIONS = {
     "metadata": "collect_public_metadata",
     "transcript": "fetch_transcript",
@@ -122,6 +135,7 @@ def hand_over_media(args: argparse.Namespace, note: str = "") -> None:
     file = results / f"{first:02d}-{TOOL}.json"
     current.setdefault("awaiting", []).append(str(file))
     current["handed_at"] = datetime.now(timezone.utc).isoformat()
+    current.setdefault("started_at", current["handed_at"])
     save_state(current)
     wanted = ", ".join(args.operations)
     if note:
@@ -132,12 +146,21 @@ def hand_over_media(args: argparse.Namespace, note: str = "") -> None:
     say(f"Hand-over: make this one call now with the arguments verbatim; the backend queues this video's {wanted} "
         f"jobs and waits for them. If its result still reports running jobs (coverage.pending above 0), make the "
         f"same call again right away with the same arguments (nothing is queued or charged twice) until pending is "
-        f"0 or you have made it {MAX_ROUNDS} times; only the last result counts. The media is not ready until this "
+        f"0 or you have made it {CALLS_PER_HAND_OVER} times; only the last result counts. The media is not ready until this "
         f"script says so: the run is not over while jobs are running. " + SAVE_RULE)
     say("call: " + json.dumps({"tool": TOOL, "arguments": call_arguments(args)}, ensure_ascii=False))
     say(f"  result {file.name.split('-', 1)[0]}  (fallback file, only if the result has no download url: {file})")
     say("Then run this one command right away, <id> replaced by the last result's id (ids expire in 10 "
         "minutes): " + resume_command(args))
+
+
+def waited_s(current: dict[str, Any]) -> float:
+    """Seconds since this run first handed the media call over."""
+    try:
+        started = datetime.fromisoformat(str(current.get("started_at") or current.get("handed_at")))
+    except ValueError:
+        return 0.0
+    return max(0.0, (datetime.now(timezone.utc) - started).total_seconds())
 
 
 def staged_since(moment: str | None) -> bool:
@@ -226,6 +249,14 @@ def finish(record: dict[str, Any]) -> None:
         if operation not in placed and job.get("job_id") and job.get("status") in static_host.PENDING:
             pending.append(f"{operation}={job['job_id']}")
     say(json.dumps({"status": "collected", "envelopes": envelopes, "pending": pending}, ensure_ascii=False))
+    if pending:
+        # A job still running at the wait cap is unfinished, not failed: the backend reported no error for it. The
+        # model used to call it service_unavailable.
+        say(f"{len(pending)} media job(s) were still running when waiting stopped after about "
+            f"{round(waited_s(current) / 60)} min ({', '.join(item.split('=', 1)[0] for item in pending)}). They are "
+            "unfinished, not failed: the backend reported no error for them. Pass each as --deferred-incomplete "
+            "(below) and say in the report that this step was still running when the analysis was written; never "
+            "describe it as a backend failure, service_unavailable or a network problem.")
     flags = " ".join(f"--envelope {path}" for path in envelopes)
     flags += "".join(f" --deferred-incomplete {flag}" for flag in pending)
     say("Pass these to build_content_evidence.py, beside the run's other envelopes: " + flags)
@@ -256,7 +287,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--url", required=True, help="the original public video url")
     parser.add_argument("--operations", required=True,
-                        help="comma-separated: " + ", ".join(OPERATIONS) + " (metadata only on Instagram and TikTok)")
+                        help="comma-separated: " + ", ".join(OPERATIONS) + " (metadata only on "
+                        + ", ".join(public_video_sources.media_call_metadata_labels()) + ")")
     parser.add_argument("--max-frames", type=int, default=MAX_FRAMES)
     parser.add_argument("--placed", action="store_true")
     parser.add_argument("--id", dest="result_id", help="the result id of the last collect_video_media call")
@@ -283,8 +315,10 @@ def main(argv: list[str] | None = None) -> int:
         current = state()
         current["rounds"] = int(current.get("rounds") or 0) + 1
         save_state(current)
-        if pending and current["rounds"] < MAX_ROUNDS:
-            hand_over_media(args, note=f"{pending} media job(s) are still running.")
+        waited = waited_s(current)
+        if pending and waited < WAIT_BUDGET_S and current["rounds"] < MAX_ROUNDS:
+            hand_over_media(args, note=f"{pending} media job(s) are still running ({round(waited / 60)} of up to "
+                                       f"{WAIT_BUDGET_S // 60} min waited); keep waiting.")
             return 0
         finish(latest)
         return 0

@@ -8,16 +8,22 @@ import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import public_video_sources  # noqa: E402
 from hook_core.context import prepare_context
 from hook_core.common import read_json, write_json
 
 
 def build(platform: str, pattern_ids: list[str] | None = None) -> dict:
-    if platform not in ("instagram", "youtube", "tiktok"):
+    if platform not in public_video_sources.platform_ids():
         raise ValueError("unsupported video platform")
     context = prepare_context({})
-    modes = [p for p in context["pattern_candidates"]
-             if platform in p["applicability"]["platforms"] and p["applicability"]["form"] == "short_video"]
+    # Select by form (short_video) only, not by applicability.platforms: that field records which platforms the
+    # pattern samples came from (evidence_scope says "Source samples, not a platform-wide effectiveness claim"),
+    # not where a pattern applies. All fifteen opening patterns are general short-video openings, so every
+    # platform in the support list gets the same set; knowledge.json and the method are unchanged. The original
+    # three platforms are listed on all fifteen patterns, so their result is exactly the same as before.
+    modes = [p for p in context["pattern_candidates"] if p["applicability"]["form"] == "short_video"]
     if pattern_ids is not None and (not 1 <= len(pattern_ids) <= 3 or len(set(pattern_ids)) != len(pattern_ids)
                                   or set(pattern_ids) - {p["id"] for p in modes}):
         raise ValueError("select one to three unique known pattern IDs")
@@ -35,7 +41,7 @@ def build(platform: str, pattern_ids: list[str] | None = None) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--platform", required=True, choices=("instagram", "youtube", "tiktok"))
+    parser.add_argument("--platform", required=True, choices=public_video_sources.platform_ids())
     parser.add_argument("--pattern-id", action="append")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

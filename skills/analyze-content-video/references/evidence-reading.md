@@ -97,7 +97,14 @@ with `{"parameters": {"video_id": "<resolved-video-id>"}, "delivery": "download"
 frames and measurements come from `collect_media.py` with the original video URL, as `SKILL.md`
 says; it builds the arguments.
 
-On **Instagram and TikTok** the media call's `metadata` operation stays the metadata source.
+On **every other platform** (Instagram, TikTok, Douyin, Xiaohongshu, Kuaishou, Facebook, Bilibili)
+the media call's `metadata` operation stays the metadata source. On Douyin, Xiaohongshu and Kuaishou
+the `keyframes` job brings the metadata and measurements back with the frames; the separate
+`metadata` and `measure` jobs answer `unsupported` at no cost, and the builder reads both from the
+keyframes result, so that is not a missing source. Douyin and Xiaohongshu publish no public view
+count: the builder leaves views out and records that limitation, so never write zero views or
+divide anything by views there. A Facebook view count is the page's rounded display; quote it only
+at that precision, and a withheld one stays unknown.
 
 Persist the YouTube response like any other, naming its own connector and operation:
 `--connector youtube-public --operation get_video`. The builder reads its fields into the same shape.
@@ -141,11 +148,13 @@ connector evidence"): record it with `--limitation` on the evidence-building com
 
 The media jobs (transcript, frames, measurements) are deferred and take minutes. The backend waits
 for them inside `collect_video_media`; `collect_media.py` prints the same call again while any is
-still running, and nothing is queued or charged twice. Keep making that call within this turn until
+still running, for up to about 15 minutes in all (a long video's transcript can take ten), and
+nothing is queued or charged twice. Keep making that call within this turn until
 the script reports `status: collected`: ending the turn to wait throws the jobs away. A job still
 unfinished when the script stops waiting comes back as `--deferred-incomplete <operation>=<job id>`
 for the evidence builder (recorded `deferred_incomplete`), never as `failed`; it carries no media
-evidence and keeps the affected stages unassessed.
+evidence and keeps the affected stages unassessed. Say that step was still running; never call it a
+backend error or `service_unavailable`.
 
 When the window closes with frames still outstanding, deliver; a reply that only says the analysis
 is still processing is not a delivery. With no keyframe envelope the builder records `frames.status` as `not_attempted`; list the visual dimensions in
