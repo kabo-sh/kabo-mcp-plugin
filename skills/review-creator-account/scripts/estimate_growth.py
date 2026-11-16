@@ -258,6 +258,11 @@ def content_scenario(data, scope, days, question=None):
     verified = user_quantity(plan, question, "cadence" if user_cadence else "count")
     if user_cadence and verified is not None:
         plan = dict(plan, posts_per_period=plan["posts"], posts=verified["value"] * days)
+    if isinstance(plan, dict) and plan.get("origin") == "request_item":
+        # "How many views will this video get": the request itself names one new item, no count to bind.
+        if plan.get("posts") != 1 or set(plan) != {"origin", "posts"}:
+            raise ValueError("a request_item plan covers exactly one new item: {origin: request_item, posts: 1}")
+        verified = {"value": 1, "interpretation": "the one new item the request asks about"}
     cadence = data.get("_snapshot_cadence")
     if isinstance(plan, dict) and plan.get("origin") == "observed_cadence" and "period" not in plan and cadence:
         verified = cadence

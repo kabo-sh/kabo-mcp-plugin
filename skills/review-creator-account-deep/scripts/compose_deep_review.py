@@ -421,6 +421,21 @@ def grounding_review(synthesis: dict[str, Any], evidence: dict[str, Any],
                            "speech_cues": sum(len(row["recorded_speech"]) for row in videos)}}
 
 
+MISSING_POINT_NEXT = ("Reuse this run's source material. Correct only the open-run authored synthesis: describe a frame "
+                      "only after viewing it; otherwise remove or narrow the unsupported pin and claim. Do not invent "
+                      "observations, refetch, or reopen a closed run. Run the check again before final composition.")
+
+
+def compose_bounded(synthesis: dict[str, Any], evidence: dict[str, Any], stability: dict[str, Any] | None,
+                    synthesis_input: dict[str, Any] | None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Compose; an over-long display field is ended at a sentence boundary here, never sent back for a rewrite."""
+    try:
+        return compose_deep_review(synthesis, evidence, stability, synthesis_input), []
+    except TextTooLong as error:
+        fitted = [dict(row, path=row["path"].removeprefix("synthesis.")) for row in error.violations]
+        return compose_deep_review(error.bounded(synthesis), evidence, stability, synthesis_input), fitted
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("synthesis", type=Path)
@@ -435,6 +450,30 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--check-only does not accept report output paths")
     if not args.check_only and (args.output is None or args.markdown is None):
         parser.error("--output and --markdown are required unless --check-only is used")
+    if args.check_only:
+        try:
+            return run(args)
+        except MissingPointObservation as error:
+            print(json.dumps({"status": "needs_correction", "reason": "missing_point_observation", "issue": error.issue,
+                              "next_action": MISSING_POINT_NEXT}, ensure_ascii=False))
+            return 0
+    return run(args)
+
+
+def cli() -> int:
+    """Command-line entry: a refused synthesis ends with one JSON line that names a fixed reason, not a traceback."""
+    try:
+        return main()
+    except MissingPointObservation as error:
+        print(json.dumps({"status": "failed", "reason": "missing_point_observation", "issue": error.issue,
+                          "next_action": MISSING_POINT_NEXT}, ensure_ascii=False))
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print(json.dumps({"status": "failed", "reason": "deep_synthesis_invalid",
+                          "error": f"{type(error).__name__}: {error}"}, ensure_ascii=False))
+    return 2
+
+
+def run(args: argparse.Namespace) -> int:
     synthesis, evidence = load_json(args.synthesis), load_json(args.evidence)
     synthesis_input = load_json(args.synthesis_input) if args.synthesis_input else None
     stability = load_json(args.stability) if args.stability else None
@@ -453,30 +492,15 @@ def main(argv: list[str] | None = None) -> int:
                 if load_json(manifest).get("status") in {"ok", "failed"}:
                     raise ValueError("cannot correct authoring in a closed run")
                 break
-        try:
-            try:
-                compose_deep_review(synthesis, evidence, stability, synthesis_input)
-            except TextTooLong as error:
-                compose_deep_review(error.shortened(synthesis), evidence, stability, synthesis_input)
-                print(json.dumps({"status": "needs_correction",
-                                  "issue": {"text_too_long": [dict(row, path=row["path"].removeprefix("synthesis."))
-                                                              for row in error.violations]},
-                                  "next_action": "Rewrite only each listed authored field in the open-run authoring file so it fits within max_length characters while keeping its evidence boundary; do not truncate mid-sentence or change other fields. Do not refetch or reopen a closed run. Run this check again before final composition."}, ensure_ascii=False))
-                return 0
-        except MissingPointObservation as error:
-            print(json.dumps({"status": "needs_correction", "issue": error.issue,
-                              "next_action": "Reuse this run's source material. Correct only the open-run authored synthesis: record a literal cue only after reading it, or a frame description only after viewing that frame; otherwise remove or narrow the unsupported pin and claim. Do not invent observations, refetch, or reopen a closed run. Run this check again before final composition."}, ensure_ascii=False))
-            return 0
-        print(json.dumps({"status": "valid", "analysis_id": synthesis["analysis_id"],
-                          "grounding_review": grounding_review(synthesis, evidence, synthesis_input, stability)},
-                         ensure_ascii=False))
+        _, fitted = compose_bounded(synthesis, evidence, stability, synthesis_input)
+        result = {"status": "valid", "analysis_id": synthesis["analysis_id"],
+                  "grounding_review": grounding_review(synthesis, evidence, synthesis_input, stability)}
+        if fitted:
+            result["fitted_to_length"] = {"fields": fitted, "note": "Final composition ends these fields at their last "
+                                          "complete sentence within max_length; no rewrite is needed."}
+        print(json.dumps(result, ensure_ascii=False))
         return 0
-    report = compose_deep_review(
-        synthesis,
-        evidence,
-        stability,
-        synthesis_input,
-    )
+    report, _ = compose_bounded(synthesis, evidence, stability, synthesis_input)
     write_json(args.output, report)
     args.markdown.parent.mkdir(parents=True, exist_ok=True)
     args.markdown.write_text(report["markdown"], encoding="utf-8")
@@ -490,4 +514,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(cli())

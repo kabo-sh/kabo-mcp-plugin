@@ -55,7 +55,12 @@ LINEAGE_PATTERNS = (
     ("digest or commit hash", re.compile(r"\b[0-9a-f]{40,64}\b", re.I)),
     ("packaged tool", re.compile(r"(?<![\w/])@[a-z0-9][\w.-]*/[\w.-]+", re.I)),
     ("pinned tool version", re.compile(r"\b[a-z][\w.-]{2,}@\d+(?:\.\d+)+\b", re.I)),
-    ("shell invocation", re.compile(r"(?<![\w-])(?:npx|pipx|pip3?|python3?|node|curl|wget|bash)\s+[-\w@./]{2,}", re.I)),
+    # The argument must look like one (a flag, a path, a URL, a file or a package verb): "curl cream",
+    # "node of the story" and "bash the critics" are creator prose, not commands.
+    ("shell invocation", re.compile(r"(?<![\w-])(?:(?:npx|pipx)\s+[-\w@./]{2,}|"
+                                    r"(?:pip3?|python3?|node|curl|wget|bash)\s+"
+                                    r"(?:-{1,2}[\w-]+|[\w@.-]*[/:][\w@./:-]*|[\w@-]+\.(?:py|js|mjs|sh|json)\b|"
+                                    r"(?:install|run|exec)\b))", re.I)),
 )
 
 # Hosts of the public platforms these reports are *about*. Naming one leaks nothing - the whole
@@ -143,6 +148,44 @@ def evidence_hosts(report: dict) -> set[str]:
     return hosts
 
 
+# Envelope fields that hold the creator's or the platform's own public text (captions, bios, link-in-bio).
+# A domain written there is source material the report may quote; supplier and storage URLs live in
+# other fields (downloads, artifacts, request metadata) and stay foreign.
+PUBLIC_TEXT_KEYS = frozenset({
+    "caption", "description", "title", "text", "desc", "bio", "biography", "signature",
+    "external_url", "external_urls", "bio_link", "bio_links", "website", "link_in_bio",
+})
+
+
+def public_text_hosts(envelopes: list[dict]) -> set[str]:
+    """Hosts that appear in the fetched public text itself, read with the same patterns as the check."""
+    hosts: set[str] = set()
+
+    def visit(value: Any, public: bool) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                visit(child, public or (isinstance(key, str) and key.lower() in PUBLIC_TEXT_KEYS))
+        elif isinstance(value, list):
+            for child in value:
+                visit(child, public)
+        elif public and isinstance(value, str):
+            for pattern in (URL_HOST, BARE_HOST):
+                for match in pattern.finditer(value):
+                    host = match.group(1).lower().removeprefix("www.")
+                    hosts.add(host)
+                    # A bare mention of a host such as "shop.example.app.br" reads as "shop.example.app".
+                    hosts.update(inner.group(1).lower() for inner in BARE_HOST.finditer(host))
+
+    for envelope in envelopes:
+        visit(envelope, False)
+    return hosts
+
+
+def site(host: str) -> str:
+    """The last two labels of a host: the part a creator's link and its mention share."""
+    return ".".join(host.split(".")[-2:])
+
+
 def foreign_hosts(markdown: str, allowed: set[str]) -> list[str]:
     seen: list[str] = []
     for pattern in (URL_HOST, BARE_HOST):
@@ -151,6 +194,9 @@ def foreign_hosts(markdown: str, allowed: set[str]) -> list[str]:
             if host in allowed or host in seen:
                 continue
             if any(host.endswith(f".{permitted}") for permitted in allowed):
+                continue
+            # Same site as a host the public text names (a shortened or differently prefixed mention).
+            if any(site(host) == site(permitted) for permitted in allowed if permitted not in PLATFORM_HOSTS):
                 continue
             seen.append(host)
     return seen
@@ -264,7 +310,7 @@ def validate(report: dict, synthesis: dict, markdown: str, envelopes: list[dict]
     ]
     exposed += [
         f"host outside this run's evidence: {host}"
-        for host in foreign_hosts(markdown, evidence_hosts(report))
+        for host in foreign_hosts(markdown, evidence_hosts(report) | public_text_hosts(envelopes or []))
     ]
     if exposed:
         raise ValueError(f"creator-facing Markdown exposes internal implementation details: {exposed}")

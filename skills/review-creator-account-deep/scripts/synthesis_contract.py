@@ -37,6 +37,37 @@ class TextTooLong(ValueError):
         return result
 
 
+    def bounded(self, value: dict[str, Any]) -> dict[str, Any]:
+        """A copy with each over-long field ended at its last complete sentence (or word) within the limit.
+
+        Display length is a layout rule, not a claim: the script fits it the same way every time instead
+        of sending the text back to be rewritten.
+        """
+        result = copy.deepcopy(value)
+        for row in self.violations:
+            keys = [int(index) if index else name for name, index in re.findall(r"\.([^.\[]+)|\[(\d+)\]", row["path"])]
+            parent = result
+            for key in keys[:-1]:
+                parent = parent[key]
+            parent[keys[-1]] = fit_text(parent[keys[-1]], row["max_length"])
+        return result
+
+
+def fit_text(text: str, limit: int) -> str:
+    """End text at a sentence boundary within limit; otherwise at a word boundary with an ellipsis."""
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    ends = [match.end() for match in re.finditer(r"[.!?\u3002\uff01\uff1f](?=\s|$)|[\u3002\uff01\uff1f]", head)]
+    if ends and ends[-1] >= limit // 2:
+        return head[:ends[-1]].rstrip()
+    head = text[:limit - 1]
+    space = head.rfind(" ")
+    if space >= limit // 2:
+        head = head[:space]
+    return head.rstrip(" ,;:\uff0c\uff1b\uff1a\u3001") + "\u2026"
+
+
 def synthesis_schema() -> dict[str, Any]:
     canonical = json.loads((REFERENCES / "account_deep_synthesis.schema.json").read_text(encoding="utf-8"))
 

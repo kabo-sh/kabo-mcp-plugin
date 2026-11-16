@@ -210,9 +210,9 @@ def compile_authoring(author: dict[str, Any], source: dict[str, Any], evidence: 
     if author["schema_version"] != AUTHOR_VERSION:
         raise ValueError("unsupported authoring schema_version")
     points = point_index(evidence)
-    selected = author["observations"]
-    if not isinstance(selected, dict):
+    if not isinstance(author["observations"], dict):
         raise ValueError("observations must select canonical point refs")
+    selected = dict(author["observations"])
     rows = {item["content_id"]: {"content_id": item["content_id"], "cue_samples": [], "frame_samples": []}
             for item in evidence["items"] if item.get("watched")}
     for ref, value in selected.items():
@@ -235,7 +235,14 @@ def compile_authoring(author: dict[str, Any], source: dict[str, Any], evidence: 
         for ref in values:
             if not isinstance(ref, str) or ref not in points:
                 raise ValueError("pin has an unknown same-video point_ref")
-            result.append({key: points[ref][key] for key in ("content_id", "kind", "start_s")})
+            point = points[ref]
+            if point["kind"] == "cue" and ref not in selected:
+                # A cue observation carries no authored text: its quote is the literal transcript line the
+                # packet printed. Selecting it for a pin is bookkeeping, so the script does it.
+                selected[ref] = {}
+                rows[point["content_id"]]["cue_samples"].append(
+                    {key: point[key] for key in ("start_s", "quote", "end_s")})
+            result.append({key: point[key] for key in ("content_id", "kind", "start_s")})
         return result
 
     canonical = {key: copy.deepcopy(value) for key, value in author.items()

@@ -62,23 +62,19 @@ Chinese/English day/week binding, without rewriting the user's quote or metric t
 
 ## 4. Compute and deliver one complete reply
 
-Save `forecast_scope.json` with `platform`, the selected `target`, the verbatim target-setting
-`request_quote`, and its resolved `reference`. Every input must use that same target. This checks
-consistency, not the correctness of the model's interpretation.
+Run `scripts/forecast.py` with the command in `SKILL.md`. It writes `forecast_scope.json` (the
+target, the verbatim request and its reference) and one calculation input per metric from the
+flags, so every input carries the same target and contract. It chooses the method from what was
+supplied: two or more dated counts give `observed_pace`; one dated count plus `--rate` gives
+`assumed_pace`; views/likes/comments of new content use `content_scenario` on `--snapshot`
+(the most captured format unless `--format` names one; the captured pace unless `--posts` names
+the items). Anything missing returns `needs_input`, which asks only for the missing records.
+Never write these input files by hand or edit them after the command.
 
-For a missing stock baseline, use `assumed_pace` with `observations: []` if a valid user rate exists;
-otherwise use `observed_pace` with `observations: []`. The calculator returns `needs_input` and asks
-only for missing inputs. Unsupported metric contracts get an honest limitation, not a relabelled
-input. Do not fabricate rows to obtain a number. Keep supported metrics alongside these gaps.
-
-```sh
-python3 '<skill directory>/scripts/compose_forecast_reply.py' --scope-file '<run directory>/forecast_scope.json' --input '<first-input.json>' --input '<next-input.json>' --question-file '<original-question.txt>' --output '<run directory>/FORECAST_REPLY.md'
-```
-
-Use one `--input` per requested metric/horizon, recomputed through `estimate_growth.py`. Add
-`--snapshot` only to bind content inputs to the original saved snapshot; never pass it to a
-standalone stock command. Add `--correct-prior` only for actual earlier unsupported forecasts.
-An invalid input is a correction to make, not permission to bypass the calculation.
+`estimate_growth.py` and `compose_forecast_reply.py` remain the calculators behind it; call them
+directly only for a creator-stated publishing frequency (`plan` with `period`, see
+[growth-calculation-inputs.md](growth-calculation-inputs.md)). An invalid input is a correction
+to make, not permission to bypass the calculation.
 
 The final reply is the complete text between `KABO_FORECAST_REPLY_BEGIN` and
 `KABO_FORECAST_REPLY_END`; translate fixed labels if needed. Keep values, target, dates, sources,

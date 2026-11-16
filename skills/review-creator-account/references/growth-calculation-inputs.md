@@ -1,6 +1,8 @@
 # Growth calculation inputs
 
 Use only after resolving the target and checking evidence under `growth-estimation.md`.
+`forecast.py` writes these inputs from its flags; read this only to understand its output or for a
+creator-stated publishing frequency, the one plan it does not build.
 The calculator accepts these existing contracts; missingness is not permission to invent rows.
 
 Direct calculation inputs use top-level `schema_version: growth-input.v1`, positive `horizon_days`, and `scope: {platform, account, metric, semantics}`. Each row carries the same scope and a `source` pointing to its persisted evidence or the supplied record. Timestamps include a timezone. Missing values are null, observed zero remains zero. Never mix accounts or metric definitions; window totals are not cumulative stock observations. Public totals do not measure private conversion.

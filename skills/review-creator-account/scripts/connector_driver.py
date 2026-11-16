@@ -673,6 +673,8 @@ def run_stage(stages: dict[str, Callable[[argparse.Namespace], None]], args: arg
             "same command again in this run; fetched rounds remain available. "
             "For a handed-over round whose calls you made and staged, repeat the first command exactly "
             "and add --placed. Otherwise this run has ended: report the failure.")
+        # Last line, machine-readable: a fixed reason a host can count without reading the message.
+        say(json.dumps({"status": "failed", "reason": getattr(error, "reason", None) or f"{args.stage}_stopped"}))
         return 2
     finally:
         release_lock()
