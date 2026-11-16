@@ -4,6 +4,12 @@ The version number follows `plugin.json`; the root package version in `.claude-p
 
 ## 1.0.52 (unreleased)
 
+- `analyze-content-video` accepts single public video links from Douyin (mainland), Xiaohongshu (including
+  rednote.com), Kuaishou, Facebook and Bilibili, read from one pinned support list
+  (`contracts/public-video-sources.v1.json`, copied from Kabo). The analysis method is unchanged; accounts, trends
+  and searches stay on YouTube, Instagram and TikTok. Missing public counts stay "unavailable", a deleted or
+  region-locked video stops with an honest "can't be fetched" instead of a report, and media polling waits up to
+  about 15 minutes for long videos (#168). Needs the matching Kabo service release, already in production.
 - `start-with-kabo`: the description now starts with "Start here when a creator is new to Kabo ..." and lists
   natural phrases, so a host picks the Skill from a plain request (tested in Qwen Work, which loaded it by
   itself with this text).
