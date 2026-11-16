@@ -153,16 +153,19 @@ as current-task evidence, and bind every observation to the watched evidence.
 ## Check before composing
 
 `compose_deep_review.py … --check-only` is a read-only, non-final step of the same run. A `valid`
-result permits final composition. Only two cases return `needs_correction`:
+result permits final composition. One case returns `needs_correction`: a pin to an exact
+available **frame** that was not selected in `observations` (or registered in legacy
+`video_observations`). It names the authored JSON path, the original same-video frame timestamp and
+the points already registered. This is material for correction, never a viewing claim: view the
+frame before recording a truthful description; otherwise remove or narrow the unsupported pin and
+explanation.
 
-- A pin to an exact available source point that was not selected in `observations` (or registered
-  in legacy `video_observations`) names the authored JSON path, the original same-video cue or frame
-  timestamp, and the points already registered. This is material for correction, never a viewing
-  claim: read the cue or view the frame before recording a truthful observation; otherwise remove or
-  narrow the unsupported pin and explanation.
-- Authored text over its canonical limit (such as `headline`) is listed in `issue.text_too_long`
-  with its path, length and `max_length`, only when no other error remains; rewrite that field
-  shorter without truncating it mid-sentence.
+The script handles two things itself, so never spend a correction round on them: a pinned **cue**
+is selected automatically (its literal transcript line is the observation), a watched video with
+selected cues but no cue observation gets its first selected cue, fields written inside a cue
+observation are ignored, and authored text over
+its canonical limit (such as `headline`) is ended at its last complete sentence within the limit;
+`fitted_to_length` lists those fields. Keep each field within its limit when you write it anyway.
 
 Correct only this open run's author file, then check again. The check never changes files, observes
 media, fetches data or repairs a closed run. Unknown IDs, invented points, invalid source bindings,

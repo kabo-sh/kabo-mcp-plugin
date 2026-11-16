@@ -5,8 +5,8 @@ An AI assistant installing Kabo for its user should follow [INSTALL.md](../INSTA
 
 ## Current release
 
-The current GitHub package release is [**1.0.53**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.53),
-packaged as `kabo-1.0.53.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
+The current GitHub package release is [**1.0.54**](https://github.com/kabo-sh/kabo-mcp-plugin/releases/tag/v1.0.54),
+packaged as `kabo-1.0.54.zip`. Version 1.0.0 reset the public release numbering while retaining the latest
 implementation. Earlier version history and source Skill versions remain separate. OpenAI marketplace
 review and production acceptance remain separate from this GitHub release.
 
@@ -90,7 +90,7 @@ for `-g`. The repository's `skills.lock.json` is a separate record of the origin
 
 - `#stable` follows published releases. It advances only after a release; installed files stay as
   they are until you run an installation or update command.
-- `#v1.0.53` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
+- `#v1.0.54` pins one release. Updating does not switch to a newer tag; install the new tag explicitly.
 - Without a ref, the CLI follows `main`, which includes unreleased changes.
 
 See [GitHub Releases](https://github.com/kabo-sh/kabo-mcp-plugin/releases) for new versions and release

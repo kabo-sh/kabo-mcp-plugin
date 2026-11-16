@@ -40,34 +40,28 @@ Use this order for every forecast-only reply (including when all inputs are miss
 
 
 1. Read the **last user request and its answer before this follow-up**, then work backward only
-   if their target is unresolved. Do not jump to an older account table just because the current
-   request changes its period. A post-focused exchange stays about that post. Copy the earlier
-   target-setting user request, not the current time-change request, into `request_quote`.
-   Resolve pronouns through the corresponding answer. **Start the answer by naming that one
-   resolved target.** When the last forecast concerns one post, neither account subscribers nor
-   channel-wide totals belong in the follow-up; do not request exports for both. Only an explicit
-   user change can expand the target. Ask if genuinely ambiguous. Save `forecast_scope.json` with
-   `platform`, `target`, `request_quote` (that user turn verbatim) and `reference` (the resolved
-   post/account). The target must stay the same in every input and missing-data question.
-2. Check whether the source actually includes dated observations, before considering numbers.
-   No measurement dates means no future numeric table, even a table labelled conditional or
-   low/middle/high. A posting rate or historical median alone cannot repair missing dates.
-   Read [growth-estimation.md](references/growth-estimation.md) and
-   [growth-calculation-inputs.md](references/growth-calculation-inputs.md). Prepare the requested
-   metric/horizon inputs for that target. Use actual source rows or explicit user assumptions;
-   old assistant predictions, summary statistics and invented observation dates cannot replace
-   missing data. A changed horizon replaces the previous horizon from the original dated
-   baseline; a previous projected endpoint is not a new observation to add another period to.
-   Ask for `[date, count]` records without attaching illustrative dates to real counts. Keep unknown dates absent. Stock horizons start at the latest observation.
-3. Run `compose_forecast_reply.py` with that scope and all supported-contract input files, using
-   the command in `growth-estimation.md`. Empty stock observations produce a missing-input reply;
-   never fabricate rows to force a number. Keep independently supported metrics. A metric with
-   no calculator contract gets an honest limitation, not a relabelled input.
-4. **Final reply = the complete text between `KABO_FORECAST_REPLY_BEGIN` and
+   if their target is unresolved. A post-focused exchange stays about that post; a change of
+   period does not switch to an older account table. **Start the answer by naming that one
+   resolved target.** Only an explicit user change expands it. Ask if genuinely ambiguous.
+2. Run one command. It writes every calculation input, picks the method from the evidence and
+   prints the complete reply; never write forecast JSON yourself:
+
+   ```sh
+   cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/forecast.py' --platform <instagram|tiktok|youtube> --target '<handle, or post URL>' [--target-kind post] --metric <views|likes|comments|subscribers|followers> [--metric …] --horizon-days <days> [--posts <n>] [--record '<metric>@<YYYY-MM-DD>=<count>' …] [--rate '<exact rate excerpt>'] [--snapshot snapshot.json] --question-file - <<'TEXT'
+   <the creator's target-setting request, verbatim>
+   TEXT
+   ```
+
+   `--record` only for dated counts the creator or a source actually gave (never a window
+   endpoint, a prior answer or an invented date). `--rate` only when the creator stated a net
+   per-day/per-week change. `--posts 1` for "this/my next video"; `--posts <n>` for a count the
+   creator named. `--snapshot` only with this run's saved public snapshot. Missing records
+   produce a missing-input reply, which is a complete answer. On `{"status": "failed"}` fix only
+   the flag the message names and rerun.
+3. **Final reply = the complete text between `KABO_FORECAST_REPLY_BEGIN` and
    `KABO_FORECAST_REPLY_END`.** Relay it once; translate fixed labels if needed. Do not append
    or substitute a model-written table, historical reference table, numeric scenario or promise.
-   More records permit conditional arithmetic, not occurrence probabilities. Use `--correct-prior`
-   only when an earlier unsupported forecast actually exists.
+   Add `--correct-prior` only when an earlier unsupported forecast actually exists.
 
 For a complete review or supplied-funnel request that also asks for growth, apply the reference's
 evidence rules to its forecast portion while retaining all supported review/funnel findings.
@@ -201,11 +195,10 @@ command again while it runs.
 2. **Growth (only when asked).** Read `references/growth-estimation.md` and
    `references/growth-review-workflow.md`; check the requested metric before choosing a command. For a supported content scenario (views, likes or comments):
    `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/drive.py' growth --language <synthesis language> --metric <requested content metric> --horizon-days <requested days>`
-   Use defaults views/30 days only when omitted by the user. For subscribers/followers, skip this
-   content command: use the standalone stock calculator and delivery path in the reference.
-   The report has one growth slot. For additional requested metrics, use distinct standalone
-   inputs/results and the extra handoff path in the reference; changing `--metric` does not
-   replace an existing growth input. Only the selected report-slot result belongs in the
+   Use defaults views/30 days only when omitted by the user. It lists choices with their binding
+   commands; run the one that fits. For subscribers/followers or additional metrics, run
+   `forecast.py` (see above) with a distinct `--output` and append its handoff as the reference
+   says; changing `--metric` does not replace an existing growth input. Only the selected report-slot result belongs in the
    synthesis. Missing forecast inputs do not stop the supported review or other valid metrics.
 
 3. **Synthesis.** Read `references/synthesis-authoring.md` whole. Apply its public-snapshot

@@ -194,7 +194,7 @@ class GrowthHandoff(unittest.TestCase):
         b = {**a, "scope": {**self.scope, "account": "creator/post-1"}}
         run = self.compose_reply([a, b])
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn("one resolved target", run.stderr)
+        self.assertIn("every input must use the scope's target", run.stderr)
         self.assertFalse((self.root / "reply.md").exists())
         self.assertFalse((self.root / "reply.json").exists())
 

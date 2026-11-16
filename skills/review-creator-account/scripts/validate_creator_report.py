@@ -30,6 +30,9 @@ from estimate_growth import review_evidence
 # 1. Field names of the pipeline's own lineage record. A Creator-facing report has no reason to
 #    contain the words themselves.
 STRUCTURAL_MARKERS = ("connector_id", "provider", "package_sha256", "source_commit")
+# "provider" leaks as a field ("provider": ..., provider=..., `provider`), not as an English word:
+# "your internet provider" or "a payment provider" in creator prose is not lineage.
+PROVIDER_FIELD = re.compile(r"[\"'`]provider[\"'`]|\bprovider\s*[:=]|\bproviders?_\w+")
 
 # 2. Identifier *values* read out of the run's own documents. render_markdown() never projects any
 #    of these keys, so one of their values appearing in the delivered Markdown means the semantic
@@ -55,7 +58,12 @@ LINEAGE_PATTERNS = (
     ("digest or commit hash", re.compile(r"\b[0-9a-f]{40,64}\b", re.I)),
     ("packaged tool", re.compile(r"(?<![\w/])@[a-z0-9][\w.-]*/[\w.-]+", re.I)),
     ("pinned tool version", re.compile(r"\b[a-z][\w.-]{2,}@\d+(?:\.\d+)+\b", re.I)),
-    ("shell invocation", re.compile(r"(?<![\w-])(?:npx|pipx|pip3?|python3?|node|curl|wget|bash)\s+[-\w@./]{2,}", re.I)),
+    # The argument must look like one (a flag, a path, a URL, a file or a package verb): "curl cream",
+    # "node of the story" and "bash the critics" are creator prose, not commands.
+    ("shell invocation", re.compile(r"(?<![\w-])(?:(?:npx|pipx)\s+[-\w@./]{2,}|"
+                                    r"(?:pip3?|python3?|node|curl|wget|bash)\s+"
+                                    r"(?:-{1,2}[\w-]+|[\w@.-]*[/:][\w@./:-]*|[\w@-]+\.(?:py|js|mjs|sh|json)\b|"
+                                    r"(?:install|run|exec)\b))", re.I)),
 )
 
 # Hosts of the public platforms these reports are *about*. Naming one leaks nothing - the whole
@@ -140,6 +148,48 @@ def evidence_hosts(report: dict) -> set[str]:
             for example in pattern.get("examples") or []:
                 for match in BARE_HOST.finditer(str(example.get("title") or "")):
                     hosts.add(match.group(1).lower().removeprefix("www."))
+    return hosts
+
+
+# Envelope fields that hold the creator's or the platform's own public text (captions, bios, link-in-bio).
+# A domain written there is source material the report may quote; supplier and storage URLs live in
+# other fields (downloads, artifacts, request metadata) and stay foreign.
+PUBLIC_TEXT_KEYS = frozenset({
+    "caption", "description", "title", "text", "desc", "bio", "biography", "signature",
+    "external_url", "external_urls", "bio_link", "bio_links", "website", "link_in_bio",
+})
+
+
+SERVICE_KEYS = frozenset({
+    "artifact", "artifacts", "download", "downloads", "download_url", "request", "requests", "job", "jobs",
+    "meta", "metadata", "provider", "providers", "source", "sources", "storage", "diagnostic", "diagnostics",
+})
+
+
+def public_text_hosts(envelopes: list[dict]) -> set[str]:
+    """Hosts that appear in the fetched public text itself, read with the same patterns as the check."""
+    hosts: set[str] = set()
+
+    def visit(value: Any, public: bool) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                name = key.lower() if isinstance(key, str) else ""
+                if name in SERVICE_KEYS:
+                    continue  # artifact, download and request records describe the service, not the creator
+                visit(child, public or name in PUBLIC_TEXT_KEYS)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child, public)
+        elif public and isinstance(value, str):
+            for pattern in (URL_HOST, BARE_HOST):
+                for match in pattern.finditer(value):
+                    host = match.group(1).lower().removeprefix("www.")
+                    hosts.add(host)
+                    # A bare mention of a host such as "shop.example.app.br" reads as "shop.example.app".
+                    hosts.update(inner.group(1).lower() for inner in BARE_HOST.finditer(host))
+
+    for envelope in envelopes:
+        visit(envelope, False)
     return hosts
 
 
@@ -253,7 +303,8 @@ def validate(report: dict, synthesis: dict, markdown: str, envelopes: list[dict]
         raise ValueError(f"creator-facing Markdown is missing recommended actions: {missing_actions}")
 
     lowered = markdown.lower()
-    exposed = [token for token in STRUCTURAL_MARKERS if token in lowered]
+    exposed = [token for token in STRUCTURAL_MARKERS if token in lowered and (
+        "_" in token or PROVIDER_FIELD.search(lowered))]
     for value in source_identity_values(report, synthesis) + envelope_identity_values(envelopes or []):
         if value.lower() in lowered and value not in exposed:
             exposed.append(value)
@@ -264,7 +315,7 @@ def validate(report: dict, synthesis: dict, markdown: str, envelopes: list[dict]
     ]
     exposed += [
         f"host outside this run's evidence: {host}"
-        for host in foreign_hosts(markdown, evidence_hosts(report))
+        for host in foreign_hosts(markdown, evidence_hosts(report) | public_text_hosts(envelopes or []))
     ]
     if exposed:
         raise ValueError(f"creator-facing Markdown exposes internal implementation details: {exposed}")

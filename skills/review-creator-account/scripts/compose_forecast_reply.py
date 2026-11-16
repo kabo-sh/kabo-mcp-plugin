@@ -27,7 +27,9 @@ def compose(inputs, resolved_scope, question=None, snapshot=None, snapshot_sourc
         scope = result["scope"]
         identity = (scope["platform"], scope["account"])
         if target != identity:
-            raise ValueError("One handoff must keep one resolved target; do not combine an account and a post")
+            raise ValueError(f"every input must use the scope's target {target[1]!r} on {target[0]}; "
+                             f"one input names {identity[1]!r} on {identity[0]}. Copy the scope target into each input's "
+                             "scope.account, or run forecast.py, which writes both from --target")
         key = (scope["metric"], result["horizon_days"])
         if key in seen:
             raise ValueError("Duplicate metric and horizon; resolve the conflicting inputs")

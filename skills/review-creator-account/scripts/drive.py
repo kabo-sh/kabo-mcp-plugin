@@ -604,43 +604,71 @@ def stage_fetch(args: argparse.Namespace) -> None:
     assemble(platform, channel_id or handle, question, args.window)
 
 
-def growth_choices(analysis: dict, snapshot: dict, question: str, metric: str, days: float) -> str:
-    """The assessed choices for this run, each as the input file that binds it.
+# Period words a creator may use for a count per day or week; the binding check needs the literal text.
+PERIOD_WORDS = {"day": ("per day", "a day", "each day", "every day", "/day", "daily", "\u6bcf\u5929", "\u6bcf\u65e5", "\u4e00\u5929"),
+                "week": ("per week", "a week", "each week", "every week", "/week", "weekly", "\u6bcf\u5468", "\u6bcf\u9031", "\u4e00\u5468", "\u4e00\u9031")}
 
-    The model only states the user's plan; scope, cohort and the verbatim question come from the run,
-    so no second request schema, snapshot path or hand-copied field stands between assessment and binding.
+
+def growth_command(metric: str, days: float, format_: str) -> str:
+    return (f"python3 '<skill directory>/scripts/drive.py' growth --metric {metric} --horizon-days {days:g} "
+            f"--format {format_}")
+
+
+def growth_choices(analysis: dict, snapshot: dict, question: str, metric: str, days: float) -> str:
+    """The assessed choices for this run, each with the one command that binds it.
+
+    The model only picks a format and, when the creator named one, a count; the script writes the input,
+    so no JSON is copied or filled in by hand.
     """
     from estimate_growth import render_evidence, review_evidence
     scope = {"platform": analysis["platform"], "account": analysis["scope"]["account"]}
     evidence = review_evidence({"schema_version": "growth-review.v1", "scope": scope, "horizon_days": days,
                                 "metrics": [metric]}, snapshot, SNAPSHOT)
     lines = [render_evidence(evidence).rstrip(), "",
-             f"To bind a choice, save the one that fits the request as {GROWTH_INPUT} in this run directory, "
-             "replace the plan placeholders with the user's own number as written in the question, "
-             "and run drive.py growth again before writing the synthesis:"]
+             "To bind the choice that fits the request, run its command in this run directory before writing the "
+             "synthesis. Add --posts <n> when the creator named a number of new items, and --per day|week when that "
+             "number is per day or week; without them the captured publishing pace is used:"]
     for entry in evidence["metrics"]:
         for candidate in entry["candidates"]:
-            ages = candidate["basis"]["observed_age_days"] if candidate.get("basis") else None
-            cohort = {"format": candidate["cohort"]["format"], "age_min_days": 0,
-                      "age_max_days": int(ages["max"]) + 1 if ages else candidate["cohort"]["age_max_days"]}
-            choice = {"schema_version": "growth-input.v1", "mode": "content_scenario",
-                      "scope": {**scope, "metric": metric, "semantics": "per_content_cumulative"},
-                      "horizon_days": days, "cohort": cohort,
-                      "plan": {"posts": "<number>", "origin": "user", "quote": question.strip(),
-                               "binding": {"quantity_kind": "total", "quantity_quote": "<number as written>"}}}
-            lines.append(json.dumps(choice, ensure_ascii=False))
-    lines += ["For a count per day or week, add \"period\": \"day\"|\"week\" to plan and use binding "
-              "{\"quantity_kind\": \"cadence\", \"quantity_quote\": \"<number as written>\", \"period\": <same>, "
-              "\"period_quote\": \"<the period words as written>\"}. Without a user plan, use plan {\"origin\": \"observed_cadence\"}. "
-              "Set horizon_days to the user's publication window."]
+            lines.append(growth_command(metric, days, candidate["cohort"]["format"]))
     return "\n".join(lines)
 
 
-def stage_growth(args: argparse.Namespace) -> None:
-    """List this run's growth choices, or print the result the report will bind from the saved one.
+def growth_input(analysis: dict, snapshot: dict, question: str, args: argparse.Namespace) -> dict:
+    """Write the report's growth input from the chosen format and the creator's own count."""
+    from estimate_growth import review_evidence
+    scope = {"platform": analysis["platform"], "account": analysis["scope"]["account"]}
+    evidence = review_evidence({"schema_version": "growth-review.v1", "scope": scope, "horizon_days": args.horizon_days,
+                                "metrics": [args.metric]}, snapshot, SNAPSHOT)
+    candidates = {c["cohort"]["format"]: c for entry in evidence["metrics"] for c in entry["candidates"]}
+    if args.format not in candidates:
+        raise ValueError(f"--format {args.format!r} is not an assessed choice; use one of {sorted(candidates)}")
+    candidate = candidates[args.format]
+    ages = candidate["basis"]["observed_age_days"] if candidate.get("basis") else None
+    cohort = {"format": args.format, "age_min_days": 0,
+              "age_max_days": int(ages["max"]) + 1 if ages else candidate["cohort"]["age_max_days"]}
+    plan: dict[str, Any] = {"origin": "observed_cadence"}
+    if args.posts is not None:
+        quantity = str(int(args.posts)) if float(args.posts).is_integer() else str(args.posts)
+        plan = {"posts": args.posts, "origin": "user", "quote": question.strip(),
+                "binding": {"quantity_kind": "total", "quantity_quote": quantity}}
+        if args.per:
+            words = [word for word in PERIOD_WORDS[args.per] if word in question.lower()]
+            plan["period"] = args.per
+            plan["binding"] = {"quantity_kind": "cadence", "quantity_quote": quantity, "period": args.per,
+                               "period_quote": words[0] if words else args.per}
+    elif args.per:
+        raise ValueError("--per needs --posts, the creator's number of items per day or week")
+    return {"schema_version": "growth-input.v1", "mode": "content_scenario",
+            "scope": {**scope, "metric": args.metric, "semantics": "per_content_cumulative"},
+            "horizon_days": args.horizon_days, "cohort": cohort, "plan": plan}
 
-    It writes nothing, so a rejected input is the model's to correct in this same run: it is printed
-    as a finding with a zero exit, never as a stage failure that would close a wrapper's run.
+
+def stage_growth(args: argparse.Namespace) -> None:
+    """List this run's growth choices, bind the chosen one, or print the result the report will bind.
+
+    A rejected choice is printed as a finding with a zero exit, never as a stage failure that would
+    close a wrapper's run, so the model can rerun the command with a corrected flag.
     """
     require_open_reservation(Path.cwd())
     if not cd.state().get("envelopes") or not Path(ANALYSIS).exists():
@@ -648,6 +676,18 @@ def stage_growth(args: argparse.Namespace) -> None:
     from compose_review import growth_for_review, render_growth  # the report's own binding, not a copy
     analysis, snapshot = cd.load(ANALYSIS), cd.load(SNAPSHOT)
     question = Path(QUESTION).read_text(encoding="utf-8")
+    if args.format is not None:
+        if Path(GROWTH_INPUT).exists() and cd.load(GROWTH_INPUT).get("scope", {}).get("metric") != args.metric:
+            say(f"{GROWTH_INPUT} already binds another metric for the report's one growth slot; calculate "
+                f"{args.metric} with forecast.py and a distinct --output instead.")
+            return
+        try:
+            Path(GROWTH_INPUT).write_text(json.dumps(growth_input(analysis, snapshot, question, args),
+                                                     ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except ValueError as error:
+            say(f"growth choice rejected, nothing bound: {error}")
+            say(growth_choices(analysis, snapshot, question, args.metric, args.horizon_days))
+            return
     if not Path(GROWTH_INPUT).exists():
         say(growth_choices(analysis, snapshot, question, args.metric, args.horizon_days))
         return
@@ -655,8 +695,8 @@ def stage_growth(args: argparse.Namespace) -> None:
         growth = growth_for_review(analysis, cd.load(GROWTH_INPUT), snapshot, question)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         detail = f"{type(error).__name__}: {error}"
-        say(f"growth input rejected, nothing bound: {detail}. Correct {GROWTH_INPUT} from one of the choices below "
-            f"and run drive.py growth again in this run before writing the synthesis; drive.py report fails on the same input.")
+        say(f"growth input rejected, nothing bound: {detail}. Rerun one of the commands below with corrected "
+            f"flags in this run before writing the synthesis; drive.py report fails on the same input.")
         say(growth_choices(analysis, snapshot, question, args.metric, args.horizon_days))
         return
     say("\n".join(render_growth(growth, args.language)).rstrip())
@@ -785,10 +825,12 @@ def stage_report(args: argparse.Namespace) -> None:
             if path.is_file() and not path.is_symlink():
                 path.unlink()
         AUTHORING_CORRECTION_MARKER.write_text("needs_revision\n", encoding="utf-8")
-        raise cd.StageError(f"{error}\nThe unvalidated report was removed. If the message above names "
-                            f"authored synthesis text, correct only that text in this same open run, then "
-                            f"repeat this same report command. If it names no authored field (a file, "
-                            f"permission or other system error), this step failed: report it and stop.") from None
+        rejected = cd.StageError(f"{error}\nThe unvalidated report was removed. If the message above names "
+                                 f"authored synthesis text, correct only that text in this same open run, then "
+                                 f"repeat this same report command. If it names no authored field (a file, "
+                                 f"permission or other system error), this step failed: report it and stop.")
+        rejected.reason = "validate_creator_report" if "validate_creator_report.py" in str(error) else "report_validation"
+        raise rejected from None
     report = (output_dir / "ACCOUNT_REVIEW.md").resolve()
     # When this run never returned needs_revision, this report is the final step: both validators just passed
     # on the same bytes, and
@@ -947,6 +989,9 @@ def main() -> int:
     growth.add_argument("--metric", choices=["views", "likes", "comments"], default="views",
                         help="the content metric the user asked about")
     growth.add_argument("--horizon-days", type=float, default=30, help="the user's publication window in days")
+    growth.add_argument("--format", help="bind this assessed format's choice as the report's growth input")
+    growth.add_argument("--posts", type=float, help="the number of new items the creator named, as written")
+    growth.add_argument("--per", choices=["day", "week"], help="the creator's --posts is per day or per week")
     report = sub.add_parser("report")
     report.add_argument("--output-dir", type=Path, default=OUTPUT_DIR,
                         help="validated report directory inside this run (default: output)")
