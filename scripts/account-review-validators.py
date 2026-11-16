@@ -38,6 +38,13 @@ class CreatorReportChecks(unittest.TestCase):
         self.assertFalse(any(host.startswith("mybrand.") for host in foreign), foreign)
 
 
+class ProviderWord(unittest.TestCase):
+    def test_provider_is_a_field_leak_not_a_word(self):
+        self.assertIsNone(report.PROVIDER_FIELD.search("compare your payment provider fees"))
+        for leak in ('"provider": "x"', "provider: x", "provider=x", "`provider`", "provider_id"):
+            self.assertIsNotNone(report.PROVIDER_FIELD.search(leak), leak)
+
+
 class DisplayLength(unittest.TestCase):
     def test_sentence_then_word_boundary(self):
         self.assertEqual(fit_text("First sentence here. Second one goes on and on.", 30), "First sentence here.")

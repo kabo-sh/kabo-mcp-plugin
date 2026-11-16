@@ -30,6 +30,9 @@ from estimate_growth import review_evidence
 # 1. Field names of the pipeline's own lineage record. A Creator-facing report has no reason to
 #    contain the words themselves.
 STRUCTURAL_MARKERS = ("connector_id", "provider", "package_sha256", "source_commit")
+# "provider" leaks as a field ("provider": ..., provider=..., `provider`), not as an English word:
+# "your internet provider" or "a payment provider" in creator prose is not lineage.
+PROVIDER_FIELD = re.compile(r"[\"'`]provider[\"'`]|\bprovider\s*[:=]|\bproviders?_\w+")
 
 # 2. Identifier *values* read out of the run's own documents. render_markdown() never projects any
 #    of these keys, so one of their values appearing in the delivered Markdown means the semantic
@@ -300,7 +303,8 @@ def validate(report: dict, synthesis: dict, markdown: str, envelopes: list[dict]
         raise ValueError(f"creator-facing Markdown is missing recommended actions: {missing_actions}")
 
     lowered = markdown.lower()
-    exposed = [token for token in STRUCTURAL_MARKERS if token in lowered]
+    exposed = [token for token in STRUCTURAL_MARKERS if token in lowered and (
+        "_" in token or PROVIDER_FIELD.search(lowered))]
     for value in source_identity_values(report, synthesis) + envelope_identity_values(envelopes or []):
         if value.lower() in lowered and value not in exposed:
             exposed.append(value)
