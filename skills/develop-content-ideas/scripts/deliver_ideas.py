@@ -13,7 +13,7 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from render_idea_report import concise, ordered_ideas, validate_concise
-from validate_ideas import validate_idea_set, validate_request
+from validate_ideas import follow_on, validate_idea_set, validate_request
 
 REPORT = "FINAL_IDEAS.md"
 RECEIPT = "idea-delivery.json"
@@ -62,6 +62,14 @@ def export(run: Path) -> dict:
     if (run / "RESULT.md").read_text(encoding="utf-8") != report:
         raise ValueError("RESULT.md differs from the validated list. Do not deliver stale or edited text.")
     data = report.encode("utf-8")
+    emit = "Call emit_block with block.type=markdown and block.path=report_path. Do not rewrite the report."
+    pending = follow_on(request)
+    if pending:
+        # The creator asked for more than a list ("then write the strongest as a script"). The list is
+        # not the end of the turn: name the idea the script is for so the host continues to it. Rank 1 is
+        # the first recommended candidate (validated), i.e. "the strongest".
+        top = ordered_ideas(ideas)[0]
+        pending = {**pending, "number": top["rank"], "idea_id": top["idea_id"], "title": top["working_title"]}
     receipt = {
         "schema_version": "idea-delivery.v1",
         "status": "validated",
@@ -73,8 +81,14 @@ def export(run: Path) -> dict:
         "count": len(ideas["ideas"]),
         "items": [{"number": item["rank"], "idea_id": item["idea_id"],
                    "title": item["working_title"]} for item in ordered_ideas(ideas)],
-        "next_action": "Call emit_block with block.type=markdown and block.path=report_path. Do not rewrite the report.",
+        "next_action": emit if not pending else (
+            emit + " The creator also asked for a script, so the turn is not finished: in this same turn, load "
+            "create-script-and-packaging and write the complete script for idea " + str(pending["number"]) +
+            " (follow_on.title) by that Skill's rules. Do not ask the creator to choose an idea first and do not "
+            "end with only the list."),
     }
+    if pending:
+        receipt["follow_on"] = pending
     try:
         atomic_write(report_path, data)
         atomic_write(receipt_path, (json.dumps(receipt, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))

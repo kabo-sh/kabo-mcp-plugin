@@ -15,3 +15,7 @@ to approve it. If the call fails with `insufficient_scope`, ask the user to appr
 when the host prompts, then retry the identical call with the same idempotency key. If the host
 offers no prompt, say that this host cannot grant Kabo write access and keep the draft local.
 Never save or replace a platform script merely because the user asked for a draft.
+If a save or replace fails for any other reason (for example `not_found`, a timeout or a server
+error), the draft you already showed stays the deliverable: do not withdraw, shorten or replace it
+with an error message, and never say it was saved. Add one line in the creator's language saying it
+was not saved and why, and offer to try again; a retry of the identical call reuses its key.

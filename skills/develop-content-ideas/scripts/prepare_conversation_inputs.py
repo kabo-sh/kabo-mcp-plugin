@@ -35,8 +35,10 @@ def conversation_source(args: argparse.Namespace) -> dict:
             raise ValueError(f"messages[{index}] has conflicting text and content")
         normalized.append({"role": message.get("role"), "text": text})
     quote = read_text(args.reference_quote_file) if args.reference_quote_file else args.reference_quote
-    source = {"schema_version": "idea-conversation.v1", "messages": normalized,
-              "reference": {"message_index": args.reference_index, "quote": quote}}
+    reference = {"message_index": args.reference_index, "quote": quote}
+    if args.reference_kind == "account_review":
+        reference["kind"] = "account_review"
+    source = {"schema_version": "idea-conversation.v1", "messages": normalized, "reference": reference}
     schema = load(REQUEST_SCHEMA)
     errors = validate_schema_value(source, schema["$defs"]["conversationSource"], schema, "$")
     if errors:
@@ -45,16 +47,23 @@ def conversation_source(args: argparse.Namespace) -> dict:
         raise ValueError("--reference-index is outside the messages array")
     if not has_text(quote) or quote not in normalized[args.reference_index]["text"]:
         raise ValueError("--reference-quote must be an exact nonempty span of the selected message")
+    if args.reference_kind == "account_review" and normalized[args.reference_index]["role"] != "assistant":
+        raise ValueError("--reference-kind account_review must select the assistant message that delivered the review")
     return source
 
 
 def authored_intent(args: argparse.Namespace) -> dict:
-    """Unknown information stays missing; limits the user explicitly stated must be added to the corresponding fields afterwards."""
+    """Unknown information stays missing; limits the user explicitly stated must be added to the corresponding fields afterwards.
+
+    An account review bound from the conversation is the account source the request asks for, so
+    that route is an open shortlist that requires `account`, not a brief-only continuation.
+    """
+    account = args.reference_kind == "account_review"
     intent = {
         "schema_version": "idea-request.v3-candidate2",
         "request_id": f"conversation-{uuid4().hex}",
         "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "task_intent": "brief_only", "idea_count": args.idea_count,
+        "task_intent": "open_shortlist" if account else "brief_only", "idea_count": args.idea_count,
         "hook_option_count": args.hook_count,
         "goal": {"status": "missing", "value": None},
         "audience": {"status": "missing", "value": None},
@@ -62,7 +71,7 @@ def authored_intent(args: argparse.Namespace) -> dict:
         "platform_targets": args.platform, "language_targets": [args.language],
         "report_language": args.language,
         "user_brief": {"status": "provided", "text": read_text(args.brief_file)},
-        "generation_basis": {"direct_topic": None, "required_sources": [],
+        "generation_basis": {"direct_topic": None, "required_sources": ["account"] if account else [],
                              "allow_brief_fallback": False,
                              "continuation_quote": args.continuation_quote},
         "production_constraints": {
@@ -94,6 +103,9 @@ def main() -> int:
     parser.add_argument("--platform", action="append", required=True)
     parser.add_argument("--language", required=True)
     parser.add_argument("--continuation-quote", required=True)
+    parser.add_argument("--reference-kind", choices=("example", "account_review"), default="example",
+                        help="account_review: the referenced assistant message is an account review delivered earlier "
+                             "in this conversation, used as the account basis for new ideas")
     parser.add_argument("--run-dir", type=Path, required=True)
     args = parser.parse_args()
     created = []

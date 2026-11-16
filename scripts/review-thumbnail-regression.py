@@ -179,6 +179,12 @@ class Contract(unittest.TestCase):
         with self.assertRaises(ValueError):m.prepare(self.root/'input.json',self.root/'new')
     def test_run_not_reused(self):
         with self.assertRaises(ValueError):m.prepare(self.root/'input.json',self.run)
+    def test_input_folder_is_not_a_run_dir(self):
+        # Hosts write request-input.json into a working folder and then pass `--run-dir .`; the error must name the fix.
+        with self.assertRaisesRegex(ValueError, r'--run-dir review'):m.prepare(self.root/'input.json',self.root)
+        self.assertFalse((self.root/'request.json').exists())
+        skill=(ROOT/'skills/review-thumbnail/SKILL.md').read_text()
+        self.assertIn('--run-dir review',skill);self.assertNotIn("--run-dir '.'",skill);self.assertNotIn('--run-dir .\n',skill)
     def test_path_escape(self):
         request=m.load(self.run/'request.json');request['images'][0]['path']='../A.png';m.write(self.run/'request.json',request)
         with self.assertRaises(ValueError):m.deliver(self.run)

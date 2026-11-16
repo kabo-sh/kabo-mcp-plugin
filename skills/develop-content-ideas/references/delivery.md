@@ -35,6 +35,10 @@ displayed inline. If the host already supports attaching or linking an existing 
 you may expose the unchanged final file that way and clearly identify it as a file delivery;
 never invent a download URL or claim inline display succeeded. Without a verified file-delivery
 capability, stop with that limitation. Do not rewrite the full report. Scripts never call a host API.
+When the receipt has `follow_on`, the emitted list is not the end of the turn: in the same turn,
+load `create-script-and-packaging` and write the complete script for `follow_on.number`
+(`follow_on.title`) by that Skill's rules, opening with one short line that names the idea. Do not
+ask the creator to pick an idea first; they can still choose another number afterwards.
 An explicitly requested strict JSON response retains the JSON-only contract; do not append
 Markdown to it or claim that JSON is the rendered report.
 
