@@ -161,7 +161,9 @@ frame before recording a truthful description; otherwise remove or narrow the un
 explanation.
 
 The script handles two things itself, so never spend a correction round on them: a pinned **cue**
-is selected automatically (its literal transcript line is the observation), and authored text over
+is selected automatically (its literal transcript line is the observation), a watched video with
+selected cues but no cue observation gets its first selected cue, fields written inside a cue
+observation are ignored, and authored text over
 its canonical limit (such as `headline`) is ended at its last complete sentence within the limit;
 `fitted_to_length` lists those fields. Keep each field within its limit when you write it anyway.
 

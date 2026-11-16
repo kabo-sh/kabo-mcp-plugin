@@ -224,7 +224,10 @@ def compile_authoring(author: dict[str, Any], source: dict[str, Any], evidence: 
             rows[point["content_id"]]["frame_samples"].append(
                 {"start_s": point["start_s"], "description": value["description"]})
         else:
-            _closed(value, set(), set(), "cue observation")
+            # A cue observation authors nothing: the quote, start and end come from the transcript itself,
+            # so whatever the model wrote inside it (for example a copied quote) is ignored, not refused.
+            if not isinstance(value, dict):
+                raise ValueError("cue observation must be an object")
             rows[point["content_id"]]["cue_samples"].append(
                 {key: point[key] for key in ("start_s", "quote", "end_s")})
 
@@ -258,6 +261,20 @@ def compile_authoring(author: dict[str, Any], source: dict[str, Any], evidence: 
     _closed(canonical["next_shoot"], {"keep", "stop", "pins"}, {"keep", "stop"}, "next_shoot")
     if "pins" in canonical["next_shoot"]:
         canonical["next_shoot"]["pins"] = pins(canonical["next_shoot"]["pins"])
+    # The canonical contract asks each watched video with selected timed cues for at least one literal
+    # cue observation. Choosing one is bookkeeping, not judgment: take its first selected cue.
+    selected_starts = {row.get("content_id"): [cue.get("start_s") for cue in
+                                               (row.get("opening_cues") or []) + (row.get("later_cues") or [])]
+                       for row in source.get("watched", []) if isinstance(row, dict)}
+    for content_id, row in rows.items():
+        if row["cue_samples"] or not selected_starts.get(content_id):
+            continue
+        for start in selected_starts[content_id]:
+            matches = [point for point in points.values()
+                       if point["content_id"] == content_id and point["kind"] == "cue" and point["start_s"] == start]
+            if len(matches) == 1:
+                row["cue_samples"].append({key: matches[0][key] for key in ("start_s", "quote", "end_s")})
+                break
     details = author["other_limitations"]
     if not isinstance(details, list) or any(not isinstance(text, str) or not text.strip() for text in details):
         raise ValueError("other_limitations must contain nonblank authored text")

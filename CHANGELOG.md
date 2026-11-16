@@ -11,7 +11,8 @@ The version number follows `plugin.json`; the root package version in `.claude-p
   `drive.py growth --format/--posts/--per` binds the report's growth choice without a hand-copied file.
 - `review-creator-account`: the report check no longer reads product words such as "curl cream" as shell
   commands, and allows domains that appear in the fetched captions, bios and link-in-bio text.
-- `review-creator-account-deep`: a pinned transcript cue is selected automatically, and over-long
+- `review-creator-account-deep`: a pinned transcript cue is selected automatically, a watched video with
+  selected cues gets its first one when the author chose none, and over-long
   display text is ended at its last complete sentence instead of being sent back for a rewrite.
 - Both Skills end a refused step with one JSON line carrying a fixed `reason`, so hosts can count failures.
 
