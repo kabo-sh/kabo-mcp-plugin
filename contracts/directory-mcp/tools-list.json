@@ -17102,7 +17102,7 @@
         "properties": {
           "creator": {
             "additionalProperties": false,
-            "description": "instagram_handle, or video_urls and/or photo_urls (face JPEG/PNG); max 4.",
+            "description": "instagram_handle, or video_urls and/or photo_urls (face); max 4 videos, 8 photos.",
             "properties": {
               "instagram_handle": {
                 "description": "Handle or profile link; Kabo picks reels.",
