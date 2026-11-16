@@ -70,7 +70,8 @@ def assert_provider_envelope(envelope: dict[str, Any], *, index: int) -> None:
         raise ValueError(
             f"envelope[{index}] is missing provider; persist the connector payload, do not invent a stub"
         )
-    # connector wire 使用 completed_partial，历史/复合结果使用 partial；保存时不改写状态。
+    # The connector wire uses completed_partial, while historical/composite results use partial; the status is not
+    #   rewritten when saving.
     if envelope.get("status") not in {"completed", "completed_partial", "partial", "failed", "unsupported", "blocked_setup"}:
         raise ValueError(f"envelope[{index}] status must be completed, completed_partial, partial, failed, unsupported, or blocked_setup")
 

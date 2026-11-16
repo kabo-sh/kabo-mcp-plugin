@@ -42,10 +42,10 @@ def _percent(value: float) -> str:
 def _baseline_lines(stability: dict[str, Any] | None, language: str, synthesis: dict[str, Any] | None = None) -> list[str]:
     """The catalog facts, said to the Creator, in the language the report is written in.
 
-    `stability["readings"]` is not this. Those lines are the analyst's own working notes — they
-    name the rule being applied ("按份额判为上升，不是按单条中位数"), warn which metric not to
+    `stability["readings"]` is not this. Those lines are the analyst's own working notes - they
+    name the rule being applied ("judged rising by share, not by single-item median"), warn which metric not to
     trust, and record what the data did not allow, all of it addressed to whoever is doing the
-    analysis. Rendering them verbatim put "水位被少数条拉开" and a raw `0.716998` in front of the
+    analysis. Rendering them verbatim put "level pulled apart by a few items" and a raw `0.716998` in front of the
     Creator, in Chinese, inside an English report. Same numbers here, read off the structured
     fields beside them, phrased as a finding about the account rather than an instruction about
     how to read it.
@@ -480,8 +480,9 @@ def main(argv: list[str] | None = None) -> int:
     write_json(args.output, report)
     args.markdown.parent.mkdir(parents=True, exist_ok=True)
     args.markdown.write_text(report["markdown"], encoding="utf-8")
-    # 与其他出报告的 Skill 一致：最终步打印 creator_report 路径与报告全文，模型照原文交付，不再自己读文件转述
-    # （实测里模型转述时删掉了证据引用）。
+    # Consistent with the other report-producing Skills: the final step prints the creator_report path and the full
+    # report text, and the model delivers it verbatim instead of reading the file and paraphrasing (in a real run the
+    # model dropped the evidence citations while paraphrasing).
     print(f"creator_report: {args.markdown.resolve()}")
     print(report["markdown"].rstrip())
     print('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says), then this creator_report line.')

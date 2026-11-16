@@ -312,8 +312,9 @@ def entailed_assumptions(evidence: dict[str, Any]) -> list[str]:
     lines: list[str] = []
     metrics = {m.get("native_name"): m.get("value") for m in evidence.get("public_metrics") or []
                if isinstance(m, dict)}
-    # 旧信封的 GraphQL 名，或 lookup_instagram_post 投影的字段路径（build_content_evidence 的 native_name）。
-    # 只有 IG+FB 合并播放数时同样不是触达；分母取 IG 自身的播放数优先。
+    # The GraphQL name from the old envelope, or the field path of the lookup_instagram_post projection
+    # (native_name in build_content_evidence). A combined IG+FB view count alone is likewise not reach; prefer IG's
+    # own view count as the denominator.
     plays = next((metrics[name] for name in ("video_play_count", "metrics.plays_instagram", "metrics.plays_combined")
                   if isinstance(metrics.get(name), (int, float))), None)
     likes = metrics.get("edge_media_preview_like.count", metrics.get("metrics.likes"))
@@ -346,7 +347,8 @@ def compose(judgment: dict[str, Any], evidence: dict[str, Any], deterministic: d
     require_judgment_references(judgment, evidence)
     ref = record(evidence.get("content_ref"))
     platform = str(ref.get("platform") or "")
-    # 分析编号前缀取自支持清单的 content_id_prefix（yt / ig / tt / dy …），不另写一份平台表。
+    # The analysis id prefix comes from the support list's content_id_prefix (yt / ig / tt / dy ...), not from a
+    # separate platform table.
     prefix = public_video_sources.content_id_prefix(platform)
     if not prefix:
         raise SystemExit(f"the evidence names platform {platform!r}, which has no analysis id prefix")

@@ -2,20 +2,21 @@
 """Turn the model's numbered score lines into a `trend-relevance-gate.v3`.
 
 The Gate is the model reading every projected item and scoring it. Writing that judgment as one
-JSON object per item (~110 characters each, 60–160 items) is most of the output a trend run
+JSON object per item (~110 characters each, 60-160 items) is most of the output a trend run
 generates, and observed runs replaced the reading with a keyword script to avoid typing it. The
 judgment is unchanged here; only its transport is shorter: one line per projected item,
 
     <n> <topic_relevance> <locale_fit> [<creator_transferability> [<signature_content>]]
 
 where `n` is the item's 1-based position in the printed projection table. This script checks that
-every item is scored exactly once, that each score is an integer 0–100, and that
+every item is scored exactly once, that each score is an integer 0-100, and that
 `creator_transferability` is present exactly when the Gate input carries an anchor, then writes the
 same Gate JSON the downstream builders already read.
 
-Gate 输入带创作者的主打内容（`subject.signature_content`，编号 1..k）时，每行多一列：
-这条候选复现的是第几个主打内容，都不像填 0。Gate 行据此记下该主打内容在 Request 里的 id
-（`signature_content_id`，填 0 时为 null）。不带主打内容时，行格式与 Gate JSON 都和原来一样。
+When the Gate input carries the creator's signature content (`subject.signature_content`, numbered 1..k), each
+line gets one more column: which signature content this candidate reproduces (0 if it resembles none). The Gate
+row records that signature content's id in the Request accordingly (`signature_content_id`, null when 0). Without
+signature content, both the line format and the Gate JSON are the same as before.
 """
 
 from __future__ import annotations
@@ -58,8 +59,8 @@ def signature_ids(gate_input: dict[str, Any]) -> list[str]:
 
 
 def has_anchor(gate_input: dict[str, Any]) -> bool:
-    # 主打内容是创作者自己作品的逐类描述，和 handle 一样能说明「这个创作者是谁」，
-    # 所以带了主打内容就必须打 creator_transferability。
+    # Signature content is a per-category description of the creator's own posts and, like the handle, tells who
+    # this creator is, so whenever signature content is present creator_transferability must be scored.
     subject = subject_of(gate_input)
     return bool(subject.get("anchor_handle") or subject.get("anchor_mechanisms") or signature_ids(gate_input))
 

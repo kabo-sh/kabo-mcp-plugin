@@ -52,8 +52,9 @@ def resolve_input(given: Path) -> Path:
     )
 
 
-# 目录分析还没就绪就跑后续步骤时，只有一条裸 FileNotFoundError 回溯。缺输入时直接说出第 1 步的
-# 两个入口，退出码 2，不留半截产物。
+# If later steps are run before the catalog analysis is ready, all there is is a bare FileNotFoundError
+#   traceback. When input is missing, state the two entry points of step 1
+# directly, exit with code 2, and leave no half-finished artifacts.
 STEP_ONE = (
     "Finish SKILL.md step 1 in this same run first: pass the finished standard review's "
     "`<standard run>/account_analysis.json` when one exists; otherwise run `scripts/fetch_catalog.py "

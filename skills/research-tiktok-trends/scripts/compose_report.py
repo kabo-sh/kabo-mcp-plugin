@@ -186,11 +186,12 @@ def compose(
     for item in (synthesis.get("patterns") or []) + (synthesis.get("emerging_creators") or []):
         for ref in item.get("content_refs") or []:
             append_once(refs, resolve_ref(ref))
-    # 有可引用证据时，空 synthesis 也不能把已入选的视频全部丢掉。
+    # When there is citable evidence, an empty synthesis must not drop all the videos already selected.
     if not refs:
         allowed = set(analysis["selected_content_ids"]) if "selected_content_ids" in analysis else candidate_ids
         refs = [ref for ref in ranked if ref in allowed and ref in candidate_ids]
-    # Composer 和独立 Validator 共用入选校验，避免生成报告时绕过分配结果。
+    # The Composer and the independent Validator share the selection validation, so generating the report cannot
+    # bypass the allocation result.
     sys.dont_write_bytecode = True
     path = Path(__file__).with_name("validate_output.py")
     spec = importlib.util.spec_from_file_location(f"{path.parent.parent.name}:report_selection", path)

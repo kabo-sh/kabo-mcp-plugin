@@ -212,7 +212,8 @@ def build(view_document: dict[str, Any], analysis: dict[str, Any], evidence: dic
         view = dict(view)
         owner = evidence['owner_metrics']['status']
         if note_language(view) == "zh":
-            # 和英文行同一组事实、同一组数字；报告原样转述，所以中文报告里这一行也是中文。
+            # The same facts and the same numbers as the English line; the report relays it verbatim, so in a Chinese report
+            # this line is Chinese too.
             completeness = {"unknown": "未知"}.get(images['completeness'], images['completeness'])
             owner_zh = {"available": "可用", "partial": "部分可用", "unavailable": "不可用"}.get(owner, owner)
             view["data_note"] = (

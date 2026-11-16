@@ -72,12 +72,12 @@ def signature_coverage_errors(
     content_ids: set[Any],
     candidate_ids: set[str] | None,
 ) -> list[str]:
-    """带名额分配的 Analysis：每个分到条目的主打内容，报告里至少引用它的一条。
+    """Analysis with quota allocation: for each main content that was allotted entries, the report cites at least one of its entries.
 
-    名额只决定「推荐里每个主打内容都有代表」，排序与证据规则不变。只检查确实能被引用的条目
-    （进了 ranked_content、且是闸门保留的候选），否则一条都引不了的主打内容会让报告永远过不了。
-    引用集合取报告的 top_content：Composer 把 featured、pattern 与 emerging creator 的引用都收进去，
-    SKILL.md 允许在 featured 或 pattern 里引用，只看 featured 会把引在 pattern 里的合格报告误拒。
+    The quota only decides that "every main content has a representative in the recommendations"; ranking and evidence rules are unchanged. Only entries that can actually be cited are checked
+    (those in ranked_content that are also candidates kept by the gate), otherwise a main content with no citable entry would keep the report from ever passing.
+    The citation set is the report's top_content: the Composer collects the citations of featured, pattern and emerging creator into it,
+    and SKILL.md allows citing in either featured or pattern, so checking only featured would wrongly reject a qualified report that cites in pattern.
     """
     cited = {str(ref) for ref in content_ids}
     seated: dict[str, set[str]] = {}

@@ -21,7 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-# 口径常量与 content-profile.v1 的 golden 制品逐项一致；测试对拍制品副本，改任何一项都得先升规则版本。
+# The basis constants match the golden artifact of content-profile.v1 item by item; the tests compare against
+#   a copy of the artifact, and changing any one requires bumping the rule version first.
 RULE_VERSION = "content-profile.v1"
 FORMULA_VERSION = "shrunk-log-median.v1"
 K = 5
@@ -60,7 +61,7 @@ def log_view(views: float) -> float:
 
 
 def median(values: list[float]) -> float | None:
-    """偶数个时取中间两个的均值；与 golden 的 median 公式一致。"""
+    """With an even count, take the mean of the two middle values; consistent with the golden median formula."""
     if not values:
         return None
     ordered = sorted(values)
@@ -94,7 +95,7 @@ def is_mature(published_at: Any, observed_at: Any, content_format: str) -> bool:
     published, observed = parse_time(published_at), parse_time(observed_at)
     if published is None or observed is None or content_format not in MATURITY_DAYS:
         return False
-    # 按毫秒比，恰好满 maturityDays 天算成熟（golden 的 exactly_seven_days_is_mature）。
+    # Compare in milliseconds: exactly maturityDays days counts as mature (golden's exactly_seven_days_is_mature).
     elapsed_ms = (observed - published).total_seconds() * 1000
     return elapsed_ms >= MATURITY_DAYS[content_format] * DAY_MS
 
@@ -157,7 +158,7 @@ def multiple(views: Any, shrunk_log_median: float) -> dict[str, Any] | None:
 
 
 def round_authors_prior(author_logs: Iterable[list[float]]) -> float | None:
-    """本轮各作者对数中位数的中位数（prior source `round_authors`）；没有任何作者有样本时为 None。"""
+    """Median of the per-author log medians this round (prior source `round_authors`); None when no author has samples."""
     medians = [median(logs) for logs in author_logs if logs]
     return median([value for value in medians if value is not None])
 

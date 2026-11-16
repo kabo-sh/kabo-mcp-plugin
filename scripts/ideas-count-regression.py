@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""核验显式数量从请求到报告及日历交接，不把合成内容当效果验收。"""
+"""Verify the explicit count from request to report and calendar handoff, without treating synthetic content as effect acceptance."""
 import copy
 import hashlib
 import json
@@ -21,27 +21,27 @@ FIXTURE = json.loads((ROOT / "scripts/fixtures/ideas-continuation.json").read_te
 
 class IdeaCounts(unittest.TestCase):
     def setUp(self):
-        """每个测试独立目录，不重置已有生成预算。"""
+        """Each test gets its own directory and does not reset the existing generation budget."""
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
 
     def write(self, root, name, value):
-        """保持JSON落盘格式稳定，便于跨包核对真实摘要。"""
+        """Keep the JSON on-disk format stable, to make cross-package checks of the real digest easy."""
         root.mkdir(parents=True, exist_ok=True)
         path = root / name
         path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
         return path
 
     def stage(self, root, stage, *flags):
-        """执行正式prep/core入口并读取其结构化状态。"""
+        """Run the official prep/core entry points and read their structured status."""
         result = subprocess.run([sys.executable, "-B", str(SKILL / "scripts/run_ideas_stages.py"),
             stage, "--run-dir", str(root), *map(str, flags)], capture_output=True, text=True)
         self.assertTrue(result.stdout, result.stderr)
         return result.returncode, json.loads(result.stdout)
 
     def intent(self, count):
-        """在既有有效夹具上只替换数量和明确主题。"""
+        """On an existing valid fixture, replace only the count and the explicit topic."""
         intent = copy.deepcopy(FIXTURE["intent"])
         intent["idea_count"] = count
         intent["user_brief"]["text"] = f"Give me {count} AI sales workflow ideas for Instagram."
@@ -50,7 +50,7 @@ class IdeaCounts(unittest.TestCase):
         return intent
 
     def output(self, count):
-        """合成数量合同夹具，创意质量由独立模型回归评分。"""
+        """Synthetic fixture for the count contract; creative quality is scored by an independent model regression."""
         output = copy.deepcopy(FIXTURE["idea_set"])
         output["ideas"] = []
         for rank in range(1, count + 1):
@@ -61,7 +61,7 @@ class IdeaCounts(unittest.TestCase):
         return output
 
     def prepare(self, root, count):
-        """返回真实构建的请求，要求合法数量进入生成阶段。"""
+        """Return the really built request, requiring a valid count to enter the generation stage."""
         path = self.write(root, "intent.json", self.intent(count))
         code, prep = self.stage(root, "prep", "--intent", path)
         self.assertEqual((0, "ok", "ready_for_generation"),
@@ -69,7 +69,7 @@ class IdeaCounts(unittest.TestCase):
         return json.loads((root / "request.json").read_text())
 
     def test_supported_counts_reach_core_and_every_report_item(self):
-        """旧小批量和新15/20批量均完整经过校验、渲染。"""
+        """Both the old small batch and the new 15/20 batches go through validation and rendering in full."""
         for count in (1, 2, 3, 10, 15, 20):
             with self.subTest(count=count):
                 root = self.root / str(count)
@@ -84,7 +84,7 @@ class IdeaCounts(unittest.TestCase):
                     self.assertIn(idea["working_title"], report)
 
     def test_out_of_range_counts_and_missing_count_do_not_generate(self):
-        """保留短名单下限和显式数量必填要求，不悄悄补默认值。"""
+        """Keep the shortlist lower bound and the requirement that an explicit count be given, without silently filling in a default."""
         for count in (0, 21, None):
             with self.subTest(count=count):
                 root = self.root / str(count)
@@ -98,13 +98,13 @@ class IdeaCounts(unittest.TestCase):
                 self.assertFalse((root / "RESULT.md").exists())
 
     def test_requested_twenty_cannot_be_truncated_to_ten(self):
-        """宽上限不放松请求与结果的数量相等约束。"""
+        """A wide upper limit does not loosen the constraint that request and result counts be equal."""
         request = self.prepare(self.root, 20)
         errors = validator.validate_idea_set(self.output(10), request, self.root / "idea_set.json")
         self.assertTrue(any("ideas count must equal" in e for e in errors), errors)
 
     def test_missing_required_trend_still_blocks_large_batch(self):
-        """数量扩大不能绕过显式研究输入的缺失门槛。"""
+        """A larger count cannot bypass the missing-input gate for explicit research inputs."""
         intent = self.intent(20)
         intent["generation_basis"]["required_sources"] = ["trend"]
         path = self.write(self.root, "intent.json", intent)
@@ -114,7 +114,7 @@ class IdeaCounts(unittest.TestCase):
         self.assertEqual(["trend"], prep["decision"]["missing_required_sources"])
 
     def test_rework_count_and_hook_constraints_are_unchanged(self):
-        """单条改写仍仅1个选题，Hook数量仍3至5。"""
+        """A single-item rewrite is still exactly 1 idea, and the Hook count is still 3 to 5."""
         request = self.prepare(self.root, 3)
         request.update(task_intent="rework_content", idea_count=1, hook_option_count=3)
         errors = validator.validate_request(request, self.root / "request.json")
@@ -126,7 +126,7 @@ class IdeaCounts(unittest.TestCase):
         self.assertTrue(any("3..5 Hook options" in e for e in errors), errors)
 
     def test_capacity_budget_is_not_relaxed_for_twenty(self):
-        """20条容量计划仍需全部估时落在已给预算内。"""
+        """A 20-item capacity plan still needs all time estimates to fall within the given budget."""
         request = self.prepare(self.root, 20)
         request["task_intent"] = "capacity_plan"
         request["production_constraints"]["total_time_minutes"] = 600
@@ -140,7 +140,7 @@ class IdeaCounts(unittest.TestCase):
         self.assertTrue(any("exceed budget" in e for e in errors), errors)
 
     def test_chat_helper_preserves_twenty_through_prep(self):
-        """续聊helper也支持20，保留精确前文引用后再走正常prep。"""
+        """The follow-up helper also supports 20, keeping exact prior-text quotes before going through the normal prep."""
         messages = self.write(self.root, "messages.json", [{"role": "assistant", "text": "A workflow stops before promising a price."}])
         brief = self.root / "query.txt"
         brief.write_text("Give me 20 more in that style.")
@@ -155,7 +155,7 @@ class IdeaCounts(unittest.TestCase):
         self.assertEqual(20, json.loads((self.root / "request.json").read_text())["idea_count"])
 
     def test_previous_large_set_keeps_all_candidates_in_followup(self):
-        """15/20条已验收候选可继续引用，不能在前文投影时截断。"""
+        """Accepted 15/20-item candidates can still be referenced and must not be truncated in the prior-text projection."""
         for count in (15, 20):
             with self.subTest(count=count):
                 previous = self.root / f"previous-{count}"
@@ -181,7 +181,7 @@ class IdeaCounts(unittest.TestCase):
                 self.assertEqual(source.read_bytes(), (followup / context["path"]).read_bytes())
 
     def test_schema_errors_do_not_hide_pending_assets_from_the_only_revision(self):
-        """20条的格式、翻译和素材状态同轮报全，一次修订后完整交付。"""
+        """For 20 items, format, translation and material status are all reported in the same round, with full delivery after one revision."""
         self.prepare(self.root, 20)
         output = self.output(20)
         output["evidence_summary"]["data_gaps"] = ["No owner analytics supplied"]
@@ -218,7 +218,7 @@ class IdeaCounts(unittest.TestCase):
         self.assertIn("Confirm a consenting guest before filming.", report)
 
     def test_fixed_values_need_no_authored_translation_but_nested_values_are_rejected(self):
-        """固定展示不耗修订机会；错误新增的嵌套状态映射仍必须拒绝。"""
+        """Fixed display does not consume a revision chance; a wrongly added nested status mapping must still be rejected."""
         self.prepare(self.root, 20)
         output = self.output(20)
         output["evidence_gap_translations"] = []
@@ -235,7 +235,7 @@ class IdeaCounts(unittest.TestCase):
             self.assertTrue(any(nested in error and "remove it" in error for error in errors), errors)
 
     def test_final_delivery_returns_complete_report_and_rejects_truncation(self):
-        """最后一次校验直接返回全部候选；拒绝缩写、过期投影及无效IdeaSet。"""
+        """The last validation returns all candidates directly; abbreviations, stale projections and invalid IdeaSets are rejected."""
         self.prepare(self.root, 20)
         output = self.output(20)
         self.write(self.root, "idea_set.json", output)
@@ -272,7 +272,7 @@ class IdeaCounts(unittest.TestCase):
         self.assertNotIn(output["ideas"][0]["working_title"], result.stdout)
 
     def test_pending_asset_diagnostics_do_not_raise_on_invalid_shapes(self):
-        """独立诊断只检查类型正确的依赖；错误容器仍由schema拒绝。"""
+        """The independent diagnosis checks only correctly typed dependencies; a wrong container is still rejected by the schema."""
         request = self.prepare(self.root, 3)
         for field in ("required_assets", "assets_used", "assumptions"):
             for broken in (None, 7, "not an array", {}, [{}], [[]]):
@@ -290,7 +290,7 @@ class IdeaCounts(unittest.TestCase):
             self.assertEqual([], validator.production_asset_errors(output, malformed))
 
     def test_pending_assets_do_not_mask_other_production_rejections(self):
-        """未来资源仍不能进入产能/改写，也不能遮住预算、排除项及假装使用错误。"""
+        """Future resources still cannot enter capacity/rewrite, nor mask budget, exclusion and pretend-use errors."""
         request = self.prepare(self.root, 3)
         request["exclusions"]["assets"] = ["A consenting guest"]
         request["production_constraints"]["total_time_minutes"] = 1
@@ -311,7 +311,7 @@ class IdeaCounts(unittest.TestCase):
                         self.assertTrue(any(marker in e for e in errors), errors)
 
     def test_calendar_accepts_large_set_only_as_unselected_backlog(self):
-        """日历接收真实生成的20条候选，但不把候选擅自排成已选内容。"""
+        """The calendar accepts the really generated 20 candidates, but does not arbitrarily schedule candidates as selected content."""
         self.prepare(self.root, 20)
         ideas = self.output(20)
         idea_path = self.write(self.root, "idea_set.json", ideas)

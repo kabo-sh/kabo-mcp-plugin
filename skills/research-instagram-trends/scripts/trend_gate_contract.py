@@ -88,22 +88,22 @@ def classifications(gate: dict[str, Any], applied_policy: Any = None) -> dict[st
                 value = scores.get(name)
                 if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100:
                     raise ValueError(f"invalid {name} for {key}")
-            # creator_transferability 只有在 Request 带上 anchor 信息时才有得打：没有 anchor
-            # 就没有「这个 Creator 接不接得住」可判，硬要一个分等于凭空造分。所以缺席是合法
-            # 状态，打了就必须是 0–100 的数。下游 semantic_total 会把它的权重摊给另外两项。
+            # creator_transferability can be scored only when the Request carries anchor information: without an anchor
+            # there is nothing to judge about "can this Creator carry it", and forcing a score would be making one up. So absence is a legal
+            # state, and once scored it must be a number from 0 to 100. Downstream semantic_total spreads its weight over the other two items.
             if "creator_transferability" in scores:
                 value = scores["creator_transferability"]
                 if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100:
                     raise ValueError(f"invalid creator_transferability for {key}")
             if key in result:
                 raise ValueError(f"duplicate gate content_key: {key}")
-            # 主打内容列只在 Gate 输入带画像时出现；缺席与 null 是两回事（null 是判过、都不像），
-            # 所以这里只校验类型，不补键。它不进地板判断：像不像主打内容决定排到哪一类，不决定去留。
+            # The main-content column appears only when the Gate input carries a profile; absent and null are different things (null means judged, and none matched),
+            # so only the type is validated here and no key is filled in. It does not enter the floor judgment: whether it resembles the main content decides which category it ranks in, not whether it stays.
             if "signature_content_id" in row and row["signature_content_id"] is not None and (
                     not isinstance(row["signature_content_id"], str) or not row["signature_content_id"]):
                 raise ValueError(f"invalid signature_content_id for {key}")
-            # 下游旧 Snapshot/Analyzer 只需要 eligible/reject 二值边界；direct 是内部
-            # 兼容投影，不再是模型输入分类，也不参与配额或排序。
+            # The legacy downstream Snapshot/Analyzer only needs the binary eligible/reject boundary; direct is an internal
+            # compatibility projection, no longer a classification for the model input, and takes no part in quota or ranking.
             floors = applied_floors(platform, applied_policy)
             if platform == "youtube":
                 eligible = (
@@ -123,8 +123,8 @@ def semantic_scores(gate: dict[str, Any]) -> dict[str, dict[str, float]]:
     output: dict[str, dict[str, float]] = {}
     for row in gate.get("items") or []:
         key = str(row["content_key"])
-        # creator_transferability 缺席时不补这个键：下游按「没打过」归一化权重，
-        # 而补一个 0 会被读成「判过、且极低」——两者是完全不同的结论。
+        # When creator_transferability is absent this key is not filled in: downstream normalizes weights as "never scored",
+        # whereas filling in a 0 would be read as "judged, and extremely low" - two completely different conclusions.
         output[key] = {
             name: float(row["semantic_scores"][name])
             for name in ("topic_relevance", "creator_transferability", "locale_fit")
@@ -134,10 +134,10 @@ def semantic_scores(gate: dict[str, Any]) -> dict[str, dict[str, float]]:
 
 
 def signature_content_ids(gate: dict[str, Any]) -> dict[str, str | None]:
-    """每条 Gate 行判到的主打内容 id（Request 里的 id；null 表示判过、都不像）。
+    """The main-content id judged for each Gate row (the id in the Request; null means judged and none matched).
 
-    Gate 输入没带主打内容时，行里没有这一列，返回空字典：调用方据此区分「这轮没有画像」与
-    「有画像但这条哪个都不像」，后者才进未匹配的名额。
+    When the Gate input carries no main content, rows have no such column and an empty dict is returned: the caller uses this to tell "this round has no profile" from
+    "there is a profile but this one matches none", and only the latter enters the unmatched quota.
     """
     if gate.get("schema_version") != "trend-relevance-gate.v3":
         raise ValueError("signature content requires trend-relevance-gate.v3")

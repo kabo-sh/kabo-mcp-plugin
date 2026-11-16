@@ -1,4 +1,4 @@
-"""验证合法续聊/数量/语言不误拦，且失败产物不能交付。"""
+"""Verify that valid follow-up chat/count/language are not wrongly blocked, and that failed artifacts cannot be delivered."""
 import copy
 import importlib.util
 import json
@@ -22,7 +22,7 @@ class Boundaries(unittest.TestCase):
     output = counts.IdeaCounts.output
 
     def test_spanish_regions_deliver_without_authored_interface_translations(self):
-        """西语/地区标签全过程输出，无92条界面映射，逐条保留开场和拍法。"""
+        """Spanish/region labels throughout the whole flow, no 92-entry UI mapping, and the opening and filming approach kept per item."""
         for tag in ('es', 'es-MX', 'español'):
             with self.subTest(tag=tag):
                 run = self.root/tag
@@ -51,7 +51,7 @@ class Boundaries(unittest.TestCase):
                     self.assertIn(item['making_direction'], report)
 
     def test_fixed_ui_cannot_be_replaced_by_authored_prose(self):
-        """旧翻译仍可读，固定界面不被模型提供的另一语言覆盖。"""
+        """Old translations stay readable, and the fixed UI is not overridden by another language supplied by the model."""
         data = self.output(3)
         data['report_language'] = 'es'
         data['evidence_gap_translations'] = [{'source_text':'ready_for_selection','report_text':'READY IN ENGLISH'}]
@@ -59,7 +59,7 @@ class Boundaries(unittest.TestCase):
         self.assertEqual(set(), locale.ui_label_sources(data))
 
     def test_gap_named_like_fixed_enum_still_needs_its_own_translation(self):
-        """证据缺口与枚举同名时不自动伪造缺口含义。"""
+        """When an evidence gap has the same name as an enum, do not automatically fabricate a meaning for the gap."""
         data = self.output(3)
         data['report_language'] = 'es'
         data['evidence_summary']['data_gaps'] = ['low']
@@ -70,7 +70,7 @@ class Boundaries(unittest.TestCase):
         self.assertEqual(['Faltan datos: low'], locale.evidence_gaps(data))
 
     def test_fixed_catalog_complete_and_preserves_format(self):
-        """翻译所有固定界面，不遗漏状态/边界文案。"""
+        """Translate all fixed UI; do not miss status/boundary copy."""
         self.assertEqual({v['en'] for v in locale.CATALOG.values()}, set(locale.SPANISH))
         for entry in locale.CATALOG.values():
             self.assertTrue(entry['es'].strip())
@@ -81,7 +81,7 @@ class Boundaries(unittest.TestCase):
             locale.report_language({'report_language':'es--MX'})
 
     def test_unknown_locale_does_not_silently_become_english(self):
-        """未知词库仍需要明确译文，不能借确定性映射放行错语言。"""
+        """An unknown vocabulary still needs an explicit translation, and a deterministic mapping must not let a wrong language through."""
         data = self.output(3)
         data['report_language'] = 'de-DE'
         data['evidence_gap_translations'] = []
@@ -89,7 +89,7 @@ class Boundaries(unittest.TestCase):
             locale.presentation_translations(data)
 
     def test_region_change_is_not_ignored(self):
-        """语言同源不代表可以忽略用户明确地区要求。"""
+        """Sharing a language does not mean the user's explicit region requirement can be ignored."""
         intent = self.intent(3);intent['report_language'] = 'es-MX'
         self.write(self.root, 'intent.json', intent)
         self.assertEqual('ok', self.stage(self.root, 'prep', '--intent', self.root/'intent.json')[1]['status'])

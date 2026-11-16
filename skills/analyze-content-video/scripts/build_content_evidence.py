@@ -77,8 +77,9 @@ ROLE_OF_OPERATION.update({operation: "frames" for operation in KEYFRAME_OPERATIO
 # operation; the role follows the operation, not which one answered.
 POST_CONNECTORS = {"instagram-discovery", "instagram-detail-proxy"}
 POST_OPERATION = "get_post"
-# lookup_instagram_post 不论哪条路线作答，data 都是这份固定投影；按它判形状，
-# 不按 connector_id。没有这个标记的是旧的单操作工具信封（GraphQL 原样或详情白名单），照旧读。
+# However lookup_instagram_post answers, data is this one fixed projection; judge the shape by it, not by
+# connector_id. Envelopes without this marker are the old single-operation tool envelope (GraphQL as-is or a
+# detail allowlist) and are read as before.
 POST_PROJECTION = "kabo.instagram_post.v1"
 PLAYS_NOTE = "A play count, which is neither reach nor an owner view figure."
 # A digitally silent sample reads as an extreme negative rather than as an absent one. The floor is
@@ -103,15 +104,19 @@ ACQUISITION_STATUSES = {
 }
 FRAME_SELECTIONS = {"duration_scaled_v1", "evenly_spaced_bounded_v1", "explicit_timestamps_v1", "none"}
 TRANSCRIPT_ORIGINS = {"platform_captions", "provider_transcript", "speech_recognition"}
-# 只导出逐字稿时不取元数据，模型写的请求也常不带 content_id：从创作者给的原始链接取。
-# 平台、证据编号前缀与链接里的 id 写法都按支持清单 public-video-sources.v1 读，不在这里另写一份。
+# When only the transcript is exported, metadata is not fetched and the model's request often has no content_id
+# either: take it from the original link the creator gave. The platform, the evidence-id prefix and the id
+# pattern in the link are read from the support list public-video-sources.v1, not written again here.
 content_id_from_url = public_video_sources.content_id_from_url
-# 支持清单 public_metrics 的键 ← 元数据里的计数字段名。分享与收藏数只有付费解析的平台（抖音、小红书、快手）带回。
+# Support-list public_metrics keys <- the count field names in metadata. Share and save counts come back only
+# from the platforms resolved through the paid path (Douyin, Xiaohongshu, Kuaishou).
 METADATA_COUNTERS = {"view_count": "views", "like_count": "likes", "comment_count": "comments",
                      "share_count": "shares", "save_count": "saves"}
-# 平台不公开时要在证据里写一句「不可用，不是 0」的计数：只说这三项，老平台的证据不因分享、收藏多出说明。
+# Counts the evidence states as "unavailable, not zero" when the platform does not publish them: only these
+# three, so the older platforms' evidence gains no extra notes about shares or saves.
 STATED_GAPS = ("views", "likes", "comments")
-# Facebook 播放数的来历（view_count_basis）：页面显示的取整值照收但注明精度；withheld 时 view_count 为 null，不收。
+# Where a Facebook view count comes from (view_count_basis): the page's rounded display is kept with its
+# precision noted; when withheld, view_count is null and nothing is kept.
 VIEW_BASIS_NOTES = {
     "page_display_rounded": "the page's own rounded display, not an exact figure",
     "page_display": "the page's own display",
@@ -329,7 +334,8 @@ def carried_metadata(frames: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     carried = {key: frames.get(key) for key in ("schema_version", "connector_id", "operation", "provider",
                                                 "request_id", "job_id", "evidence_ref", "raw_sha256", "retrieved_at")}
-    # 抽帧这一轮的 completed_partial 说的是帧（预算全给了开头），不是元数据：随附的 video 是完整投影。
+    # The keyframes round's completed_partial is about frames (the budget went to the opening), not metadata:
+    # the attached video is a complete projection.
     carried.update(status="completed", limitations=[], data={"video": video})
     return carried
 
@@ -368,7 +374,8 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
                          "creator named in the request")
     file_ref = source.get("file_ref")
     permalink = source.get("url") or video.get("webpage_url")
-    # 短链（v.douyin.com、b23.tv …）从链接上读不出 id：后台解析后写进每条结果的 video_identity，只导出逐字稿时也有。
+    # A short link (v.douyin.com, b23.tv, ...) has no readable id: the backend resolves it and writes it into every
+    # result's video_identity, including transcript-only exports.
     content_id = (source.get("content_id") or video.get("id") or content_id_from_url(platform, permalink)
                   or as_record(identity).get("platform_video_id")
                   or (Path(str(file_ref)).stem if file_ref else None))
@@ -378,7 +385,8 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
     if not content_id or not permalink:
         raise ValueError("content_ref needs a content_id and a URL or file_ref: put the original post or video "
                          "link in the request's source.url, or its id in source.content_id")
-    # 帖子投影的发布时间只补 metadata 没给的：metadata 是平台对自己视频的回答，两者都有时它优先。
+    # The post projection's publish time only fills in what metadata did not give: metadata is the platform's own
+    # answer about its video, and takes priority when both exist.
     published = published_at or video.get("upload_date") or post_published_at
     if not published and source.get("subject_state") == "own_unpublished":
         published = "unpublished"
@@ -528,7 +536,8 @@ def metadata_public_metrics(metadata: dict[str, Any] | None, platform: str | Non
     metrics = []
     source = f"{metadata.get('connector_id')}.{metadata.get('operation')}"
     for native_name, metric in METADATA_COUNTERS.items():
-        # 平台不公开的计数（抖音、小红书的播放数）即使元数据里写着 0 也不是观测值：不收，记成不可用。
+        # A count the platform does not publish (Douyin and Xiaohongshu views) is not an observation even when
+        # metadata says 0: drop it and record it as unavailable.
         if platform is not None and not public_video_sources.publishes(platform, metric):
             continue
         value = video.get(native_name)
@@ -559,9 +568,10 @@ def graphql_post(row: dict[str, Any]) -> tuple[Any, list[tuple[str, Any, str | N
 def projected_post(row: dict[str, Any],
                    facts: dict[str, Any]) -> tuple[Any, list[tuple[str, Any, str | None]], dict[str, Any]]:
     """Caption, counters and sound of a `kabo.instagram_post.v1` post; also its publish time."""
-    # native_name 写投影里的字段路径，报告引用的就是这个名字。IG 播放数与 IG+FB 合并值分开记，
-    # 合并值不冒充 IG 播放数；点赞被作者隐藏时 likes 为 null，记一条限制，说明它不是 0。
-    # thumbnail_url 是会过期的 CDN 链接，不当封面地址写进证据。
+    # native_name writes the field path in the projection, and the report cites exactly this name. IG views and the
+    # combined IG+FB value are recorded separately, and the combined value does not pass as IG views; when the
+    # author hides likes, likes is null, so record one limitation saying it is not 0.
+    # thumbnail_url is a CDN link that expires, so it is not written into the evidence as a cover address.
     metrics = as_record(row.get("metrics"))
     if metrics.get("likes_hidden") is True:
         facts["limitations"] = ["The post hides its like count, so likes are unavailable, not zero."]
@@ -604,7 +614,7 @@ def post_facts(post: dict[str, Any] | None) -> dict[str, Any]:
         facts["hashtags"] = HASHTAG.findall(caption)  # the creator's own order
     metrics = []
     for native_name, value, note in counters:
-        # null 与布尔都不是计数：拿不到就不写，不当 0。
+        # null and booleans are not counts: if it cannot be obtained, do not write it, and do not treat it as 0.
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             metrics.append({"native_name": native_name, "value": value,
                             "equals_owner_metric": None, "note": note})
@@ -1086,8 +1096,9 @@ def build(
     frames = pick(by_role.get("frames", []))
     measurements = pick(by_role.get("measurements", []))
     post = pick(by_role.get("public_post", []))
-    # 付费解析的平台上元数据与度量随抽帧那一轮带回（data.video / data.signals），单独的那两条答 unsupported、
-    # 什么也没取。指向的数据确实到了时，那两条的「没取到」不进 limitations：缺口并不存在。
+    # On the paid-resolver platforms, metadata and measurements come back with the keyframes round (data.video /
+    # data.signals); the two standalone calls answer unsupported and fetch nothing. When the data they point to did
+    # arrive, their "nothing retrieved" stays out of limitations: there is no gap.
     served_elsewhere: set[str] = set()
     if not usable(metadata) and carried_metadata(frames) is not None:
         metadata = carried_metadata(frames)
@@ -1123,7 +1134,8 @@ def build(
     transcript = transcript_block(captions, request)
     unfinished = {entry["operation"]: entry for entry in pending_entries}
     if captions is None and "fetch_transcript" in unfinished:
-        # 等待到上限时转写 job 还在跑：它没跑完，不是失败；说清楚，免得被读成后台出错。
+        # The transcript job was still running when the wait hit its cap: it is unfinished, not failed; say so,
+        # so it is not read as a backend error.
         transcript["status_basis"] = (f"the fetch_transcript job {unfinished['fetch_transcript']['connector_request_id']} "
                                       "was still running when waiting stopped: unfinished, not failed")
     if local_transcript is not None and transcript["status"] != "available":

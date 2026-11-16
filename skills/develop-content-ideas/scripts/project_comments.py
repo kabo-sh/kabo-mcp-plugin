@@ -92,7 +92,8 @@ def project(paths, base):
                 video_id = match.group(1)
                 if data.get('aweme_id') != video_id or not re.fullmatch(r'[0-9]{1,32}', comment_id):
                     raise ValueError('TikTok comment identity does not match its video')
-                # 标识不伪装成可跳到单条评论的网页链接。报告同时给原视频 URL。
+                # The identifier is not disguised as a web link that jumps to a single comment. The report also gives the
+                #   original video URL.
                 ref = 'tiktok:' + video_id + ':comment:' + comment_id
             videos.add((connector, video_id))
             if ref in seen:
@@ -147,9 +148,11 @@ def validate_target(artifact, brief):
 
 def validate_projection(artifact, base):
     """Recompute from immutable envelopes; a hand-edited projection is not evidence."""
-    # 解析一次并全程复用：下面的 path 是解析过的，交给 project() 的 base 必须同样解析过，
-    # 否则 project() 里的 relpath 两端形态不一致（如 macOS 的 /var 与 /private/var），
-    # 会把合法的 run 内路径算成 '../../..' 串，令重算结果与原投影不等。
+    # Resolve once and reuse throughout: the path below is resolved, and the base handed to project() must be
+    #   resolved the same way,
+    # otherwise the two ends of relpath inside project() differ in form (e.g. macOS /var vs /private/var),
+    # and a legitimate in-run path would be computed as a '../../..' chain, making the recomputed result differ
+    #   from the original projection.
     resolved_base = base.resolve()
     paths = []
     for source in artifact.get('sources') or []:

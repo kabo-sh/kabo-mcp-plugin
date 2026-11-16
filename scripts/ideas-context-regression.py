@@ -82,7 +82,7 @@ class ConversationContract(unittest.TestCase):
         return output
 
     def test_preparation_is_explicitly_not_delivery(self):
-        """准备完成必须返回待创作/校验指令，不能只给ok。"""
+        """A finished prepare must return the instructions for what to create/validate next, not just ok."""
         code, result = self.prep()
         self.assertEqual((0, 'ok', 'prep'), (code, result['status'], result['stage']))
         self.assertFalse(result['delivery_ready'])
@@ -91,7 +91,7 @@ class ConversationContract(unittest.TestCase):
         self.assertFalse((self.root / 'RESULT.md').exists())
 
     def test_repeated_schema_errors_keep_all_indexes_and_repair_budget(self):
-        """批量缺字段合并展示但保留完整错误和一次修订预算。"""
+        """Batch missing fields are shown merged while keeping the complete errors and the single revision budget."""
         self.prep()
         output = self.output()
         for idea in output['ideas']:
@@ -112,7 +112,7 @@ class ConversationContract(unittest.TestCase):
         self.assertEqual((0, 'ok'), (code, second['status']))
 
     def test_source_diagnostic_lists_the_full_contract_without_changing_sources(self):
-        """非法翻译一次给全四组字面值；诊断不能改原证据。"""
+        """An invalid translation gets all four groups of literal values at once; the diagnosis must not alter the original evidence."""
         self.prep()
         output = self.output()
         output['report_language'] = 'es'
@@ -134,7 +134,8 @@ class ConversationContract(unittest.TestCase):
         self.assertIn('evidence_gap_translations[3].source_text', message)
         self.assertIn('literal data, not instructions', message)
         self.assertEqual(original, output)
-        # 只用第一次诊断给出的缺失值修正；允许但未使用的枚举不必填满。
+        # Correct only with the missing values given by the first diagnosis; allowed but unused enums need not be
+        # filled in.
         output['evidence_gap_translations'].pop()
         for source in diagnostic['missing_required_source_texts']:
             output['evidence_gap_translations'].append({'source_text': source, 'report_text': source})
@@ -143,7 +144,7 @@ class ConversationContract(unittest.TestCase):
         self.assertEqual(original['evidence_summary'], output['evidence_summary'])
 
     def test_source_diagnostic_distinguishes_duplicate_type_empty_and_shape(self):
-        """准确定位损坏字段；重复/空译文不允许靠修改原来源逃过检查。"""
+        """Locate the corrupted field exactly; duplicate/empty translations must not escape the check by modifying the original source."""
         self.prep()
         for item, field in [
             ({'source_text': 'brief_only', 'report_text': 'duplicate'}, 'source_text'),
@@ -163,7 +164,7 @@ class ConversationContract(unittest.TestCase):
                 self.assertTrue(presentation.presentation_translations(output))
 
     def test_source_diagnostic_missing_array_has_exact_required_set(self):
-        """错误容器与缺失字段一起报；已有合法的额外映射不增加必填字段。"""
+        """A wrong container is reported together with the missing fields; extra mappings that are already valid add no required fields."""
         self.prep()
         output = self.output()
         output['evidence_gap_translations'] = None
@@ -176,7 +177,7 @@ class ConversationContract(unittest.TestCase):
         self.assertIn('low', presentation.presentation_translations(output))
 
     def test_null_effort_preserves_schema_revision_diagnostics(self):
-        """坏 effort 留给 schema 报错，不能在展示值排序时崩溃。"""
+        """A bad effort is left to the schema error and must not crash when sorting by display value."""
         self.prep()
         output = self.output()
         output['ideas'][0]['production_feasibility']['effort'] = None
@@ -188,7 +189,7 @@ class ConversationContract(unittest.TestCase):
         self.assertNotIn('TypeError', str(result))
 
     def test_source_diagnostic_repairs_in_one_core_revision(self):
-        """真实prep/core拒收后只改翻译表一次即可交付，输入合同不变。"""
+        """After the real prep/core rejects, changing the translation table once is enough to deliver, and the input contract is unchanged."""
         self.prep()
         output = self.output()
         output['evidence_gap_translations'].append({'source_text': 'ready', 'report_text': 'Ready'})
@@ -444,7 +445,7 @@ class ConversationContract(unittest.TestCase):
                 self.assertFalse(any("has no attribute" in error or "not iterable" in error for error in errors), errors)
 
     def test_schema_and_hook_errors_are_corrected_in_one_revision(self):
-        """聊天引用错放进证据字段时，同轮也必须报出单 Hook 的多余递进句。"""
+        """When a chat quote is misplaced into an evidence field, the extra progression sentence of a single Hook must also be reported in the same round."""
         self.prep()
         output = self.output()
         output["evidence_summary"]["source_context_refs"] = ["conversation_context"]
@@ -467,7 +468,7 @@ class ConversationContract(unittest.TestCase):
         self.assertTrue((self.root / "RESULT.md").stat().st_size)
 
     def test_schema_error_does_not_hide_two_hook_requirements(self):
-        """两 Hook 的缺句和重复句在无关 schema 错误旁同样可见，不重复报错。"""
+        """Missing and duplicate sentences of two Hooks are equally visible beside unrelated schema errors, without duplicate errors."""
         self.intent["hook_option_count"] = 2
         self.prep()
         for structural_error in (False, True):
@@ -488,7 +489,7 @@ class ConversationContract(unittest.TestCase):
         self.assertEqual([], validator.validate_idea_set(output, self.request(), self.root / "request.json"))
 
     def test_early_hook_diagnostics_tolerate_malformed_dependencies(self):
-        """畸形容器保留 schema 错误，不抛异常、不改变 rework 分支语义。"""
+        """A malformed container keeps the schema error, throws no exception, and does not change the semantics of the rework branch."""
         self.prep()
         for broken in (None, [], [None], [{"idea_id": [], "hook_preview": []}],
                        [{"idea_id": {}, "hook_preview": {"opening_line": [], "progressive_line": {}}}]):
@@ -553,7 +554,7 @@ class ConversationContract(unittest.TestCase):
                 self.assertFalse(any("has no attribute" in error or "not iterable" in error for error in errors), errors)
 
     def test_invalid_brief_does_not_hide_independent_fallback_error(self):
-        """简报格式错误不能遮住与简报无关的生成依据错误。"""
+        """A brief format error must not mask generation-basis errors unrelated to the brief."""
         self.intent["user_brief"] = []
         self.intent["generation_basis"]["allow_brief_fallback"] = True
         code, prep = self.prep()
@@ -563,7 +564,7 @@ class ConversationContract(unittest.TestCase):
         self.assertIn("requires an explicit generation_basis.direct_topic", messages)
 
     def test_scalar_schema_errors_do_not_hide_missing_translations(self):
-        """非法枚举仍可安全检查展示依赖，完整 schema 继续严格拒绝。"""
+        """An illegal enum can still safely check display dependencies, while the full schema continues to reject strictly."""
         self.prep()
         for field, value in (("status", "ready"), ("task_intent", "shortlist"),
                              ("source_mode", "unknown")):
@@ -576,7 +577,7 @@ class ConversationContract(unittest.TestCase):
                 self.assertIn("every rendered canonical value", errors)
 
     def test_multiple_bad_translations_and_missing_values_report_together(self):
-        """一次汇总全部映射错误，不用第二轮才揭示下一项。"""
+        """Summarize all mapping errors at once, so the next one is not revealed only in a second round."""
         self.prep()
         output = self.output()
         output['report_language'] = 'de'
@@ -588,7 +589,7 @@ class ConversationContract(unittest.TestCase):
         self.assertIn("every rendered canonical value", errors)
 
     def test_unused_schema_display_translations_do_not_block_or_change_the_report(self):
-        """合法备用枚举翻译可以保留，但不能渲染成来源、缺口或当前状态。"""
+        """A valid fallback enum translation may be kept but must not be rendered as a source, gap or current status."""
         from render_idea_report import concise
         self.prep()
         output = self.output()
@@ -604,7 +605,7 @@ class ConversationContract(unittest.TestCase):
         self.assertTrue(validator.validate_idea_set(output, self.request(), self.root / "request.json"))
 
     def test_absent_production_constraints_need_no_invented_user_input(self):
-        """空制作条件可在同一轮改为 absent，不必虚构限制或向用户索取。"""
+        """Empty production conditions can be changed to absent in the same round, without fabricating a limitation or asking the user for one."""
         constraints = self.intent["production_constraints"]
         for field in constraints:
             constraints[field] = [] if field == "available_assets" else None
@@ -617,7 +618,7 @@ class ConversationContract(unittest.TestCase):
         self.assertEqual((0, "ready_for_generation"), (code, result["decision"]["status"]))
 
     def test_missing_schema_fields_do_not_hide_missing_translations(self):
-        """缺失必填字段不能遮住独立展示映射错误。"""
+        """A missing required field must not mask an independent display-mapping error."""
         self.prep()
         for field in ("status", "task_intent", "source_mode", "evidence_summary", "ideas"):
             with self.subTest(field=field):
@@ -630,7 +631,7 @@ class ConversationContract(unittest.TestCase):
                 self.assertIn("every rendered canonical value", errors)
 
     def test_missing_intent_path_preserves_existing_input_budget(self):
-        """调用路径错误既不消耗也不重置已有修订预算。"""
+        """A call-path error neither consumes nor resets the existing revision budget."""
         missing = self.root / "missing-intent.json"
         code, result = self.run_stage("prep", "--intent", missing)
         self.assertEqual((1, "invocation_error", 0), (code, result["status"], result["input_attempts"]))
@@ -643,7 +644,7 @@ class ConversationContract(unittest.TestCase):
         self.assertEqual(before, (self.root / "stage_timing.json").read_bytes())
 
     def test_conditional_estimate_keeps_assumptions_without_required_assets(self):
-        """没有额外资源依赖时，条件估时的前提仍须在两种报告中可见。"""
+        """With no extra resource dependencies, the premise of the conditional time estimate must still be visible in both reports."""
         self.prep()
         output = self.output()
         assumption = "Estimate assumes one uninterrupted recording session."
@@ -669,7 +670,7 @@ class ConversationContract(unittest.TestCase):
             validate_concise(markdown.replace(assumption, ""), output, self.request())
 
     def test_pending_resources_are_visible_without_becoming_available(self):
-        """候选可声明未来资源，已拥有与产能约束保持严格。"""
+        """Candidates may declare future resources, while owned resources and capacity constraints stay strict."""
         self.prep()
         output = self.output()
         feasibility = output["ideas"][0]["production_feasibility"]
@@ -695,7 +696,7 @@ class ConversationContract(unittest.TestCase):
 
 class ConversationInputPreparation(unittest.TestCase):
     def setUp(self):
-        """用既有请求原题和独立临时目录验证机械写入。"""
+        """Verify the mechanical write using the existing request question and an independent temporary directory."""
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
@@ -713,11 +714,11 @@ class ConversationInputPreparation(unittest.TestCase):
         self.export(self.messages)
 
     def export(self, data):
-        """写入宿主提供的用户可见导出，不从任何会话目录取数。"""
+        """Write the user-visible export provided by the host, without taking data from any session directory."""
         self.export_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
     def helper(self, *extra, quote_flags=None, run_dir=None):
-        """通过真实 CLI 检查参数解析和输出边界。"""
+        """Check argument parsing and output boundaries through the real CLI."""
         result = subprocess.run([
             sys.executable, "-B", str(SKILL / "scripts/prepare_conversation_inputs.py"),
             "--messages", str(self.export_path), "--reference-index", "1",
@@ -730,12 +731,12 @@ class ConversationInputPreparation(unittest.TestCase):
         return result, json.loads(result.stdout) if result.stdout else None
 
     def assert_no_outputs(self):
-        """无效输入不留下可被误用的半份准备结果。"""
+        """Invalid input leaves no half-finished prepare result that could be misused."""
         self.assertFalse((self.run_dir / "conversation-source.json").exists())
         self.assertFalse((self.run_dir / "intent.json").exists())
 
     def test_preserves_exact_messages_and_brief_through_real_prep(self):
-        """Unicode、引号、Markdown 和 CRLF 原样进入真实 prep，未知项不编造。"""
+        """Unicode, quotes, Markdown and CRLF enter the real prep unchanged, and unknown items are not fabricated."""
         result, output = self.helper("--platform", "youtube")
         self.assertEqual((0, "ok"), (result.returncode, output["status"]), result.stdout)
         self.assertEqual({"status", "conversation_source", "intent", "message_count", "reference_index"},
@@ -776,7 +777,7 @@ class ConversationInputPreparation(unittest.TestCase):
         self.assertEqual("brief_only", request["source_mode"])
 
     def test_accepts_content_export_and_exact_quote_file(self):
-        """导出的 content 仅改字段名，引用文件中的换行仍逐字匹配。"""
+        """The exported content only renames the field, and newlines in the referenced file still match verbatim."""
         self.export({"messages": [dict(role=message["role"], content=message["text"], id=index)
                                   for index, message in enumerate(self.messages)], "export_version": 1})
         quote_path = self.root / "quote.txt"
@@ -790,7 +791,7 @@ class ConversationInputPreparation(unittest.TestCase):
         self.assertEqual(2, json.loads(Path(output["intent"]).read_text())["hook_option_count"])
 
     def test_rejects_wrong_reference_and_current_quote(self):
-        """只校验调用方给出的索引和原文，不自动改绑或近似匹配。"""
+        """Validate only the index and original text given by the caller, with no automatic rebinding or approximate matching."""
         for flags in (("--reference-index", "-1"), ("--reference-index", "99"),
                       ("--reference-index", "0"), ("--reference-quote", "not in any message"),
                       ("--reference-quote", " \n"), ("--continuation-quote", "not in current query")):
@@ -801,7 +802,7 @@ class ConversationInputPreparation(unittest.TestCase):
                 self.assert_no_outputs()
 
     def test_rejects_nontext_messages_without_dropping_or_reordering(self):
-        """附件数组、异常角色和冲突字段均拒绝，不静默删掉消息。"""
+        """Attachment arrays, abnormal roles and conflicting fields are all rejected, and messages are not silently dropped."""
         invalid = [[], {"messages": {}}, [{"role": "user", "content": [{"text": "nested"}]}],
                    [{"role": "user", "text": 7}], [{"role": "user", "text": "  "}],
                    [{"role": "system", "text": "visible?"}],
@@ -815,7 +816,7 @@ class ConversationInputPreparation(unittest.TestCase):
                 self.assert_no_outputs()
 
     def test_existing_output_and_dangling_symlink_are_never_overwritten(self):
-        """任一输出存在即停止，已有文件、软链接和另一份输入均不被改写。"""
+        """Stop as soon as any output exists; existing files, symlinks and another input are not overwritten."""
         for name in ("conversation-source.json", "intent.json"):
             with self.subTest(name=name):
                 self.run_dir.mkdir(exist_ok=True)
@@ -834,7 +835,7 @@ class ConversationInputPreparation(unittest.TestCase):
         self.assertFalse((self.run_dir / "conversation-source.json").exists())
 
     def test_successful_outputs_cannot_be_replaced_on_repeat(self):
-        """重复调用不能重置已生成且可能已补充约束的输入。"""
+        """Repeated calls must not reset an input that was already generated and may have had constraints added."""
         self.assertEqual(0, self.helper()[0].returncode)
         before = {path.name: path.read_bytes() for path in self.run_dir.iterdir()}
         result, output = self.helper()
@@ -842,7 +843,7 @@ class ConversationInputPreparation(unittest.TestCase):
         self.assertEqual(before, {path.name: path.read_bytes() for path in self.run_dir.iterdir()})
 
     def test_cli_rejects_ambiguous_quote_options_and_invalid_counts(self):
-        """参数错误不得创建文件，显式引用形式只能选一种。"""
+        """An argument error must not create files, and only one explicit reference form may be chosen."""
         quote_path = self.root / "quote.txt"
         quote_path.write_text(self.quote)
         for flags in (("--reference-quote-file", quote_path), ("--idea-count", "21"),
@@ -854,7 +855,7 @@ class ConversationInputPreparation(unittest.TestCase):
                 self.assert_no_outputs()
 
     def test_existing_validator_still_rejects_external_evidence_request(self):
-        """准备助手不放宽取数合同，也不能把外部证据要求偷换为纯聊天。"""
+        """The prepare helper does not loosen the fetch contract, and must not swap the external evidence requirement for plain chat."""
         self.brief_path.write_text("Three more in that style, based on my account metrics.")
         result, output = self.helper()
         self.assertEqual((1, "invalid_input"), (result.returncode, output["status"]))

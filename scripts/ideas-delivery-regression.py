@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""最终文件闸门、稳定编号及失败清理的执行回归。"""
+"""Execution regression for the final-file gate, stable numbering and failure cleanup."""
 import importlib.util
 import json
 from pathlib import Path

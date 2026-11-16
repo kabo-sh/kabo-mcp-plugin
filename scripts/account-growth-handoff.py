@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""验证实际命令交付中的预测证据，不用模型输出替代脚本检查。"""
+"""Verify the forecast evidence in the actual command delivery; do not substitute model output for script checks."""
 import json
 from pathlib import Path
 import subprocess
@@ -13,18 +13,18 @@ COMPOSER = SCRIPT.with_name("compose_forecast_reply.py")
 
 class GrowthHandoff(unittest.TestCase):
     def setUp(self):
-        """创建隔离目录和默认指标范围，测试结束自动清理。"""
+        """Create an isolated directory and the default metric range; cleaned up automatically when the test ends."""
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
         self.scope = dict(platform="youtube", account="creator", metric="subscribers", semantics="cumulative_stock")
 
     def row(self, date, value, source):
-        """构造带来源和范围的已知观测记录。"""
+        """Build known observation records that carry a source and a range."""
         return dict(observed_at=date, value=value, source=source, scope=self.scope)
 
     def run_estimate(self, name, data, question=""):
-        """执行真实计算命令并读取其结果与交付文本。"""
+        """Run the real computation command and read back its result and delivery text."""
         source = self.root / f"{name}-input.json"
         source.write_text(json.dumps(data))
         prompt = self.root / f"{name}-question.txt"
@@ -35,7 +35,7 @@ class GrowthHandoff(unittest.TestCase):
         return json.loads(output.read_text()), output.with_suffix(".md").read_text(), run.stdout
 
     def test_observed_window_and_every_source_survive_delivery(self):
-        """验证交付保留真实观测窗口、日期和每条来源。"""
+        """Verify the delivery keeps the real observation window, dates, and every source."""
         data = dict(schema_version="growth-input.v1", mode="observed_pace", scope=self.scope, horizon_days=14,
                     observations=[self.row("2026-10-08T00:00:00Z", 148, "owner export row 3"),
                                   self.row("2026-10-01T00:00:00Z", 120, "owner export row 1"),
@@ -50,7 +50,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertIn(report.strip(), stdout)
 
     def test_single_post_baseline_accepts_a_bound_user_rate(self):
-        """验证单条视频基线与用户明确速率能够计算。"""
+        """Verify a single-video baseline and an explicit user-provided rate can be computed."""
         self.scope.update(account="creator/post-1", metric="views")
         data = dict(schema_version="growth-input.v1", mode="assumed_pace", scope=self.scope, horizon_days=14,
                     observations=[self.row("2026-11-01T00:00:00Z", 1000, "post export row 1")],
@@ -63,7 +63,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertIn("not a calibrated forecast or probability", report)
 
     def test_unbound_rate_remains_missing_input(self):
-        """验证并非用户提供的增长率不能进入计算。"""
+        """Verify a growth rate that was not provided by the user cannot enter the computation."""
         data = dict(schema_version="growth-input.v1", mode="assumed_pace", scope=self.scope, horizon_days=14,
                     observations=[self.row("2026-11-01T00:00:00Z", 100, "owner export")],
                     assumption=dict(amount=20, period="week", origin="user", quote="20 subscribers per week"))
@@ -73,7 +73,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertIn("No numeric estimate or probability", report)
 
     def test_undated_snapshot_is_not_reconstructed_for_a_forecast(self):
-        """验证缺测量日期时不补造观测用于计算。"""
+        """Verify that a missing measurement date does not lead to a fabricated observation being used in the computation."""
         self.scope.update(account="creator/named-post", metric="views")
         data = dict(schema_version="growth-input.v1", mode="observed_pace", scope=self.scope,
                     horizon_days=365, observations=[])
@@ -87,7 +87,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertIn(report.strip(), stdout)
 
     def test_extra_content_metrics_keep_separate_handoffs(self):
-        """验证额外指标独立保存，不覆盖首个计算结果。"""
+        """Verify extra metrics are stored independently and do not overwrite the first computed result."""
         outputs = {}
         for metric, values in [("views", [1000, 2000, 3000]), ("likes", [10, 20, 30])]:
             scope = dict(platform="youtube", account="creator", metric=metric, semantics="per_content_cumulative")
@@ -104,7 +104,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertIn("/ likes", outputs["likes"][1])
 
     def test_valid_rate_without_baseline_asks_only_for_baseline(self):
-        """验证已有有效增长率时仅索要缺失基线。"""
+        """Verify that when a valid growth rate already exists, only the missing baseline is requested."""
         data = dict(schema_version="growth-input.v1", mode="assumed_pace", scope=self.scope,
                     horizon_days=14, observations=[],
                     assumption=dict(amount=20, period="week", origin="user", quote="20 subscribers per week"))
@@ -114,7 +114,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertNotIn("Two dated observations", report)
 
     def test_content_aliases_preserve_sample_evidence_and_missingness(self):
-        """验证格式别名不丢失样本，交付保留来源与缺失统计。"""
+        """Verify format aliases do not lose samples, and the delivery keeps the sources and the missing-data counts."""
         scope = dict(platform="instagram", account="creator", metric="likes", semantics="per_content_cumulative")
         rows = [dict(content_id=f"post-{n}", published_at="2026-10-01T00:00:00Z",
                      observed_at="2026-10-11T00:00:00Z", format=fmt, value=value,
@@ -136,7 +136,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertNotIn("999", report)
 
     def test_snapshot_cadence_uses_equivalent_formats(self):
-        """验证同义格式在快照发布频率计算中一致归类。"""
+        """Verify synonymous formats are classified consistently in the snapshot posting-frequency computation."""
         scope = dict(platform="instagram", account="creator", metric="likes", semantics="per_content_cumulative")
         data = dict(schema_version="growth-input.v1", mode="content_scenario", scope=scope,
                     horizon_days=14, cohort=dict(format="feed", age_min_days=0, age_max_days=30),
@@ -159,7 +159,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertIn("snapshot.json#items/post-1", output.with_suffix(".md").read_text())
 
     def compose_reply(self, inputs, output_name="reply.md"):
-        """执行完整回复组合器，不以模拟结果替代实际计算。"""
+        """Run the full reply composer; do not substitute a simulated result for the actual computation."""
         scope_file = self.root / "scope.json"
         scope_file.write_text(json.dumps(dict(platform=self.scope["platform"], target=self.scope["account"],
                                               request_quote="Forecast the selected account.", reference="The account selected by the user.")))
@@ -171,7 +171,7 @@ class GrowthHandoff(unittest.TestCase):
         return subprocess.run(command, text=True, capture_output=True)
 
     def test_composed_reply_delivers_supported_and_missing_metrics_together(self):
-        """验证可算指标和缺数据指标在同一回复中独立交付。"""
+        """Verify computable metrics and metrics with missing data are delivered independently in the same reply."""
         supported = dict(schema_version="growth-input.v1", mode="observed_pace", scope=self.scope, horizon_days=14,
                          observations=[self.row("2026-10-01T00:00:00Z", 120, "owner row 1"),
                                        self.row("2026-10-08T00:00:00Z", 148, "owner row 2")])
@@ -189,7 +189,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertEqual(run.stdout, "KABO_FORECAST_REPLY_BEGIN\n" + report + "KABO_FORECAST_REPLY_END\n")
 
     def test_composer_rejects_a_different_target_and_writes_no_report(self):
-        """验证混入另一预测对象时拒绝生成报告。"""
+        """Verify that report generation is refused when another forecast subject is mixed in."""
         a = dict(schema_version="growth-input.v1", mode="observed_pace", scope=self.scope, horizon_days=30, observations=[])
         b = {**a, "scope": {**self.scope, "account": "creator/post-1"}}
         run = self.compose_reply([a, b])
@@ -199,7 +199,7 @@ class GrowthHandoff(unittest.TestCase):
         self.assertFalse((self.root / "reply.json").exists())
 
     def test_composer_does_not_overwrite_input_evidence(self):
-        """验证回复输出路径不会覆盖输入证据。"""
+        """Verify the reply output path does not overwrite the input evidence."""
         data = dict(schema_version="growth-input.v1", mode="observed_pace", scope=self.scope, horizon_days=30, observations=[])
         run = self.compose_reply([data], "compose-0.md")
         self.assertNotEqual(run.returncode, 0)

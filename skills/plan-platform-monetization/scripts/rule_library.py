@@ -32,7 +32,8 @@ def load_rule_library(path: Path = DEFAULT_LIBRARY) -> dict[str, Any]:
         raise ValueError(f"{path / 'library.json'} must list its programme files in program_files")
     programs = []
     for name in names:
-        # 只读本目录里的文件名，不接受路径：库是随包分发的固定内容。
+        # Reads only file names within this directory and accepts no paths: the library is fixed content distributed
+        #   with the package.
         if Path(name).name != name or not name.startswith("program-") or not name.endswith(".json"):
             raise ValueError(f"program_files entry {name!r} is not a programme file in {path}")
         programs.append(_object(path / name))

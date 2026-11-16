@@ -11,7 +11,8 @@ import { packageComponents, assertNoHiddenComponents, isPackageFile } from "./pa
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
-// 日常检查覆盖工作区变更；正式出包仍由打包器只读 Git blob。
+// Routine checks cover working-tree changes; official packaging is still done by the packager reading only Git
+//   blobs.
 export async function packageFiles(directory = root) {
   assertNoHiddenComponents(await readdir(directory));
   const files = [];
@@ -19,7 +20,7 @@ export async function packageFiles(directory = root) {
   async function visit(relative) {
     const target = path.join(directory, relative);
     const stat = await lstat(target);
-    if (stat.isSymbolicLink()) throw new Error("包目录不得包含符号链接。");
+    if (stat.isSymbolicLink()) throw new Error("The package directory must not contain symlinks.");
     if (stat.isDirectory()) {
       for (const name of (await readdir(target)).sort())
         await visit(relative ? `${relative}/${name}` : name);
@@ -33,7 +34,7 @@ export async function packageFiles(directory = root) {
       stat.size > 16 * 1024 * 1024 ||
       total > 64 * 1024 * 1024
     )
-      throw new Error("包目录含特殊文件或超过本地构建上限。");
+      throw new Error("The package directory contains special files or exceeds the local build limits.");
     files.push({
       name: relative,
       mode: stat.mode,
@@ -59,7 +60,7 @@ if (
   } });
   const check = async () => {
     if (!values.commit) {
-      if (values.evidence) throw new Error("验收证据只能检查锁定 commit。");
+      if (values.evidence) throw new Error("Acceptance evidence can only be checked against a pinned commit.");
       return checkPackage();
     }
     const files = readPackageFiles({ commit: values.commit });
@@ -77,12 +78,12 @@ if (
         return;
       }
       console.log(
-        `${result.name} ${result.version}: ${result.fileCount} 个文件通过本地检查；submissionReady=${result.submissionReady}`,
+        `${result.name} ${result.version}: ${result.fileCount} files passed the local check; submissionReady=${result.submissionReady}`,
       );
     },
     () => {
       console.error(
-        "包检查失败；检查根目录组件的格式、路径与内容，不输出包正文。",
+        "Package check failed; check the format, paths and content of the root components; package text is not printed.",
       );
       process.exitCode = 1;
     },

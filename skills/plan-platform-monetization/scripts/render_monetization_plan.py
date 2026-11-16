@@ -260,7 +260,8 @@ def render(value: dict[str, Any], language: str) -> str:
                 # ahead of them.
                 lines += future_bar_lines(program, words, announce=False)
             elif statuses and statuses <= {"region_not_applicable"}:
-                # 同一状态也用于地区未知；不能把缺少信息写成已确认的地区排除。
+                # The same status is also used when the region is unknown; missing information must not be written as a
+                #   confirmed region exclusion.
                 region_message = "region_unknown" if value["creator"]["region"] == "UNKNOWN" else "region_no"
                 lines += [words[region_message], ""]
             elif statuses and statuses <= {"stale"}:

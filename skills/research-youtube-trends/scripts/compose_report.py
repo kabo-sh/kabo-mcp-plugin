@@ -158,8 +158,9 @@ def compose(
     ranked = {str(item["content_id"]): item for item in analysis.get("ranked_content") or []}
     outliers = {str(item["content_id"]): item for item in analysis.get("account_outliers") or []}
 
-    # Analysis 同时公开 content_id 和 evidence_id；只接受本次已排名证据中的唯一映射。
-    # 归一后仍过候选/快照/排名交集校验，不能借别名把 baseline 或别轮证据带进报告。
+    # Analysis exposes both content_id and evidence_id; accept only a unique mapping within the evidence ranked this
+    # round. After normalization it still goes through the candidate/snapshot/ranking intersection check, so an alias
+    # cannot bring a baseline or another round's evidence into the report.
     aliases: dict[str, set[str]] = {}
     for item in analysis.get("ranked_content") or []:
         alias = item.get("evidence_id")
@@ -194,11 +195,12 @@ def compose(
     for item in (synthesis.get("patterns") or []) + (synthesis.get("emerging_creators") or []):
         for ref in item.get("content_refs") or []:
             append_once(refs, str(ref))
-    # 有可引用证据时，空 synthesis 也不能把已入选的视频全部丢掉。
+    # When there is citable evidence, an empty synthesis must not drop all the videos already selected.
     if not refs:
         allowed = set(analysis["selected_content_ids"]) if "selected_content_ids" in analysis else candidate_ids
         refs = [ref for ref in ranked if ref in allowed and ref in candidate_ids]
-    # Composer 和独立 Validator 共用入选校验，避免生成报告时绕过分配结果。
+    # The Composer and the independent Validator share the selection validation, so generating the report cannot
+    # bypass the allocation result.
     sys.dont_write_bytecode = True
     path = Path(__file__).with_name("validate_output.py")
     spec = importlib.util.spec_from_file_location(f"{path.parent.parent.name}:report_selection", path)

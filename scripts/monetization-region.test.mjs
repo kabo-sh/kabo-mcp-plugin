@@ -3,15 +3,18 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import test from "node:test";
 
-// 2026-11-04 回归：YouTube 频道声明英国，模型在 request 里写了 "region": "GB" 却没写 region_source，
-// 合并时没被频道声明覆盖，评估又把「无来源的国家」降成 UNKNOWN，报告写「注册国家未知」、差距项全缺。
+// 2026-11-04 regression: a YouTube channel declared the UK, and the model wrote "region": "GB" in the
+// request but no region_source;
+// the merge did not override it with the channel's declaration, and the evaluation then downgraded "a
+// country without a source" to UNKNOWN, so the report said "registered country unknown" and every gap
+// item was missing.
 const scripts = path.join(import.meta.dirname, "..", "skills", "plan-platform-monetization", "scripts");
 
 function probe(code) {
   return JSON.parse(execFileSync("python3", ["-I", "-B", "-c", code, scripts], { encoding: "utf8" }));
 }
 
-test("频道声明的国家补上没有来源的 region，创作者自己说的国家保留", () => {
+test("the channel's declared country fills a region that has no source; a country the creator stated is kept", () => {
   const out = probe(`
 import json, sys
 sys.path.insert(0, sys.argv[1])
@@ -41,7 +44,7 @@ print(json.dumps({
   assert.deepEqual(out.nothing_derived, [null]);
 });
 
-test("只有 get_channel 时也从 channel_profile 读到声明的国家；uploads 有国家时以它为准", () => {
+test("with only get_channel, the declared country is still read from channel_profile; uploads' country wins when present", () => {
   const out = probe(`
 import json, sys
 from datetime import date
@@ -69,14 +72,17 @@ print(json.dumps({
   assert.deepEqual(out.channel_only, { region: "GB", region_source: "account_declared" });
   assert.deepEqual(out.uploads_wins, { region: "US", region_source: "account_declared" });
   assert.equal(out.none, null);
-  // 先到的响应只有订阅数、后到的才带国家时，两样都要拿到，订阅数只记一次。
+  // When the earlier response has only the subscriber count and the later one carries the country, both
+  // must be captured, and the subscriber count recorded only once.
   assert.deepEqual(out.later, { region: "GB", region_source: "account_declared" });
   assert.equal(out.later_subscriber_rows, 1);
 });
 
-// 从取数到评估走一遍真实脚本：模型按说明写 UNKNOWN/unknown，derive 从 get_channel 读到 GB，
-// 评估后频道声明的国家生效，按国家判的项目从 region_not_applicable 变成可判定、订阅数达标。
-test("derive 的国家经 assess CLI 进入计划，按国家判的项目可以判定", () => {
+// Run the real scripts from fetch to evaluation: the model writes UNKNOWN/unknown as the instructions
+// say, derive reads GB from get_channel,
+// and after evaluation the channel-declared country takes effect, so country-dependent items change from
+// region_not_applicable to judgeable, with the subscriber count meeting the bar.
+test("the derived country reaches the plan through the assess CLI, and country-dependent items can be decided", () => {
   const out = probe(`
 import json, subprocess, sys, tempfile
 from datetime import date

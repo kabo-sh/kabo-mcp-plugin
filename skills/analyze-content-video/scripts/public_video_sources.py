@@ -13,12 +13,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-# 清单是 kabo 生成的 public-video-sources.v1（仓库根 contracts/ 下钉一份，本 Skill 的 references/ 下放逐字相同的
-# 副本，Skill 单独安装时也带着它）。这里只读，不在运行时下载或改写。
+# The list is kabo's generated public-video-sources.v1 (one copy pinned under the repository's contracts/, and a
+# byte-identical copy under this Skill's references/ so a standalone Skill install carries it). It is only read
+# here, never downloaded or rewritten at run time.
 SOURCES_FILE = Path(__file__).resolve().parents[1] / "references" / "public-video-sources.v1.json"
 SCHEMA_VERSION = "public-video-sources.v1"
 METRICS = ("views", "likes", "comments", "shares", "saves")
-# 查询参数里的视频 id 只收这些字符：参数值是用户链接里的任意文本，不能原样当 id。
+# A video id taken from a query parameter may contain only these characters: the value is arbitrary text from the
+# user's link and cannot be used as an id as is.
 QUERY_ID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 
 
@@ -74,10 +76,12 @@ def match_url(url: Any) -> dict[str, Any] | None:
     Returns ``{"platform", "kind": "video", "id"}``, ``{"platform", "kind": "short_link", "id": None}``
     (the server must resolve it first) or None (not a listed video page).
     """
-    # 与 kabo 的 matchPublicVideoSource 同一套口径（packages/creator/src/observation/public-video-sources.ts）：
-    # 只认 https、无内嵌凭据、默认端口；主机逐个精确比较，不做后缀匹配；按 url_patterns 依次试，第一个捕获组是 id，
-    # 没有捕获组（或捕获组没参与匹配）的那条从 query_id_params 取 id，同名参数出现不止一次就不认；
-    # 都不匹配时，命中 short_link_path_patterns 的是要先解析的分享链接，否则不是视频页。认不出来不猜。
+    # The same rules as kabo's matchPublicVideoSource (packages/creator/src/observation/public-video-sources.ts):
+    # https only, no embedded credentials, default port; hosts compared exactly, never by suffix; url_patterns
+    # tried in order, the first capture group is the id, and a pattern without one (or whose group did not take
+    # part in the match) takes the id from query_id_params, refusing a parameter that appears more than once.
+    # When nothing matches, a short_link_path_patterns hit is a share link to resolve first; otherwise it is not
+    # a video page. Nothing unrecognised is guessed.
     if not isinstance(url, str) or len(url) > 2048:
         return None
     try:

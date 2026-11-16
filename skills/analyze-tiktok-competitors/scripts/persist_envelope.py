@@ -60,9 +60,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-# 有的宿主导出工具结果时把正文裹在这个标签里,于是它不以 "{" 开头。
-# 只认这一个标签名,标签内仍必须是合法 JSON——放宽成「尖括号开头就剥」会让读取器
-# 开始接受任意标记文本。
+# Some hosts wrap the body in this tag when exporting a tool result, so it does not start with "{".
+# Only this one tag name is recognized, and the content inside the tag must still be valid JSON; relaxing this
+#   to "strip anything starting with an angle bracket" would
+# make the reader start accepting arbitrary markup text.
 UNTRUSTED_DATA = re.compile(r"<untrusted_data\b[^>]*>\s*(.*?)\s*</untrusted_data>", re.DOTALL)
 RUN_DIR = re.compile(r"^(\d{8}T\d{6})Z-[0-9A-Za-z]+$")
 LIST_INDEX = re.compile(r"^\[(\d+)\]$")
@@ -182,8 +183,8 @@ def unwrap_envelope(value: Any) -> dict[str, Any] | None:
             if not isinstance(item, dict):
                 continue
             text = item.get("text")
-            # 不在这里预判前缀：正文可能裹在 <untrusted_data> 里，不以 "{" 开头。
-            # 由 as_object 统一裁决（它认这两种形态，解析不出仍返回 None）。
+            # Do not pre-judge the prefix here: the body may be wrapped in <untrusted_data> and not start with "{".
+            # as_object decides in one place (it recognizes both forms, and still returns None if parsing fails).
             if isinstance(text, str):
                 inner = unwrap_envelope(text)
                 if inner is not None:
@@ -317,23 +318,30 @@ def account_of(envelope: dict[str, Any]) -> str | None:
 DRAINED_RECORD = re.compile(r"envelope-\d+\.json")
 
 
-# SKILL.md 给宿主导出的原始工具结果定的存放目录（运行目录下）。
+# The directory SKILL.md designates (under the run directory) for raw tool results exported by the host.
 HOST_RESULTS_DIR = "host-results"
-# MCP CallToolResult 的顶层字段。
+# Top-level fields of an MCP CallToolResult.
 MCP_RESULT_KEYS = {"content", "structuredContent", "isError", "_meta"}
 
 
 def host_tool_result(document: Any) -> bool:
-    # 宿主导出的原始工具结果是 static_host.py fetch / stage 的输入，不是放置写出的槽位。
-    # 2026-10-22 Codex 0.163 实测：模型把 youtube_get_video 的完整结果存成
-    # snapshot/tool-metadata-initial.json，fetch 正常暂存；放置前统计「已放置」时扫了整个运行目录，
-    # 这份原始结果 structuredContent.result 里的 envelope 与暂存副本是同一个 raw_sha256，唯一的
-    # 暂存候选被当成已放置扣掉，persist 报 "no complete host record"。
-    # 认这几种形状：MCP CallToolResult（顶层有 structuredContent，或只有 content 块数组 / isError /
-    # _meta），以及去掉 MCP 外壳的 structuredContent 本体（带 download 描述，或只有 result）。
-    # 放置写出的东西都不是这些形状：暂存正文是 static_host 去壳后的裸 envelope 或类型化结果（类型化
-    # 结果的 download 已去掉），bundle 只在指定位置放裸 envelope。envelope 本身一律不算：没有就绪
-    # 下载时暂存的 envelope 会带着 status=unavailable 的 download。
+    # A raw tool result exported by the host is an input to static_host.py fetch / stage, not a slot for placed
+    #   output.
+    # Observed on Codex 0.163 (2026-10-22): the model saved the full youtube_get_video result as
+    # snapshot/tool-metadata-initial.json and fetch staged it fine; when counting "already placed" before
+    #   placement, the whole run directory was scanned, and
+    # the envelope inside this raw result's structuredContent.result has the same raw_sha256 as the staged copy,
+    #   so the only staged candidate
+    # was deducted as already placed and persist reported "no complete host record".
+    # These shapes are recognized: an MCP CallToolResult (top-level structuredContent, or only a content block
+    #   array / isError /
+    # _meta), and the bare structuredContent body with the MCP wrapper removed (carrying a download descriptor, or
+    #   only result).
+    # Nothing written by placement has these shapes: a staged body is the bare envelope that static_host
+    #   unwrapped, or a typed result (the download of a typed
+    # result has been removed), and the bundle only puts a bare envelope at the designated location. The envelope
+    #   itself never counts: when no ready
+    # download exists, the staged envelope carries a download with status=unavailable.
     if not isinstance(document, dict) or is_envelope(document):
         return False
     if "structuredContent" in document:
@@ -347,8 +355,10 @@ def host_tool_result(document: Any) -> bool:
 
 
 def source_copies(staging_roots: list[Path], records: list[Path]) -> dict[str, set[Path]]:
-    # 每份来源正文的 sha256 → 路径。放置按字节原样写出来源正文，带 MCP 外壳的放置结果只可能是
-    # 某份来源（--drained 的宿主记录）的逐字节副本。暂存区用旁注里记下的摘要，不重读正文。
+    # sha256 of each source body -> path. Placement writes the source body byte for byte, so a placed result with
+    #   an MCP wrapper can only be a
+    # byte-for-byte copy of some source (a host record under --drained). The staging area uses the digest noted in
+    #   its sidecar and does not re-read the body.
     copies: dict[str, set[Path]] = {}
     for root in staging_roots:
         try:
@@ -398,7 +408,8 @@ def already_persisted(
     source_root = source_dir.resolve() if source_dir is not None else None
     from static_host import run_dir as static_run_dir
     run = static_run_dir()
-    # 暂存区是来源；host-results/ 是 SKILL.md 给原始结果定的位置，同样只是 fetch / stage 的输入。
+    # The staging area is the source; host-results/ is the location SKILL.md designates for raw results, and is
+    #   likewise only an input to fetch / stage.
     inputs = (run / "snapshot/.host-evidence", run / HOST_RESULTS_DIR)
     sources: dict[str, set[Path]] | None = None
     for path in files:
@@ -421,11 +432,13 @@ def already_persisted(
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             continue
         if host_tool_result(document):
-            # 原始结果存在 host-results/ 之外（snapshot/、运行目录根……）时按形状认出来。只有一种放置
-            # 结果长这样：某份来源正文的逐字节副本，它照旧计入；与自身之外任何来源都不相同的，是模型
-            # 存下的输入，不计。
+            # When a raw result lives outside host-results/ (snapshot/, the run directory root, ...), recognize it by
+            #   shape. Only one kind of placed
+            # result looks like this: a byte-for-byte copy of some source body, and it still counts; one that is identical
+            #   to no source other than itself is an
+            # input the model saved, and does not count.
             if sources is None:
-                # --drained 目录里能当来源读的文件，含归档的等价副本。
+                # Files under the --drained directory that can be read as sources, including equivalent archived copies.
                 records = sorted(source_root.rglob("*.json")) if source_root is not None else []
                 roots = default_staging_roots() if staging_roots is None else staging_roots
                 sources = source_copies(roots, records)

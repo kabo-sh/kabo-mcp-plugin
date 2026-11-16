@@ -172,30 +172,30 @@ ZONE_IN_TEXT = re.compile(
     r"\b(?:UTC|GMT|[A-Z][a-z]+/[A-Z][a-z_]+)\b|(?<![\d:])[+-]\d{2}:\d{2}\b|北京时间|格林威治")
 
 
-# 正文里报给创作者的钟点只有一个来源：`recommendation.windows`。引擎里有两套统计——单小时曲线
-# (`resolve_hour`) 和 3/6/12 小时分块投票 (`rank_windows`)——单小时答出时，分块胜出段照样留在
-# `evidence_base.ranking.winner`。一次迁移实测里报告标题推荐 18:00，「怎么比的」一块又写
-# 06:00–09:00 表现最好：两个都是真数，读的人只看到两个互相打架的「最佳时间」。数字检查在读数前先把
-# 钟点剥掉 (`CLOCK`)，所以从来没人核对过正文里的钟点。
+# The only source for clock times reported to the creator in the body is `recommendation.windows`. The engine has two sets of statistics: the single-hour curve
+# (`resolve_hour`) and the 3/6/12-hour block vote (`rank_windows`); when the single hour answers, the block winner still stays in
+# `evidence_base.ranking.winner`. In one migration run the report title recommended 18:00 while the "how we compared" section said
+# 06:00-09:00 performed best: both are real numbers, but the reader just sees two conflicting "best times". The number check strips the clock
+# times before reading numbers (`CLOCK`), so nobody had ever verified the clock times in the body.
 #
-# 只认 HH:MM，这是各语言通用的写法；不认任何语言的连接词或「点 / pm」这类字面量。两个钟点之间只隔
-# 几个非数字字符就算一个时间段，所以「06:00–09:00」「06:00 à 09:00」「06:00 至 09:00」读法相同。
+# Only HH:MM is recognized, which is written the same way in every language; no connectives or literals such as "点 / pm" ("点" = Chinese "o'clock") in any language are recognized. Two clock times separated by only
+# a few non-digit characters count as one time range, so "06:00-09:00", "06:00 à 09:00" and "06:00 至 09:00" ("至" = Chinese "to") read the same.
 CLOCK_TIME = re.compile(r"(?<![\d:])(\d{1,2}):(\d{2})(?![\d:])")
 RANGE_GAP = 6
-# 没拿到创作者时区、引擎按备用钟点算时，正文必须告诉创作者这些钟点不是本地时间。说法由模型用创作者的
-# 语言写进这个字段，这里只查它在不在；渲染器把它放在答案下面。
+# When the creator's timezone was not obtained and the engine computed with fallback clock times, the body must tell the creator these times are not local time. The model writes the wording
+# into this field in the creator's language; here we only check that it is present, and the renderer places it below the answer.
 CLOCK_NOTE = "clock_note"
 FALLBACK_SOURCES = ("not_supplied", "zone_unresolved")
 CLOCK_OUTCOMES = ("recommended", "no_clear_window")
 
 
 def clocks_in(text: str) -> list[tuple[int, int, int, int]]:
-    """(小时, 分钟, 起点, 终点)，按出现顺序。"""
+    """(hour, minute, start, end), in order of appearance."""
     return [(int(m.group(1)), int(m.group(2)), m.start(), m.end()) for m in CLOCK_TIME.finditer(text)]
 
 
 def ranges_in(text: str) -> list[tuple[int, int]]:
-    """两个相邻钟点之间只隔不到 RANGE_GAP 个非数字字符，就是一个时间段（起止小时）。"""
+    """Two adjacent clock times separated by fewer than RANGE_GAP non-digit characters form a time range (start and end hour)."""
     found = clocks_in(text)
     spans = []
     for (h1, _, _, end1), (h2, _, start2, _) in zip(found, found[1:]):
@@ -206,7 +206,7 @@ def ranges_in(text: str) -> list[tuple[int, int]]:
 
 
 def window_spans(rec: dict) -> list[tuple[int, int]]:
-    """推荐窗口的起止小时；跨午夜的结束小时加 24，`00:00` 收尾读作 24。"""
+    """Start and end hour of a recommended window; the end hour across midnight gets +24, and an ending at `00:00` reads as 24."""
     spans = []
     for window in (rec.get("recommendation") or {}).get("windows") or []:
         try:
@@ -258,8 +258,8 @@ def clock_errors(view: dict, rec: dict) -> list[str]:
     spans = window_spans(rec)
     if not spans:
         return errors
-    # 答案写在标题和摘要里：那里说出的钟点必须落在推荐时间里，推荐的答案至少要在其中一处出现。
-    # action / next_actions 不在此列：「顺手在 20 点试两条」是对照实验，不是第二个答案。
+    # The answer goes in the title and summary: clock times stated there must fall within the recommended times, and the recommended answer must appear in at least one of them.
+    # action / next_actions are not covered: "also try two posts at 20:00" is a control experiment, not a second answer.
     opening = [("headline", str(view.get("headline") or "")), ("summary", str(view.get("summary") or ""))]
     stated_inside = False
     for field, text in opening:
@@ -278,8 +278,8 @@ def clock_errors(view: dict, rec: dict) -> list[str]:
             f"neither the headline nor the summary states the recommended time as HH:MM "
             f"({window_text(spans)}). Lead with the time the creator asked for")
 
-    # 单小时答出时，分块投票的胜出段不能再以时间段的样子出现在正文里，哪一块都不行，和推荐小时重叠也不行：
-    # 读起来就是第二个「最佳时间」。投票同意与否可以说，那一段不报。
+    # When a single hour answers, the winning block of the block vote must not appear in the body in the form of a time range, no block of any kind, and not even when it overlaps the recommended hour:
+    # it would read as a second "best time". Whether the vote agrees can be mentioned, but that range is not reported.
     first = ((rec.get("recommendation") or {}).get("windows") or [{}])[0]
     ranking = (rec.get("evidence_base") or {}).get("ranking") or {}
     winner = str(ranking.get("winner") or "")
@@ -325,18 +325,18 @@ NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
 #
 # The rounding rule is ported from `compare_rounds.py`, which learned it the hard way: exact token
 # matching called `3.1` invented when the object held `3.1043`, and one stability round wrote
-# "3 倍多" purely to get past the check — the measuring instrument changing the thing it measured.
+# "3 倍多" ("more than 3x") purely to get past the check — the measuring instrument changing the thing it measured.
 #
 # Magnitude words are part of the same problem, in every script the reports are written in. A
-# localized report writes "261 万播放" for 2,605,682 and an English one writes "2.6M views" for the
+# localized report writes "261 万播放" ("2.61 million views") for 2,605,682 and an English one writes "2.6M views" for the
 # same number; a check that reads only the token `261` or `2.6` calls a correctly rounded figure a
 # fabrication. The unit is a scale on the source, so it is divided out before comparing. Both sets
 # are accepted at once because the model may reach for either — the report's language does not
 # decide which notation a figure arrives in.
 #
 # The single letters need the lookahead: without it "5 km" reads as five thousand and "3 more"
-# reads as three million. "万亿" is listed before "万" so "5万亿" reads as five trillion, not
-# 5万 followed by a stray 亿, and ".5B" reads as 0.5B, not 5B. A dot after a letter, digit or dot
+# reads as three million. "万亿" (10^12) is listed before "万" (10^4) so "5万亿" reads as five trillion, not
+# 5万 followed by a stray 亿 (10^8), and ".5B" reads as 0.5B, not 5B. A dot after a letter, digit or dot
 # is not a leading-dot decimal: "obs.14" in a reference stays 14, as it always read.
 MAGNITUDES = {
     "": 1,

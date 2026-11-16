@@ -6,8 +6,10 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-// remake-viral-video 的本地文件：upload-call / upload 把本地视频或照片传到 upload_file 给的签名链接，
-// 之后 kabo-file:<id> 可以放在任何收链接的位置。上传经进程内的假 HTTPS 处理器，测试不联网。
+// Local files for remake-viral-video: upload-call / upload send a local video or photo to the signed link
+//   given by upload_file,
+// after which kabo-file:<id> can be placed anywhere that takes a link. Uploads go through an in-process fake
+//   HTTPS handler, and the tests do not touch the network.
 const root = fileURLToPath(new URL("..", import.meta.url));
 const script = path.join(root, "skills/remake-viral-video/scripts/static_host.py");
 const scripts = path.dirname(script);
@@ -23,7 +25,7 @@ function call(dir, args) {
   return spawnSync("python3", [script, ...args], { encoding: "utf8", env: { ...process.env, KABO_STATIC_RUN_DIR: dir } });
 }
 
-test("kabo-file 引用可放在参考、本人视频与照片的位置，规范成小写；同一个文件不能两用", () => {
+test("kabo-file references can go in the reference, own-video and photo positions and are normalized to lowercase; the same file cannot be used twice", () => {
   const dir = run();
   const ok = call(dir, ["start-call", "--reference-url", `KABO-FILE:${FILE.toUpperCase()}`,
     "--creator-video", "https://www.instagram.com/reel/ABC123/", "--creator-photo", `kabo-file:${PHOTO}`,
@@ -46,7 +48,7 @@ test("kabo-file 引用可放在参考、本人视频与照片的位置，规范�
   assert.match(bad.stderr, /kabo-file/);
 });
 
-test("upload-call：只收视频与 JPEG/PNG，文件名按内容摘要命名，幂等键绑定内容", () => {
+test("upload-call: accepts only video and JPEG/PNG, names files by content digest, and binds the idempotency key to the content", () => {
   const dir = run();
   const media = mkdtempSync(path.join(tmpdir(), "remake-media-"));
   const video = path.join(media, "我的 秘密 名字.MOV");
@@ -123,7 +125,7 @@ out["bad_session"] = refused(result())
 print(json.dumps(out))
 `;
 
-test("upload：一次 POST 开会话、一次 PUT 传完整字节，只认签名存储链接与签名头", () => {
+test("upload: one POST opens the session and one PUT sends the full bytes, accepting only signed storage links and signed headers", () => {
   const workspace = mkdtempSync(path.join(tmpdir(), "remake-upload-py-"));
   const media = mkdtempSync(path.join(tmpdir(), "remake-upload-media-"));
   const result = spawnSync("python3", ["-c", PY, scripts, workspace, media], { encoding: "utf8" });

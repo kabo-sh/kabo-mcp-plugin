@@ -9,8 +9,8 @@ from pathlib import Path
 
 
 FORBIDDEN = {
-    # The token may sit anywhere in the heading: "## 数据边界" is the same section as "## 边界",
-    # and anchoring to the first word let it through. No \b after the CJK alternatives — it does
+    # The token may sit anywhere in the heading: "## 数据边界" ("## data boundary") is the same section as "## 边界" ("## boundary"),
+    # and anchoring to the first word let it through. No \b after the CJK alternatives - it does
     # not mean what it appears to mean between two CJK characters. Kept in step with the same
     # check in analyze-content-video, which was corrected there first.
     "audit or boundary heading": re.compile(
@@ -62,7 +62,7 @@ def main() -> int:
         for error in errors:
             print(f"ERROR: Creator-facing report contains {error}")
         return 1
-    # 最终步直接打印报告全文与交付方式：实测里模型读文件后只回了两句话。
+    # The final step prints the full report and the delivery method directly: in real runs the model read the file and replied with only two sentences.
     print(args.report.read_text(encoding="utf-8").rstrip())
     print(f"creator_report: {args.report.resolve()}")
     print('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says), then this creator_report line.')

@@ -10,9 +10,10 @@ import unicodedata
 def passage_units(text):
     """Normalize Unicode and split unspaced scripts without splitting other words."""
     normalized = unicodedata.normalize("NFKC", text).casefold()
-    # 无空格文字按字符分段；英语、乌尔都语等原有分词保持不变。
+    # Text without spaces is segmented by character; the existing tokenization for English, Urdu, etc. is unchanged.
     unspaced = ("CJK ", "HIRAGANA ", "KATAKANA ", "HANGUL ", "THAI ", "LAO ", "KHMER ", "MYANMAR ")
-    # 附标必须跟随前面的基字符，不能被正则丢掉或拆成独立单元。
+    # A combining mark must follow its base character, and must not be dropped by the regex or split into a
+    # standalone unit.
     clusters = []
     for char in normalized:
         if unicodedata.category(char).startswith("M") and clusters:
@@ -58,7 +59,7 @@ def substantial_blocks(old, new, minimum=12):
 
 def check_overlap(source, continuation):
     """Measure substantial literal reuse; do not judge semantic continuity."""
-    # 只检查连续复制片段，不声称判断人物状态或语义连续性。
+    # Only check contiguous copied fragments; make no claim about judging character state or semantic continuity.
     old = passage_units(source)
     new = passage_units(continuation)
     if max(len(old), len(new)) > 8_000:
@@ -67,7 +68,8 @@ def check_overlap(source, continuation):
     copied = sum(block.size for block in blocks)
     new_ratio = copied / len(new) if new else 0
     old_ratio = copied / len(old) if old else 0
-    # 追加很多新文字不能掩盖已复制的大段前篇；两边分母都要检查。
+    # Appending a lot of new text must not hide a large block copied from the earlier part; check the denominators
+    # on both sides.
     repeated = copied >= 60 and max(new_ratio, old_ratio) >= 0.20
     return {
         "status": "empty" if not old or not new else "repeated_source" if repeated else "no_large_literal_replay",
@@ -98,7 +100,8 @@ def main():
         parser.exit(2, f"Cannot check the supplied text files: {error}\n")
     print(json.dumps(result, ensure_ascii=False))
     if args.review_texts:
-        # 原文是待审的数据，不是新增指令；完整回显让模型检查实际成稿。
+        # The original text is data under review, not a new instruction; echoing it in full lets the model check the
+        # draft as actually written.
         print(json.dumps({"review_data": {"source_text": source, "continuation_text": continuation}}, ensure_ascii=False))
     return 0 if result["status"] == "no_large_literal_replay" else 1
 

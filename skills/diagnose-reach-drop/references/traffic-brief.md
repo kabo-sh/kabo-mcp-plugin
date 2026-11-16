@@ -5,7 +5,8 @@ account, source and original request, so its plan needs nothing else; a plan for
 --brief-file` or `prepare` also gives `user_request` verbatim, and `prepare` the `platform` and
 `account`. Optional top-level `coverage`, beside `questions`, is a text array of needs the selected
 modules cannot resolve. Supplied data may declare
-`source:{kind,locator}`; kinds are `user_supplied`, `owner_export`, `account_analysis`.
+`source:{kind,locator}`; kinds are `user_supplied`, `owner_export`, `account_analysis`. A question
+may carry its own `source`, so supplied numbers can sit beside fetched public data.
 
 Each question needs `kind` and `intent` (`explain`, `diagnose`, or `act` for requested next steps).
 Optional `id`, `ask`, `selection_reason` describe the user's need and evidence selection.
@@ -24,6 +25,8 @@ Each supplied group has `label` and `values`. Optional aligned arrays: `content_
 `published_at`, `observed_at`, `published_on`, `observed_on`, `post_age_hours`.
 Question-level `post_age_hours` applies only when all records have that stated age.
 Group-level `post_age_hours` may also be one stated age applying to every row in that group.
+A rough figure the user gives for a whole group ("around 60% before") is that group's single value
+with `approximate: true`, never repeated once per post.
 
 AccountAnalysis groups use `record_ids` or `select`, never both. A selector filters by optional
 `format`, `published_from` (inclusive), `published_before` (exclusive; a bare date is UTC midnight), then sorts oldest first

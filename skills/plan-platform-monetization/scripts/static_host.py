@@ -24,35 +24,35 @@ from urllib.parse import urlsplit
 sys.dont_write_bytecode = True
 SKILL = Path(__file__).resolve().parent.parent
 MAX_BYTES = 32 * 1024 * 1024
-# 一次产物下载的总量上限：单次最多 120 个 ref，转写与抽帧远小于此；超过就分批请求。
+# Total-size cap for one artifact download: at most 120 refs per request; transcripts and extracted frames are far below it; beyond it, request in batches.
 MAX_ARTIFACT_TOTAL = 4 * MAX_BYTES
 PENDING = {"queued", "running", "pending", "in_progress", "accepted"}
-# 下载交付：只认 Kabo 工具结果给出的 GCS 签名链接，只 GET、不跟随重定向。
-# 这是 Skill 脚本里唯一的网络访问（Kabo Skills 规范 KS7.3）。
+# Download delivery: accept only the GCS signed link given in a Kabo tool result; GET only, never follow redirects.
+# This is the only network access in a Skill script (Kabo Skills spec KS7.3).
 DOWNLOAD_HOST = "storage.googleapis.com"
 DOWNLOAD_PREFIX = "https://" + DOWNLOAD_HOST + "/"
 DOWNLOAD_TIMEOUT = 60
-# 抽帧请求的帧数上限，由 job-call 补进入参；空表示不补。
+# Cap on the number of frames in a frame-extraction request, added to the arguments by job-call; empty means nothing is added.
 FRAME_CAPS = {}
-# 产物下载声明的类型闭集 → 落盘扩展名。文本与 stage 的内联文本一样落成 .txt：.json 会被
-# persist_envelope 当成 envelope 候选读入。闭集之外（含 application/octet-stream）不落盘。
+# Closed set of types an artifact download may declare -> file extension to write. Text is written as .txt, the same as stage's inline text: .json would be read in by
+# persist_envelope as an envelope candidate. Anything outside the set (including application/octet-stream) is not written.
 ARTIFACT_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp",
                   "text/vtt": ".txt", "application/json": ".txt"}
 ARTIFACT_REF_META = "kabo.sh/object_ref"
-# 同步数据结果的链接过期后按 evidence_ref 重签：读回库里那份 envelope，不重跑、不占额度。
+# After the link of a synchronous data result expires, re-sign by evidence_ref: read back the stored envelope, without re-running and without using quota.
 RESIGN_TOOL = "get_research_data_download"
 
 
-# 本 Skill 只读账号公开数据；数据操作与 /mcp-pub 工具名一一对应，只接受这些工具的结果作为证据。
+# This Skill reads only public account data; data operations map one-to-one to /mcp-pub tool names, and only results of these tools are accepted as evidence.
 CONNECTOR_TOOLS = {
     "instagram-discovery/resolve_profile": "instagram_resolve_profile",
     "youtube-public/get_channel": "youtube_get_channel",
     "youtube-public/list_channel_uploads": "youtube_list_channel_uploads",
     "tiktok-public/list_account_posts": "tiktok_list_account_posts",
 }
-# 延迟返回的数据任务由它读回终态；本 Skill 不读转写或抽帧产物，所以不收 read_research_data_artifacts。
+# Data tasks that return deferred have their final state read back by it; this Skill does not read transcript or frame artifacts, so read_research_data_artifacts is not accepted.
 JOB_TOOLS = {"get_research_data_job"}
-# 本 Skill 没有返回固定投影的业务级工具；共用的过期提示据此决定能否重签。
+# This Skill has no business-level tool that returns a fixed projection; the shared expiry hint uses this to decide whether re-signing is possible.
 PROJECTIONS: dict[str, str] = {}
 
 
@@ -61,15 +61,15 @@ def run_dir():
     if raw:
         run = Path(raw).resolve(strict=True)
     else:
-        # 宿主不一定在命令之间保留环境变量；命令都在运行目录内执行，从当前目录向上找本次运行的标记。
+        # The host does not necessarily keep environment variables between commands; commands all run inside the run directory, so search upward from the current directory for this run's marker.
         here = Path.cwd().resolve()
         run = next((path for path in (here, *here.parents) if (path / ".static-run.json").is_file()), None)
         if run is None:
             raise ValueError("Set KABO_STATIC_RUN_DIR to this request's reserved directory, or run the command from inside it")
     if not (run / ".static-run.json").is_file():
         raise ValueError("Not a reserved static Skill run")
-    # 有的宿主只在两次执行之间保留文件、不保留空目录(Web Agent 的沙箱工作区):init 建的
-    # 空子目录下一步就不在了。每次进入运行目录都补齐,已有的不动。
+    # Some hosts keep only files between two executions and not empty directories (the Web Agent sandbox workspace): the empty subdirectories created by init
+    # are gone by the next step. Complete them on every entry into the run directory; existing ones are left untouched.
     for name in ("snapshot", "snapshot/.host-evidence", "analysis", "report", "owner", "host-results"):
         (run / name).mkdir(mode=0o700, parents=True, exist_ok=True)
     return run
@@ -91,8 +91,8 @@ def init(workspace):
     name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + secrets.token_hex(6)
     run = base / name
     run.mkdir(mode=0o700)
-    # host-results/ 放宿主导出的原始工具结果，它们是 fetch / stage 的输入；与放置写出的 envelope 分开，
-    # persist_envelope.py 统计已放置时不读这里。
+    # host-results/ holds the raw tool results exported by the host; they are the input to fetch / stage. It is kept separate from the envelopes written by placement,
+    # and persist_envelope.py does not read it when counting what is already placed.
     for name in ("snapshot", "analysis", "report", "owner", "host-results"):
         (run / name).mkdir(mode=0o700)
     (run / "snapshot/.host-evidence").mkdir(mode=0o700)
@@ -101,14 +101,14 @@ def init(workspace):
 
 
 def write_new(path, body):
-    # 独占写入，重试和并发不能覆盖已有证据。
+    # Exclusive write: retries and concurrency must not overwrite existing evidence.
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "wb") as stream:
         stream.write(body)
 
 
 def complete_result(tool, raw, extra_blocks=False):
-    # stage 与 fetch 共用的整份结果读取：大小、工具名、MCP 包装、错误结果与证据对象的定位。
+    # Shared full-result reading for stage and fetch: size, tool name, MCP wrapper, error results, and locating the evidence object.
     if len(raw) > MAX_BYTES:
         raise ValueError("Tool result exceeds the evidence limit")
     if tool not in {RESIGN_TOOL} | set(CONNECTOR_TOOLS.values()) | JOB_TOOLS:
@@ -117,7 +117,7 @@ def complete_result(tool, raw, extra_blocks=False):
     if not isinstance(value, dict):
         raise ValueError("Complete MCP result must be an object")
     if value.get("isError") and "structuredContent" not in value:
-        # 纯文本错误不是 JSON；原样带出工具的报错，模型才能分清输入错误与暂时故障。
+        # A plain-text error is not JSON; carry the tool's error through verbatim so the model can tell an input error from a transient failure.
         blocks = value.get("content") if isinstance(value.get("content"), list) else []
         text = " ".join(block["text"] for block in blocks
                         if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)).strip()
@@ -128,7 +128,7 @@ def complete_result(tool, raw, extra_blocks=False):
     structured = value.get("structuredContent", value)
     if "content" in value and "structuredContent" not in value:
         blocks = value["content"]
-        # 下载模式的产物结果在 JSON 文本之后可能跟着回退正文块，只有 fetch 认得它们。
+        # In download mode an artifact result may be followed by fallback body blocks after the JSON text; only fetch recognises them.
         if (not isinstance(blocks, list) or not blocks or (len(blocks) != 1 and not extra_blocks) or
                 not isinstance(blocks[0], dict) or blocks[0].get("type") != "text" or
                 not isinstance(blocks[0].get("text"), str)):
@@ -136,7 +136,7 @@ def complete_result(tool, raw, extra_blocks=False):
         structured = json.loads(blocks[0]["text"])
     if not isinstance(structured, dict):
         raise ValueError("Complete structured result is required")
-    # 任务未到终局时 envelope 为 null；先给出轮询提示，不报「证据对象不完整」。
+    # While a task has not reached a final state the envelope is null; give the poll hint first rather than reporting "evidence object incomplete".
     if structured.get("envelope", {}) is None and structured.get("status") in PENDING:
         raise ValueError("Poll the data job before staging terminal evidence")
     envelope = structured["envelope"] if "envelope" in structured else structured.get("result", structured)
@@ -151,21 +151,21 @@ def complete_result(tool, raw, extra_blocks=False):
 
 
 def check_envelope(tool, envelope):
-    # 仍在排队或运行的任务先给出正确提示，不要被下面的操作名或字段检查抢先拦下。
+    # For a task still queued or running, give the correct hint first; do not let the operation-name or field checks below block it first.
     if envelope.get("status") in PENDING:
         raise ValueError("Poll the data job before staging terminal evidence")
     operation = next((key for key, name in CONNECTOR_TOOLS.items() if name == tool), None)
     if operation:
         connector, expected = operation.split("/")
         actual = envelope.get("connector_id", "") + "/" + envelope.get("operation", "")
-        # 抽帧允许提供方返回显式声明的计费身份；不能放宽到任意媒体操作。
+        # Frame extraction allows the provider to return an explicitly declared billing identity; this must not be widened to arbitrary media operations.
         aliases = {"public-video-media/extract_keyframes_hosted_media", "public-video-media/extract_keyframes_hosted_stream"}
         if actual != operation and not (operation == "public-video-media/extract_keyframes" and actual in aliases):
             raise ValueError("Tool result does not match its declared operation")
         if not isinstance(envelope.get("limitations"), list) or not isinstance(envelope.get("status"), str):
             raise ValueError("Incomplete connector envelope")
     if tool == RESIGN_TOOL:
-        # 重签读回的是那次调用自己记下的 envelope；只认本 Skill 声明的数据操作。
+        # The re-sign reads back the envelope recorded by that call itself; only data operations declared by this Skill are accepted.
         actual = envelope.get("connector_id", "") + "/" + envelope.get("operation", "")
         if actual not in CONNECTOR_TOOLS:
             raise ValueError("Re-signed result is not from one of this Skill's data tools")
@@ -190,7 +190,7 @@ def evidence_id():
 
 
 def block_body(artifact, block):
-    # 内联产物正文（stage 的整份结果，或下载模式里标了 object_ref 的回退块）解码并定扩展名。
+    # Decode the inline artifact body (the whole stage result, or a fallback block marked with object_ref in download mode) and determine the extension.
     body_key = "text" if block["type"] == "text" else "data"
     if not isinstance(block.get(body_key), str):
         raise ValueError("Artifact body must be a string")
@@ -212,7 +212,7 @@ def check_artifact(artifact, body):
 
 
 def artifact_meta(artifact, job_id, **extra):
-    # 下载描述含签名链接，不进旁注文件；其余登记字段（object_ref、sha256、bytes…）照旧保留。
+    # The download descriptor contains a signed link and does not go into the sidecar file; the other registered fields (object_ref, sha256, bytes...) are kept as before.
     return {**{key: item for key, item in artifact.items() if key != "download"}, "job_id": job_id, **extra}
 
 
@@ -240,8 +240,8 @@ def store(tool, envelope, payloads):
     return {"staged": len(payloads), "directory": str(destination)}
 
 
-# 产物在下载模式下没有可用文件时的唯一出路；fetch 与 stage 说同一句话，不互相指回对方。
-# 宿主会把内联图片另存进它自己的会话目录（Claude Code 2.1.308 实测），那不是可依赖的接口，明说不要去拼。
+# The only way out when an artifact in download mode has no usable file: fetch and stage say the same sentence and do not point back to each other.
+# The host saves inline images into its own session directory (observed on Claude Code 2.1.308); that is not a dependable interface, so explicitly say not to assemble paths from it.
 REREAD_INLINE = ("call read_research_data_artifacts again for those object_refs without delivery, export the complete "
                  "result through the host and run static_host.py stage on it; never rebuild it from the host's own "
                  "session or tool-result folders")
@@ -255,13 +255,13 @@ def artifact_downloads(structured):
 
 
 def typed_result(envelope):
-    # 聚合工具（collect_*、enrich_*）的类型化出参：带 schema_version、不带 connector_id。它的下载只是给
-    # 脚本的完整副本，items 照旧完整内联，所以内联那份同样可以 stage。
+    # Typed output of aggregate tools (collect_*, enrich_*): carries schema_version and no connector_id. Its download is only a full copy for the script;
+    # items stay fully inline, so the inline copy can be staged as well.
     return "connector_id" not in envelope and isinstance(envelope.get("schema_version"), str)
 
 
 def download_mode(structured):
-    # 只有确实有就绪链接时才要求 fetch；全部不可用时 fetch 也拿不到文件，要求它会让两条命令互相指回。
+    # Require fetch only when a ready link actually exists; when all are unavailable fetch cannot get a file either, and requiring it would make the two commands point back at each other.
     return any(isinstance(item, dict) and item.get("status") == "ready"
                for item in [structured.get("download"), *artifact_downloads(structured)])
 
@@ -273,24 +273,24 @@ def stage(tool, raw):
 
 
 def staged(tool, raw):
-    # stage 的校验与成形，不写盘：组合结果逐项拆开时先全部校验，再统一写入。
+    # Validation and shaping for stage, without writing to disk: when a composite result is split into items, validate all of them first, then write together.
     value, structured, envelope = complete_result(tool, raw)
     if envelope.get("schema_version") == COMPOSITE_SCHEMA:
         raise ValueError("A composite result must be staged with its composite tool name")
-    # 下载就绪的结果省略了 data；当作内联证据保存会得到一份没有数据的 envelope。聚合工具例外：内联照旧完整。
+    # A download-ready result omits data; saving it as inline evidence would produce an envelope with no data. Aggregate tools are the exception: inline stays complete as before.
     if download_mode(structured) and not typed_result(envelope):
         raise ValueError("This result carries a download instead of inline data; run static_host.py fetch on it")
-    # 宿主保存时丢了 download、只剩摘要（status 完成却没有 data）：入库后要到后面的脚本才报错，而且这一轮已算放置，
-    # 补下载的完整结果也不会再被读到（插件实测 TikTok 榜单）。在这里拒收，指回完整结果。
+    # The host dropped download when saving and kept only the summary (status completed but no data): it would only fail in a later script after ingestion, and this round already counts as placed,
+    # so the full result with the download added later would never be read (plugin run, TikTok chart). Reject here and point back to the full result.
     if (envelope.get("status") in ("completed", "completed_partial") and "data" not in envelope
             and not typed_result(envelope) and tool != "read_research_data_artifacts"):
         raise ValueError("This result has a completed status but no data: it is a summary of a download, not the "
                          "evidence. Save the tool's complete result, including its download, and run "
                          "static_host.py fetch on it")
     if typed_result(envelope):
-        # 下载描述含签名链接，不落盘；去掉它之后与下载到的那份是同一个对象。
+        # The download descriptor contains a signed link and is not written to disk; with it removed, the object is the same as the downloaded one.
         envelope = {key: item for key, item in envelope.items() if key != "download"}
-    # 下载模式的产物结果不带内联正文（回退块只有 fetch 认得）；没有就绪链接时指向内联重读。
+    # An artifact result in download mode carries no inline body (fallback blocks are recognised only by fetch); with no ready link, point to an inline re-read.
     if artifact_downloads(structured):
         raise ValueError("This artifact result has no ready download and no inline bodies to stage. " + REREAD)
     check_envelope(tool, envelope)
@@ -315,13 +315,13 @@ def staged(tool, raw):
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
-    # 签名链接只指向一个对象；任何 3xx 都按失败处理，不让链接把脚本带到别的主机。
+    # A signed link points to exactly one object; any 3xx is treated as a failure, so a link can never lead the script to another host.
     def redirect_request(self, *args, **kwargs):
         return None
 
 
 def hashed_capath(path):
-    # OpenSSL 只从目录里读 <8 位十六进制>.<数字> 形式的证书链接；目录非空但没有这类文件时等于没有信任库。
+    # OpenSSL reads certificate links from a directory only in the form <8 hex digits>.<number>; a non-empty directory without such files is equivalent to having no trust store.
     try:
         with os.scandir(path) as entries:
             return any(re.fullmatch(r"[0-9a-f]{8}\.\d+", entry.name) for entry in entries)
@@ -330,10 +330,10 @@ def hashed_capath(path):
 
 
 def tls_context():
-    # macOS 上 python.org 装的 Python 没跑过 Install Certificates 时默认信任库是空的，每个 HTTPS 下载都报证书失败
-    # （插件实测 T-20261028-04）。只在默认信任库确实不存在时换用 certifi 或系统 CA 包，证书照常校验；
-    # 某个候选读不了或格式不对就试下一个。
-    # Windows 的默认上下文读系统证书库，文件路径为空不代表没有信任库，保持默认。
+    # On macOS, when Python installed from python.org has not run Install Certificates, the default trust store is empty and every HTTPS download fails with a certificate error
+    # (plugin run T-20261028-04). Switch to certifi or the system CA bundle only when the default trust store truly does not exist; certificates are still validated as usual;
+    # if a candidate cannot be read or has the wrong format, try the next one.
+    # On Windows the default context reads the system certificate store, so an empty file path does not mean there is no trust store; keep the default.
     if sys.platform == "win32":
         return None
     paths = ssl.get_default_verify_paths()
@@ -357,15 +357,15 @@ def tls_context():
 
 
 def build_opener():
-    # 测试在进程内替换这个函数以注入假的 HTTPS 处理器；命令行没有入口能改它。
+    # Tests replace this function in-process to inject a fake HTTPS handler; no command-line entry point can change it.
     context = tls_context()
     handlers = [NoRedirect()] + ([urllib.request.HTTPSHandler(context=context)] if context else [])
     return urllib.request.build_opener(*handlers)
 
 
 def renew_hint(tool, envelope):
-    # 链接过期后的三条路：任务与产物再读一次即可；同步数据结果按 evidence_ref 重签，
-    # 不重跑、不占额度，新链接的 sha256 与 bytes 可能和旧的不同，只按新返回的值校验；聚合工具的内联结果本来完整。
+    # Three paths after a link expires: for tasks and artifacts, simply read again; for synchronous data results, re-sign by evidence_ref,
+    # without re-running or using quota, and the new link's sha256 and bytes may differ from the old ones, so validate only against the newly returned values; an aggregate tool's inline result is already complete.
     if tool in JOB_TOOLS:
         return f"Call {tool} again with delivery \"download\" (it only reads; nothing is re-run), then run fetch right away"
     if typed_result(envelope):
@@ -373,14 +373,14 @@ def renew_hint(tool, envelope):
                 f"--tool {tool} on it (calling the tool again would re-run it)")
     original = tool
     if tool == RESIGN_TOOL:
-        # 重签工具的入参只有 evidence_ref（additionalProperties: false），带 delivery 再调它会被拒、也不重跑任何东西；
-        # 最后的退路是信封里实际作答路线所属的原数据工具。ROUTE_ALIASES 只在部分副本里有，共享段不能直接引用。
+        # The re-sign tool takes only evidence_ref (additionalProperties: false); calling it again with delivery is rejected and re-runs nothing;
+        # the last fallback is the original data tool of the route that actually answered in the envelope. ROUTE_ALIASES exists only in some copies, so the shared section cannot reference it directly.
         actual = f"{envelope.get('connector_id', '')}/{envelope.get('operation', '')}"
         aliases = globals().get("ROUTE_ALIASES", {})
         original = next((name for key, name in CONNECTOR_TOOLS.items()
                          if actual == key or actual in aliases.get(key, ())), "the original data tool")
     ref = envelope.get("evidence_ref")
-    # 投影工具重签拿回的是作答路线的原始信封、不是投影，只能再调一次原工具。
+    # What re-signing a projection tool returns is the raw envelope of the answering route, not the projection; the only option is to call the original tool once more.
     if isinstance(ref, str) and ref and original not in PROJECTIONS:
         return ("Call get_research_data_download with {\"evidence_ref\": " + json.dumps(ref) + "} (no allowance cost; "
                 "nothing is re-run), then run fetch --tool get_research_data_download on its complete result right "
@@ -392,7 +392,7 @@ def renew_hint(tool, envelope):
 
 
 def expired(descriptor):
-    # expires_at 已过就不必再发请求：结论与 GCS 回 400/403 相同。时间格式不对时交给下载本身判断。
+    # If expires_at has passed there is no need to send the request: the conclusion is the same as GCS returning 400/403. If the time format is wrong, leave it to the download itself to decide.
     try:
         stamp = datetime.fromisoformat(str(descriptor.get("expires_at")).replace("Z", "+00:00"))
     except ValueError:
@@ -409,18 +409,18 @@ def download(tool, descriptor, kind, hint):
         raise ValueError("Download descriptor is incomplete or over the evidence limit")
     if expired(descriptor):
         raise ValueError("Download link expired (expires_at has passed). " + hint)
-    # 只认 Kabo 工具结果给出的 GCS 签名链接：协议与主机逐字匹配（不带端口、用户名），不含空白或控制字符。
+    # Accept only the GCS signed link given in a Kabo tool result: protocol and host must match verbatim (no port, no username) and contain no whitespace or control characters.
     if (not url.startswith(DOWNLOAD_PREFIX) or urlsplit(url).netloc != DOWNLOAD_HOST or
             any(ord(char) <= 32 or ord(char) == 127 for char in url)):
         raise ValueError("Download link is not a Kabo signed storage link; refusing to fetch it")
     request = urllib.request.Request(url, method="GET", headers={"Accept-Encoding": "identity"})
-    # 报错只说类别与状态码：异常文本可能带链接、签名或对象名，一律不转述。
+    # Errors state only the category and status code: exception text may carry the link, signature or object name, so it is never relayed.
     hasher, chunks, total = hashlib.sha256(), [], 0
     try:
         with build_opener().open(request, timeout=DOWNLOAD_TIMEOUT) as response:
             status = response.status
-            # 签名链接按声明的类型签发（response-content-type），GCS 原样回这个头；对不上说明拿到的不是那件产物。
-            # 没有这个头时不拦：大小与 sha256 已经钉住字节。
+            # The signed link is issued for the declared type (response-content-type) and GCS returns this header as is; a mismatch means the thing fetched is not that artifact.
+            # When the header is absent, do not block: the size and sha256 already pin the bytes.
             served = response.headers.get("Content-Type") if status == 200 else None
             if served and served.split(";")[0].strip().lower() != str(descriptor.get("content_type")).lower():
                 status = "type"
@@ -435,12 +435,12 @@ def download(tool, descriptor, kind, hint):
         status = error.code
         error.close()
     except Exception as error:
-        # 下载模式的产物结果 stage 不收（它会指回 fetch）；脚本不能联网时产物只能内联重读，否则两条命令互相指回。
+        # stage does not accept artifact results in download mode (it would point back to fetch); when the script cannot reach the network the artifact can only be re-read inline, otherwise the two commands point back at each other.
         fallback = (REREAD_INLINE if kind == "artifact" else
                     "export the complete tool result through the host and run static_host.py stage instead")
-        # 只说异常类型无法区分沙箱断网、代理和证书问题（T-20261029-12 R2 只看到 URLError），带上 reason；它不含签名链接。
+        # Stating only the exception type cannot distinguish a sandbox with no network, a proxy, or a certificate problem (T-20261029-12 R2 saw only URLError), so include reason; it contains no signed link.
         reason = str(error.reason)[:160] if isinstance(error, urllib.error.URLError) else ""
-        reason = "" if "http" in reason.lower() else reason  # 不让签名链接进输出
+        reason = "" if "http" in reason.lower() else reason  # keep the signed link out of the output
         label = f"{type(error).__name__}: {reason}" if reason else type(error).__name__
         raise ValueError(f"Download failed ({label}); if this host blocks network access for scripts, "
                          + fallback) from None
@@ -488,8 +488,8 @@ def fetch(tool, raw):
     full = json.loads(download(tool, descriptor, "envelope", renew_hint(tool, envelope)).decode("utf-8"))
     if not isinstance(full, dict):
         raise ValueError("Downloaded evidence must be an object")
-    # 下载的是本次结果那一份 envelope（只多了 data），聚合工具则是去掉 download 的整份出参；
-    # 身份字段对不上说明拿错了文件。
+    # What is downloaded is this call's own envelope (with only data added); for aggregate tools it is the whole output with download removed;
+    # if the identity fields do not match, the wrong file was fetched.
     for key in ("connector_id", "operation", "status", "evidence_ref", "raw_sha256", "schema_version"):
         if key in envelope and full.get(key) != envelope[key]:
             raise ValueError("Downloaded evidence does not match this tool result")
@@ -504,7 +504,7 @@ def fetch_artifacts(tool, value, structured):
     if (not isinstance(artifacts, list) or not artifacts or not isinstance(job_id, str) or not job_id or
             not all(isinstance(item, dict) for item in artifacts)):
         raise ValueError("Artifact metadata must be complete")
-    # 签名失败的项退回内联正文，按 _meta 里的 object_ref 配对，不按位置（回退读取可能逐项失败）。
+    # Items whose signing failed fall back to the inline body, paired by the object_ref in _meta rather than by position (fallback reads may fail item by item).
     fallback = {}
     for block in value.get("content") if isinstance(value.get("content"), list) else []:
         meta = block.get("_meta") if isinstance(block, dict) else None
@@ -514,7 +514,7 @@ def fetch_artifacts(tool, value, structured):
                 raise ValueError("Artifact bodies and metadata must be complete and paired")
             fallback[ref] = block
     identifier, payloads, fetched, missing, images, total = evidence_id(), [], [], [], [], 0
-    # 先全部下载并校验，最后一次写入：任何一项对不上都不留下半套证据。
+    # Download and validate everything first, write once at the end: if any item fails to match, no partial evidence is left behind.
     for index, artifact in enumerate(artifacts):
         descriptor = artifact.get("download")
         if isinstance(descriptor, dict) and descriptor.get("status") == "ready":
@@ -549,7 +549,7 @@ def fetch_artifacts(tool, value, structured):
             return {"fetched": 0, "missing": missing, "next": "Nothing could be fetched. " + REREAD}
         return no_download(tool, [item.get("download") for item in artifacts])
     result = {**store(tool, structured, payloads), "fetched": fetched}
-    # 下载下来的帧只在磁盘上，模型看不到像素；给出绝对路径，让模型用宿主自己的看图或读文件工具打开。
+    # Downloaded frames exist only on disk and the model cannot see the pixels; give absolute paths so the model opens them with the host's own image-viewing or file-reading tool.
     for item in fetched:
         item["path"] = str(Path(result["directory"]) / item["file"])
     if images:
@@ -561,13 +561,13 @@ def fetch_artifacts(tool, value, structured):
     return result
 
 
-# 组合取数工具（kabo-composite-fetch.v1，docs/skills-spec.md KS8）：后台一次调用做完一段多轮取数，
-# calls[] 是后台实际发出的每一次单工具调用，calls[i].result 与单个 /mcp-pub 数据工具的结果信封完全相同。
-# 落盘时逐项拆开：每项按 calls[i].tool 走 stage 的同一套校验与命名（<id>.json + <id>.meta，正文逐字节相同），
-# 旁注另记 composite_tool / composite_id / composite_index / composite_group / composite_parameters；
-# 最后写一份整体记录 <composite_id>.json + .meta（旁注 tool 是组合工具、schema_version 是 COMPOSITE_RECORD），
-# 驱动用 composite_records() 读它的 summary / coverage / limitations 与逐项证据 id。
-# 任何一项校验不过，整份什么都不写。本段在各 Skill 的副本里逐字相同（scripts/shared-copies.test.mjs）。
+# Composite fetch tool (kabo-composite-fetch.v1, docs/skills-spec.md KS8): the backend finishes a multi-round fetch in one call,
+# calls[] is every single-tool call the backend actually issued, and calls[i].result is exactly the same as the result envelope of a single /mcp-pub data tool.
+# On write, items are split apart: each item goes through the same validation and naming as stage according to calls[i].tool (<id>.json + <id>.meta, bodies byte-identical),
+# the sidecar additionally records composite_tool / composite_id / composite_index / composite_group / composite_parameters;
+# finally a whole-run record <composite_id>.json + .meta is written (sidecar tool is the composite tool, schema_version is COMPOSITE_RECORD),
+# and the driver reads its summary / coverage / limitations and the per-item evidence ids with composite_records().
+# If any item fails validation, nothing is written for the whole run. This section is identical in every Skill's copy (scripts/shared-copies.test.mjs).
 COMPOSITE_SCHEMA = "kabo-composite-fetch.v1"
 COMPOSITE_RECORD = "kabo-composite-fetch.record.v1"
 COMPOSITE_TOOLS = {"collect_account_history", "collect_tiktok_video_candidates", "collect_youtube_recent_videos",
@@ -575,8 +575,8 @@ COMPOSITE_TOOLS = {"collect_account_history", "collect_tiktok_video_candidates",
 
 
 def failed_composite(value):
-    # 每一项都失败时组合结果整体 status: failed，/mcp-pub 照研究链路的口径同时标 isError，但带着完整的组合结果：
-    # 逐项失败是被取对象的终局（例如上游拒绝下载），照常落盘，交给驱动按缺口降级；不带组合结果的错误才原样报错。
+    # When every item fails, the composite result as a whole is status: failed, and /mcp-pub also sets isError, following the research-chain basis, but still carries the full composite result:
+    # an item-level failure is the final state of the fetched object (e.g. upstream refuses the download), is written to disk as usual, and is left to the driver to degrade by gap; only an error without a composite result is reported verbatim.
     structured = value.get("structuredContent")
     if structured is None:
         blocks = value.get("content") if isinstance(value.get("content"), list) else []
@@ -589,8 +589,8 @@ def failed_composite(value):
 
 
 def composite_result(tool, raw):
-    # 整份组合结果的读取，与 complete_result 同一套规矩：大小、工具名、MCP 包装；组合工具只在领域函数抛异常时
-    # 才是错误结果，失败与缺口收在 status / limitations 里，所以错误结果一律原样带出报错、不落盘。
+    # Reading the whole composite result follows the same rules as complete_result: size, tool name, MCP wrapper; a composite tool is an error result only when a domain function raises,
+    # while failures and gaps are collected in status / limitations, so an error result always has its error carried through verbatim and nothing is written to disk.
     if len(raw) > MAX_BYTES:
         raise ValueError("Tool result exceeds the evidence limit")
     if tool not in COMPOSITE_TOOLS:
@@ -620,7 +620,7 @@ def composite_result(tool, raw):
 
 
 def previous_evidence(tool, body):
-    # 与 store 的去重同一判据（同一工具、同一 sha256）：已落过盘的那份的证据 id；被改过就拒收。
+    # The same criterion as store's deduplication (same tool, same sha256): the evidence id of the copy already written; if it was modified, reject.
     destination = run_dir() / "snapshot/.host-evidence"
     fingerprint = hashlib.sha256(body).hexdigest()
     for previous in sorted(destination.glob("*.meta")):
@@ -636,7 +636,7 @@ def split_composite(tool, composite, extra, refetch=""):
     calls = composite.get("calls")
     if not isinstance(calls, list) or not all(isinstance(call, dict) for call in calls):
         raise ValueError("Composite result must carry its calls" + refetch)
-    # 先把每一项都按单工具 stage 校验并成形，全部通过后才写：不留下半套证据。
+    # Validate and shape every item as a single-tool stage first, and write only after all pass: no partial evidence is left behind.
     prepared = []
     for index, call in enumerate(calls):
         name, result = call.get("tool"), call.get("result")
@@ -662,7 +662,7 @@ def split_composite(tool, composite, extra, refetch=""):
         entries.append({"index": index, "tool": name, "group": call.get("group"), "status": envelope.get("status"),
                         "evidence_id": stored})
         duplicates += 1 if result.get("duplicate") else 0
-    # 记录只含确定的内容：同一份组合再落一次时与上次逐字节相同，按 store 的去重指回上次那份。
+    # The record contains only deterministic content: writing the same composite again is byte-identical to last time, and store's deduplication points back to the earlier copy.
     record = {"schema_version": COMPOSITE_RECORD, "tool": tool, "status": composite.get("status"),
               "summary": composite.get("summary"), "coverage": composite.get("coverage"),
               "limitations": composite.get("limitations"), "calls": entries}
@@ -680,7 +680,7 @@ def stage_composite(tool, raw):
     composite = composite_result(tool, raw)
     ready = download_mode(composite)
     refetch = f"; run static_host.py fetch --tool {tool} on the complete result instead" if ready else ""
-    # 下载描述含签名链接，不落盘；去掉它之后与下载到的那份是同一个对象。
+    # The download descriptor contains a signed link and is not written to disk; with it removed, the object is the same as the downloaded one.
     composite = {key: item for key, item in composite.items() if key != "download"}
     return split_composite(tool, composite, {}, refetch)
 
@@ -696,7 +696,7 @@ def fetch_composite(tool, raw):
             f"--tool {tool} on it; otherwise call {tool} again with the same parameters and delivery \"download\" "
             "(this re-runs it), then run fetch right away")
     full = json.loads(download(tool, descriptor, "envelope", hint).decode("utf-8"))
-    # 下载字节是去掉 download 的整份出参；身份字段对不上说明拿错了文件。
+    # The downloaded bytes are the whole output with download removed; if the identity fields do not match, the wrong file was fetched.
     if (not isinstance(full, dict) or full.get("schema_version") != COMPOSITE_SCHEMA or full.get("tool") != tool or
             ("status" in composite and full.get("status") != composite["status"])):
         raise ValueError("Downloaded evidence does not match this tool result")
@@ -704,10 +704,10 @@ def fetch_composite(tool, raw):
     return {**split_composite(tool, full, {"delivery": "download"}), "fetched": [summary(descriptor)]}
 
 
-# 按结果编号取下载（kabo ADR-0084「2026-11-04」）：下载就绪的结果，其签名链接路径里有一个 22 字符的结果编号
-# （`research-export/v1/<编号>.json`）。模型只交编号，不再整份抄结果；脚本向 Kabo 按编号取同一份字节，
-# 按响应头里的 sha256 与长度校验后照 fetch 落盘。编号与签名链接同一张不记名票、同一个到期时刻（10 分钟）。
-# 本段在各 Skill 的副本里逐字相同（scripts/shared-copies.test.mjs）。
+# Fetch a download by result ID (kabo ADR-0084 "2026-11-04"): in a download-ready result, the signed-link path contains a 22-character result ID
+# (`research-export/v1/<result_id>.json`). The model passes only the ID and no longer copies the whole result; the script fetches the same bytes from Kabo by ID,
+# validates them against the sha256 and length in the response headers, and writes them to disk like fetch. The ID and the signed link are the same bearer ticket with the same expiry time (10 minutes).
+# This section is identical in every Skill's copy (scripts/shared-copies.test.mjs).
 RESULT_URL = "https://kabo.sh/v1/research-downloads/"
 RESULT_ID = re.compile(r"[A-Za-z0-9_-]{22}")
 RESULT_ID_IN_URL = re.compile(r"/research-export/v1/([A-Za-z0-9_-]{22})\.json(?:\?|$)")
@@ -770,7 +770,7 @@ def download_result(result_id):
 
 def fetch_id(tool, text):
     """`fetch` for a result given by its id: download, check, and store it the way fetch does."""
-    # 聚合工具（collect_* / enrich_*）只在部分副本里有；共享段不能直接引用，按 renew_hint 的办法取。
+    # Aggregate tools (collect_* / enrich_*) exist only in some copies; the shared section cannot reference them directly, so follow the renew_hint approach.
     aggregates = set(globals().get("AGGREGATE_TOOLS", ()))
     if tool not in COMPOSITE_TOOLS | {RESIGN_TOOL} | set(CONNECTOR_TOOLS.values()) | JOB_TOOLS | aggregates:
         raise ValueError("Not a declared evidence tool")
@@ -821,7 +821,7 @@ def composite_records(tool=None):
 
 
 def render_result(result):
-    # 单工具结果照旧一行 JSON；组合结果整体仍是合法 JSON，逐项调用各占一行。
+    # A single-tool result is still one line of JSON; a composite result as a whole is still valid JSON, with each individual call on its own line.
     if not (isinstance(result, dict) and "composite" in result):
         return json.dumps(result)
     head = json.dumps({key: item for key, item in result.items() if key != "calls"})
@@ -829,9 +829,9 @@ def render_result(result):
     return head[:-1] + ', "calls": [' + ("\n" + lines + "\n" if lines else "") + "]}"
 
 
-# 延迟媒体工具的幂等键：同一运行、同一工具、同一组入参、同一尝试序号得到同一把键。
-# 宿主超时后整条重发时，服务端凭它交回原来的 job，不再入队、不再计费。只在同一调用没拿到响应时复用；拿到错误结果后
-# 再试、入参改了或要重跑已终局的任务，都换下一个尝试序号（入队失败会留下一行永远不开始的 queued job，复用旧键会拿回它）。
+# Idempotency key for deferred media tools: the same run, same tool, same arguments and same attempt number yield the same key.
+# When the host times out and the whole call is resent, the server hands back the original job by this key, with no new enqueue and no new charge. Reuse it only when the same call got no response; retrying after an error result,
+# changed arguments, or re-running an already finished task all take the next attempt number (a failed enqueue leaves a queued job that never starts, and reusing the old key would get that job back).
 KEY_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:._-")
 KEY_LIMIT = 128
 
@@ -847,7 +847,7 @@ def job_call(tool, raw_parameters, attempt):
         raise ValueError("--parameters must be a JSON object")
     cap = FRAME_CAPS.get(tool)
     if cap is not None:
-        # 缺省时补上本 Skill 的帧数上限；显式传入只能更小。
+        # Add this Skill's frame cap when absent; an explicitly passed value may only be smaller.
         frames = parameters.setdefault("max_frames", cap)
         if isinstance(frames, bool) or not isinstance(frames, int) or not 1 <= frames <= cap:
             raise ValueError(f"max_frames must be an integer from 1 to {cap}")
@@ -855,7 +855,7 @@ def job_call(tool, raw_parameters, attempt):
                                        separators=(",", ":")).encode()).hexdigest()[:16]
     key = "".join(char if char in KEY_CHARS else "-" for char in f"{SKILL.name}:{run_dir().name}:{tool}:{digest}:a{attempt}")
     if len(key) > KEY_LIMIT:
-        # 安装目录名过长时整体取摘要：仍然稳定，只是不再可读。
+        # When the install directory name is too long, take a digest of the whole: still stable, just no longer readable.
         key = "kabo:" + hashlib.sha256(key.encode()).hexdigest()[:48] + f":a{attempt}"
     return {"tool": tool, "arguments": {"parameters": parameters, "delivery": "download", "idempotency_key": key}}
 
@@ -864,13 +864,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init").add_argument("--workspace", required=True)
-    # 两个子命令都只从文件或 stdin 读完整结果，签名下载链接不进 argv；`fetch --id` 只收结果编号（10 分钟有效），
-    # 交接也只让模型交编号（docs/skills-spec.md KS7.3）。
+    # Both subcommands read the full result only from a file or stdin, so the signed download link never appears in argv; `fetch --id` accepts only a result ID (valid for 10 minutes),
+    # and the handoff has the model pass only the ID as well (docs/skills-spec.md KS7.3).
     for name in ("stage", "fetch"):
         command = commands.add_parser(name)
         command.add_argument("--tool", required=True)
         command.add_argument("--input", default="-")
-    # 下载就绪的结果只交编号（或含编号的下载链接），不存文件。
+    # A download-ready result is handed off by ID only (or a download link containing the ID), not stored as a file.
     command.add_argument("--id", help="the result id from the result's download url, instead of --input")
     command = commands.add_parser("job-call")
     command.add_argument("--tool", required=True)

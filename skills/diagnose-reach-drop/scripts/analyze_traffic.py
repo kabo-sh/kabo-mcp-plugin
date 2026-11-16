@@ -86,7 +86,8 @@ def digest(value: Any) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-# 只有随时间累积的计数适用；平均值、比率可能涨也可能跌，退回原来的年龄受限结论。
+# Only counts that accumulate over time qualify; averages and ratios may rise or fall, so fall back to the
+# original age-limited conclusion.
 CUMULATIVE_METRICS = frozenset(("views", "view_count", "plays", "play_count", "likes", "comments", "shares", "saves",
                                 "reach", "impressions"))
 
@@ -154,7 +155,9 @@ def validate_case(case: dict) -> None:
             common = {"id", "source_ref"}
             if module == "performance":
                 fields(row, common | {"content_id", "format", "metrics"},
-                       {"url", "date_label", "published_at", "observed_at", "published_on", "observed_on", "post_age_hours"})
+                       {"url", "date_label", "published_at", "observed_at", "published_on", "observed_on", "post_age_hours",
+                        "approximate"})
+                require(row.get("approximate", True) is True, "approximate marks a rough figure: true or omitted")
                 if "date_label" in row:
                     text(row["date_label"])
                 for stem in ("published", "observed"):
@@ -314,12 +317,21 @@ def from_analysis(case: dict, analysis: dict) -> dict:
             f"plan account {account_identity(case['account'])!r} on {case['platform']} does not match the "
             f"AccountAnalysis account {actual!r} on {analysis.get('platform')}; set the plan's account and "
             "platform to the analysis's")
-    require(not case.get("performance"), "do not merge supplied and imported performance silently")
+    # Numbers in the plan may arrive together with imported public data, but they must be attached to the source the
+    # question itself declares: landing on the plan's default public source would pass them off as that imported
+    # data. Each source gets its own row, and comparisons are made only within the same source (see performance).
+    default_public = any(source["id"] == "brief-source" and source["kind"] == "public"
+                         for source in case.get("sources", []))
+    require(not default_public or all(row.get("source_ref") != "brief-source"
+                                      for row in case.get("performance", [])),
+            "values in this plan are not from the imported public data: give each question that "
+            "carries values its own source, for example {\"kind\": \"user_supplied\", \"locator\": "
+            "\"creator message\"}")
     value = json.loads(json.dumps(case, allow_nan=False))
     source_id = "account-analysis:" + text(analysis.get("analysis_id"))
     value["sources"].append({"id": source_id, "kind": "public", "locator": source_id})
     observed = analysis["scope"]["observed_at"]
-    value["performance"] = [
+    value["performance"] = value.get("performance", []) + [
         {"id": str(row["content_id"]), "content_id": str(row["content_id"]),
          "format": row["format"], "published_at": row["published_at"], "observed_at": observed,
          "metrics": row["metrics"], "source_ref": source_id}
@@ -352,9 +364,14 @@ def selected(q: dict, records: list[dict]) -> list[tuple[str, list[dict]]]:
 def performance(q: dict, groups: list) -> tuple[list, list, list]:
     facts, limits, missing = [], [], []
     metric = q["metric"]
-    if len(groups) < 2 or any(not rows for _, rows in groups):
+    if not groups or any(not rows for _, rows in groups):
         return facts, limits, ["earlier_and_recent_performance_records"]
-    if q["kind"] == "recent_drop":
+    require(len({r["source_ref"] for _, rows in groups for r in rows}) == 1,
+            "a comparison uses one source: split this question into one question per source")
+    # With only one group, still deliver the values as observations (no comparison and no change conclusion),
+    # rather than treating the whole question as having no data.
+    single = len(groups) == 1
+    if q["kind"] == "recent_drop" and not single:
         require(len(groups) == 2, "recent_drop requires earlier and recent groups")
     all_ids = [r["content_id"] for _, rows in groups for r in rows]
     require(len(all_ids) == len(set(all_ids)), "select one observation per content; cohorts must be disjoint")
@@ -392,6 +409,8 @@ def performance(q: dict, groups: list) -> tuple[list, list, list]:
                     local_limits.append("missing_requested_metric")
                     continue
                 values.append(number(value))
+                if row.get("approximate"):
+                    local_limits.append("approximate_supplied_value")
                 if age is not None:
                     cohort_ages.append(age)
                     aged.append((age, number(value)))
@@ -407,6 +426,7 @@ def performance(q: dict, groups: list) -> tuple[list, list, list]:
                               "sample_sum": sum(values) if values else None,
                               "age_hours": {"min": min(cohort_ages), "max": max(cohort_ages)} if cohort_ages else None,
                               "publication_range": publication_range,
+                              "approximate": any(r.get("approximate") for r in cohort if r["id"] in accepted),
                               "record_ids": accepted})
             if "target" in q:
                 target = q["target"]
@@ -430,11 +450,14 @@ def performance(q: dict, groups: list) -> tuple[list, list, list]:
         if fmt in {"unknown", "unknown_video"}:
             local_limits.append("format_unverified")
         change = None
-        if all(s["median"] is not None for s in summaries):
+        if single:
+            local_limits.append("no_comparison_group")
+        elif all(s["median"] is not None for s in summaries):
             change = delta(summaries[0]["median"], summaries[-1]["median"])
         target_evaluation = ({"value": q["target"], "basis": q["target_basis"],
                               "groups": target_groups} if "target" in q else None)
         facts.append({"type": "performance", "format": fmt, "metric": metric,
+                      "source_ref": groups[0][1][0]["source_ref"],
                       "groups": summaries, "change": change,
                       "comparison": "limited" if local_limits else "same_age_descriptive",
                       "limits": sorted(set(local_limits)), "record_ids": refs,
@@ -451,7 +474,7 @@ def performance(q: dict, groups: list) -> tuple[list, list, list]:
         limits.extend(["observed_periods_only_not_long_term_proof", "sample_sum_is_not_calendar_traffic"])
     if "missing_requested_metric" in limits:
         missing.append(f"{metric}_for_selected_missing_records")
-    if "missing_same_format_comparator" in limits:
+    if "missing_same_format_comparator" in limits or single:
         missing.append("earlier_and_recent_performance_records")
     if "different_observation_ages" in limits or "unknown_observation_ages" in limits:
         missing.append("same_post_age_measurements_for_stronger_comparison")

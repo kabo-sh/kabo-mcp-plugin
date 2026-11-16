@@ -162,7 +162,8 @@ def merge(
         envelope = envelopes_by_path.get(envelope_name)
         if envelope is None:
             continue
-        # 部分成功的真实行仍可送 Gate，覆盖限制随来源保留；失败载荷不参与。
+        # Real rows from a partial success can still go to the Gate, with the coverage limits kept alongside the
+        # source; failed payloads do not take part.
         payload = envelope_payload(envelope)
         limitations = payload.get("limitations")
         limitations = [value for value in limitations if isinstance(value, str)] if isinstance(limitations, list) else []

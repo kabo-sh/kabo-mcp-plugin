@@ -1,6 +1,9 @@
-// diagnose-reach-drop 的流量来源对比：两组各是一个日历周期（上周对这周）时，每组带自己的日历窗口，
-// 不能被改写成“发布后 168 小时”。窗口要两组都给、都是日历周期、时长相同、按时间先后且不重叠；
-// 时长不同、重叠或倒序时不出对比结论，只记限制。夹具是中性的合成账号汇总数据。
+// Traffic-source comparison in diagnose-reach-drop: when the two groups are each a calendar period (last week
+//   vs this week), each group carries its own calendar window,
+// which must not be rewritten as "168 hours after publication". Windows must be given for both groups, be
+//   calendar periods, have the same length, be in time order and not overlap;
+// when lengths differ, windows overlap or are reversed, no comparison conclusion is drawn and only a
+//   limitation is recorded. The fixture is a neutral synthetic account summary.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";

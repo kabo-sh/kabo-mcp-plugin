@@ -65,7 +65,8 @@ def select(request: dict[str, Any], candidates: list[dict[str, Any]],
                 video_path = parsed.path.startswith(("/reel/", "/reels/", "/p/", "/tv/"))
             if not video_path or eligibility.format_of(item, platform) == "photo":
                 continue
-            # 用户明确排除的话题仍不展示；画像匹配、广告标记、受众量级和资料缺失只影响正常推荐。
+            # Topics the user explicitly excluded are still not shown; profile match, ad flag, audience size and missing
+            #   data only affect normal recommendations.
             if eligibility.excluded_topics_named(item, excluded) or key in seen_keys or url in seen_urls:
                 continue
             seen_keys.add(key)
@@ -73,7 +74,8 @@ def select(request: dict[str, Any], candidates: list[dict[str, Any]],
             rows.append({"content_key": key, "platform": platform, "url": url,
                          "title": str(item.get("title") or item.get("caption") or "").strip(),
                          "published_at": item.get("published_at") if isinstance(item.get("published_at"), str) else None})
-    # 只复用已打出的相关性分和原始采集顺序，不补分、不重搜、不宣称这些视频通过了原门槛。
+    # Only reuses the relevance scores already assigned and the original collection order: no extra scoring, no
+    #   re-search, and no claim that these videos passed the original threshold.
     rows.sort(key=lambda row: tuple(-value for value in scores.get(row["content_key"], (0.0, 0.0))))
     return rows[:LIMIT]
 

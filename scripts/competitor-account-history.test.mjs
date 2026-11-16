@@ -1,9 +1,13 @@
-// analyze-creator-competitors 的账号取数走一次后台组合调用（collect_account_history，KS9）：
-// subject（主页 + 第一页；IG 解析不到时同一次调用带回候选）、select（入选账号主页 + IG 按时间窗规则翻页的 Reels，候补补位在后台）、
-// content（只补还欠页的账号，通常没有）。这里用中性的小 fixture 跑驱动：核对交出的调用逐字节、
-// 组合结果按记录逐项放到原来的文件名，下游快照构建一路跑到打印综合判断的输入。
-// 少一次宿主往返的两个入口也在这里测：首个阶段带 --workspace 自己占运行目录（不用单独 init），
-// 续跑（--placed）自己 fetch / stage 交接点名的文件（一条命令代替「每条 stage + 续跑」）；--result 仍可另指文件。
+// analyze-creator-competitors fetches account data through one backend composite call (collect_account_history, KS9):
+// subject (profile + first page; when IG cannot be resolved, the same call brings back candidates), select
+// (profiles of the selected accounts + IG Reels paged by the time-window rule, with backup accounts filling in
+// at the backend), content (only fills in accounts still owed pages, usually none). The driver is run here on a
+// neutral small fixture: it checks the emitted call byte for byte, that the composite result is placed item by
+// item under the original filenames, and that the downstream snapshot build runs all the way to printing the
+// input for the synthesis judgment.
+// The two entry points that save one host round trip are also tested here: the first stage with --workspace
+// claims the run directory itself (no separate init), and the resume (--placed) itself fetches / stages the file
+// named in the handoff (one command replaces "each stage + resume"); --result can still point to another file.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, realpath, rm, writeFile, access } from "node:fs/promises";
@@ -54,7 +58,7 @@ function run(args, cwd, runDir) {
   return { code: result.status, out: (result.stdout ?? "") + (result.stderr ?? "") };
 }
 
-// 一个阶段交出的调用：每条 call: 行与它下面槽位行里的退路文件。
+// The calls emitted by one stage: each call: line and the fallback file in the slot line beneath it.
 const handed = (out) => {
   const lines = out.split("\n");
   return lines.flatMap((line, i) => line.startsWith("call: ")
@@ -63,7 +67,8 @@ const handed = (out) => {
 
 const realpathOf = (dir) => realpath(dir);
 const runDirOf = (out) => /^run directory: (.+)$/m.exec(out)?.[1];
-// 交接末尾打印的「一条命令续跑」：去掉 cd / 环境变量前缀，只留参数。
+// The "one-command resume" printed at the end of the handoff: drop the cd / environment-variable prefix and
+// keep only the arguments.
 const oneCommand = (out) => {
   const line = out.split("\n").find((l) => l.startsWith("Then run this one command"));
   const command = line.slice(line.indexOf("cd '")).replace(/( --id \d+=<id>)+$/, "");
@@ -71,17 +76,19 @@ const oneCommand = (out) => {
     .map((m) => m[1] ?? m[2]);
 };
 
-// 模型只把结果原样存进交接点名的文件（绝对路径）；续跑自己取。
+// The model only saves the result unchanged into the file named in the handoff (absolute path); the resume
+// fetches by itself.
 async function answer(runDir, item, result) {
   assert.ok(path.isAbsolute(item.save) && item.save.startsWith(runDir), item.save);
   await writeFile(item.save, JSON.stringify({ structuredContent: result }));
 }
 
-test("竞品账号取数：subject / select 各交出一次 collect_account_history（IG 的 Reels 历史随 select 一起取，content 不再交接），结果逐项落到原来的文件", async (t) => {
+test("competitor account fetch: subject / select each hand off one collect_account_history (IG Reels history is fetched together with select, content no longer hands off), and results land item by item in the original files", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acc-history-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
 
-  // subject：首个命令带 --workspace，自己占运行目录；主页 + 第一页，一次调用。
+  // subject: the first command carries --workspace and claims the run directory itself; profile + first page, in
+  // one call.
   let step = run([path.join(scripts, "drive.py"), "subject", "--workspace", workspace, "--handle", "neutral.creator"], workspace);
   assert.equal(step.code, 0, step.out);
   const runDir = runDirOf(step.out);
@@ -92,7 +99,8 @@ test("竞品账号取数：subject / select 各交出一次 collect_account_hist
     platform: "instagram", accounts: [{ handle: "neutral.creator" }], profile: true,
     history: { max_pages: 1, instagram_formats: { posts: false, reels: true } }, on_identity_miss: "candidates",
     delivery: "download" } }]);
-  // 一条命令续跑：存好结果后只跑这一条，它自己 stage（结果里没有就绪下载）再续跑。
+  // One-command resume: after saving the result, run only this one; it stages by itself (the result has no ready
+  // download) and then resumes.
   const resume = oneCommand(step.out);
   assert.deepEqual(resume, ["subject", "--workspace", workspace, "--handle", "neutral.creator", "--placed"]);
   assert.match(step.out, /not the reply/);
@@ -108,7 +116,8 @@ test("竞品账号取数：subject / select 各交出一次 collect_account_hist
   assert.equal(handed(step.out).length, 0);
   assert.equal(JSON.parse(await readFile(path.join(runDir, "subject-profile.json"), "utf8")).data.profile.username, "neutral.creator");
 
-  // select（provided：没有候补）：入选账号的主页 + Reels 历史（content 的页数预算与时间窗规则），一次调用。
+  // select (provided: no backup accounts): selected accounts' profiles + Reels history (content's page budget and
+  // time-window rule), in one call.
   await writeFile(path.join(runDir, "competitor-research-request.json"), JSON.stringify({
     subject: { name: "Neutral Creator", description: "Short desk setup tours", kind: "creator", account_ref: "neutral.creator" },
     platforms: ["instagram"], formats: ["reel"], discovery_mode: "provided",
@@ -124,7 +133,7 @@ test("竞品账号取数：subject / select 各交出一次 collect_account_hist
     history: { max_pages: 3, instagram_formats: { posts: false, reels: true }, since, until, min_items_since: 6 },
     delivery: "download" } }]);
   const first = {
-    "creator.one": reels("creator.one", 11, [1, 3, 6], { cursor: "next-one" }), // 窗口未覆盖、窗内不足 6 条：还欠一页
+    "creator.one": reels("creator.one", 11, [1, 3, 6], { cursor: "next-one" }), // Window not covered, fewer than 6 posts in the window: one page still owed
     "creator.two": reels("creator.two", 21, [2, 4, 8]),
     "creator.three": reels("creator.three", 31, [3, 7, 12]),
   };
@@ -142,7 +151,8 @@ test("竞品账号取数：subject / select 各交出一次 collect_account_hist
     await access(path.join(runDir, `reels-${handle}-p1.json`));
   }
 
-  // content：select 已按页数预算与时间窗读完历史，没有还欠页的账号，不再交接。
+  // content: select has already read the history per the page budget and time window, no account is still owed
+  // pages, so no handoff happens.
   await writeFile(path.join(runDir, "competitor-eligibility.json"), JSON.stringify({ direct_refs: accounts }));
   step = drive("content");
   assert.equal(step.code, 0, step.out);
@@ -155,7 +165,7 @@ test("竞品账号取数：subject / select 各交出一次 collect_account_hist
     "the second page's in-window Reel reaches the snapshot");
 });
 
-test("竞品主体：IG 账号解析不到时同一次调用带回候选，打印后停下等用户确认，不打印 Request schema", async (t) => {
+test("competitor subject: when an IG account cannot be resolved, the same call returns candidates, prints them and stops for user confirmation, without printing the Request schema", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acc-identity-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   let step = run([path.join(scripts, "drive.py"), "subject", "--workspace", workspace, "--handle", "neutral.maker"], workspace);
@@ -185,7 +195,7 @@ test("竞品主体：IG 账号解析不到时同一次调用带回候选，打�
   assert.equal(handed(step.out).length, 0);
 });
 
-test("竞品主体：--result 另指一份存好的结果时照样取走（等同 --placed）；文件不存在时点名该文件", async (t) => {
+test("competitor subject: when --result points to another saved result it is still taken (same as --placed); when the file does not exist, name that file", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acc-result-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   let step = run([path.join(scripts, "drive.py"), "subject", "--workspace", workspace, "--handle", "neutral.creator"], workspace);

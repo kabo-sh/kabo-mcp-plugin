@@ -1,4 +1,5 @@
-// 保护真实行为边界：年轻帖可被描述，但不能作为成熟表现模式；报告必须保留观察限制和原数值。
+// Guard the real behavior boundary: a young post may be described but cannot be used as a mature performance
+// pattern; the report must keep the observation limits and the original values.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";

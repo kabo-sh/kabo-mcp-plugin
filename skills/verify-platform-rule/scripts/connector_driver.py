@@ -185,11 +185,14 @@ def take_result_ids(argv: list[str]) -> dict[str, str]:
 
 
 RESULT_IDS = take_result_ids(sys.argv)
-# 交接点名的结果槽位（编号、工具、退路文件的绝对路径，按调用顺序）与续跑已取走的槽位（路径 -> 内容 sha256），记在本次运行的状态里。
+# The result slots named in the handoff (id, tool, and the absolute path of the fallback file, in call order) and
+# the slots the resume has already taken (path -> content sha256), recorded in this run's state.
 AWAITING = "awaiting_results"
 TAKEN = "taken_results"
-# 每轮交接都打印，所以要短。实测里模型手抄结果是插件交接的头号故障（patch 写坏、签名链接抄漏、改写字段、
-# 存错目录）；现在只交编号，结果由续跑按编号自己取。存文件只是没有下载链接时的退路。
+# Printed every handoff round, so it must be short. In real runs the model hand-copying results was the top
+# failure of the plugin handoff (broken patches, truncated signed links, rewritten fields, saving to the wrong
+# directory); now only the id is handed over, and the resume fetches the result by id itself. Saving to a file is
+# only the fallback when there is no download link.
 SAVE_RULE = ("Do not save the results. Each result's download url holds its result id: the 22 characters between "
              "`research-export/v1/` and `.json`. Put each call's id into the resume command below as "
              "`--id <slot>=<id>`. Only for a result with no download url, save that result whole, as returned, "
@@ -217,7 +220,8 @@ def await_results(tools: list[str]) -> list[Path]:
 
 
 def say_slot(file: Path) -> None:
-    # 退路文件只在没有下载链接时才用；写成「存到」会让模型照着先存一份（实测）。
+    # The fallback file is used only when there is no download link; phrasing it as "save to" makes the model save
+    # a copy first (observed).
     say(f"  result {slot_of(file)}  (fallback file, only if this result has no download url: {file})")
 
 
@@ -228,8 +232,9 @@ def say_resume(files: list[Path] | None = None) -> None:
 
 
 def hand_over(calls, why=""):
-    # 每条调用下面打印它的槽位，结尾只打印一条带 --id 的续跑命令：续跑按编号自己取（没有编号时读退路文件），
-    # 模型不存结果，也不单独跑 static_host.py。
+    # Under each call print its slot, and at the end print only one resume command carrying --id: the resume fetches
+    # by id itself (reading the fallback file when there is no id), so the model does not save the result and does
+    # not run static_host.py separately.
     from static_host import public_calls
     public = [mapped for call in calls for mapped in public_calls(call)]
     files = await_results([mapped["tool"] for mapped in public])
@@ -265,7 +270,8 @@ def take_saved_results(pairs: list[tuple[str, Path]]) -> None:
             raise StageError(f"no result id for slot {slot_of(path)} ({tool}) and cannot read {path} "
                              f"({error.strerror or error}). Run the resume command again with "
                              f"--id {slot_of(path)}=<id>, the id from that call's download url") from None
-    # 同一个编号交给两个槽位，后一个槽位会被当成「已持有」跳过、少一份结果：续跑前就拒掉。
+    # If the same id is given to two slots, the latter slot is treated as "already held" and skipped, leaving one
+    # result short: reject it before the resume.
     seen: dict[str, str] = {}
     for tool, path, raw, given in read:
         if not given:
@@ -273,7 +279,7 @@ def take_saved_results(pairs: list[tuple[str, Path]]) -> None:
         try:
             key = static_host.result_id_of(given)
         except ValueError:
-            continue  # 取的时候按编号格式报错
+            continue  # Report an error on the id format at fetch time
         if key in seen:
             raise StageError(f"slots {seen[key]} and {slot_of(path)} were given the same result id; each call's "
                              "result has its own id. Run the resume command again with each slot's own id") from None
@@ -506,12 +512,15 @@ def fetch_round(calls: list[dict[str, Any]], args: argparse.Namespace, place_res
         return False
     handed = dict(current.get("handed") or {})
     if args.placed and key not in handed:
-        # 这一轮还没交接过（例如阶段在交接前就因为模型写的产物报错停了），--placed 没有可放置的结果：
-        # 照常交接，免得模型自己去调取数工具、把编号交给一个没有槽位的续跑（实测白白多取一次）。
+        # This round has not been handed off yet (e.g. the stage stopped on an error in a model-written artifact
+        # before the handoff), so --placed has nothing to place:
+        # hand off as usual, so the model does not call the data-fetch tool itself and give an id to a resume that
+        # has no slot (measured: one wasted extra fetch).
         say("[drive] --placed, but this round was not handed over yet; handing it over now")
         args.placed = False
     if key in handed:
-        # 交接点名的结果文件由续跑自己 fetch / stage，模型只存文件、跑一条续跑命令。
+        # The result files named by the handoff are fetched / staged by the resume itself; the model only saves the
+        # files and runs one resume command.
         take_handed_results(calls, str(handed[key]), args.placed, optional)
     if not args.placed and key in handed:
         if made_since(calls, str(handed[key])):

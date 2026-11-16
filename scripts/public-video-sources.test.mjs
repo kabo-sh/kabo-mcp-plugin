@@ -1,9 +1,12 @@
-// 单视频分析接受哪些平台，只看支持清单 public-video-sources.v1：kabo 的 docs/contracts/public-video-sources.v1.json
-// 逐字拷到 contracts/，analyze-content-video 的 references/ 下放逐字相同的副本（Skill 单独安装、Web 打包都带着它）；
-// 脚本按它读平台、编号前缀、链接 id 与公开计数，schema 的平台枚举与它一致。这里不联网：信封按 kabo
-// public-video-media.ts 对抖音、Facebook 给出的形状手写（与 acv-video-media.test.mjs 的 TikTok/YouTube 信封同一种写法）：
-// 抖音的元数据与度量随抽帧那一轮带回（data.video / data.signals），单独的元数据、度量答 unsupported；
-// 每条结果的 data 带 video_identity；Facebook 播放数是页面显示的取整值（view_count_basis），读不到就置空。
+// Which platforms single-video analysis accepts comes only from the support list public-video-sources.v1: kabo's
+// docs/contracts/public-video-sources.v1.json is copied byte for byte to contracts/, with a byte-identical copy under
+// analyze-content-video's references/ (a standalone Skill install and the Web bundle both carry it). The scripts read
+// platforms, id prefixes, link ids and public counts from it, and the schema's platform enum matches it. Nothing here
+// goes online: the envelopes are hand-written in the shapes kabo's public-video-media.ts gives for Douyin and Facebook
+// (the same style as the TikTok/YouTube envelopes in acv-video-media.test.mjs). Douyin's metadata and measurements
+// come back with the keyframes round (data.video / data.signals) and the standalone metadata and measure calls answer
+// unsupported; every result's data carries video_identity; the Facebook view count is the page's rounded display
+// (view_count_basis) and is null when it cannot be read.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -27,35 +30,36 @@ function python(args, { cwd = root } = {}) {
   return { code: result.status, stdout: result.stdout, out: result.stdout + result.stderr };
 }
 
-test("支持清单：contracts/ 与 Skill 副本逐字相同，形状符合 public-video-sources.v1", async () => {
+test("support list: contracts/ and the Skill copy are byte-identical and match the public-video-sources.v1 shape", async () => {
   const pinned = await readFile(path.join(root, "contracts/public-video-sources.v1.json"), "utf8");
   const copy = await readFile(path.join(skill, "references/public-video-sources.v1.json"), "utf8");
-  assert.equal(copy, pinned, "references/public-video-sources.v1.json 必须与 contracts/ 下的钉住版本逐字相同");
+  assert.equal(copy, pinned, "references/public-video-sources.v1.json must be byte-identical to the pinned copy under contracts/");
   const list = JSON.parse(pinned);
   assert.equal(list.schema_version, "public-video-sources.v1");
   assert.deepEqual(list.sources.map((source) => source.id).sort(), [...IDS].sort());
   const hosts = new Set(), prefixes = new Set();
   for (const source of list.sources) {
-    for (const key of Object.keys(source)) assert.ok(KEYS.has(key), `${source.id}: 未知字段 ${key}`);
+    for (const key of Object.keys(source)) assert.ok(KEYS.has(key), `${source.id}: unknown field ${key}`);
     assert.ok(typeof source.label === "string" && source.label.trim(), source.id);
     assert.match(source.content_id_prefix, /^[a-z]+$/);
-    assert.ok(!prefixes.has(source.content_id_prefix), `${source.id}: 前缀重复`);
+    assert.ok(!prefixes.has(source.content_id_prefix), `${source.id}: duplicate prefix`);
     prefixes.add(source.content_id_prefix);
     for (const host of [...source.page_hosts, ...source.short_link_hosts]) {
-      assert.equal(host, host.toLowerCase(), `${source.id}: ${host} 须小写`);
-      assert.ok(!hosts.has(host), `${host} 出现在两个平台`);
+      assert.equal(host, host.toLowerCase(), `${source.id}: ${host} must be lowercase`);
+      assert.ok(!hosts.has(host), `${host} appears under two platforms`);
       hosts.add(host);
     }
     assert.ok(source.page_hosts.length && source.url_patterns.length, source.id);
     for (const pattern of [...source.url_patterns, ...(source.short_link_path_patterns ?? [])]) {
-      // JS 与 Python 都要能编译；锚定在路径开头。
-      assert.ok(pattern.startsWith("^/"), `${source.id}: ${pattern} 须锚定在路径开头`);
+      // Both JS and Python must compile it; it is anchored at the start of the path.
+      assert.ok(pattern.startsWith("^/"), `${source.id}: ${pattern} must be anchored at the start of the path`);
       new RegExp(pattern);
     }
-    // 第一个捕获组是视频 id；没有捕获组的那条从 query_id_params 取 id，所以这个平台必须声明查询参数。
+    // The first capture group is the video id; a pattern without one takes the id from query_id_params, so the
+    // platform must declare its query parameters.
     for (const pattern of source.url_patterns)
       if (new RegExp(`${pattern}|`).exec("").length < 2)
-        assert.ok(source.query_id_params?.length, `${source.id}: ${pattern} 没有捕获组，也没有 query_id_params`);
+        assert.ok(source.query_id_params?.length, `${source.id}: ${pattern} has no capture group and no query_id_params`);
     if ("query_id_params" in source) assert.ok(source.query_id_params.every((name) => typeof name === "string" && name), source.id);
     assert.match(source.canonical_url, /^https:\/\/[^/]+\/.*\{id\}/);
     assert.equal(source.metadata_route, source.id === "youtube" ? "youtube_get_video" : "media_call");
@@ -71,7 +75,7 @@ test("支持清单：contracts/ 与 Skill 副本逐字相同，形状符合 publ
   assert.equal(compiled.code, 0, compiled.out);
 });
 
-test("支持清单：schema 的平台枚举、SKILL.md 证据表与读证据说明都与清单一致，脚本里没有另写的平台表", async () => {
+test("support list: the schema platform enum, the SKILL.md evidence table and the evidence-reading notes match it, and no script keeps its own platform table", async () => {
   const ids = (await readJson(path.join(root, "contracts/public-video-sources.v1.json"))).sources.map((source) => source.id).sort();
   const request = await readJson(path.join(skill, "references/video-analysis-request.schema.json"));
   assert.deepEqual([...request.properties.source.properties.platform.enum].sort(), [...ids, "unknown"].sort());
@@ -83,21 +87,21 @@ test("支持清单：schema 的平台枚举、SKILL.md 证据表与读证据说�
   const list = await readJson(path.join(root, "contracts/public-video-sources.v1.json"));
   const body = await readFile(path.join(skill, "SKILL.md"), "utf8");
   const header = body.split("\n").find((line) => line.startsWith("| Evidence |"));
-  for (const source of list.sources) assert.ok(header.includes(source.label), `证据表没有 ${source.label}`);
+  for (const source of list.sources) assert.ok(header.includes(source.label), `the evidence table has no ${source.label}`);
   const reading = await readFile(path.join(skill, "references/evidence-reading.md"), "utf8");
   for (const source of list.sources.filter((item) => !item.public_metrics.views))
-    assert.match(reading, new RegExp(`${source.label}[^.]*publish\\s+no\\s+public\\s+view\\s+count`), `evidence-reading.md 没说 ${source.label} 不公开播放数`);
+    assert.match(reading, new RegExp(`${source.label}[^.]*publish\\s+no\\s+public\\s+view\\s+count`), `evidence-reading.md does not say ${source.label} publishes no view count`);
 
-  // 平台表只在清单里：同一行同时写出三个老平台的字面量，就是又抄了一份表。
+  // The platform table lives only in the list: a line naming all three original platforms as literals is another copy of it.
   for (const name of await readdir(scripts)) {
     if (!name.endsWith(".py")) continue;
     const text = await readFile(path.join(scripts, name), "utf8");
     for (const line of text.split("\n"))
-      assert.ok(!["\"youtube\"", "\"instagram\"", "\"tiktok\""].every((word) => line.includes(word)), `${name} 仍写死平台表：${line.trim()}`);
+      assert.ok(!["\"youtube\"", "\"instagram\"", "\"tiktok\""].every((word) => line.includes(word)), `${name} still hard-codes a platform table: ${line.trim()}`);
   }
 });
 
-// 期望值按 kabo matchPublicVideoSource 的口径：[平台, 种类, id]；null 表示不是清单里的视频页。
+// Expected values follow kabo matchPublicVideoSource: [platform, kind, id]; null means not a video page on the list.
 const SAMPLES = {
   "https://www.douyin.com/video/7703997413695219810": ["douyin", "video", "7703997413695219810"],
   "https://www.iesdouyin.com/share/video/7703997413695219810/?region=CN": ["douyin", "video", "7703997413695219810"],
@@ -125,12 +129,12 @@ const SAMPLES = {
   "https://www.youtube.com/v/dQw4w9WgXcQ": ["youtube", "video", "dQw4w9WgXcQ"],
   "https://www.tiktok.com/@someone/video/7301234567890123456?lang=en": ["tiktok", "video", "7301234567890123456"],
   "https://vm.tiktok.com/ZMabc/": ["tiktok", "short_link", null],
-  // 主机名精确比较，不做后缀匹配；只认 https。
+  // Hosts are compared exactly, never by suffix; https only.
   "https://www.douyin.com.example.net/video/7703997413695219810": null,
   "http://www.douyin.com/video/7703997413695219810": null,
 };
 
-test("支持清单：链接按 kabo 的口径认平台与 id——主机精确匹配、无捕获组的取查询参数、分享路径算短链、短链不猜 id", () => {
+test("support list: links resolve to platform and id by kabo's rules (exact hosts, query id when no capture group, share paths are short links, no guessed short-link ids)", () => {
   const probe = "import json,sys; sys.path.insert(0, sys.argv[1]); import public_video_sources as s; "
     + "out = {}\nfor u in json.loads(sys.argv[2]):\n  m = s.match_url(u)\n  out[u] = [m['platform'], m['kind'], m['id']] if m else None\n"
     + "  assert s.content_id_from_url(m['platform'] if m else 'douyin', u) == (m['id'] if m else None)\nprint(json.dumps(out))";
@@ -147,7 +151,8 @@ function mediaEnvelope(operation, jobId, data, { status = "completed", limitatio
     request_id: `req-${jobId}`, retrieved_at: "2026-11-12T00:00:00Z", observation_refs: [], ...(data === undefined ? {} : { data }),
   };
 }
-// kabo notFetchedForPlatform：单独的元数据、度量在付费解析的平台上答 unsupported，不带 data。
+// kabo notFetchedForPlatform: on the paid-resolver platforms the standalone metadata and measure calls answer
+// unsupported, with no data.
 const unsupported = (operation, jobId, pointer) => mediaEnvelope(operation, jobId, undefined, {
   status: "unsupported",
   limitations: [{ code: "operation_not_implemented", message: `This operation did not retrieve anything for this Douyin link, and ${pointer}. Do not substitute prior knowledge or treat anything missing here as zero.` }],
@@ -171,7 +176,8 @@ const FACEBOOK_IDENTITY = { platform: "facebook", platform_video_id: FACEBOOK_ID
 const CASES = [
   {
     platform: "douyin", label: "Douyin", zh: "抖音视频", prefix: "dy", url: `https://www.douyin.com/video/${DOUYIN_ID}`, id: DOUYIN_ID,
-    // 付费解析的平台：元数据与度量都在抽帧那一轮里；抖音不公开播放数，view_count 为 null，证据里不能出现播放数。
+    // A paid-resolver platform: metadata and measurements both arrive in the keyframes round; Douyin publishes no
+    // view count, so view_count is null and the evidence must not show one.
     envelopes: () => [
       unsupported("collect_public_metadata", uuid(1), "the keyframes result for this video carries its public metadata as data.video"),
       mediaEnvelope("fetch_transcript", uuid(2), transcriptData(DOUYIN_IDENTITY)),
@@ -189,7 +195,8 @@ const CASES = [
   },
   {
     platform: "facebook", label: "Facebook", zh: "Facebook 视频", prefix: "fb", url: `https://www.facebook.com/reel/${FACEBOOK_ID}`, id: FACEBOOK_ID,
-    // Facebook 走通用下载器：元数据单独一轮；播放数是页面显示的取整值，带一条精度说明。
+    // Facebook uses the general downloader: metadata is its own round; the view count is the page's rounded
+    // display, with a precision note.
     envelopes: () => [
       mediaEnvelope("collect_public_metadata", uuid(1), { video_identity: FACEBOOK_IDENTITY, artifacts: [],
         video: { id: FACEBOOK_ID, title: "161K views · 2.3K reactions | Reel", description: "Reel caption", channel: "Page", channel_id: "100",
@@ -208,7 +215,7 @@ const CASES = [
 ];
 
 for (const item of CASES) {
-  test(`${item.label} 链接走完 prepare_link_request → prepare_video_hook → 证据构建，方法与老平台相同`, async (t) => {
+  test(`${item.label} link goes through prepare_link_request -> prepare_video_hook -> evidence, with the same method as the original platforms`, async (t) => {
     const run = await mkdtemp(path.join(os.tmpdir(), `kabo-acv-${item.platform}-`));
     t.after(() => rm(run, { recursive: true, force: true }));
     await mkdir(path.join(run, "snapshot"));
@@ -220,7 +227,8 @@ for (const item of CASES) {
       await writeFile(file, JSON.stringify(envelope));
       files.push(file);
     }
-    // 链接读取得到的 linked-media 包（Web 读链接时给的形状），指回带元数据的那条信封。
+    // The linked-media bundle from reading the link (the shape Web gives when it reads a link) points back to the
+    // envelope that carries metadata.
     const source = media[item.linkedSource];
     const linked = path.join(run, "snapshot/linked-media.json");
     await writeFile(linked, JSON.stringify({
@@ -240,7 +248,7 @@ for (const item of CASES) {
     const requestSchema = ajv.compile(await readJson(path.join(skill, "references/video-analysis-request.schema.json")));
     assert.ok(requestSchema(request), JSON.stringify(requestSchema.errors));
 
-    // 开场方法：与 TikTok 拿到的十五个短视频模式逐字相同，knowledge.json 不改。
+    // Opening method: exactly the fifteen short-video patterns TikTok gets; knowledge.json is unchanged.
     const hook = python([path.join(scripts, "prepare_video_hook.py"), "--platform", item.platform, "--output", path.join(run, "analysis/hook-catalog.json")]);
     assert.equal(hook.code, 0, hook.out);
     const tiktok = python([path.join(scripts, "prepare_video_hook.py"), "--platform", "tiktok", "--output", path.join(run, "analysis/hook-catalog-tiktok.json")]);
@@ -267,13 +275,14 @@ for (const item of CASES) {
     assert.equal(evidence.content_metadata.title, item.platform === "douyin" ? "One thing" : "161K views · 2.3K reactions | Reel");
     assert.equal(evidence.transcript.status, "available");
     assert.equal(evidence.frames.items.length, 3);
-    // 每条信封都记进 acquisition，unsupported 的也记；但它指向的数据到了，不算缺口。
+    // Every envelope is recorded in acquisition, unsupported ones too; but when the data it points to arrived, it
+    // is not a gap.
     assert.deepEqual(evidence.acquisition.map((entry) => entry.status), media.map((envelope) => envelope.status));
     assert.equal(evidence.limitations.some((line) => /returned unsupported|did not retrieve anything/.test(line)), false, JSON.stringify(evidence.limitations));
     assert.equal(Boolean(evidence.media.probed?.shots), item.probed);
     assert.deepEqual(Object.fromEntries((evidence.public_metrics ?? []).map((metric) => [metric.native_name, metric.value])), item.metrics);
     if (item.viewNote) assert.match(evidence.public_metrics.find((metric) => metric.native_name === "view_count").note, item.viewNote);
-    for (const line of item.limitations) assert.ok(evidence.limitations.includes(line), `${line} 不在 ${JSON.stringify(evidence.limitations)}`);
+    for (const line of item.limitations) assert.ok(evidence.limitations.includes(line), `${line} is not in ${JSON.stringify(evidence.limitations)}`);
     assert.equal(evidence.limitations.filter((line) => /does not publish a public/.test(line)).length,
       item.limitations.filter((line) => /does not publish a public/.test(line)).length);
 
@@ -310,7 +319,7 @@ async function buildOnly(t, name, source, envelopes) {
   return { run, built, evidence: built.code === 0 ? await readJson(path.join(run, "analysis/content_evidence.json")) : null };
 }
 
-test("短链只导出逐字稿：链接读不出 id，取后台解析出的 video_identity，证据照常生成并导出 TXT", async (t) => {
+test("short link, transcript only: the link has no readable id, so the backend's video_identity is used and the evidence and TXT export proceed", async (t) => {
   const identity = { ...DOUYIN_IDENTITY, resolved_from_short_link: true };
   const { run, built, evidence } = await buildOnly(t, "douyin-short", { platform: "douyin", url: "https://v.douyin.com/iRNBho6u/", content_id: null },
     [mediaEnvelope("fetch_transcript", uuid(2), transcriptData(identity))]);
@@ -322,22 +331,23 @@ test("短链只导出逐字稿：链接读不出 id，取后台解析出的 vide
   assert.equal(exported.code, 0, exported.out);
   assert.match(await readFile(path.join(run, "report/transcript.txt"), "utf8"), /Here is the one thing you need/);
 
-  // 没有 video_identity 的短链照旧报缺 id，不猜。
+  // A short link without video_identity still reports the missing id; nothing is guessed.
   const none = await buildOnly(t, "douyin-short-none", { platform: "douyin", url: "https://v.douyin.com/iRNBho6u/", content_id: null },
     [mediaEnvelope("fetch_transcript", uuid(2), transcriptData(null))]);
   assert.equal(none.built.code, 1);
   assert.match(none.built.out, /content_ref needs a content_id/);
 
-  // 结果说是别家的视频：请求的平台写错了，说出来，不混用。
+  // The result says the video belongs to another platform: the requested platform was wrong; say so rather than mix them.
   const other = await buildOnly(t, "douyin-mismatch", { platform: "tiktok", url: "https://v.douyin.com/iRNBho6u/", content_id: null },
     [mediaEnvelope("fetch_transcript", uuid(2), transcriptData(identity))]);
   assert.equal(other.built.code, 1);
   assert.match(other.built.out, /identify a douyin video, but the request names 'tiktok'/);
 });
 
-test("只要字幕、只有一条 cue：用字幕结果带回的平台申报时长收尾，SRT 照常导出；没带时长照旧拒绝", async (t) => {
-  // 开发机第四轮实录：快手一条 5.5 秒视频听写只回一条 cue，单独的元数据在这三家上不取，
-  // 证据里没有任何时长，SRT 被拒（final_cue_end_unavailable）。
+test("transcript only, one cue: the platform-declared duration from the transcript result closes it and the SRT exports; without a duration it is still refused", async (t) => {
+  // Dev-box round 4: speech recognition on a 5.5-second Kuaishou video returned one cue, standalone metadata is
+  // not fetched on these three platforms, so the evidence had no duration and the SRT was refused
+  // (final_cue_end_unavailable).
   const oneCue = (extra) => ({ cues: [{ text: "Only line.", start_ms: 400, end_ms: null }], cue_count: 1,
     origin: "speech_recognition", video_identity: DOUYIN_IDENTITY, artifacts: [], ...extra });
   const withDuration = await buildOnly(t, "douyin-one-cue", { platform: "douyin", url: `https://www.douyin.com/video/${DOUYIN_ID}`, content_id: DOUYIN_ID },
@@ -358,8 +368,9 @@ test("只要字幕、只有一条 cue：用字幕结果带回的平台申报时�
   assert.match(refused.out, /final_cue_end_unavailable/);
 });
 
-test("来源视频本身取不到（B 站被删或锁区）：逐字稿不说成「没有字幕轨」，原因进 limitations，SKILL.md 叫模型停下", async (t) => {
-  // 开发机第五轮实录：锁区视频四条结果各说各的，字幕说成「这条视频没有字幕轨」，模型据此写了口播观察。
+test("the source video itself cannot be fetched (Bilibili deleted or region-locked): the transcript is not called \"no subtitle track\", the reason goes into limitations, and SKILL.md tells the model to stop", async (t) => {
+  // Dev-box round 5: the four results for a region-locked video each said something different, the transcript
+  // said "this video exposes no subtitle track", and the model wrote speech observations from that.
   const BV = "BV1GJ411x7h7";
   const reason = "The source video itself could not be fetched: the platform reports it deleted or available only in some regions, which this service cannot reach.";
   const gone = (operation, jobId, data) => mediaEnvelope(operation, jobId, { ...data, source_unavailable: true, artifacts: [] },
@@ -378,7 +389,7 @@ test("来源视频本身取不到（B 站被删或锁区）：逐字稿不说成
   assert.match(skill, /`data\.source_unavailable: true`/);
 });
 
-test("Facebook 播放数读不到（withheld）时为 null：不收进公开计数，不当 0，说明照传", async (t) => {
+test("Facebook views withheld are null: not kept as a public count, not treated as 0, and the note is passed on", async (t) => {
   const withheld = "The view count was withheld: the only figure this path could read does not match what the page shows, so treat views as unknown rather than zero.";
   const { built, evidence } = await buildOnly(t, "facebook-withheld", { platform: "facebook", url: `https://www.facebook.com/reel/${FACEBOOK_ID}`, content_id: FACEBOOK_ID }, [
     mediaEnvelope("collect_public_metadata", uuid(1), { video_identity: FACEBOOK_IDENTITY, artifacts: [],
@@ -393,7 +404,7 @@ test("Facebook 播放数读不到（withheld）时为 null：不收进公开计�
   assert.equal(evidence.limitations.some((line) => /does not publish a public/.test(line)), false);
 });
 
-test("prepare_link_request / prepare_video_hook：清单外的平台照旧拒绝", async (t) => {
+test("prepare_link_request / prepare_video_hook: platforms not on the list are still refused", async (t) => {
   const run = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-unsupported-"));
   t.after(() => rm(run, { recursive: true, force: true }));
   const linked = path.join(run, "linked.json");
@@ -408,9 +419,10 @@ test("prepare_link_request / prepare_video_hook：清单外的平台照旧拒绝
   assert.match(hook.out, /invalid choice: 'vimeo'/);
 });
 
-// collect_media.py 照常要元数据与度量：在付费解析的平台上它们答 unsupported、不取数也不计费，
-// 只取一次的那份付费解析挂在抽帧上。组合结果里的 unsupported 信封要能照常落盘，交给证据构建。
-test("抖音组合调用：元数据、度量答 unsupported 时照常落盘，证据从抽帧那一轮读元数据与度量", async (t) => {
+// collect_media.py still asks for metadata and measurements: on the paid-resolver platforms they answer unsupported,
+// fetch nothing and cost nothing, and the one paid resolution rides on keyframes. The unsupported envelopes in the
+// combined result must still be saved and handed to the evidence builder.
+test("Douyin combined call: metadata and measure answering unsupported are still saved, and the evidence reads metadata and measurements from the keyframes round", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-douyin-media-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1" };

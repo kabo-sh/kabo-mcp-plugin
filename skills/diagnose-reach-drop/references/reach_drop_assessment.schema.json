@@ -187,6 +187,10 @@
                       "type": "string",
                       "minLength": 1
                     },
+                    "source_ref": {
+                      "type": "string",
+                      "minLength": 1
+                    },
                     "groups": {
                       "type": "array",
                       "items": {
@@ -262,6 +266,9 @@
                             "items": {"type": "string"},
                             "minItems": 2,
                             "maxItems": 2
+                          },
+                          "approximate": {
+                            "type": "boolean"
                           },
                           "record_ids": {
                             "type": "array",

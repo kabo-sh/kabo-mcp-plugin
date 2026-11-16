@@ -38,14 +38,15 @@ import static_host  # noqa: E402
 TOOL = "collect_video_media"
 STATE = Path("watch-media.json")
 PLAN = Path("media_job_plan.json")
-# 一次调用最多等 45 秒（Codex 工具超时 60 秒以内）；媒体一轮约三分钟，6 份结果够等满。
+# One call waits at most 45 seconds (within the Codex tool timeout of 60 seconds); a media round takes about three minutes, so 6 results are enough to wait it out.
 MAX_ROUNDS = 6
-# 作者包默认读每条视频开头 3 秒以内的帧（read_deep_synthesis_packet.py 同一口径），先看这些；每条最多看 5 张、
-# 首尾必含、其余均匀取，10 条视频 50 张，留在 Web 每回合 60 张图的上限以内。
+# The author pack by default reads the frames within the first 3 seconds of each video (the same basis as read_deep_synthesis_packet.py); look at these first. At most 5 images per video,
+# first and last always included, the rest evenly sampled; 10 videos make 50 images, within the Web limit of 60 images per turn.
 OPENING_SECONDS = 3
 FRAMES_PER_VIDEO = 5
-# 与 connector_driver.py 的交接同一个办法（kabo ADR-0084「2026-11-04」）：模型只交结果编号，续跑按编号自己取；
-# 存文件只是没有下载链接时的退路。
+# Same approach as the connector_driver.py handoff (kabo ADR-0084 "2026-11-04"): the model hands over only the
+# result id, and the resume fetches by id itself; saving to a file is only the fallback when there is no
+# download link.
 SAVE_RULE = ("Do not save the result. Its download url holds its result id: the 22 characters between "
              "`research-export/v1/` and `.json`. Put the id of your last call's result into the resume command "
              "below as `--id=<id>`. Only if that result has no download url, save it whole, as returned, to the "
@@ -78,7 +79,8 @@ def save_state(value: dict[str, Any]) -> None:
 
 
 def run_key() -> str:
-    # 同一个 run 恒得同一把键：重复调用只是接着等；别的 run 的键不同，不会回放别人的 job。
+    # The same run always gets the same key: a repeated call just continues the wait; another run's key differs, so
+    # it never replays someone else's job.
     return "deep:" + hashlib.sha256(str(static_host.run_dir().resolve()).encode()).hexdigest()[:32]
 
 
@@ -105,7 +107,7 @@ def call_arguments(plan: dict[str, Any]) -> dict[str, Any]:
 
 
 def quote(text: str) -> str:
-    """SKILL.md 的命令形式：每个路径都用单引号包起来。"""
+    """Command form in SKILL.md: every path is wrapped in single quotes."""
     return "'" + str(text).replace("'", "'\\''") + "'"
 
 
@@ -114,18 +116,19 @@ def resume_command(args: argparse.Namespace) -> str:
     argv = [script("watch_media.py"), str(args.analysis), "--cap", str(args.cap),
             "--output-language", args.output_language,
             *[part for content_id in args.named_content_id for part in ("--named-content-id", content_id)], "--placed"]
-    # 不带 KABO_STATIC_RUN_DIR=… 前缀：run 从当前目录找到（static_host.run_dir）。这一行、槽位行和开头的
-    # 「Hand-over: 」与 connector_driver.py 的交接同一种写法，Web 宿主（kabo-agent-service plugin-handover.ts）
-    # 才认得出来、自己调用并续跑；认不出时整段交接落到模型手里，模型常在暂存这一步失手（同 #130）。
+    # No KABO_STATIC_RUN_DIR=... prefix: run is found from the current directory (static_host.run_dir). This line, the slot lines and the opening
+    # "Hand-over: " are written the same way as the handoff in connector_driver.py, so that the Web host (kabo-agent-service plugin-handover.ts)
+    # recognizes them and calls and resumes by itself; when it cannot recognize them the whole handoff falls to the model, which often fumbles this staging step (same as #130).
     return (f"cd {run_directory} && python3 "
-            # `--id=<id>` 而不是 `--id <id>`：结果编号可能以「-」开头（实测 `-lNCEjm2WwISAEzMxbDqAA`），
-            # 分开写时 argparse 把它当成另一个选项，续跑直接报错。Web 宿主照样跳过 `--id=` 这个词。
+            # `--id=<id>` rather than `--id <id>`: a result id may start with "-" (observed `-lNCEjm2WwISAEzMxbDqAA`), and
+            # written as two words argparse takes it for another option and the resume errors out directly. The Web host
+            # skips the `--id=` word all the same.
             + " ".join(quote(part) for part in argv) + " --id=<id>")
 
 
 def bind_run_to_cwd() -> None:
-    """续跑命令只写 `cd '<run>' && python3 …`，不带环境变量；static_host.run_dir 却先读环境变量。shell 里
-    残留着别的 run 的 KABO_STATIC_RUN_DIR 时，媒体证据会写进那个 run。当前目录在某个 run 里，就以它为准。"""
+    """The resume command is only `cd '<run>' && python3 ...` with no environment variable, yet static_host.run_dir reads the environment variable first. When
+    the shell still holds another run's KABO_STATIC_RUN_DIR, the media evidence gets written into that run. If the current directory is inside a run, it takes precedence."""
     here = Path.cwd().resolve()
     run = next((path for path in (here, *here.parents) if (path / ".static-run.json").is_file()), None)
     if run is not None:
@@ -142,7 +145,7 @@ def hand_over_media(plan: dict[str, Any], args: argparse.Namespace, note: str = 
     save_state(current)
     videos = len(plan.get("jobs") or [])
     if note:
-        # 说明单独一行：宿主只认以「Hand-over: 」开头的行，前面带别的字，再交一轮时就认不出了。
+        # The note goes on its own line: the host only recognizes lines that start with "Hand-over: "; with other text in front, it can no longer recognize it when another round is handed off.
         say(note)
     say(f"Hand-over: required step, the review is not finished until this call and the resume command below "
         f"have run; never end the turn or reply to the user before then. Make this one call now with the "
@@ -168,7 +171,7 @@ def take_saved(result_id: str | None = None) -> None:
     taken = current.setdefault("taken", {})
     awaiting = current.get("awaiting") or []
     if result_id:
-        # 编号给的是最近一次交接那一份；之前各次交接的退路文件仍按下面的办法取。
+        # The number given is the one from the latest handoff; the fallback files of earlier handoffs are still obtained as described below.
         name = awaiting[-1] if awaiting else ""
         key = "id:" + static_host.result_id_of(result_id)
         if name and taken.get(name) != key:
@@ -183,7 +186,8 @@ def take_saved(result_id: str | None = None) -> None:
     for name in awaiting:
         path = Path(name)
         if not path.is_file() and staged_since(current.get("handed_at")):
-            # 宿主已用自己的方式把结果落进本 run（例如直接 stage），没有另存文件：照用已落的那份。
+            # The host has already put the result into this run in its own way (e.g. staged directly) without saving a
+            # separate file: use the one already in place.
             continue
         if str(taken.get(name) or "").startswith("id:"):
             continue
@@ -251,7 +255,7 @@ def frame_reads(evidence: dict[str, Any], record: dict[str, Any]) -> list[dict[s
 
 
 def upstream_failure(record: dict[str, Any]) -> str:
-    """失败信封里第一句上游报错（截短），给局限一个具体原因；读不到就留空。"""
+    """The first upstream error sentence in the failure envelope (truncated), giving the limitation a concrete cause; left empty if unreadable."""
     for call in record.get("calls") or []:
         try:
             envelope = json.loads(Path(call["path"]).read_text())
@@ -291,7 +295,7 @@ def finish(args: argparse.Namespace, record: dict[str, Any]) -> None:
                     "watch_outcomes": "watch_outcomes.json", "watched_evidence": "watched_evidence.json",
                     "authoring_seed": "account_deep_authoring.json"}))
     if not watched:
-        # 每条都没拿到帧也没拿到字幕（例如上游整批拒绝下载）：不是失败退出，降级为只用目录数字写完报告，并把原因写进局限。
+        # No frames and no subtitles were obtained for any item (e.g. the upstream rejected the whole batch of downloads): not a failure exit, but a downgrade to writing the report from catalog numbers only, with the reason written into the limitations.
         reason = upstream_failure(record)
         say("No video could be watched: every media job ended without frames or a transcript"
             + (f" (upstream: {reason})" if reason else "") + ". The run is not over: continue with step 4 from "

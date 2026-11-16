@@ -42,16 +42,18 @@ def percentiles(rows: list[dict[str, Any]]) -> dict[str, float]:
 
 def signature_shortlist(request: dict[str, Any], gate: dict[str, Any], eligible: list[tuple[float, float, float, dict[str, Any]]],
                         limit: int) -> tuple[list[tuple[float, float, float, dict[str, Any]]], dict[str, str | None], dict[str, Any]]:
-    """带画像时按主打内容预分配 shortlist 的名额，与 rank 末尾的最终分配用同一个名额函数。
+    """With a profile, pre-allocate shortlist slots by signature content, using the same quota function as the final allocation at the end of rank.
 
-    这里还没有作者基线，候选按 pre_score（语义分与热度分位的加权）排；同作者只留 1 条，
-    比不带画像时的 2 条更严：一个作者占两个名额，另一个主打内容就少一个代表。
+    There is no author baseline yet, so candidates are ordered by pre_score (a weighted blend of the semantic score
+    and the popularity percentile); only 1 per author is kept, stricter than the 2 used without a profile: if one
+    author takes two slots, another signature content has one fewer representative.
     """
     entries = allocation.signature_entries(request)
     if not entries:
         raise ValueError("--signature-content needs creator_profile.signature_content in the Request")
     matched = signature_content_ids(gate)
-    # 没有候选的 Gate 没有行可带这一列，照常给空 shortlist；有行却没有这一列才是没按画像打分。
+    # A Gate with no candidates has no rows to carry this column, so give an empty shortlist as usual; rows without
+    # this column mean the profile was not used for scoring.
     if not matched and gate.get("items"):
         raise ValueError("--signature-content needs a Gate scored with the signature_content column")
     accepted = allocation.accepted_languages(request)
@@ -65,7 +67,8 @@ def signature_shortlist(request: dict[str, Any], gate: dict[str, Any], eligible:
     ]
     result = allocation.select(rows, entries, limit)
     picked = {slot["content_key"]: slot["signature_content_id"] for slot in result["slots"]}
-    # 保持 pre_score 的先后：history_requests 按这个顺序发，宿主限流时砍掉的是排在最后的账号。
+    # Keep the pre_score order: history_requests are sent in this order, so when the host throttles, the accounts
+    # at the end are the ones cut.
     ordered = [value for value in eligible if str(value[3]["content_key"]) in picked]
     summary = {"rule_version": allocation.RULE_VERSION, "per_content": result["per_content"],
                "shortfall": result["shortfall"]}
@@ -90,8 +93,9 @@ def build(request: dict[str, Any], candidates: dict[str, Any], gate: dict[str, A
         key = str(row["content_key"])
         row_scores = scores[key]
         transferability = row_scores.get("creator_transferability")
-        # 缺 creator_transferability 时把它的 0.25 按原比例摊给另外两项（0.5:0.25 → 2/3:1/3）。
-        # Gate 只在 Request 带 anchor 时才打这一项，没有 anchor 就没有可判的依据。
+        # When creator_transferability is missing, its 0.25 is spread proportionally over the other two (0.5:0.25 ->
+        # 2/3:1/3). The Gate scores this item only when the Request carries an anchor; with no anchor there is nothing
+        # to base a judgment on.
         semantic = (
             (row_scores["topic_relevance"] * 0.5 + row_scores["locale_fit"] * 0.25) / 0.75
             if transferability is None

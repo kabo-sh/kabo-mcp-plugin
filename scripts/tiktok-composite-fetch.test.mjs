@@ -1,9 +1,9 @@
-// TikTok 两个 Skill 的取数改走后台组合工具（docs/skills-spec.md KS9）：
-// research-tiktok-trends 的 discover 原先两轮交接（按意图的 sort 0 + D-1 日榜，再 sort 1 + 空榜时的 D-2）、
-// rank 原先最多 12 条 list_account_posts；analyze-tiktok-competitors 的 discover 四条搜索、content 五条历史。
-// 现在每个阶段交一次组合调用。这里用中性的小夹具按 kabo-composite-fetch.v1 的形状造后台结果，stage 之后
-// 续跑驱动，核对：交出的入参合钉住的 inputSchema、按 group 放回原来的槽位与请求来历、下游脚本照常跑完；
-// 热门的历史缺账号时照常继续（只剩绝对播放量），竞品缺账号时照旧停下。
+// The two TikTok Skills now fetch data through backend composite tools (docs/skills-spec.md KS9):
+// the discover of research-tiktok-trends used to take two handoff rounds (per-intent sort 0 + the D-1 daily chart, then sort 1 + D-2 when the chart was empty),
+// and rank used up to 12 list_account_posts; analyze-tiktok-competitors used four searches in discover and five histories in content.
+// Now each stage hands off one composite call. Here a small neutral fixture builds the backend result in the shape of kabo-composite-fetch.v1; after stage,
+// the driver is resumed, checking that: the input handed out fits the pinned inputSchema, results are put back into their original slots and request provenance by group, downstream scripts run to completion as usual;
+// when a popular account's history is missing it continues as usual (only absolute views remain), and when a competitor account is missing it stops as before.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -44,7 +44,7 @@ async function newRun(t, skill) {
 const drive = (skill, run, args, input) => attempt([path.join(scripts(skill), "drive.py"), ...args], { cwd: run, run, input });
 const callsOf = (stdout) => stdout.split("\n").filter((line) => line.startsWith("call: ")).map((line) => JSON.parse(line.slice(6)));
 
-/** 把后台结果按 stage 落盘（下载交付不可用时的回退路径，拆分逻辑与 fetch 相同）。 */
+/** Write the backend result to disk by stage (fallback path when download delivery is unavailable; the split logic is the same as fetch). */
 async function stage(skill, run, tool, value) {
   const file = path.join(run, "host-results", `${tool}-${Math.random().toString(16).slice(2)}.json`);
   await writeFile(file, JSON.stringify({ structuredContent: value }));
@@ -66,7 +66,7 @@ function envelope(connector, operation, data, { status = "completed", at = new D
 }
 
 const AUTHORS = ["neutral.maker.a", "neutral.maker.b", "neutral.maker.c"];
-/** 每个作者两条近期视频；各条搜索返回同一批（去重后共六条候选）。 */
+/** Two recent videos per author; every search returns the same batch (six candidates after dedup). */
 function searchItems(keyword) {
   return AUTHORS.flatMap((handle, a) => [0, 1].map((n) => {
     const id = `74000000000000${a}${n}`;
@@ -88,7 +88,7 @@ function historyRows(handle, count) {
   }));
 }
 
-/** 按后台 collectTiktokVideoCandidates 的分组与入参，替交出的调用造一份组合结果；日榜 D-1 空、D-2 有数。 */
+/** Build a composite result for the handed-off calls from the backend collectTiktokVideoCandidates grouping and inputs; the daily chart is empty for D-1 and has data for D-2. */
 function candidatesResult(args) {
   const calls = [];
   const searches = [];
@@ -120,7 +120,7 @@ function candidatesResult(args) {
     coverage: { deadline_reached: false, unfinished: [], provider_calls: calls.length }, limitations: [] };
 }
 
-/** collectAccountHistory（TikTok）：每个账号一次 list_account_posts；`skip` 里的账号模拟到点没发出（无调用）。 */
+/** collectAccountHistory (TikTok): one list_account_posts per account; accounts in `skip` simulate not being issued in time (no call). */
 function historyResult(args, skip = []) {
   const calls = [];
   const accounts = [];
@@ -141,7 +141,7 @@ function historyResult(args, skip = []) {
     summary: { accounts }, coverage: { deadline_reached: skip.length > 0, unfinished: [], provider_calls: calls.length }, limitations };
 }
 
-test("research-tiktok-trends：discover 与 rank 各交一次组合调用，按 group 放回原槽位，缺历史的账号照常继续", async (t) => {
+test("research-tiktok-trends: discover and rank each hand off one composite call, results go back to their original slots by group, and accounts missing history continue as usual", async (t) => {
   const run = await newRun(t, RTT);
   assert.equal(drive(RTT, run, ["start"]).exit, 0);
   await writeFile(path.join(run, "trend-research-request.json"), JSON.stringify({ mode: "current_popular", niche: "bead craft ideas", platforms: ["tiktok"], locale: { region: "US", language: null, named_in_ask: "in the US" }, formats: ["tiktok_video"] }));
@@ -185,7 +185,7 @@ test("research-tiktok-trends：discover 与 rank 各交一次组合调用，按 
   assert.equal(history.arguments.on_identity_miss, "gap");
   const handles = history.arguments.accounts.map((ref) => ref.handle);
   assert.deepEqual([...handles].sort(), [...AUTHORS].sort());
-  // 排第二的账号到点没发出：rank 照常继续，那个账号只剩绝对播放量。
+  // The second-ranked account did not post by the deadline: rank continues as usual, and that account is left with only absolute views.
   await stage(RTT, run, history.tool, historyResult(history.arguments, [handles[1]]));
   const enriched = drive(RTT, run, ["rank", "--placed"]);
   assert.equal(enriched.exit, 0, enriched.stdout + enriched.stderr);
@@ -197,7 +197,7 @@ test("research-tiktok-trends：discover 与 rank 各交一次组合调用，按 
   assert.match(enriched.stdout, /trend-research-synthesis/);
 });
 
-test("research-tiktok-trends：整份历史调用被拒（没有结果可落）时 rank --placed 照常继续", async (t) => {
+test("research-tiktok-trends: rank --placed continues as usual when the whole history call is rejected (no result to write)", async (t) => {
   const run = await newRun(t, RTT);
   drive(RTT, run, ["start"]);
   await writeFile(path.join(run, "trend-research-request.json"), JSON.stringify({ mode: "current_popular", niche: "bead craft ideas", platforms: ["tiktok"], locale: { region: null, language: null }, formats: ["tiktok_video"] }));
@@ -216,7 +216,7 @@ test("research-tiktok-trends：整份历史调用被拒（没有结果可落）�
   assert.deepEqual(JSON.parse(await readFile(path.join(run, "account-history-envelopes.json"), "utf8")), { runs: {} });
 });
 
-test("analyze-tiktok-competitors：discover 与 content 各交一次组合调用；缺账号历史时照旧停下", async (t) => {
+test("analyze-tiktok-competitors: discover and content each hand off one composite call; still stops when account history is missing", async (t) => {
   const run = await newRun(t, TTC);
   assert.equal(drive(TTC, run, ["start"]).exit, 0);
   await writeFile(path.join(run, "competitor-research-request.json"), JSON.stringify({
@@ -251,13 +251,13 @@ test("analyze-tiktok-competitors：discover 与 content 各交一次组合调用
   assert.deepEqual({ ...history.arguments, accounts: undefined }, { platform: "tiktok", accounts: undefined, history: { max_items: 100 }, profile: false, on_identity_miss: "gap", delivery: "download" });
   assert.deepEqual([...history.arguments.accounts.map((ref) => ref.handle)].sort(), [...AUTHORS].sort());
 
-  // 一个账号没有回应：与原先缺一条历史一样，content 停下，不拿别的账号顶替。
+  // One account did not respond: as with one history missing before, content stops and does not substitute another account.
   await stage(TTC, run, history.tool, historyResult(history.arguments, [history.arguments.accounts[0].handle]));
   const stopped = drive(TTC, run, ["content", "--placed"]);
   assert.equal(stopped.exit, 2, stopped.stdout);
   assert.match(stopped.stdout, /no complete host record of the account histories/);
 
-  // 后台再做一次（完整）：content 放置后跑完快照与证据投影。
+  // The backend runs once more (complete): after placement, content finishes the snapshot and the evidence projection.
   await stage(TTC, run, history.tool, historyResult(history.arguments));
   const done = drive(TTC, run, ["content", "--placed"]);
   assert.equal(done.exit, 0, done.stdout + done.stderr);

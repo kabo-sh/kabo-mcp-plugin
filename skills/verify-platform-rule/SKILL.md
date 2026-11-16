@@ -16,7 +16,10 @@ when the user mentions authorization or revenue share.
 validated `report/RULE_CHECK.md`. Include that report's complete body in the reply, byte-for-byte,
 after its `creator_report:` line; keep other results or clarifications outside that unchanged block,
 attach the absolute path where the host supports files, and never regenerate, summarize or retype
-it. Validation failure produces no deliverable; never state a rule from memory instead.
+it. What you write outside it claims no more than the report: pages that did not say something mean
+only that the pages read are silent, not that the platform is, and a suggestion the user asked for
+is marked as yours, not the platform's. Validation failure produces no deliverable; never state a
+rule from memory instead.
 
 When the host supports one, run this Skill in a foreground sub-agent, because a check reads several
 pages, and wait for its final result before replying; never run it in the background and tell the

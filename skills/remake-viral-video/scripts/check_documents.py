@@ -29,7 +29,8 @@ SUMMARY_BASIS = ("creator_quote", "persona")
 CTA_BASIS = ("creator_habit", "platform_generic", "user_given")
 CITED_BASIS = ("creator_quote", "creator_habit")
 UNCITED_BASIS = ("persona", "platform_generic")
-# 依据名与 inferred 不是 ref；ref 只能是下列取值或简报里的素材条目 id。
+# A basis name and "inferred" are not a ref; a ref can only be one of the values below or a material entry id
+# from the brief.
 REF_KINDS = ("viral_line", "viral_frame", "scene", "inference")
 NOT_REFS = ("persona", "platform_generic", "creator_quote", "creator_habit", "user_given", "inferred")
 HEDGE = re.compile(r"^\s*(i think|my guess|probably|maybe)\b", re.I)
@@ -42,7 +43,8 @@ VERDICTS = ("ready", "revise", "limited")
 REQUIRED_CHOICES = ("summary_source", "cta", "author_claims")
 CHOICE_BY = ("default", "agent", "user")
 QUESTION_KINDS = ("ambiguous_goal", "user_fact", "value_tradeoff", "spend")
-# 与 runner 拒收的写法一致（prompts.py）：发型须按身份参考图保持，不得美颜，不得换成虚构的素色衣服。
+# Matches what the runner rejects (prompts.py): the hairstyle must be kept per the identity reference image, no
+# beautification, and no swapping in fabricated plain-colored clothing.
 HAIR_HOLD = "not straightened, not smoothed, not tidied"
 BEAUTIFYING = ("softly lit skin", "soft skin", "smooth skin", "flawless", "glowing skin", "porcelain",
                "airbrushed", "retouched skin", "glamour", "beauty lighting", "salon")
@@ -52,7 +54,8 @@ FRAMING_WORDS = re.compile(r"\b(close-up|closeup|medium shot|wide shot|waist-up|
                            r"shot size|head and shoulders)\b", re.I)
 SIZE_AT_SPOT = re.compile(r"(right|correct|matching) (size|scale) (and|&) perspective|size and perspective for", re.I)
 BEAT = re.compile(r"\bb(\d+)(?:\s*[-–]\s*b?(\d+))?", re.I)
-# 旁白（runner V2-r106 decisions.check_pictures 同口径：250k 支持直接内嵌 SVG/GeoJSON 街道网格与全屏多行 UI DOM）
+# Narration (same basis as runner V2-r106 decisions.check_pictures: 250k supports embedding SVG/GeoJSON street
+# grids and full-screen multi-line UI DOM directly)
 MAKE_KINDS = ("composition", "generated", "motion_graphic")
 COMPOSITION_MAX_CHARS = 250_000
 IMAGE_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}\.png$")
@@ -110,7 +113,9 @@ def words_of(sentence):
 
 
 def dropped_words(original, fixed):
-    # 校对只改听错的词：原句里的词在改正句里找不到相近的词（含相邻两词拼起来，如 selfcommunicate -> sell, communicate）就算被删了。
+    # Proofreading only corrects misheard words: a word in the original sentence counts as deleted if no similar
+    # word is found in the corrected sentence (including two adjacent words joined together, e.g. selfcommunicate ->
+    # sell, communicate).
     have = words_of(fixed)
     near = have + [a + b for a, b in zip(have, have[1:])]
     return [w for w in words_of(original)
@@ -170,7 +175,8 @@ def check_script(script, brief, errors, warnings):
     reference = brief.get("reference") if isinstance(brief, dict) else {}
     reference = reference if isinstance(reference, dict) else {}
     sentences = reference.get("sentences") if isinstance(reference.get("sentences"), list) else []
-    # 读音校对：顶层 proofread，fixes 的键是 reference.sentences 的下标，值是整句改正后的文字。
+    # Pronunciation proofreading: top-level proofread, where the keys of fixes are indexes into reference.sentences
+    # and the values are the whole corrected sentence text.
     proofread = script.get("proofread")
     if not isinstance(proofread, dict) or not isinstance(proofread.get("fixes"), dict) or not text(proofread.get("note")):
         errors.append("script.proofread must be {\"fixes\": {...}, \"note\": \"...\"}; use empty fixes when nothing was misheard")
@@ -276,7 +282,8 @@ def check_script(script, brief, errors, warnings):
                           "or list the deleted line in route_b.dropped with its beat")
     check_inherit(route_b.get("inherit"), reference, errors)
     check_overlays(script.get("overlays", []), len(lines), errors)
-    # 保留行须能在参考转写里按原文找到；精确的顺序与 ASR 容差由服务端检查。
+    # A kept line must be findable in the reference transcript by its original text; the exact order and the ASR
+    # tolerance are checked by the server.
     fixes = proofread.get("fixes") if isinstance(proofread, dict) and isinstance(proofread.get("fixes"), dict) else {}
     corrected = [str(fixes.get(str(i), s.get("text") if isinstance(s, dict) else s)) for i, s in enumerate(sentences)]
     transcript = normal(" ".join(corrected))
@@ -482,7 +489,8 @@ def spoken(script):
 
 
 def check_script_input(run, documents, errors):
-    # 稿件模式：四份文件就是 runner 的草稿；只许重新分行（与每行的表演提示），字一个不改。
+    # Script mode: the four files are the runner's draft; only re-breaking lines (and each line's performance
+    # note) is allowed, and not a single character may change.
     drafts = {name: load(run / path, errors, name + " draft") for name, path in DRAFTS.items()}
     for name in ("opening_review", "decisions", "route_b_jobs"):
         if documents[name] is not None and drafts[name] is not None and documents[name] != drafts[name]:
@@ -572,7 +580,7 @@ def check(run):
     draft = load(run / "brief/work/decisions.draft.json", errors, "decisions.draft")
     narration = narration_brief(brief)
     template_path = run / "brief/work/route_b/jobs.template.json"
-    # 旁白没有口播首帧任务：route_b_jobs 交 {"jobs": []}
+    # Narration has no talking-head first-frame job: route_b_jobs hands over {"jobs": []}
     template = ({"jobs": []} if narration and not template_path.exists()
                 else load(template_path, errors, "jobs.template"))
     if errors:
@@ -602,7 +610,8 @@ def offered_models(path):
     structured = from_file.get("structuredContent", from_file) if isinstance(from_file, dict) else {}
     if isinstance(structured, dict) and "content" in structured and "status" not in structured:
         structured = json.loads(structured["content"][0]["text"])
-    # all_models 时服务端给全部档位（talking_model_choices，第一档是默认）；旧服务端只有 talking_models。
+    # With all_models, the server gives all tiers (talking_model_choices, the first tier being the default); an old
+    # server has only talking_models.
     models = None
     if isinstance(structured, dict):
         models = structured.get("talking_model_choices") or structured.get("talking_models")
@@ -655,7 +664,7 @@ def render_args(run, model, models_from, preview=None, beat_review=None):
             body["beat_review"] = beat_review_text(beat_review, json.loads(files["script"]))
             target = run / "render/review_remake_video.json"
     elif narration:
-        # 旁白没有口播模型可选
+        # Narration has no talking-head model to choose
         if model:
             raise ValueError("A voice-over remake has no talking model; leave out --talking-model")
         target = run / "render/render_remake_video.json"

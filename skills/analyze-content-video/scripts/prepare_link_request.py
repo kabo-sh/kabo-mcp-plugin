@@ -39,7 +39,7 @@ def prepare(bundles: list[dict], subject: str, budget: int, confirmed: bool, req
     if len(sources) != 1:
         raise ValueError("linked evidence describes more than one post")
     platform, url, content_id, media_type = sources.pop()
-    # 接受哪些平台只看支持清单，不在这里另写一份。
+    # Which platforms are accepted comes only from the support list, not from a second copy here.
     if platform not in public_video_sources.platform_ids() or not url or not content_id:
         raise ValueError("linked evidence does not identify a supported post")
     if subject not in {"own_published", "third_party", "unknown"}:

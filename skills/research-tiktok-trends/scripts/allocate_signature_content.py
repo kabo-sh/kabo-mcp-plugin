@@ -67,11 +67,12 @@ def load(path: Path) -> dict[str, Any]:
 
 
 def quotas(entries: list[tuple[str, float]], total: int) -> dict[str, int]:
-    """每个主打内容分几个名额：先每类 1 个，剩下的按权重用最大余数法分。
+    """How many slots each signature content gets: first 1 per category, then distribute the rest by weight using the largest-remainder method.
 
-    名额函数只此一份：TikTok 的 shortlist 预分配与这里的最终分配都调它，所以同一组权重与名额数
-    在两处得到同一个结果。余数相同时先给权重大的，再按 Request 里的顺序。名额比类数少时，
-    只有权重最大的那几类各得 1 个。
+    The quota function exists in one place only: the TikTok shortlist pre-allocation and the final allocation here
+    both call it, so the same weights and slot count give the same result in both places. Ties on the remainder go
+    to the larger weight first, then follow the order in the Request. When there are fewer slots than categories,
+    only the categories with the largest weights get 1 each.
     """
     ids = [str(entry_id) for entry_id, _ in entries]
     if len(set(ids)) != len(ids):
@@ -162,7 +163,8 @@ def select(candidates: list[dict[str, Any]], entries: list[tuple[str, float]], t
         for _ in range(quota[cls]):
             if not take(cls):
                 break
-    # 某类凑不满，空出来的名额先轮流让给其他类（权重大的先拿），再让给哪类都不像的候选。
+    # When a category cannot fill its slots, the freed slots go first round-robin to the other categories (larger
+    # weight first), then to candidates that resemble none of the categories.
     spare = total - len(slots)
     progress = True
     while spare > 0 and progress:
@@ -241,7 +243,8 @@ def multiple_of(item: dict[str, Any], platform: str) -> float | None:
         return _number(proof.get("multiple"))
     outlier = item.get("outlier") if isinstance(item.get("outlier"), dict) else {}
     if platform == "tiktok":
-        # TikTok 用作者收缩倍数：原始倍数在作者样本少时会被一两条作品带偏。
+        # TikTok uses the author shrinkage multiple: the raw multiple gets skewed by one or two posts when the author
+        # has few samples.
         shrunk = outlier.get("shrunk") if isinstance(outlier.get("shrunk"), dict) else {}
         return _number(shrunk.get("multiple"))
     return _number(outlier.get("multiple"))
@@ -288,8 +291,9 @@ def build(request: dict[str, Any], gate: dict[str, Any], candidates: dict[str, A
     if not entries:
         raise ValueError("the Request carries no creator_profile.signature_content to allocate")
     matched = signature_content_ids(gate)
-    # Gate 一行都没有时（这轮没有候选）照常输出全是 shortfall 的分配，空结果仍要走到报告；
-    # 有行却没有这一列，才是没按画像打分。
+    # When the Gate has no rows at all (no candidates this round), still output an allocation that is entirely
+    # shortfall, so the empty result still reaches the report; rows without this column mean the profile was not
+    # used for scoring.
     if not matched and gate.get("items"):
         raise ValueError("the Gate has no signature_content column; score the fifth number and run rank again")
     known = {entry_id for entry_id, _ in entries}
@@ -304,8 +308,9 @@ def build(request: dict[str, Any], gate: dict[str, Any], candidates: dict[str, A
         if not isinstance(item, dict):
             continue
         key = str(item.get("content_key") or "")
-        # 闸门没判过的条目（理论上服务端只回 shortlist 里的）不知道像哪个主打内容，不占名额；
-        # 这时候 enrichment 已经花过了，为它停掉整个 rank 不划算。
+        # Items the gate never judged (in theory the server returns only items in the shortlist) are not known to
+        # resemble any signature content and take no slot; enrichment has already been paid for by then, so stopping
+        # the whole rank over one is not worth it.
         if roles.get(key, "reject") == "reject":
             continue
         merged = {**signals.get(key, {}), **item}

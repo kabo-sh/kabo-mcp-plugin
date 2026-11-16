@@ -8,10 +8,13 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 
-// lookup_instagram_post 的固定投影：信封记实际作答的路线，
-// data 是固定投影 kabo.instagram_post.v1。这里钉住插件这一侧的迁移：ACV、ACC 的 static_host 两条路线
-// 都收、ACC 驱动按顶层 post + delivery 交接、读帖子的脚本按投影分支且旧形状照读。
-// RIT 在服务端给投影补上 include（评论预览、标记用户、地点、合作者与付费合作标记）之后迁入。
+// Fixed projection of lookup_instagram_post: the envelope records the route that actually answered,
+// and data is the fixed projection kabo.instagram_post.v1. This pins the plugin-side migration: ACV and
+// ACC static_host accept both routes,
+// the ACC driver hands over by top-level post + delivery, and the post-reading scripts branch on the
+// projection while still reading the old shape.
+// RIT migrates after the server adds include (comment preview, tagged users, location, collaborators and
+// paid-partnership flag) to the projection.
 const MIGRATED = ["analyze-content-video", "analyze-creator-competitors", "research-instagram-trends"];
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -35,7 +38,7 @@ function attempt(args, options) {
   }
 }
 
-/** 一份投影信封；route 决定 connector_id 与回退时的 completed_partial。 */
+/** A projection envelope; route determines connector_id and completed_partial on fallback. */
 function lookupEnvelope({ route = "primary", post = {}, metrics = {}, audio, unavailable = [] } = {}) {
   const fallback = route === "fallback";
   const connector = fallback ? "instagram-detail-proxy" : "instagram-discovery";
@@ -68,8 +71,10 @@ function lookupEnvelope({ route = "primary", post = {}, metrics = {}, audio, una
   };
 }
 
-// 旧的单操作工具信封（instagram_get_post 的 GraphQL 原样）：该工具已从 /mcp-pub 删除，
-// 但删除前落下的快照里可能还有，读帖子的脚本要照读。
+// Old single-operation tool envelope (instagram_get_post as the raw GraphQL): that tool has been removed
+// from /mcp-pub,
+// but snapshots written before removal may still contain it, so the post-reading scripts must still read
+// it.
 const GRAPHQL_ENVELOPE = {
   connector_id: "instagram-discovery", operation: "get_post", status: "completed", summary: "Found 1 post",
   limitations: [], raw_sha256: sha256("graphql"), request_id: "req-graphql",
@@ -94,7 +99,8 @@ async function newRun(t, skill) {
 }
 
 async function stage(skill, run, tool, value, command = "stage") {
-  // 输入放在运行目录之外：放置脚本会把运行目录里已有的同一份回答当成「已放置」。
+  // Put the input outside the run directory: the placement script treats an identical answer already in the
+  // run directory as "already placed".
   const file = path.join(path.dirname(path.dirname(run)), `input-${Math.random().toString(16).slice(2)}.json`);
   await writeFile(file, JSON.stringify(value));
   return attempt([path.join(scripts(skill), "static_host.py"), command, "--tool", tool, "--input", file], { run });
@@ -106,17 +112,17 @@ async function metas(run) {
   return Promise.all(names.map(async (name) => JSON.parse(await readFile(path.join(directory, name), "utf8"))));
 }
 
-test("static_host：lookup_instagram_post 两条路线的信封都可 stage，旁注记作答路线；别的操作、缺投影与旧工具名被拒", async (t) => {
+test("static_host: envelopes from both lookup_instagram_post routes can be staged, with a side note recording the answering route; other operations, a missing projection, and the old tool name are rejected", async (t) => {
   for (const skill of MIGRATED) {
     const { run } = await newRun(t, skill);
     const primary = await stage(skill, run, "lookup_instagram_post", result(lookupEnvelope()));
-    assert.equal(primary.exit, 0, `${skill}：${primary.stderr}`);
+    assert.equal(primary.exit, 0, `${skill}: ${primary.stderr}`);
     const fallback = await stage(skill, run, "lookup_instagram_post", result(lookupEnvelope({ route: "fallback" })));
-    assert.equal(fallback.exit, 0, `${skill}：${fallback.stderr}`);
-    // 失败信封不带 data、标 isError：照样是那条路线的证据。
+    assert.equal(fallback.exit, 0, `${skill}: ${fallback.stderr}`);
+    // A failed envelope carries no data and is flagged isError: it is still evidence for that route.
     const { data: _data, ...failedBody } = { ...lookupEnvelope(), status: "failed", error_code: "not_found", limitations: ["No public post."] };
     const failed = await stage(skill, run, "lookup_instagram_post", { isError: true, ...result(failedBody) });
-    assert.equal(failed.exit, 0, `${skill}：${failed.stderr}`);
+    assert.equal(failed.exit, 0, `${skill}: ${failed.stderr}`);
     assert.deepEqual((await metas(run)).map((meta) => `${meta.tool}:${meta.connector_id}/${meta.operation}`).sort(), [
       "lookup_instagram_post:instagram-detail-proxy/get_post",
       "lookup_instagram_post:instagram-discovery/get_post",
@@ -129,8 +135,9 @@ test("static_host：lookup_instagram_post 两条路线的信封都可 stage，�
     const unprojected = await stage(skill, run, "lookup_instagram_post", result(GRAPHQL_ENVELOPE));
     assert.equal(unprojected.exit, 1);
     assert.match(unprojected.stderr, /declared projection/);
-    // 旧工具名已从服务端删除，不是本 Skill 的证据工具，也不在 allowed-tools 里；
-    // 留着这条断言是为了确认旧结果冒充证据时仍被拒收。
+    // The old tool name has been removed from the server, is not this Skill's evidence tool, and is not in
+    // allowed-tools;
+    // this assertion stays to confirm that an old result posing as evidence is still rejected.
     for (const tool of ["instagram_get_post", "instagram_detail_get_post"]) {
       const legacy = await stage(skill, run, tool, result(GRAPHQL_ENVELOPE));
       assert.equal(legacy.exit, 1);
@@ -143,7 +150,8 @@ test("static_host：lookup_instagram_post 两条路线的信封都可 stage，�
   }
 });
 
-// 与 static-host-fetch.test.mjs 同法：进程内替换 urllib 的 opener，只有 HTTPS 收发被假处理器接管。
+// Same method as static-host-fetch.test.mjs: replace urllib's opener in-process, so only the HTTPS
+// traffic is taken over by a fake handler.
 const FETCH_HARNESS = String.raw`
 import base64, contextlib, http.client, io, json, os, runpy, sys, urllib.request, urllib.response
 script, url, body, source = sys.argv[1:5]
@@ -165,7 +173,7 @@ except SystemExit as exit_:
 sys.exit(code)
 `;
 
-test("static_host fetch：详情路线作答的 lookup 信封经下载核对后落盘，身份字段与投影都校验", async (t) => {
+test("static_host fetch: a lookup envelope answered by the detail route is written to disk after download verification, with identity fields and projection both validated", async (t) => {
   const url = "https://storage.googleapis.com/kabo-media/_temporary/research-export/v1/lookup.json?X-Goog-Signature=S";
   for (const skill of MIGRATED) {
     const { run } = await newRun(t, skill);
@@ -183,14 +191,14 @@ test("static_host fetch：详情路线作答的 lookup 信封经下载核对后�
     const [meta] = await metas(run);
     assert.equal(meta.connector_id, "instagram-detail-proxy");
     assert.equal(meta.delivery, "download");
-    // 下载内联模式下 stage 拒绝只带链接的结果，指向 fetch。
+    // In download-inline mode, stage rejects a link-only result and points to fetch.
     const refused = await stage(skill, run, "lookup_instagram_post", { structuredContent: structured });
     assert.equal(refused.exit, 1);
     assert.match(refused.stderr, /run static_host\.py fetch/);
   }
 });
 
-test("驱动交接：ACC 把种子帖交成顶层 post + delivery 的 lookup_instagram_post，详情路线的回答也能放置", async (t) => {
+test("driver handoff: ACC hands the seed post off as a lookup_instagram_post with top-level post + delivery, and a detail-route answer can also be placed", async (t) => {
   const { run } = await newRun(t, "analyze-creator-competitors");
   const drive = path.join(scripts("analyze-creator-competitors"), "drive.py");
   const first = python([drive, "start", "--platform", "instagram", "--post", POST_URL], { cwd: run, run });
@@ -204,20 +212,22 @@ test("驱动交接：ACC 把种子帖交成顶层 post + delivery 的 lookup_ins
   const placed = python([drive, "start", "--platform", "instagram", "--post", POST_URL, "--placed"], { cwd: run, run });
   assert.match(placed, /seed post: DeZrE2phzDx by @creator/);
   const facts = JSON.parse(placed.split("\n").find((line) => line.startsWith("seed post (the video the user gave): ")).split(": ").slice(1).join(": "));
-  // 合并播放数单列，不冒充 IG 播放数；投影里的 null 不打印。
+  // The combined view count is listed separately and does not pose as the IG view count; null in the
+  // projection is not printed.
   assert.deepEqual(facts, {
     format: "reel", duration_seconds: 21.4, plays_instagram_and_facebook: 41290541, comments: 4234,
     caption: "Monsoon trip in 20 seconds #travel #monsoon",
   });
   const seed = JSON.parse(await readFile(path.join(run, "seed-envelope.json"), "utf8"));
   assert.equal(seed.connector_id, "instagram-detail-proxy");
-  // 种子帖的投影 caption 是字符串，Gate 的 seed_caption 照读。
+  // The projection caption of the seed post is a string, and the Gate's seed_caption reads it as is.
   const caption = python(["-c", "import json,sys; sys.path.insert(0, sys.argv[1]); from project_gate_inputs import seed_caption; "
     + "print(seed_caption(json.load(open(sys.argv[2]))))", scripts("analyze-creator-competitors"), path.join(run, "seed-envelope.json")]);
   assert.equal(caption.trim(), "Monsoon trip in 20 seconds #travel #monsoon");
 });
 
-// RIT 源 Reel 读的那些字段在旧 GraphQL 原样里的位置：评论预览、标记用户、地点、合作者、付费合作标记。
+// Where the fields the RIT source Reel reads sit in the old raw GraphQL: comment preview, tagged users,
+// location, collaborators, paid-partnership flag.
 const RIT_GRAPHQL_ENVELOPE = {
   ...GRAPHQL_ENVELOPE,
   data: {
@@ -232,7 +242,8 @@ const RIT_GRAPHQL_ENVELOPE = {
   },
 };
 
-// 带 include 四组的投影：请求了的组键恒在；空列表是 []，拿不到是 null 并进 unavailable_fields。
+// Projection with the four include groups: the key of every requested group is always present; an empty
+// list is [], and unavailable is null and goes into unavailable_fields.
 const RIT_INCLUDE = ["comments_preview", "tagged_users", "location", "collaboration"];
 const INCLUDED = {
   comments_preview: [
@@ -247,17 +258,19 @@ const INCLUDED = {
   is_paid_partnership: true,
 };
 
-test("驱动交接：RIT 把源 Reel 交成带 include 的 lookup_instagram_post，投影的五项补充字段照旧打印", async (t) => {
+test("driver handoff: RIT hands the source Reel off as a lookup_instagram_post with include, and the projection's five supplementary fields are still printed", async (t) => {
   const { run } = await newRun(t, "research-instagram-trends");
   const drive = path.join(scripts("research-instagram-trends"), "drive.py");
   const first = python([drive, "start", "--post", POST_URL], { cwd: run, run });
   const calls = first.split("\n").filter((line) => line.startsWith("call: ")).map((line) => JSON.parse(line.slice(6)));
-  // 逐个具名调用；lookup 入参在顶层，转写照旧套 parameters。
+  // Named calls one by one; the lookup arguments are at the top level, and the transcript is still wrapped
+  // in parameters.
   assert.deepEqual(calls, [
     { tool: "lookup_instagram_post", arguments: { post: CANONICAL, include: RIT_INCLUDE, delivery: "download" } },
     { tool: "instagram_get_transcript", arguments: { parameters: { url: CANONICAL }, delivery: "download" } },
   ]);
-  // 补充字段只有主路线给得出（详情回退时五个键恒为 null，见下一条用例）。
+  // The extra fields can only be provided by the primary route (on the detail fallback the five keys are
+  // always null, see the next case).
   for (const [tool, envelope] of [
     ["lookup_instagram_post", lookupEnvelope({ post: INCLUDED, audio: null, unavailable: ["audio"] })],
     ["instagram_get_transcript", { connector_id: "instagram-discovery", operation: "get_transcript", status: "completed", summary: "ok", limitations: [], raw_sha256: sha256("t"), data: { text: "Monsoon in twenty seconds.", language: "en" } }],
@@ -291,9 +304,10 @@ test("驱动交接：RIT 把源 Reel 交成带 include 的 lookup_instagram_post
   assert.match(placed, /source Reel transcript \(en\): Monsoon in twenty seconds\./);
 });
 
-test("驱动续跑：详情路线（instagram-detail-proxy）作答的 lookup，不带 --placed 再跑照样放置，不再交一次（ACC、RIT）", async (t) => {
-  // 交接时请求的是 instagram-discovery/get_post，回退时信封记 instagram-detail-proxy；轮次登记只认请求那条时，
-  // 再跑 start 会判定「没有回答」，把已收费的 lookup 再交一次。
+test("driver resume: a lookup answered by the detail route (instagram-detail-proxy) is still placed when rerun without --placed, and is not handed off again (ACC, RIT)", async (t) => {
+  // The handover requested instagram-discovery/get_post, and on fallback the envelope records
+  // instagram-detail-proxy; if round registration recognizes only the requested one,
+  // rerunning start would decide "no answer" and hand over the already-billed lookup again.
   const transcript = { connector_id: "instagram-discovery", operation: "get_transcript", status: "completed", summary: "ok", limitations: [], raw_sha256: sha256("t"), data: { text: "Monsoon.", language: "en" } };
   for (const [skill, args, responses, printed] of [
     ["analyze-creator-competitors", ["--platform", "instagram", "--post", POST_URL], [["lookup_instagram_post", lookupEnvelope({ route: "fallback" })]], /seed post: DeZrE2phzDx by @creator/],
@@ -304,17 +318,17 @@ test("驱动续跑：详情路线（instagram-detail-proxy）作答的 lookup，
     python([drive, "start", ...args], { cwd: run, run });
     for (const [tool, envelope] of responses) {
       const staged = await stage(skill, run, tool, result(envelope));
-      assert.equal(staged.exit, 0, `${skill}：${staged.stderr}`);
+      assert.equal(staged.exit, 0, `${skill}: ${staged.stderr}`);
     }
     const again = attempt([drive, "start", ...args], { cwd: run, run });
     const output = again.stdout + again.stderr;
-    assert.match(output, /placing their responses/, `${skill}：${output}`);
+    assert.match(output, /placing their responses/, `${skill}: ${output}`);
     assert.doesNotMatch(output, /^call: \{"tool": "lookup_instagram_post"/m, skill);
     assert.match(output, printed, skill);
   }
 });
 
-test("RIT 读帖函数：投影按 data.projection 分支读五项补充字段，null 省略并列入 unavailable；旧 GraphQL 照读", () => {
+test("RIT post-reading function: the projection reads the five supplementary fields by the data.projection branch, nulls are omitted and listed in unavailable; the old GraphQL is still read", () => {
   const probe = String.raw`
 import json, sys
 sys.path.insert(0, sys.argv[1])
@@ -324,7 +338,8 @@ print(json.dumps([drive.projected_source_fields(cases[0]["data"]), drive.project
                   drive.source_fields(cases[2]["data"]["post"])]))
 `;
   const included = lookupEnvelope({ post: INCLUDED });
-  // 详情回退作答：补充字段恒为 null 并列入 unavailable_fields（不放宽回退白名单）。
+  // Answered via the detail fallback: the extra fields are always null and listed in unavailable_fields
+  // (the fallback whitelist is not loosened).
   const missing = lookupEnvelope({
     route: "fallback",
     post: { comments_preview: null, tagged_users: [], coauthors: null, location: null, is_paid_partnership: null },
@@ -336,7 +351,8 @@ print(json.dumps([drive.projected_source_fields(cases[0]["data"]), drive.project
   assert.deepEqual(withAll.top_comments, ["First!", "Where is this?", "Saved"]);
   assert.deepEqual([withAll.tagged_users, withAll.coauthors, withAll.location, withAll.is_paid_partnership],
     [["friend"], ["partner"], "Goa", true]);
-  // 空列表与 null 都不打印；null 的那几项列进 unavailable，不当 0 或 false；点赞隐藏单列。
+  // Neither empty lists nor null are printed; the null ones are listed under unavailable, not treated as 0
+  // or false; hidden likes are listed separately.
   for (const key of ["top_comments", "tagged_users", "coauthors", "location", "is_paid_partnership", "like_count"]) {
     assert.equal(key in withNulls, false, key);
   }
@@ -347,7 +363,7 @@ print(json.dumps([drive.projected_source_fields(cases[0]["data"]), drive.project
     [["friend"], ["partner"], "Goa", true, ["First!", "Where is this?"]]);
 });
 
-test("驱动的读帖函数：ACC 投影的 IG 与合并播放数分列，旧 GraphQL 信封照旧读", () => {
+test("driver post-reading function: the ACC projection keeps IG and merged view counts separate, and old GraphQL envelopes are read as before", () => {
   const probe = String.raw`
 import json, sys
 sys.path.insert(0, sys.argv[1])
@@ -361,7 +377,7 @@ print(json.dumps([drive.seed_facts(case) for case in json.loads(sys.argv[2])]))
   assert.deepEqual(accOld, { format: "reel", duration_seconds: 21.4, plays: 1200, comments: 9, caption: "Old caption #legacy" });
 });
 
-test("ACV build_content_evidence：投影两条路线、播放数分列、点赞隐藏与 null 字段；旧 GraphQL 照旧；证据过 schema", async (t) => {
+test("ACV build_content_evidence: projection on both routes, views kept separate, hidden likes and null fields; old GraphQL unchanged; evidence passes the schema", async (t) => {
   const temp = await mkdtemp(path.join(os.tmpdir(), "kabo-lookup-evidence-"));
   t.after(() => rm(temp, { recursive: true, force: true }));
   await mkdir(path.join(temp, "analysis"));
@@ -381,7 +397,7 @@ test("ACV build_content_evidence：投影两条路线、播放数分列、点赞
     const output = path.join(temp, "analysis", `${name}-evidence.json`);
     python([path.join(scripts("analyze-content-video"), "build_content_evidence.py"), "--request", request, "--envelope", input, "--output", output]);
     const evidence = JSON.parse(await readFile(output, "utf8"));
-    assert.ok(schema(evidence), `${name}：${JSON.stringify(schema.errors)}`);
+    assert.ok(schema(evidence), `${name}: ${JSON.stringify(schema.errors)}`);
     return evidence;
   }
   const metrics = (evidence) => Object.fromEntries((evidence.public_metrics ?? []).map((item) => [item.native_name, item.value]));
@@ -391,7 +407,8 @@ test("ACV build_content_evidence：投影两条路线、播放数分列、点赞
   assert.equal(primary.content_metadata.caption, "Monsoon trip in 20 seconds #travel #monsoon");
   assert.deepEqual(primary.content_metadata.tags, ["travel", "monsoon"]);
   assert.deepEqual(primary.audio_attribution, { uses_original_audio: true, audio_id: "987", artist_name: "creator", song_name: "Original audio", trend_metrics_available: false });
-  // metadata 没给发布时间时由投影补上；会过期的 thumbnail_url 不当封面写进证据。
+  // When metadata gives no publish time, the projection fills it in; the expiring thumbnail_url is not
+  // written into the evidence as a cover.
   assert.equal(primary.content_ref.published_at, "2026-10-01T12:34:30.000Z");
   assert.deepEqual(primary.content_metadata.thumbnails, []);
   assert.equal(JSON.stringify(primary).includes("cdninstagram"), false);
@@ -404,7 +421,8 @@ test("ACV build_content_evidence：投影两条路线、播放数分列、点赞
   assert.ok(fallback.limitations.some((text) => /answered through the Instagram detail route/.test(text)));
   assert.equal(fallback.acquisition[0].connector_id, "instagram-detail-proxy");
 
-  // 合并值不冒充 IG 播放数：只有合并值时没有 plays_instagram 这一项。
+  // The combined value does not pose as the IG view count: with only the combined value there is no
+  // plays_instagram item.
   const combinedOnly = await build("combined", lookupEnvelope({ route: "fallback", metrics: { plays_instagram: null, plays_combined: 1500 } }));
   assert.deepEqual(metrics(combinedOnly), { "metrics.plays_combined": 1500, "metrics.likes": 3050591, "metrics.comments": 4234 });
 

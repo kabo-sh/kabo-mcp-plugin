@@ -26,7 +26,7 @@
             }
           },
           "scope": {"type": ["string", "null"], "description": "Required only for partly_true: which part is supported and its limits."},
-          "inference": {"type": ["string", "null"], "description": "Required only for no_official_text or not_checked; distinguish interpretation from platform facts."},
+          "inference": {"type": ["string", "null"], "description": "Required for no_official_text or not_checked. Optional on a quoted claim for what follows from its quotes but the page does not say, written as a possibility. Never platform fact."},
           "unreached_source": {"type": ["string", "null"], "description": "Required for not_checked: selected source_id or watch URL also recorded in unreachable_sources."},
           "checked_sources": {"type": "array", "items": {"type": "string"}, "description": "Required for no_official_text: relevant selected source IDs actually read, not proof of platform-wide absence."}
         }

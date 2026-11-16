@@ -133,8 +133,8 @@ def evidence_hosts(report: dict) -> set[str]:
             continue
         for match in URL_HOST.finditer(child):
             hosts.add(match.group(1).lower().removeprefix("www."))
-    # 示例标题由组装脚本从证据原样抄来（如帖文里的「Ridge.com/MKBHD」），其中的裸域名是来源文字，不是泄露；
-    # 模型写的分析文字不在此列，仍按外来域名拦。
+    # Example titles are copied verbatim from the evidence by the assembly script (e.g. "Ridge.com/MKBHD" in a post's text); a bare domain in them is source text, not a leak;
+    # analysis text written by the model is not covered and is still blocked for foreign domains.
     for key in ("what_works", "what_hurts"):
         for pattern in report.get(key) or []:
             for example in pattern.get("examples") or []:
@@ -156,7 +156,7 @@ def foreign_hosts(markdown: str, allowed: set[str]) -> list[str]:
     return seen
 
 
-# A stated figure: digits with optional thousands separators and decimals, and an optional 万/K/M scale.
+# A stated figure: digits with optional thousands separators and decimals, and an optional 万/K/M scale (万 = 10^4).
 FIGURE = re.compile(r"(?<![0-9A-Za-z_.,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?\s*(万|[KkMm](?![A-Za-z]))?")
 SCALES = {"万": 1e4, "k": 1e3, "m": 1e6}
 

@@ -1,6 +1,9 @@
-// 瘦身后各 Skill 共用的两段内容按副本分发（KS4.2）：references/data-calls.md 整份，以及
-// connector_driver.py 里交接与续跑的那一段（每条调用的存放文件与一条续跑命令，续跑自己 fetch / stage 点名的文件）。
-// 副本必须逐字相同：改一份就同步改所有副本，否则同一个交接在不同 Skill 里说法不一。
+// Two pieces of content shared by the slimmed-down Skills are distributed as copies (KS4.2): the whole of
+//   references/data-calls.md, and the handoff-and-resume section of
+// connector_driver.py (each call's storage file and one resume command, with resume itself doing fetch / stage
+//   on the named files).
+// The copies must be identical character for character: changing one means changing all copies in sync,
+//   otherwise the same handoff is worded differently in different Skills.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -16,22 +19,22 @@ const copies = (relative) => skills
   .filter(({ file }) => existsSync(file))
   .map(({ skill, file }) => ({ skill, text: readFileSync(file, "utf8") }));
 
-test("references/data-calls.md 在各 Skill 中逐字相同", () => {
+test("references/data-calls.md is identical across Skills", () => {
   const found = copies("references/data-calls.md");
-  assert.ok(found.length >= 2, "至少两份 data-calls.md");
-  for (const { skill, text } of found) assert.equal(text, found[0].text, `${skill} 与 ${found[0].skill} 不同`);
+  assert.ok(found.length >= 2, "at least two copies of data-calls.md");
+  for (const { skill, text } of found) assert.equal(text, found[0].text, `${skill} differs from ${found[0].skill}`);
 });
 
 for (const relative of ["scripts/short_window_topic_gate.py", "references/short-window-topic-gate.md",
   "scripts/render_short_window_report.py"]) {
-  test(`${relative} 在三平台趋势 Skill 中逐字相同`, () => {
+  test(`${relative} is identical across the three platform trend Skills`, () => {
     const found = copies(relative);
     assert.equal(found.length, 3);
     for (const { skill, text } of found) assert.equal(text, found[0].text, skill);
   });
 }
 
-test("connector_driver.py 的交接段（resume_command 与 hand_over）在各 Skill 中逐字相同", () => {
+test("the handoff block of connector_driver.py (resume_command and hand_over) is identical across Skills", () => {
   const block = (text) => {
     const start = text.indexOf("def resume_command()");
     const end = text.indexOf("def fetch_or_hand_over(");
@@ -39,6 +42,6 @@ test("connector_driver.py 的交接段（resume_command 与 hand_over）在各 S
   };
   const found = copies("scripts/connector_driver.py").map(({ skill, text }) => ({ skill, block: block(text) }));
   const withBlock = found.filter(({ block }) => block !== null);
-  assert.ok(withBlock.length >= 2, "至少两份带交接段的 connector_driver.py");
-  for (const { skill, block } of withBlock) assert.equal(block, withBlock[0].block, `${skill} 与 ${withBlock[0].skill} 不同`);
+  assert.ok(withBlock.length >= 2, "at least two copies of connector_driver.py with a handoff block");
+  for (const { skill, block } of withBlock) assert.equal(block, withBlock[0].block, `${skill} differs from ${withBlock[0].skill}`);
 });

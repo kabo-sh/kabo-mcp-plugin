@@ -30,8 +30,9 @@ def load(path: Path) -> dict[str, Any]:
 def skill_identity() -> dict[str, str]:
     """Read this Skill's id and version from the SKILL.md frontmatter.
 
-    manifest.json 已按 Kabo Skills 规范删除，版本号改记在 frontmatter 的 metadata.version；
-    这里只认 name 与 metadata 下的 version 两行，不引入 YAML 依赖。
+    manifest.json has been removed per the Kabo Skills spec, and the version is now recorded in the frontmatter's
+    metadata.version; only the name line and the version line under metadata are recognized here, which avoids
+    introducing a YAML dependency.
     """
     text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
     lines = text.split("\n")

@@ -1,7 +1,10 @@
-// review-creator-account 与 diagnose-reach-drop 的取数是一次后台组合调用 collect_account_history（KS9）：
-// 驱动只交出一行 call:（入参钉住各自的样本规则），模型存下结果、static_host.py 拆开落盘，--placed 续跑时
-// 驱动按调用顺序逐字节放置 snapshot/envelope-NN.json，再走原来的快照、分析与打印。这里不联网：
-// 组合结果按后台对这组入参会给出的形状手写（calls[] 每个逻辑调用一项、summary.accounts[]），走 stage 回退落盘。
+// review-creator-account and diagnose-reach-drop fetch their data through one backend composite call,
+// collect_account_history (KS9): the driver emits only a single call: line (its input pins each skill's sample
+// rules), the model saves the result, static_host.py splits it and writes it to disk, and on a --placed resume
+// the driver places snapshot/envelope-NN.json byte for byte in call order, then runs the original snapshot,
+// analysis, and print steps. Nothing touches the network here: the composite result is hand-written in the
+// shape the backend would return for these inputs (calls[] with one entry per logical call, summary.accounts[]),
+// and goes to disk through the stage fallback.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -32,7 +35,7 @@ async function newRun(t, skill) {
 }
 
 const calls = (out) => out.split("\n").filter((line) => line.startsWith("call: ")).map((line) => JSON.parse(line.slice(6)));
-// 这些场景走存文件的退路：去掉续跑命令末尾待填的 --id 占位。
+// These scenarios use the save-to-file fallback: drop the trailing --id placeholder from the resume command.
 const resumeOf = (out) => { const line = out.split("\n").find((l) => l.startsWith("Then run this one command")); return line.slice(line.indexOf("cd '")).replace(/( --id \d+=<id>)+$/, ""); };
 
 function envelope(connector_id, operation, data, extra = {}) {
@@ -71,8 +74,9 @@ function composite(args, list, accountStatus, extra = {}) {
   };
 }
 
-// 模型做的事：调组合工具、把整份结果原样存进交接点名的文件（绝对路径）；之后只跑续跑命令，
-// 续跑自己 fetch（这里没有就绪下载，退回 stage）。
+// What the model does: call the composite tool, save the whole result unchanged into the file named in the
+// handoff (absolute path); after that it only runs the resume command, which fetches by itself (there is no
+// ready download here, so it falls back to stage).
 async function answer(skill, run, fetched, result) {
   const saved = fetched.split("\n").find((line) => line.startsWith("  result ")).split("has no download url: ")[1].slice(0, -1);
   assert.ok(path.isAbsolute(saved) && saved.startsWith(run), saved);
@@ -91,7 +95,7 @@ const DIAGNOSE = "diagnose-reach-drop";
 const reviewFetch = (run, platform, handle, question) =>
   python(REVIEW, "drive.py", ["fetch", "--platform", platform, "--handle", handle, "--question-file", "-"], { cwd: run, run, input: question });
 
-test("账号复盘 Instagram：一次组合调用交出 100 条合计上限与少者先翻；续跑按调用顺序逐字节放置并打印综合输入", async (t) => {
+test("account review Instagram: one composite call hands off a 100-item combined cap, fewer-first paging; resume places byte-for-byte in call order and prints the combined input", async (t) => {
   const run = await newRun(t, REVIEW);
   const question = "How is @neutral.creator doing on Instagram lately?";
   const first = reviewFetch(run, "instagram", "neutral.creator", question);
@@ -119,18 +123,18 @@ test("账号复盘 Instagram：一次组合调用交出 100 条合计上限与�
     const placed = JSON.parse(await readFile(path.join(run, `snapshot/envelope-0${index + 1}.json`), "utf8"));
     assert.deepEqual(placed, call.result);
   }
-  // 成长估算这一步照旧可跑（只列可选口径，不写文件）。
+  // The growth-estimate step still runs as before (it only lists the optional bases and writes no files).
   const growth = python(REVIEW, "drive.py", ["growth", "--language", "en"], { cwd: run, run });
   assert.equal(growth.code, 0, growth.out);
   assert.match(growth.out, /Growth evidence/);
-  // 同一命令带 --placed 再跑：这一轮已放置，不再交接、也不重复放置。
+  // Run again with --placed on the same command: this round is already placed, so no handoff and no repeated placement.
   const again = resume(resumeOf(first.out), question);
   assert.equal(again.code, 0, again.out);
   assert.equal(calls(again.out).length, 0);
   assert.equal((await placedOperations(run)).length, 4);
 });
 
-test("账号复盘：Instagram 身份解析不到时列出候选并停下；YouTube handle 被拒提示 --channel-id；TikTok 不存在如实说", async (t) => {
+test("account review: when the Instagram identity cannot be resolved, list candidates and stop; a rejected YouTube handle hints at --channel-id; a nonexistent TikTok account is reported as such", async (t) => {
   const igRun = await newRun(t, REVIEW);
   const igFirst = reviewFetch(igRun, "instagram", "neutral.creatr", "Review @neutral.creatr on Instagram.");
   const igArgs = calls(igFirst.out)[0].arguments;
@@ -170,7 +174,7 @@ test("账号复盘：Instagram 身份解析不到时列出候选并停下；YouT
   assert.match(ttSecond.out, /@neutral\.creator is not a public TikTok account/);
 });
 
-test("账号复盘：资料页临时失败不当作账号不存在；不带 --placed 重跑同一命令会重新交接", async (t) => {
+test("account review: a transient profile-page failure is not treated as the account not existing; rerunning the same command without --placed hands off again", async (t) => {
   const run = await newRun(t, REVIEW);
   const question = "How is @neutral.creator doing on Instagram?";
   const first = reviewFetch(run, "instagram", "neutral.creator", question);
@@ -193,7 +197,7 @@ test("账号复盘：资料页临时失败不当作账号不存在；不带 --pl
   assert.match(stopped.out, /capability is missing.*do not run this again/s);
 });
 
-test("流量诊断：Instagram 每种格式一页（max_pages 2）、YouTube 一页 30、TikTok limit 30；失败按错误码给指引", async (t) => {
+test("traffic diagnosis: Instagram one page per format (max_pages 2), YouTube one page of 30, TikTok limit 30; failures give guidance by error code", async (t) => {
   const question = "My reach dropped on Instagram lately, why?";
   const run = await newRun(t, DIAGNOSE);
   const fetch = (r, platform, handle, q) => python(DIAGNOSE, "drive.py", ["fetch", "--platform", platform, "--handle", handle, "--language", "en", "--question-file", "-"], { cwd: r, run: r, input: q });
@@ -230,7 +234,7 @@ test("流量诊断：Instagram 每种格式一页（max_pages 2）、YouTube 一
   assert.deepEqual((await readdir(path.join(tt, "rejected"))).length, 1);
 });
 
-test("流量诊断：续跑时交接点名的文件还没存，停下并点名该文件与该存的结果，不当作取数为空", async (t) => {
+test("traffic diagnosis: on resume, when the file named by the handoff is not saved yet, stop and name the file and the result to save, without treating it as an empty fetch", async (t) => {
   const run = await newRun(t, DIAGNOSE);
   const question = "My reach dropped on Instagram lately, why?";
   const first = python(DIAGNOSE, "drive.py", ["fetch", "--platform", "instagram", "--handle", "neutral.creator", "--language", "en",
@@ -241,7 +245,7 @@ test("流量诊断：续跑时交接点名的文件还没存，停下并点名�
   assert.equal(second.code, 2, second.out);
   assert.ok(second.out.includes("no result for slot 01 (collect_account_history). Run the resume command again with --id 01=<id>"), second.out);
   assert.deepEqual(await placedOperations(run), []);
-  // 存好之后同一条续跑命令即可放置；再跑一次不重复取。
+  // Once saved, the same resume command places it; running it again does not fetch twice.
   await answer(DIAGNOSE, run, first.out, composite(calls(first.out)[0].arguments, [
     ["instagram_resolve_profile", { handle: "neutral.creator", include_post_count: true }, profile],
     ["instagram_list_posts", { handle: "neutral.creator" }, envelope("instagram-discovery", "list_posts", igPage("FP", 6, false, null))],

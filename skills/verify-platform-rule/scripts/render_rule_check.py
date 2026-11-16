@@ -45,6 +45,8 @@ EN = {
                      "What follows is a tentative mechanism interpretation, not a platform statement "
                      "or an established basis for action."),
     "gloss": "Translation: ",
+    "implication": ("Our inference, not the platform's words - a possibility, not an established "
+                    "effect: "),
     "unreachable": "Pages this check could not read",
     "unreachable_lead": ("These were meant to be read and were not. That is not evidence they are "
                          "unchanged; it only means nobody looked:"),
@@ -130,6 +132,12 @@ def render(value: dict) -> str:
                 lines.append(f"— [{item['url']}]({item['url']}) · {authority} · "
                              f"{item['retrieved_at'][:10]}{effective}")
                 lines.append("")
+            # The inference goes after all quotations with a fixed label, so the reader can tell at a glance which
+            #   sentence the platform said and which was inferred.
+            if claim.get("inference"):
+                # Compressed into one paragraph: a heading or verdict word inside a multi-line inference must not grow into a
+                #   standalone conclusion outside the label.
+                lines += [f"**{words['implication'].strip()}** {' '.join(claim['inference'].split())}", ""]
 
     if unwritten:
         lines += [f"## {words['no_text_section']}", "", words["no_text_lead"], ""]

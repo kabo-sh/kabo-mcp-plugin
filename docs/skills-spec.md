@@ -252,9 +252,10 @@ There has been a case where saving a result containing 100 posts left `rows` emp
     Rationale: in the 1.0.10 Codex regression tests, having the model save this small result was still
     the leading cause of handoff failures: malformed patches, omitted parts of signed URLs, rewritten
     `calls[].tool` values and incorrect directories. Writing files programmatically from returned
-    values succeeded in 37/40 cases; model transcription succeeded in 3/10. The plugin registers no
-    lifecycle hooks, and installations containing only Skills have no hooks either, so having the host
-    persist results on the model's behalf is not an available path. Results without a download URL
+    values succeeded in 37/40 cases; model transcription succeeded in 3/10. The plugin's only
+    lifecycle hook is the Claude Code session-start note that offers setup once; it cannot see tool
+    results, and installations containing only Skills have no hooks at all, so having the host persist
+    results on the model's behalf is not an available path. Results without a download URL
     (download unavailable or delivery not requested) must still be saved as files as described above.
     Artifacts (frames and transcripts) have no result IDs and are downloaded individually as below.
   - **Frames and images also use downloads**: Pass `delivery: "download"` to

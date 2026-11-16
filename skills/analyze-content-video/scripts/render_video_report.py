@@ -66,7 +66,8 @@ def format_time_range(value: str) -> str:
 # A range is always a position: "0–3s" points at the opening even though both halves are bare
 # integers, in any language. A lone figure is the hard case, and the rule used to be "a decimal
 # point makes it a position" — which held only because the recorded runs were Chinese, where a
-# duration is written with 秒 and never with `s`. In English a duration is written exactly like a
+# duration is written with 秒 (seconds, literal Chinese unit) and never with `s`. In English a duration is
+#   written exactly like a
 # position: "Cut every 2.5s" came out as "Cut every [0:02]", which says "at two seconds" about
 # something that means "for two and a half".
 #
@@ -235,13 +236,15 @@ def render(result: dict) -> str:
     # Applied to the finished document rather than field by field. The six recorded runs put
     # positions in `summary`, `why_for_you`, `hooks[].visual_direction`, `hooks[].time_range` and
     # `next_actions` -- converting an enumerated list of fields missed four of those and shipped
-    # one line reading "[0:59] … 口播也在 56.9s 停在半句上". Whatever the model writes next goes
+    # one line reading "[0:59] ... the voice-over also stops mid-sentence at 56.9s" (originally written in
+    #   Chinese). Whatever the model writes next goes
     # through the same rewrite. Idempotent: a rendered `[0:15]` carries no trailing `s` and cannot
     # match again.
     #
     # The headline is the one exception, and it is not a style exception. The markdown validator
     # anchors the document to `creator_view.headline`, so the first line has to match that string
-    # byte for byte; one recorded run opens with "留住人的是 0.199s 那句话" and rewriting it broke
+    # byte for byte; one recorded run opens with "what holds people is the line at 0.199s" (originally Chinese)
+    #   and rewriting it broke
     # the anchor. A headline naming the first instant is also the one place the raw figure reads
     # better than a timecode -- 0.199s is the point, and [0:00] loses it.
     document = "\n".join(out).strip()

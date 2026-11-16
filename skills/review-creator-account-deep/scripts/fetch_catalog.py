@@ -44,7 +44,8 @@ COMPOSITE_TOOL = "collect_account_history"
 CONTENT = {"instagram": ("list_posts", "list_reels"), "youtube": ("list_channel_uploads",),
            "tiktok": ("list_account_posts",)}
 YOUTUBE_PAGE, TIKTOK_LIMIT = 50, 100
-# 目录阶段的组合调用在后台最多发几次底层调用：IG 3 次 + 1 次重试；YT 2 次；TT 1 次。其余额度留给看片。
+# Maximum number of underlying backend calls a combined call makes in the catalog stage: IG 3 + 1 retry;
+# YT 2; TT 1. The rest of the budget is left for watching videos.
 CATALOG_CALL_CAP = 4
 NOT_FOUND = {"not_found", "validation_error"}
 QUOTA = "quota_exceeded"
@@ -61,7 +62,7 @@ NOT_FOUND_MESSAGE = ("{label} did not resolve to a public account. Confirm the e
 
 
 class Stop(Exception):
-    """取数无法继续：账号不存在、额度用完或数据服务两次失败；告诉用户并停止，不换账号。"""
+    """Fetching cannot continue: the account does not exist, the quota is exhausted, or the data service failed twice; tell the user and stop, without switching accounts."""
 
     def __init__(self, reason: str, message: str):
         super().__init__(message)
@@ -73,7 +74,7 @@ def quote(text: str | Path) -> str:
 
 
 def prefix() -> str:
-    """SKILL.md 的命令形式：先 cd 到本 run，再带 KABO_STATIC_RUN_DIR。"""
+    """Command form in SKILL.md: cd into this run first, then set KABO_STATIC_RUN_DIR."""
     run = quote(Path.cwd().resolve())
     return f"cd {run} && KABO_STATIC_RUN_DIR={run} python3 "
 
@@ -83,14 +84,14 @@ def script(name: str) -> str:
 
 
 def numbered() -> list[Path]:
-    """catalog/NN-<operation>.json 与 NN-<operation>.failed，按 NN（发出顺序）排列。"""
+    """catalog/NN-<operation>.json and NN-<operation>.failed, ordered by NN (issue order)."""
     if not CATALOG.is_dir():
         return []
     return sorted([*CATALOG.glob("[0-9][0-9]-*.json"), *CATALOG.glob("[0-9][0-9]-*.failed")], key=lambda p: p.name)
 
 
 def placed() -> list[dict[str, Any]]:
-    """已落盘的信封与宿主失败标记；标记是一条不可用的失败行，和失败信封一样计数。"""
+    """Envelopes already written to disk and the host failure markers; a marker is an unusable failed row and is counted like a failed envelope."""
     rows = []
     for path in numbered():
         envelope = json.loads(path.read_text(encoding="utf-8"))
@@ -109,7 +110,7 @@ def terminal(envelope: dict[str, Any]) -> bool:
 
 
 def state(rows: list[dict[str, Any]], operation: str) -> dict[str, Any]:
-    """一个 operation 的唯一一页：成功信封、失败次数、是否额度用完或账号不存在。"""
+    """The single page of one operation: the successful envelope, the failure count, and whether the quota is exhausted or the account does not exist."""
     mine = [row for row in rows if row["operation"] == operation]
     good = next((row["envelope"] for row in mine if row["usable"]), None)
     codes = [row["envelope"].get("error_code") for row in mine if not row["usable"]]
@@ -130,7 +131,7 @@ def resolved(platform: str, page: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def assemble(platform: str, handle: str, rows: list[dict[str, Any]], exhausted: bool) -> dict[str, Any]:
-    """用随包的 build_public_snapshot.py 与 account_analyzers.py 组装；缺页照组装，覆盖标记如实为不完整。"""
+    """Assemble with the bundled build_public_snapshot.py and account_analyzers.py; missing pages are assembled anyway, with the coverage flag honestly marked incomplete."""
     pages = {op: state(rows, op) for op in CONTENT[platform]}
     kept = [row for row in rows if row["usable"]]
     combined = sum(row_count(p["page"]) or 0 for p in pages.values() if p["page"] is not None)
@@ -156,7 +157,8 @@ def assemble(platform: str, handle: str, rows: list[dict[str, Any]], exhausted: 
     run([str(SCRIPTS / "build_public_snapshot.py"), "--platform", platform, "--window", "auto", *envelopes, *flags,
          "--output", str(SNAPSHOT)])
     snapshot = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
-    # 样本缩小写进 source.limitations，由 account_analyzers 带到分析的 source_coverage.limitations。
+    # The sample shrink is written into source.limitations, which account_analyzers carries into the analysis
+    # source_coverage.limitations.
     snapshot.setdefault("source", {}).setdefault("limitations", []).append(note)
     SNAPSHOT.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     creators = [c for c in snapshot.get("creators") or [] if c.get("handle")]
@@ -180,7 +182,7 @@ def run(command: list[str]) -> None:
 
 
 def history_call(platform: str, handle: str, channel_id: str | None) -> dict[str, Any]:
-    """一页样本的组合调用：IG 资料页 + Feed 首页 + Reels 首页，YT 频道 + 最新 50 条，TT 一次 100 条。"""
+    """Combined calls for one page of samples: IG profile + first Feed page + first Reels page, YT channel + latest 50 items, TT 100 items in one call."""
     if platform == "instagram":
         history: dict[str, Any] = {"max_items": 100, "max_pages": len(CONTENT["instagram"]),
                                    "instagram_formats": {"posts": True, "reels": True}}
@@ -197,7 +199,7 @@ def history_call(platform: str, handle: str, channel_id: str | None) -> dict[str
 
 
 def take_saved(path: Path, result_id: str | None = None) -> None:
-    """按结果编号取组合结果（没有编号时读退路文件，没有就绪下载时 stage）；宿主已自己落过盘时照用已落的那份。"""
+    """Fetch the combined result by result number (read the fallback file when there is no number, and stage when there is no ready download); if the host already wrote it to disk itself, use that copy."""
     import static_host
     if result_id and not static_host.composite_records(COMPOSITE_TOOL):
         try:
@@ -219,7 +221,7 @@ def take_saved(path: Path, result_id: str | None = None) -> None:
 
 
 def place_composite() -> None:
-    """把最近一份组合结果按调用顺序逐字节写成 catalog/NN-<operation>.json；已放过就不再放。"""
+    """Write the latest combined result byte for byte as catalog/NN-<operation>.json in call order; do not place it again if it was already placed."""
     import static_host
     if numbered():
         return
@@ -234,7 +236,7 @@ def place_composite() -> None:
 
 
 def profile_check(platform: str, label: str, rows: list[dict[str, Any]]) -> None:
-    """资料页（IG / YT）拿不到：不存在如实说；其余说明不了账号在不在。"""
+    """When the profile page (IG / YT) is unavailable: say honestly that the account does not exist; anything else cannot tell whether the account exists."""
     if platform == "tiktok":
         current = state(rows, "list_account_posts")
         if current["page"] is None and current["not_found"]:
@@ -251,9 +253,12 @@ def profile_check(platform: str, label: str, rows: list[dict[str, Any]]) -> None
                                      "cannot be fetched right now and stop; do not guess whether it exists.")
 
 
-# 实测（1.0.14 回归）：模型先跑了 static_host.py init、记了一次 start_skill_run，又跑 --workspace 再预留
-# 一个 run，于是同一个请求按两个 run_id 记了两次用量。--workspace 先认领本 workspace 里刚预留、
-# 还没放进任何东西的本 Skill run，没有才新建；一个请求始终只有一个 run。
+# Measured (1.0.14 regression): the model ran static_host.py init, recorded one start_skill_run, then ran
+# --workspace which reserved another
+# run, so the same request logged usage twice under two run_ids. --workspace first claims a just-reserved
+# run of this Skill in this workspace that
+# has nothing placed in it yet, and creates a new one only if there is none; a request always has exactly
+# one run.
 FRESH_RUN_SECONDS = 30 * 60
 
 
@@ -271,8 +276,10 @@ def untouched_run(workspace: str) -> Path | None:
                 continue
         except (OSError, ValueError):
             continue
-        # 只有 init 建的空目录与标记文件：任何已落盘的文件（包括别的请求留下的认领标记）都说明这个 run
-        # 已经开始，跳过它接着找。认领用独占创建，两个请求不会同时认领同一个 run。
+        # Only the empty directory and the marker file created by init: any file already on disk (including a
+        # claim marker left by another request) means this run
+        # has already started, so skip it and keep looking. Claiming uses exclusive creation, so two requests
+        # never claim the same run at once.
         if any(path.is_file() and path != marker for path in run.rglob("*")):
             continue
         if claim(run):
@@ -301,7 +308,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--id", dest="result_id", help="the result id of the printed call")
     parser.add_argument("--call-failed", action="store_true",
                         help="the printed call failed twice without returning any result")
-    # 目录就绪后直接接着跑 watch_media.py（中间没有判断），把看片的交接一并打印。
+    # Once the directory is ready, continue straight into watch_media.py (no judgement in between), printing
+    # the watch-the-video handover as well.
     parser.add_argument("--output-language", choices=("en", "zh-CN"), default="en")
     parser.add_argument("--cap", type=int, default=10)
     parser.add_argument("--named-content-id", action="append", default=[])

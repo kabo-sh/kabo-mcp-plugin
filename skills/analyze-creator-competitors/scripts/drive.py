@@ -108,7 +108,7 @@ SUBJECT_CAPTIONS = 12
 SUBJECT_CAPTION_CHARS = 200
 COMMENT_TARGETS = "comment-targets.json"
 SEED = "seed-envelope.json"
-# lookup_instagram_post 给种子帖 data 的固定投影，与作答路线无关。
+# Fixed projection of lookup_instagram_post for the seed post data, independent of which route answered.
 POST_PROJECTION = "kabo.instagram_post.v1"
 COMMENT_SOURCE = "comment-source.json"
 AUDIENCE = "audience-comments.json"
@@ -219,8 +219,9 @@ def seed_facts(envelope: dict[str, Any]) -> dict[str, Any]:
     form = ("reel" if kind == "clips" else "carousel" if kind.startswith("carousel") else
             "video post" if video else "image post" if video is False else (kind or None))
     if data.get("projection") == POST_PROJECTION:
-        # lookup_instagram_post 的固定投影：null 表示拿不到，直接省略，不当 0；IG+FB 合并播放数
-        # 不是 Instagram 播放数，单独列名，不顶替 plays。
+        # Fixed projection of lookup_instagram_post: null means unavailable, so omit it rather than treating it as
+        # 0; the combined IG+FB views
+        # are not Instagram views, so list them under their own name and never substitute them for plays.
         metrics = post.get("metrics") or {}
         caption = post.get("caption") if isinstance(post.get("caption"), str) else ""
         duration = post.get("duration_s")
@@ -250,8 +251,10 @@ def start_from_post(args: argparse.Namespace) -> None:
     `get_post` — about 60 s on one case (2026-09-18) before the subject stage even started.
     """
     save_state(platform="instagram")
-    # 交接成 lookup_instagram_post；它的信封记实际作答的路线（主源拒绝时是 instagram-detail-proxy），
-    # 所以只按 operation 放置，两条路线的回答都能落位。本 Skill 没有别的 get_post 操作。
+    # Handed over as lookup_instagram_post; its envelope records the route that actually answered
+    # (instagram-detail-proxy when the primary source rejects),
+    # so place by operation only, which lets answers from both routes land. This Skill has no other get_post
+    # operation.
     fetch_round([run_call(IG, "get_post", {"url": args.post})], args, lambda: place_record(
         "get_post", SEED, lambda: script(
             "persist_envelope.py", "--operation", "get_post", "--any-status", "--dest", SEED, *drained())))
@@ -995,8 +998,10 @@ def next_reel_page(pages: list[Path], since: float, until: float) -> str | None:
 
 
 def stage_content(args: argparse.Namespace) -> None:
-    # 云端没有桌面 plugin root；这条链的快照构建器必须与 skill 一起校验、分发。
-    # 缺件在取数前报错，避免再次拿完账号历史才发现安装不完整。
+    # The cloud has no desktop plugin root; the snapshot builder for this chain must be validated and
+    # distributed together with the skill.
+    # Report a missing piece before fetching, so we do not fetch the whole account history only to find the
+    # install incomplete.
     if not (SCRIPTS / "build_public_snapshot.py").is_file():
         raise StageError(f"This skill package is incomplete: {SCRIPTS / 'build_public_snapshot.py'} is missing. "
                          "Reload a complete verified package before fetching account content.")
@@ -1133,16 +1138,20 @@ def stage_content(args: argparse.Namespace) -> None:
                       SELECTION, "--output", "topic-coverage.json", "--print")
     with_comments = getattr(args, "comments", False) is True
     if with_comments:
-        # 评论在打印证据之前取：评论调用被移交时阶段在这里停下，证据只由最后完成的那次运行打印一次，
-        # 省掉单独的 comments 轮次。
+        # Fetch comments before printing the evidence: when the comments call is handed over, the stage stops
+        # here, and the evidence is printed once,
+        # only by the last completed run, which saves a separate comments round.
         fetch_comments(args)
     evidence = script("project_synthesis_evidence.py", "--analysis", "public-content-analysis.json", "--snapshot",
                       "public-content-snapshot.json", "--selection", SELECTION, "--eligibility", ELIGIBILITY,
                       "--request", REQUEST, "--subject-history", "subject-history.json",
                       "--output", "synthesis-evidence.json", "--print")
-    # schema 与下一步说明先打印、且用紧凑 JSON，再打印大段 topic coverage / synthesis evidence：
-    # 宿主截断的是输出尾部（10-22..29 生产回执 55 轮里 12 轮被截），截掉的只会是已落盘的证据，
-    # 不会是 schema。只改本包 drive.py；共享的 connector_driver.show_schema 不动。
+    # Print the schema and the next-step note first, in compact JSON, then the large topic coverage /
+    # synthesis evidence:
+    # the host truncates the tail of the output (12 of 55 rounds in the 10-22..29 production receipts were
+    # cut), so what gets cut is only evidence already
+    # written to disk, never the schema. Change only this package's drive.py; the shared
+    # connector_driver.show_schema stays untouched.
     show_compact_schema("competitor-research-synthesis.schema.json")
     say("Next judgment: write competitor-research-synthesis.json in this run directory using "
         "the schema above and the topic coverage and synthesis evidence below; "
@@ -1163,8 +1172,7 @@ def show_compact_schema(name: str) -> None:
 def stage_comments(args: argparse.Namespace) -> None:
     """`comments` alone, after `content` finished: the same block `content --comments` runs.
 
-    旧说明里单独的 `drive.py comments` 仍可运行，作为 `content --comments` 的别名保留。
-    """
+    A standalone `drive.py comments` from the old instructions still works and is kept as an alias of `content --comments`."""
     if fetch_comments(args):
         say(Path(AUDIENCE).read_text(encoding="utf-8").rstrip())
 
@@ -1242,7 +1250,8 @@ def stage_report(args: argparse.Namespace) -> None:
     reply = Path("creator-reply.md").resolve()
     say(f"creator_report: {reply}")
     say(reply.read_text(encoding="utf-8").rstrip())
-    # 交付方式紧跟报告打印：实测里短问题的回复常被模型改写成摘要。
+    # Print the delivery instructions right after the report: in real runs the model often rewrote short
+    # replies into a summary.
     say('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says), then this creator_report line.')
 
 

@@ -63,10 +63,13 @@ SYNTHESIS = "account_review_synthesis.json"
 # Only this name binds a growth scenario into the report; standalone calculations keep their own files.
 GROWTH_INPUT = "review_growth_input.json"
 OUTPUT_DIR = Path("output")
-# 本 run 的 report 返回过 needs_revision 的标记（run 根目录的点文件）。只有留下这个标记的 run
-# 还需要 verify-report 做最终复核；从未返回过的 run 由 report 直接作为最终步。
+# Marker (a dotfile in the run root) that this run's report returned needs_revision. Only a run with this
+# marker
+# still needs verify-report for the final check; a run that never returned it treats report itself as the
+# final step.
 AUTHORING_CORRECTION_MARKER = Path(".authoring-correction-used")
-# report 作为最终步时记下报告路径与 sha256；verify-report 见到同一份字节就不再重跑。
+# When report is the final step, record the report path and sha256; verify-report does not rerun when it
+# sees the same bytes.
 REPORT_FINAL_MARKER = Path(".report-final.json")
 
 # The Instagram public sample: at most 100 persisted Feed + Reels rows combined.
@@ -447,8 +450,9 @@ def assemble(platform: str, requested: str, question: str, window: str) -> None:
     cd.script(SNAPSHOT_ANALYZER, SNAPSHOT, "--operation", "all", "--focus-handle", focus, "--output", ANALYSIS)
     profile = identity.get("profile_envelope")
     profile_args = ["--profile-envelope", str(profile)] if profile else []
-    # schema 先于 compact input 打印，并用紧凑 JSON：宿主截断的是输出尾部，截掉的只会是已落盘的
-    # synthesis_input.json，而不是 schema。
+    # Print the schema before the compact input, in compact JSON: the host truncates the tail of the output,
+    # so what gets cut is only the
+    # synthesis_input.json already written to disk, never the schema.
     say(json.dumps(synthesis_schema(), ensure_ascii=False, separators=(",", ":")))
     cd.script("build_synthesis_input.py", "--analysis", ANALYSIS, "--snapshot", SNAPSHOT, *profile_args,
               "--user-question", question,
@@ -689,10 +693,12 @@ def preflight_report_sources(analysis: dict[str, Any], snapshot: dict[str, Any],
 
 def emit_final_report(report: Path) -> None:
     """Hand the whole validated report to the host at the existing final step."""
-    # 截断恢复放在正文之前，避免输出尾部被宿主截断时连恢复入口也丢失。
+    # Put truncation recovery before the body, so that if the host truncates the tail of the output the
+    # recovery entry point is not lost too.
     say(f"[drive] If output is truncated, read the finalized report in bounded chunks: "
         f"python3 '{Path(__file__).resolve()}' read-report --output-dir '{report.parent}' --offset 0")
-    # 最后一步交付完整已校验正文，避免模型把文件路径或开头诊断当作完整答案。
+    # The last step delivers the complete validated body, so the model does not mistake a file path or the
+    # opening diagnosis for the full answer.
     body = report.read_text(encoding="utf-8").rstrip()
     say("KABO_FINAL_REPLY_BEGIN")
     say(body)
@@ -745,7 +751,7 @@ def stage_report(args: argparse.Namespace) -> None:
         try:
             validate_authoring(analysis, synthesis)
         except AuthoringError as error:
-            # 返回过 needs_revision 的 run，最终仍由 verify-report 复核。
+            # A run that returned needs_revision is still finally checked by verify-report.
             AUTHORING_CORRECTION_MARKER.write_text("needs_revision\n", encoding="utf-8")
             say(json.dumps({"status": "needs_revision", "report_written": False,
                             "issues": error.issues,
@@ -768,9 +774,12 @@ def stage_report(args: argparse.Namespace) -> None:
     except cd.StageError as error:
         if not correctable:
             raise
-        # 实测（1.0.14 回归）：compose 已写出报告、校验器才拒收，留下的未过校验的报告让改完重跑撞上
-        # 「a report already exists」，verify-report 又因 synthesis 已改而对不上，这条补救路径走不通。
-        # 未过校验的报告不是交付物：删掉它们，标记本 run 改过稿（最终仍由 verify-report 复核）。
+        # Measured (1.0.14 regression): compose had already written the report and the validator rejected it
+        # afterwards, leaving a report that failed validation, so rerunning after the fix hit
+        # "a report already exists", and verify-report no longer matched because the synthesis had changed; this
+        # recovery path did not work.
+        # A report that failed validation is not a deliverable: delete them and mark this run as revised (the
+        # final check is still done by verify-report).
         for name in ("account_review.json", "creator_profile.json", "ACCOUNT_REVIEW.md"):
             path = output_dir / name
             if path.is_file() and not path.is_symlink():
@@ -781,21 +790,23 @@ def stage_report(args: argparse.Namespace) -> None:
                             f"repeat this same report command. If it names no authored field (a file, "
                             f"permission or other system error), this step failed: report it and stop.") from None
     report = (output_dir / "ACCOUNT_REVIEW.md").resolve()
-    # 本 run 从未返回 needs_revision 时，这次 report 就是最终步：两个校验器刚在同一份字节上通过，
-    # verify-report 再跑一遍只会重复 compose 和两次校验。
+    # When this run never returned needs_revision, this report is the final step: both validators just passed
+    # on the same bytes, and
+    # rerunning verify-report would only repeat compose and the two validations.
     final = (getattr(args, "allow_authoring_correction", False) is True
              and not AUTHORING_CORRECTION_MARKER.exists())
     if final:
         REPORT_FINAL_MARKER.write_text(json.dumps({"report": str(report), "sha256": hashlib.sha256(
             report.read_bytes()).hexdigest()}) + "\n", encoding="utf-8")
     if getattr(args, "verify_existing", False) is True:
-        return  # 改稿复核的交付由调用方在收尾成功后统一发出。
+        return  # The delivery of the revision check is emitted by the caller once, after the wrap-up succeeds.
     say(f"creator_report: {report}")
     if final:
         say("[drive] this report is final: both validators passed. "
             "verify-report is not needed; deliver ACCOUNT_REVIEW.md now.")
     elif AUTHORING_CORRECTION_MARKER.exists() and getattr(args, "verify_existing", False) is not True:
-        # 不含 needs_revision 字样：这里报告已通过校验，只是还差最终复核。
+        # Do not include the words needs_revision: here the report has passed validation and only the final check
+        # remains.
         say("[drive] an earlier report in this run asked for author corrections, so this one is "
             "non-final: run drive.py verify-report as the final step.")
     if final or getattr(args, "verify_existing", False) is True:
@@ -856,15 +867,17 @@ def stage_verify_report(args: argparse.Namespace) -> None:
     """Final host close: recompute existing bytes and run both unchanged strict validators."""
     args.verify_existing = True
     args.allow_authoring_correction = False
-    # report 尚未生成时先停下，不把可修正的作者错误变成最终步骤失败；什么都不读不写。
+    # If the report has not been generated yet, stop first, so a fixable author error does not become a
+    # final-step failure; read and write nothing.
     output_dir = Path(getattr(args, "output_dir", None) or OUTPUT_DIR)
     if not (output_dir / "ACCOUNT_REVIEW.md").is_file():
         raise cd.StageError(
             f"verify-report found no composed report in {output_dir}/; nothing was read or written. "
             "Run the non-final `drive.py report --allow-authoring-correction` stage in this same run "
             "first, and verify only after it prints the validated report")
-    # 幂等：report 已作为最终步（从未返回 needs_revision），且报告字节未变时不重跑 compose 和校验器。
-    # 标记缺失、不是普通文件或哈希不符时走下面的严格路径。
+    # Idempotent: when report was already the final step (never returned needs_revision) and the report bytes
+    # are unchanged, do not rerun compose and the validators.
+    # If the marker is missing, is not a regular file, or the hash does not match, take the strict path below.
     report = (output_dir / "ACCOUNT_REVIEW.md").resolve()
     try:
         record = (json.loads(REPORT_FINAL_MARKER.read_text(encoding="utf-8"))

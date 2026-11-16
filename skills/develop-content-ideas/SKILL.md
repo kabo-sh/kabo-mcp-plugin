@@ -48,6 +48,23 @@ invented numbers also covers personal experience and identity claims, including 
 Use evidence for the same person and claim; omit unsupported details or leave visible placeholders.
 Names found only in automatic transcripts remain role descriptions.
 
+**Deliver every part of the request.** Before prep, list each deliverable the creator asked for in
+this message and in the request it answers: a short reply such as a platform name ("YouTube
+Shorts") completes an earlier request, it does not replace it, so `user_brief.text` keeps that
+earlier request. For "three ideas, then a script for the strongest", this Skill delivers the three
+ideas and names the strongest; the script is the next part (`create-script-and-packaging`),
+continued in the same turn. Record that next part in the intent as `generation_basis.follow_on`
+(`deliverable: "script"`, `quote`: the creator's exact words asking for it, from `user_brief.text`).
+The export receipt then carries `follow_on` with the top-ranked idea: after emitting the list, load
+`create-script-and-packaging` and write that idea's complete script in the same turn, without asking
+the creator to choose first. Before the final reply, check the list and do not end with a part
+missing; if a part truly cannot be done now, say which and why.
+
+**Keep the creator's facts.** Dates and relative days ("tomorrow" stays tomorrow), numbers,
+names, directions such as up or down and story events the creator gave are copied exactly into
+titles, hooks and directions. Do not add new factual premises about history, science, people,
+companies or events as if established; ask them as a question or leave them out.
+
 **Check the requested deliverable first.** Continuing or completing an identified story, draft or
 published episode belongs to `create-script-and-packaging`, even when phrased as "how should I make
 part 2?"; it is not a request for a new batch of ideas. If the creator already supplied or confirmed
@@ -126,8 +143,9 @@ handle each prep decision. Also read the fields and definitions for this task in
 ## Core
 
 Core starts only after prep reports `ready_for_generation` (prep opens `stage_timing.json`
-core.started_at at that moment). The target is **at most two** model generation passes that write
-or revise `idea_set.json` (generate, then revise only if programmatic validation fails). Do not
+core.started_at at that moment). Author at most **ten candidates per batch**, using prep’s work
+plan and next command. The initial set takes `ceil(idea_count / 10)` authoring passes, followed by
+at most **one aggregate revision** only if final validation fails. These are not two model calls. Do not
 invent extra critique/rewrite loops. Record network, 5xx or truncation retries with
 `--record-network-retry` as `references/core-generation.md` says; they use no attempt.
 
@@ -136,7 +154,11 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    relationship and substitute only its open slots, keeping their kind and number. State this in
    `overview.portfolio_logic`; map every item's concrete input, progression and goal in
    `making_direction`. Follow *Continuations* for source binding and the per-item semantic check.
-2. In **one** generation pass, write the complete `idea_set.json`: distinct titles the Creator could publish, hooks, making direction, evidence basis, ranking, gates, and limitations. For an open batch, remove near-duplicates and rank by Creator fit, evidence strength, differentiation, timeliness, and realistic production cost. For variants of one selected example, preserve the shared scaffold and assess distinctness only in its variable slots, as above. A plain question or statement is sufficient for a title; keep teaching method detail in `making_direction`. Never invent loss amounts, customer outcomes, efficiency gains, market facts, policy facts, numbers, or URLs. Preserve artifact-level lineage in `upstream_sources`, context-level refs in `source_context_refs`, `must_avoid` as `must_differ`, and risk language. `assets_used` must stay within declared `available_assets`. For shortlist intents only, unconfirmed future `required_assets` are allowed with `production_feasibility.status="requires_user_confirmation"`, explicit `assumptions` and a `production_missing` gate; never treat them as owned or used. Capacity plans require all resources to be available; exclusions still apply. Do not edit, patch, or replace the skill scripts, schemas, or validators; fix a rejected IdeaSet by revising only `idea_set.json` once.
+2. Read `references/batched-authoring.md`. Write only the next planned batch, submit it with the
+   `batch` command, then continue the returned next batch. Do not create the whole set in a
+   single model response. While a batch returns `status="awaiting_batches"`, the task is not
+   finished: in the same turn, write the next `batch-N.json` and run its `next_command`. Ending
+   the turn or telling the user a batch is still pending at that point is a failed run. The script assembles `idea_set.json` only after all batches exist. Author: distinct titles the Creator could publish, hooks, making direction, evidence basis, ranking, gates, and limitations. For an open batch, remove near-duplicates and rank by Creator fit, evidence strength, differentiation, timeliness, and realistic production cost. For variants of one selected example, preserve the shared scaffold and assess distinctness only in its variable slots, as above. A plain question or statement is sufficient for a title; keep teaching method detail in `making_direction`. Never invent loss amounts, customer outcomes, efficiency gains, market facts, policy facts, numbers, or URLs. Preserve artifact-level lineage in `upstream_sources`, context-level refs in `source_context_refs`, `must_avoid` as `must_differ`, and risk language. `assets_used` must stay within declared `available_assets`. For shortlist intents only, unconfirmed future `required_assets` are allowed with `production_feasibility.status="requires_user_confirmation"`, explicit `assumptions` and a `production_missing` gate; never treat them as owned or used. Capacity plans require all resources to be available; exclusions still apply. Do not edit, patch, or replace the skill scripts, schemas, or validators; fix a rejected IdeaSet by revising only `idea_set.json` once.
 3. Put missing information into `gates.selection_missing` only when it prevents a valid choice.
    Put filming, editing, CTA, cadence, or other later details into `gates.production_missing`;
    these may coexist with `ready_for_selection`. If `production_missing` is nonempty, include
@@ -146,7 +168,8 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    `hook_preview.progressive_line=null`; two means a nonempty, distinct second line. Do not use an
    empty string for null. For chat-only continuations, both the set and per-item
    `source_context_refs=[]`; the conversation is bound separately, not as research evidence.
-4. Run the core stage (validate → render, or emit a revision brief):
+4. Only after the batch receipt says `ready_for_core`, run the core stage once over the
+   complete set (validate → render, or emit one aggregate revision brief):
 
    ```sh
    cd '<run directory>' && python3 '<skill directory>/scripts/run_ideas_stages.py' core --run-dir .
@@ -155,7 +178,7 @@ invent extra critique/rewrite loops. Record network, 5xx or truncation retries w
    as its exit code. Both `ok` and recoverable `needs_revision` exit `0`; the latter keeps the run
    open but does not validate or render a deliverable.
    - `status="ok"` with report paths (exit `0`): run step 7, then deliver. The `--concise` output is the sole Creator-facing artifact: `RESULT.md`. The `--full` output is an audit-only artifact; keep `IDEA_REPORT_FULL.md` in the run directory and never deliver it or copy it to `RESULT.md`.
-   - `status="needs_revision"` with `revision_remaining=1` (exit `0`, unvalidated): use the returned errors and `revision_brief.json` to revise `idea_set.json` **once**, then run the same core command in the same run directory. Do not rerun prep, reset the attempt counter, or replace this runnable revision with an unvalidated prose answer. If the working file cannot be read directly, write the corrected file into the same run directory from the retained IdeaSet content and returned errors.
+   - `status="needs_revision"` with `revision_remaining=1` (exit `0`, unvalidated): do not rewrite `idea_set.json`. Write `revision.json` (`{"edits": [{"idea_id", "path", "value" | "delete": true}]}`, one edit per `error_details` entry) into the run directory and run the returned `revise_command`; it applies only those fields, reads them back and dry-runs validation without using a core attempt. Repeat revise until it returns `ready_for_core`, then run the same core command once. Do not rerun prep, resubmit batches, reset the attempt counter, use `run_code` on run files, or replace this runnable revision with an unvalidated prose answer.
    - `status="not_met"` (exit `3`): stop; do not start another creative pass or loosen validation.
    - `status="failed"`, absent/unreadable script status, or an unavailable execution tool: diagnose
      the specific failure. Do not infer successful validation or permission for another creative
@@ -185,7 +208,8 @@ contract and ranking rules. In short:
   `brief_based` or `hypothesis`. `why_now` is evidence-backed only when a dated source supports it.
 - A request for account performance, trends, competitors, Creator context or a specific video never
   silently becomes brief-only: without the evidence and without explicit fallback, return the
-  missing-source block without ideas.
+  missing-source block without ideas. An account review bound from this conversation counts as
+  the account evidence; no review anywhere means producing one first (`references/prep.md`).
 - `selection_status` remains `candidate` until the user selects an idea.
 
 ## Report language and conversation context
@@ -195,6 +219,14 @@ separate from `language_targets`; read `references/report-language.md` whole bef
 `idea_set.json`. Before asking for a topic, audience, goal or evidence, reuse the conversation up to
 the current turn. Follow *Continuations* in `references/core-generation.md` to pass an earlier
 IdeaSet or exact visible chat through prep, while keeping the current request unchanged.
-When no explicit topic or usable evidence exists, ask only for the topic/niche (or
-an account/evidence source); a platform name and an idea count do not supply a niche. Clarification
-is not a completed idea-generation task.
+An account review delivered earlier in this conversation (standard or deep) is the account
+basis for "ideas based on the review": when its `account_review.json` is not in this workspace,
+bind the visible review with *Account review from this conversation* in `references/prep.md`
+instead of returning the missing-source block. When the earlier conversation already establishes
+the niche, use it through the chat route rather than asking again. When the creator hands you the
+choice ("you pick", "help me choose a niche"), do not ask them to choose: pick a niche from the
+conversation or, without any, a broadly workable one, record it as `generation_basis.delegated_topic`
+(their exact words in `quote`, your choice in `topic`), state that assumption in
+`evidence_summary.data_gaps` and deliver. Only when there is no topic, no usable context and no
+delegation, ask only for the topic/niche (or an account/evidence source); a platform name and an
+idea count do not supply a niche. Clarification is not a completed idea-generation task.

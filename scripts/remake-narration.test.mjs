@@ -9,8 +9,9 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const scripts = path.join(root, "skills/remake-viral-video/scripts");
 
-// 旁白（voice-over）的本地脚本：画面检查、preview / 看图返工的提交参数、分页下载。
-// 下载经进程内的假 HTTPS 处理器，测试不联网。
+// Local script for voice-over (narration): frame checks, submission parameters for preview / image-review
+//   rework, and paged downloads.
+// Downloads go through an in-process fake HTTPS handler, and the tests do not touch the network.
 const PY = String.raw`
 import base64, hashlib, http.client, importlib.util, io, json, os, sys, urllib.request, urllib.response
 sys.dont_write_bytecode = True
@@ -141,7 +142,7 @@ except ValueError:
 print(json.dumps(out))
 `;
 
-test("remake-viral-video 旁白：画面检查、preview / review 参数与分页下载", async (t) => {
+test("remake-viral-video narration: visual check, preview / review parameters and paged download", async (t) => {
   const temp = await mkdtemp(path.join(os.tmpdir(), "kabo-remake-narration-"));
   t.after(() => rm(temp, { recursive: true, force: true }));
   const res = spawnSync("python3", ["-I", "-c", PY, scripts, temp], { encoding: "utf8" });

@@ -90,7 +90,8 @@ PUBLIC_PROVIDER_LABELS = {
     "youtube-public": "YouTube public data",
     "tiktok-public": "TikTok public data",
 }
-# ASCII-only boundaries: Chinese prose often abuts the id directly ("来自instagram-discovery的"), and
+# ASCII-only boundaries: Chinese prose often abuts the id directly with no space (the id sits flush against the
+# surrounding Chinese characters), and
 # the delivery guard matches case-insensitively, so the substitution does too.
 PUBLIC_CONNECTOR_ID = re.compile(
     r"(?<![A-Za-z0-9_-])(" + "|".join(re.escape(key) for key in PUBLIC_PROVIDER_LABELS) + r")(?![A-Za-z0-9_-])",
@@ -489,7 +490,8 @@ def render_markdown(report: dict[str, Any], output_language: str = "en") -> str:
         lines += [f"## {status_text['title']}", "", status_text[platform], ""]
     view_counts = {row["format"]: row.get("metrics", {}).get("views", {}).get("available_n", 0)
                    for row in report["baselines"]}
-    # 公开累计快照不证明内容优劣；固定章节标题也必须遵守相同边界。
+    # A public cumulative snapshot does not prove a piece of content is better or worse; the fixed section titles
+    # must obey the same boundary too.
     if report["scope"].get("source_mode", "").startswith("public"):
         headings = (("Public content observations", "what_works"), ("Questions to test", "what_hurts"))
     else:

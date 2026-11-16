@@ -133,6 +133,11 @@
       "id": "review-new-posts",
       "derivedFromVersion": "0.1.0",
       "sourcePath": "kabo-mcp-plugin/skills/review-new-posts"
+    },
+    {
+      "id": "review-thumbnail",
+      "derivedFromVersion": "0.1.0",
+      "sourcePath": "kabo-mcp-plugin/skills/review-thumbnail"
     }
   ]
 }

@@ -23,14 +23,22 @@ OPERATIONS = (
     "fetch_transcript",
     "extract_keyframes",
 )
-# 后台默认的时长自适应采样（duration_scaled）先给开头 0–2.5 秒每 0.5 秒一帧，正文从第 3 秒起，
-# 结尾 2 秒再给 4 帧；帧数上限只摊薄正文，不动开头。下游只读开头：watch_media.py 让模型看
-# 3 秒以内最多 5 张，作者包也只列 3 秒以内的帧（其余帧要模型先看过再用 --frame-object-ref 补，
-# 而 Web 每回合最多 60 张图，开头已占 50 张）。12 帧 = 开头 6 + 正文 2（含第 3 秒那一帧）+ 结尾 4：
-# 3 秒以内的帧与 60 帧时逐张相同，另给结尾和一张中段作余量；正文被拉稀时信封照常写明
-# body_degraded 与间隔。不选 10：正文一帧都排不上时 body_degraded 为 false，「没看中段」就无人声明。
-# 以前是 {"fps": 1, "max_frames": 60}：fps 不带 sampling 时后台忽略；60 帧里下游只用开头那几张，
-# 其余帧只是让组合结果变大、抽帧变慢。static_host.py job-call 的上限 60 不变。
+# The backend's default duration-scaled sampling (duration_scaled) first gives one frame every 0.5 s over
+#   0-2.5 s of the opening, the body starts at second 3,
+# and the last 2 s get 4 more frames; the frame cap only thins out the body and never touches the opening.
+#   Downstream reads only the opening: watch_media.py has the model look at
+# at most 5 images within 3 seconds, and the author package likewise lists only frames within 3 seconds (other
+#   frames must first be seen by the model and then added with --frame-object-ref,
+# while Web allows at most 60 images per turn and the opening already takes 50). 12 frames = opening 6 + body
+#   2 (including the frame at second 3) + ending 4:
+# the frames within 3 seconds are identical, image for image, to the 60-frame case, with the ending and one
+#   mid-video frame as margin; when the body is thinned out, the envelope still states
+# body_degraded and the interval. 10 is not chosen: when not a single body frame fits, body_degraded is false
+#   and nobody declares that the middle was not seen.
+# It used to be {"fps": 1, "max_frames": 60}: the backend ignores fps without sampling; of the 60 frames
+#   downstream used only the few at the opening,
+# and the rest only made the combined result larger and frame extraction slower. The 60 cap of static_host.py
+#   job-call is unchanged.
 KEYFRAME_PARAMS = {"sampling": "duration_scaled", "max_frames": 12}
 # Requests per group in the issue order. The bounds come from the old batch interface
 # (two to four requests per batch); they no longer limit any call, since each request is

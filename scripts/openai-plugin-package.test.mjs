@@ -80,7 +80,7 @@ function packageFiles() {
   ];
 }
 
-test("MCP-only 包可构建且不强制 Skills；ZIP 不受传入顺序影响", () => {
+test("an MCP-only package builds without requiring Skills; the ZIP is independent of input order", () => {
   const files = packageFiles();
   assert.deepEqual(validatePackage(files), { name: "kabo", version: "1.0.0" });
   assert.deepEqual(
@@ -97,24 +97,26 @@ test("MCP-only 包可构建且不强制 Skills；ZIP 不受传入顺序影响", 
   assert.equal(validatePackage(files).version, "1.0.0");
 });
 
-test("公开 OAuth 首次声明身份、研究与个人资产读写权限；多一项或少一项都拒收", () => {
+test("public OAuth first declares identity, research and personal-asset read/write scopes; one extra or one missing scope is rejected", () => {
   const files = packageFiles();
   const record = files.find(file => file.name === "host-auth.json");
   const auth = JSON.parse(record.bytes);
   assert.deepEqual(auth.baseScopes, ["openid", "profile", "email", "offline_access"]);
-  // Codex 按 defaultScopes 授权、不按 403 challenge 补权：引导要绑定账号、生成画像与保存支柱修改，写权限须在首次授权里。
+  // Codex authorizes by defaultScopes and does not top up permissions on a 403 challenge: onboarding must bind
+  //   the account,
+  // generate the profile and save pillar edits, so the write scope has to be in the first authorization.
   assert.deepEqual(auth.defaultScopes, ["data", "video", "workspace:read", "workspace:write"]);
   for (const scopes of [["data", "video", "workspace:read"], [...auth.defaultScopes, "registry"]]) {
     record.bytes = Buffer.from(JSON.stringify({ ...auth, defaultScopes: scopes }));
-    assert.throws(() => validatePackage(files), /OAuth 配置/);
+    assert.throws(() => validatePackage(files), /OAuth configuration/);
   }
   for (const scopes of [["openid", "offline_access"], [...auth.baseScopes, "profile"]]) {
     record.bytes = Buffer.from(JSON.stringify({ ...auth, baseScopes: scopes }));
-    assert.throws(() => validatePackage(files), /OAuth 配置/);
+    assert.throws(() => validatePackage(files), /OAuth configuration/);
   }
 });
 
-test("拒绝 hooks、apps、Reviewer 凭据、测试 URL、密钥与越界路径，错误不复述内容", () => {
+test("rejects hooks, apps, reviewer credentials, test URLs, secrets and out-of-bounds paths; errors do not echo content", () => {
   for (const field of ["name", "version"]) {
     const files = packageFiles();
     const manifest = JSON.parse(files[0].bytes);
@@ -122,7 +124,7 @@ test("拒绝 hooks、apps、Reviewer 凭据、测试 URL、密钥与越界路径
     files[0].bytes = Buffer.from(JSON.stringify(manifest));
     assert.throws(
       () => validatePackage(files),
-      "不能用可隐式转成字符串的 JSON 数组冒充包名或版本",
+      "a JSON array that coerces implicitly to a string cannot pass as a package name or version",
     );
   }
   for (const [name, text] of [
@@ -162,7 +164,7 @@ test("拒绝 hooks、apps、Reviewer 凭据、测试 URL、密钥与越界路径
   }
 });
 
-test("只从锁定 commit 读取文件，忽略工作区修改；拒绝符号链接与不完整版本引用", async () => {
+test("reads files only from the pinned commit, ignoring working-tree changes; rejects symlinks and incomplete revision references", async () => {
   const repository = await mkdtemp(
     path.join(os.tmpdir(), "kabo-package-test-"),
   );
@@ -187,7 +189,7 @@ test("只从锁定 commit 读取文件，忽略工作区修改；拒绝符号链
       await writeFile(target, file.bytes);
     }
     git("add", "package");
-    git("-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "测试包");
+    git("-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "test package");
     const commit = git("rev-parse", "HEAD");
     const options = { repository, commit, packagePath: "package" };
     const initial = readPackageFiles(options);
@@ -251,7 +253,7 @@ test("只从锁定 commit 读取文件，忽略工作区修改；拒绝符号链
       );
     run("first");
     run("second");
-    // macOS 的 /var → /private/var 及其他目录别名不能让 CLI 静默跳过 main。
+    // macOS's /var -> /private/var and other directory aliases must not make the CLI silently skip main.
     const alias = `${repository}-alias`;
     await symlink(repository, alias, "dir");
     try {
@@ -287,7 +289,8 @@ test("只从锁定 commit 读取文件，忽略工作区修改；拒绝符号链
     assert.ok(receipt.submissionBlockers.length > 0);
     assert.throws(() => run("submission", true));
     await assert.rejects(stat(path.join(repository, "submission")), { code: "ENOENT" });
-    // 只有合成临时仓夹具：证明门禁能由真实传入的完整证据转绿，不是硬编码 false。
+    // Only a synthetic temp-repo fixture: proves the gate can turn green from complete evidence actually passed
+    //   in, not a hard-coded false.
     const proof = "Synthetic test evidence only. No production acceptance was performed.\n";
     const proofHash = createHash("sha256").update(proof).digest("hex");
     const toolsHash = createHash("sha256").update(await readFile(path.join(repository, "contracts/directory-mcp/tools-list.json"))).digest("hex");
@@ -325,11 +328,11 @@ test("只从锁定 commit 读取文件，忽略工作区修改；拒绝符号链
       "commit",
       "--quiet",
       "-m",
-      "测试链接拒绝",
+      "test link rejection",
     );
     assert.throws(
       () => readPackageFiles({ ...options, commit: git("rev-parse", "HEAD") }),
-      /普通文件/,
+      /regular file/,
     );
   } finally {
     await rm(repository, { recursive: true, force: true });

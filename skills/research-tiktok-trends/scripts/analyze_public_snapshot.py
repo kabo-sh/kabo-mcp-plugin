@@ -167,9 +167,10 @@ def signature_allocation_of(
     allocation: dict[str, Any],
     request: dict[str, Any] | None,
 ) -> tuple[list[tuple[str, str | None]], list[dict[str, Any]]]:
-    """名额分配文件里的 (content_key, 主打内容 id) 与每个主打内容的 {id, name, quota, filled}。
+    """The (content_key, signature content id) pairs in the slot allocation file, and each signature content's {id, name, quota, filled}.
 
-    名字取 Request 的 signature_content：分配文件只记 id，名字以 Request 为准，免得两处各写一份。
+    The name comes from the Request's signature_content: the allocation file records only the id, and the Request is
+    the authority for names, so the name is not written in two places.
     """
     if allocation.get("schema") != ALLOCATION_SCHEMA or allocation.get("rule_version") != ALLOCATION_RULE:
         raise ValueError(f"allocation must be {ALLOCATION_SCHEMA} with rule_version {ALLOCATION_RULE}")
@@ -382,7 +383,8 @@ def analyze(
         row["rank"] = index
     signature_summary = None
     if allocation is not None:
-        # 排名保留完整证据池；入选集合单独记，不能拿主打分类的 null 推断是否入选。
+        # The ranking keeps the full evidence pool; the selected set is recorded separately, and whether an item was
+        # selected cannot be inferred from a null signature-content classification.
         slots, signature_summary = signature_allocation_of(allocation, request)
         selected_content_ids = []
         for row in ranked:
@@ -541,7 +543,8 @@ def synthesis_view(analysis: dict[str, Any]) -> dict[str, Any]:
     if "selected_content_ids" not in analysis:
         return analysis
     selected = set(analysis["selected_content_ids"])
-    # 展示只是投影：不重排、不重新算基线，也不把完整分析误当成报告可选池。
+    # The display is only a projection: it does not reorder, does not recompute the baseline, and does not mistake
+    # the full analysis for the report's selectable pool.
     view = {key: analysis[key] for key in (
         "analysis_id", "data_quality", "claim_boundary", "signature_content", "selected_content_ids")}
     for key in ("ranked_content", "account_outliers", "evidence"):

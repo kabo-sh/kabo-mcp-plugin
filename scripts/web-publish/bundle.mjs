@@ -12,10 +12,12 @@ export const SOURCE_REPOSITORY_ALIASES = new Set([
   'kabo-sh/creator-skills',
   'kabo-sh/kabo-plugins-internal',
 ]);
-// kabo-mcp-plugin 的 skill 目录原样打包（creator-skills#886；用户 2026-11-02 裁定不生成 manifest）。
-// 包里只有 SKILL.md、references/、scripts/，名称、描述、依赖的 /mcp-pub 工具都在 SKILL.md frontmatter；
-// 版本由发布方按线上版本往上接，信封的 manifest 一格为 null。读方：kabo-agent-service
-// src/skill/registry-format.ts（PLUGIN_SOURCE_REPOSITORY / parsePluginSkillHeader），两边规则要一致。
+// The kabo-mcp-plugin skill directory is packaged as-is (creator-skills#886; on 2026-11-02 the user ruled not
+// to generate a manifest). The package holds only SKILL.md, references/, and scripts/; the name, description,
+// and the /mcp-pub tools it depends on are all in the SKILL.md frontmatter. The publisher continues the version
+// from the online version, and the envelope's manifest slot is null. Reader: kabo-agent-service
+// src/skill/registry-format.ts (PLUGIN_SOURCE_REPOSITORY / parsePluginSkillHeader); the rules on both sides
+// must stay consistent.
 export const PLUGIN_SOURCE_REPOSITORY = 'kabo-sh/kabo-mcp-plugin';
 export const BUNDLE_FORMAT_VERSION = 1;
 const SKILL_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -208,8 +210,9 @@ function assertRuntimePath(relativePath) {
 function collectFiles(directory, base = directory) {
   const output = [];
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    // README.md 是 GitHub 上的设计审计材料，不属于运行时 prompt/package。允许
-    // Skill 根目录保存它，但不签进 bundle，避免把内部实验说明暴露给执行上下文。
+    // README.md is GitHub-side design audit material and does not belong to the runtime prompt/package. It is
+    // allowed in the Skill root but is not signed into the bundle, to avoid exposing internal experiment notes to
+    // the execution context.
     if (directory === base && entry.name === 'README.md' && entry.isFile()) continue;
     // Python may create these while contract tests run before the publisher. They are
     // machine-specific build artifacts, not Skill source, and must never change a bundle.
@@ -337,7 +340,7 @@ const unquote = (value) => {
   return trimmed;
 };
 
-/** 与 agent-service parsePluginSkillHeader 同一规则：只认顶层单行标量与一层 `metadata:`。 */
+/** Same rule as agent-service parsePluginSkillHeader: only top-level single-line scalars and one level of `metadata:` are recognized. */
 export function parsePluginSkillHeader(markdown, id) {
   const block = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(markdown);
   if (!block) fail(`plugin SKILL.md has no frontmatter: ${id}`);
@@ -396,7 +399,7 @@ function validatePluginBundle(bundle) {
   return bundle;
 }
 
-/** 插件仓一个 skill 目录 → 插件来源的包。版本由调用方给（线上版本往上接），不读也不写 manifest。 */
+/** One skill directory of the plugin repository -> a plugin-sourced package. The caller supplies the version (continuing above the production version); the manifest is neither read nor written. */
 export function buildPluginBundle({ skillDirectory, sourceCommit, version, probe = false }) {
   if (!COMMIT.test(sourceCommit ?? '')) fail('sourceCommit must be a 40-character lowercase Git commit');
   if (!SEMVER.test(version ?? '')) fail(`version must be x.y.z, got ${JSON.stringify(version)}`);
@@ -413,7 +416,8 @@ export function buildPluginBundle({ skillDirectory, sourceCommit, version, probe
     content_checksum: checksumForFiles(files),
     source: { repository: PLUGIN_SOURCE_REPOSITORY, commit: sourceCommit },
   };
-  // 探测只为算内容校验和与读声明版本，版本号此时还没定，不比对 metadata.version。
+  // The probe exists only to compute the content checksum and read the declared version; the version is not
+  // settled yet at this point, so metadata.version is not compared.
   if (probe) return { ...bundle, declared_version: parsePluginSkillHeader(files.find((file) => file.path === 'SKILL.md')?.content.toString('utf8') ?? '', id).version };
   return validateBundle(bundle);
 }

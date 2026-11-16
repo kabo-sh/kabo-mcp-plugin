@@ -341,10 +341,11 @@ def check_claim(claim: object, index: int, registry: dict[str, dict], language: 
         if claim.get("unreached_source") is not None:
             errors.append(f"{where} is {verdict!r}, so unreached_source must be null - it exists to "
                           "name a page that could not be read, and this claim quotes one")
-        if inference is not None:
-            errors.append(f"{where} carries an inference alongside quoted evidence. Keep them "
-                          "apart: once they share a list the reader cannot tell which sentences "
-                          "the platform stands behind")
+        # When a quote supports a fact but not the practice derived from it, speculation is normal delivery: it may hang on a claim that has a quote,
+        # and rendering marks it separately as speculation. Forbidding it would only squeeze speculation into the statement, where it would be judged confirmed as the platform's own words.
+        if inference is not None and not text(inference):
+            errors.append(f"{where}.inference is empty - give the possibility that follows from "
+                          "the quotes, or null")
         for position, item in enumerate(evidence):
             check_evidence(item, f"{where}.evidence[{position}]", registry, verdict,
                            language, platform, errors, page_texts)

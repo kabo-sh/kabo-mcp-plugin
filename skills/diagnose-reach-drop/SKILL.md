@@ -16,7 +16,8 @@ modules, write the plan and write the analysis around the computed facts.
 language: translate faithfully any part not in that language, labels and source notes included, and
 present the Markdown text, not the file path. Keep every section, conclusion, number, limitation
 and next step in the order printed; add, drop, reorder or summarize none, even when the question was
-short, and do not narrate artifact writing, validation or call counts. If a step fails, say
+short, and do not narrate artifact writing, validation or call counts. A sentence of your own claims
+no more than the report and is marked as your suggestion. If a step fails, say
 which deliverable is unavailable; never present a draft or an unvalidated file as the result.
 
 When the host supports one, run this Skill in a foreground sub-agent, because a diagnosis takes
@@ -104,7 +105,8 @@ cohorts, pass the plan with `--brief-file -` instead; it then needs `user_reques
 `--channel-id`; Instagram `--content-kind auto|feed|reels`. Caps: TikTok/YouTube 30; Instagram one
 page per format and analysis 30 (15/format in auto).
 
-For data the user supplied, or an AccountAnalysis file they imported, prepare in this request's
+Numbers the user gives join that plan as questions with their own `source`. Without a public
+fetch, prepare data the user supplied, or an AccountAnalysis file they imported, in this request's
 run with the plan (including `user_request`) on stdin:
 
 ```sh

@@ -29,10 +29,10 @@ function relativePath(value) {
   );
 }
 
-/** 只读锁定 commit 的 Git blob，不读取工作区、相邻仓源码或执行包里的任何脚本。 */
+/** Read only Git blobs of the pinned commit; never read the working tree, adjacent repository sources, or run any script in the package. */
 export function readPackageFiles({ repository = root, commit, packagePath = "." }) {
   if (!/^[a-f0-9]{40}$/.test(commit ?? "") || !(packagePath === "." || relativePath(packagePath)))
-    throw new Error("必须提供完整 commit SHA 和仓内相对 package path。");
+    throw new Error("A full commit SHA and a repository-relative package path are required.");
   const git = (...args) =>
     execFileSync("git", args, {
       cwd: repository,
@@ -41,7 +41,7 @@ export function readPackageFiles({ repository = root, commit, packagePath = "." 
       stdio: ["ignore", "pipe", "pipe"],
     });
   if (git("cat-file", "-t", commit).toString().trim() !== "commit")
-    throw new Error("源版本必须是 commit。");
+    throw new Error("The source revision must be a commit.");
   const allEntries = git("ls-tree", "-r", "-z", packagePath === "." ? commit : `${commit}:${packagePath}`)
     .toString("utf8")
     .split("\0")
@@ -49,12 +49,12 @@ export function readPackageFiles({ repository = root, commit, packagePath = "." 
   if (packagePath === ".") assertNoHiddenComponents(allEntries.map(entry => entry.slice(entry.indexOf("\t") + 1)));
   const entries = allEntries.filter(entry => packagePath !== "." || isPackageFile(entry.slice(entry.indexOf("\t") + 1)));
   if (!entries.length || entries.length > 2048)
-    throw new Error("包必须有 1～2048 个文件。");
+    throw new Error("The package must have 1-2048 files.");
   let total = 0;
   const files = entries.map((entry) => {
     const match = /^(100644|100755) blob ([a-f0-9]{40})\t(.+)$/.exec(entry);
     if (!match || !relativePath(match[3]))
-      throw new Error("包内只允许普通文件，不能包含链接、子模块或越界路径。");
+      throw new Error("Only regular files are allowed in the package: no links, submodules or out-of-bounds paths.");
     const size = Number(git("cat-file", "-s", match[2]).toString().trim());
     total += size;
     if (
@@ -63,7 +63,7 @@ export function readPackageFiles({ repository = root, commit, packagePath = "." 
       size > 16 * 1024 * 1024 ||
       total > 64 * 1024 * 1024
     )
-      throw new Error("包超过本地构建上限：单文件 16 MiB、总计 64 MiB。");
+      throw new Error("The package exceeds the local build limits: 16 MiB per file, 64 MiB total.");
     return {
       name: match[3],
       mode: Number.parseInt(match[1], 8),
@@ -73,19 +73,19 @@ export function readPackageFiles({ repository = root, commit, packagePath = "." 
   return files.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
-/** 格式与项目安全门，不冒充 OpenAI 后台扫描，也不要求固定数量的 Skills。 */
+/** Format and project safety gate; does not pose as an OpenAI backend scan and does not require a fixed number of Skills. */
 export function validatePackage(files) {
   const byName = new Map();
   for (const file of files) {
     if (!relativePath(file.name) || byName.has(file.name))
-      throw new Error("包文件路径无效或重复。");
+      throw new Error("Package file path is invalid or duplicated.");
     byName.set(file.name, file);
     if (
       /(?:^|\/)(?:hooks|apps|registry|internal|private|\.git)(?:\/|$)|(?:^|\/)(?:\.app\.json|\.env(?:\.[^/]*)?|credentials\.json)$/i.test(
         file.name,
       )
     )
-      throw new Error("包含不支持的组件或私有配置文件。");
+      throw new Error("Contains an unsupported component or private configuration file.");
     const text = file.bytes.toString("utf8");
     if (
       /-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}|\bAIza[A-Za-z0-9_-]{30,}|\bBearer\s+eyJ[A-Za-z0-9_.-]+|(?:https?:\/\/)(?:localhost|127\.0\.0\.1|pre\.kabo\.sh)(?:[:/\s"']|$)|\/(?:home|Users)\/[^\s"']+/.test(
@@ -93,19 +93,20 @@ export function validatePackage(files) {
       )
     )
       throw new Error(
-        "包内容命中凭据、测试地址或本机路径检查；不输出命中原文。",
+        "Package content hit the credential, test-address or local-path check; the matched text is not printed.",
       );
     if (file.name.toLowerCase().endsWith(".json")) {
       const inspect = (value) => {
         if (!value || typeof value !== "object") return;
         for (const [key, child] of Object.entries(value)) {
-          // 业务 schema 的 hooks 是视频开场字段，不是生命周期配置；仍禁止真实组件和凭据。
+          // The `hooks` in the business schema are video-opening fields, not lifecycle configuration; real components
+          //   and credentials are still forbidden.
           if (
             /^(?:test_credentials|reviewer_instructions|client_secret|access_token|refresh_token|password|api_key|authorization)$/i.test(key) ||
             (/^(?:hooks|apps)$/i.test(key) && !/^skills\/[^/]+\/references\/[^/]+\.schema\.json$/.test(file.name))
           )
             throw new Error(
-              "JSON 含不允许入包的组件、Reviewer 资料或凭据字段。",
+              "JSON contains components, reviewer material or credential fields that are not allowed in the package.",
             );
           inspect(child);
         }
@@ -114,14 +115,14 @@ export function validatePackage(files) {
         inspect(JSON.parse(text));
       } catch (error) {
         if (error instanceof SyntaxError)
-          throw new Error("包内 JSON 无效；不输出原文。");
+          throw new Error("JSON in the package is invalid; the original text is not printed.");
         throw error;
       }
     }
   }
   const parse = (name) => {
     const file = byName.get(name);
-    if (!file) throw new Error(`缺少 ${name}。`);
+    if (!file) throw new Error(`Missing ${name}.`);
     return JSON.parse(file.bytes.toString("utf8"));
   };
   const manifest = parse("plugin.json");
@@ -132,7 +133,7 @@ export function validatePackage(files) {
     !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(manifest.name ?? "") ||
     manifest.name.length > 64
   )
-    throw new Error("需要 portable plugin.json schema 和有效的包名。");
+    throw new Error("A portable plugin.json schema and a valid package name are required.");
   const version =
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(
       manifest.version ?? "",
@@ -143,7 +144,7 @@ export function validatePackage(files) {
     manifest.version.length > 64 ||
     version[4]?.split(".").some((part) => /^0\d+$/.test(part))
   )
-    throw new Error("构建必须使用显式 SemVer 版本。");
+    throw new Error("The build must use an explicit SemVer version.");
   const mcp = parse("mcp.json");
   const servers = Object.values(mcp?.mcpServers ?? {});
   if (
@@ -159,7 +160,7 @@ export function validatePackage(files) {
       (key) => !["type", "url"].includes(key),
     )
   )
-    throw new Error("本构建入口只接受一个无凭据的 Kabo 生产 MCP 配置。");
+    throw new Error("This build entry accepts only one credential-free Kabo production MCP configuration.");
   validateManifests(manifest, mcp, parse("host-auth.json"));
   const openai = manifest.extensions?.["com.openai"];
   const listing = openai?.interface;
@@ -172,7 +173,7 @@ export function validatePackage(files) {
   })) {
     const value = listing?.[key];
     if (typeof value !== "string" || !value.trim() || [...value].length > limit)
-      throw new Error(`目录字段 ${key} 缺失或超过限制。`);
+      throw new Error(`Directory field ${key} is missing or exceeds the limit.`);
   }
   for (const key of [
     "websiteURL",
@@ -192,7 +193,7 @@ export function validatePackage(files) {
       )
         throw new Error();
     } catch {
-      throw new Error(`目录字段 ${key} 必须是 Kabo 生产 HTTPS 页面。`);
+      throw new Error(`Directory field ${key} must be a Kabo production HTTPS page.`);
     }
   }
   for (const key of ["logo", "composerIcon", "logoDark", "composerIconDark"]) {
@@ -204,7 +205,7 @@ export function validatePackage(files) {
       !value.startsWith("./assets/") ||
       !byName.has(value.slice(2))
     )
-      throw new Error(`图标 ${key} 必须引用包内 assets 文件。`);
+      throw new Error(`Icon ${key} must reference an in-package assets file.`);
     validateIcon(byName.get(value.slice(2)).bytes);
   }
   if (
@@ -217,7 +218,7 @@ export function validatePackage(files) {
       ))
   )
     throw new Error(
-      "capabilities 必须是不超过 20 个、每个不超过 120 字符的能力说明。",
+      "capabilities must be at most 20 capability descriptions of at most 120 characters each.",
     );
   if (listing.defaultPrompt !== undefined) {
     const prompts =
@@ -237,7 +238,7 @@ export function validatePackage(files) {
       )
     )
       throw new Error(
-        "defaultPrompt 最多 3 条，必须唯一、不含 @mention 且每条不超过 128 字符。",
+        "defaultPrompt allows at most 3 entries, which must be unique, contain no @mention, and be at most 128 characters each.",
       );
   }
   if (
@@ -246,13 +247,13 @@ export function validatePackage(files) {
       !openai.onboardingSkill.endsWith("/SKILL.md") ||
       !byName.has(openai.onboardingSkill.slice(2)))
   )
-    throw new Error("onboardingSkill 必须指向实际入包的 Skill。");
+    throw new Error("onboardingSkill must point to a Skill actually in the package.");
   validateSkills(byName, servers[0].url);
   validateRuntime(byName, mcp);
   return { name: manifest.name, version: manifest.version };
 }
 
-/** ZIP STORE + 固定 1980-01-01 时间和 Unix 模式，避免压缩库或 checkout mtime 改变摘要。 */
+/** ZIP STORE + fixed 1980-01-01 timestamp and Unix mode, so a compression library or checkout mtime cannot change the digest. */
 export function deterministicZip(files) {
   const local = [],
     central = [];
@@ -309,7 +310,7 @@ async function main() {
   });
   if (!values.output)
     throw new Error(
-      "需要 --commit <完整 SHA> --package-path <仓内目录> --output <新目录>。",
+      "Requires --commit <full SHA> --package-path <repository directory> --output <new directory>.",
     );
   const files = readPackageFiles({
     commit: values.commit,
@@ -323,11 +324,12 @@ async function main() {
   });
   if (values.submission && !readiness.submissionReady) {
     console.error(JSON.stringify(readiness, null, 2));
-    throw new Error("同一插件的提交门尚未通过。");
+    throw new Error("The submission gate for the same plugin has not passed.");
   }
   const name = `${identity.name}-${identity.version}.zip`;
   const output = path.resolve(values.output);
-  // 新目录拒绝覆盖旧交付；重复构建请另选目录再比较 SHA-256。
+  // A new directory refuses to overwrite a previous delivery; for a repeated build, pick another directory and
+  //   compare SHA-256.
   await mkdir(path.dirname(output), { recursive: true });
   await mkdir(output);
   await writeFile(path.join(output, name), bytes, { flag: "wx" });
@@ -366,7 +368,7 @@ if (
 ) {
   main().catch(() => {
     console.error(
-      "插件包构建失败。检查锁定版本、包内容与输出目录；不输出包正文或凭据。",
+      "Plugin package build failed. Check the pinned revision, package content and output directory; package text and credentials are not printed.",
     );
     process.exitCode = 1;
   });

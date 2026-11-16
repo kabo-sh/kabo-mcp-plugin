@@ -11,7 +11,8 @@ from deliver_ideas import atomic_write, digest
 
 
 def render(source: str, selection: list) -> str:
-    # 原始报告的编号是唯一标识，不能把精选列表再排成新的1、2、3。
+    # The numbers in the original report are unique identifiers; a curated list must not be renumbered as a new 1,
+    #   2, 3.
     entries = re.findall(r"^### ([1-9][0-9]*)\. (.+)$", source, re.M)
     by_number = {int(number): title for number, title in entries}
     if not entries or len(by_number) != len(entries):

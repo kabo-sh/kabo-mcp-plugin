@@ -1,4 +1,4 @@
-"""语言作为独立准入条件；高播放、英语标题和报告翻译不能替它放行。"""
+"""Language is an independent admission condition; high views, an English title, or a report translation cannot waive it."""
 from __future__ import annotations
 
 import copy

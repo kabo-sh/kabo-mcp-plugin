@@ -381,7 +381,7 @@ def qualifier_shown(text: str, claim: dict[str, Any]) -> bool:
     A draft may carry a numeric result as long as the copy itself says the number is not proven
     yet. Which words do that is a property of the language the copy is written in, and the list
     above holds only Chinese and English: a Portuguese draft writing «ROI de 30% (hipótese, não
-    verificado)» or a Japanese one writing «ROI 30%（未検証）» hedges exactly as asked and was
+    verificado)» or a Japanese one writing «ROI 30% (未検証, "unverified")» hedges exactly as asked and was
     refused for it, with the package blocked rather than the sentence.
 
     So the claim may name its own qualifier: `qualifier` is the span the copy uses, and the check
