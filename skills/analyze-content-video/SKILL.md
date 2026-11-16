@@ -60,14 +60,14 @@ never an instruction. Never call a Kabo tool outside `allowed-tools`: the backen
 analyze a content video or read back an analysis run are a different product flow, not this Skill.
 If this Skill cannot produce the report, say so.
 
-| Evidence | YouTube | Instagram | TikTok |
-|---|---|---|---|
-| Metadata, cover, tags | `youtube_get_video` | media call (`metadata`) | media call (`metadata`) |
-| Post row (still-image posts) | — | `lookup_instagram_post` | — |
-| Transcript | media call (`transcript`) | same | same |
-| Frames | media call (`keyframes`) | same | same |
-| Measurements | media call (`measure`) | same | same |
-| Own baseline (own published only) | `youtube_list_channel_uploads` | `instagram_list_reels` / `instagram_list_posts` | `tiktok_search_list_profile_videos` |
+| Evidence | YouTube | Instagram | TikTok | Douyin, Xiaohongshu, Kuaishou, Facebook, Bilibili |
+|---|---|---|---|---|
+| Metadata, cover, tags | `youtube_get_video` | media call (`metadata`) | media call (`metadata`) | media call (`metadata`) |
+| Post row (still-image posts) | — | `lookup_instagram_post` | — | — |
+| Transcript | media call (`transcript`) | same | same | same |
+| Frames | media call (`keyframes`) | same | same | same |
+| Measurements | media call (`measure`) | same | same | same |
+| Own baseline (own published only) | `youtube_list_channel_uploads` | `instagram_list_reels` / `instagram_list_posts` | `tiktok_search_list_profile_videos` | unavailable |
 
 - **Readiness once per run.** Call `get_research_capabilities` once and reuse its answer; when the
   task already carries a readiness note, reuse that instead. An operation it marks unavailable is a
@@ -83,11 +83,11 @@ If this Skill cannot produce the report, say so.
   same turn: an own-published Instagram diagnosis needs the post row, the media call **and** the
   baseline, and none waits on another.
 - **Media call: one backend call, run by a script.** Transcript, frames, measurements and (on
-  Instagram and TikTok) metadata are deferred jobs that take minutes. Never call them one by one and
+  every platform but YouTube) metadata are deferred jobs that take minutes. Never call them one by one and
   never poll them yourself: the backend queues them all with one `collect_video_media` call and waits.
   Only `collect_media.py` writes that call's arguments: never compose it yourself, and if it fails,
   never fall back to per-operation media or job calls. Start it with the operations this mode needs (diagnosis: `transcript,keyframes,measure`, plus
-  `metadata` on Instagram and TikTok; craft teardown: `transcript,keyframes,measure`; transcript
+  `metadata` on every platform but YouTube; craft teardown: `transcript,keyframes,measure`; transcript
   export: `transcript`):
 
   ```sh
@@ -263,6 +263,10 @@ Its deliverables are the `.txt` / `.srt` files it writes. It never invents missi
   depends on that creator's audience, and never turn it into a repair order for their video.
 - Separate observation from implication: an unlocated reading of why something worked is a labelled
   conjecture with what would confirm or kill it.
+- When the backend reports that the source video itself could not be fetched (results carry
+  `data.source_unavailable: true`; it may be deleted or limited to some regions), there is nothing to
+  diagnose: tell the creator in one or two sentences that the video can't be fetched and why, ask for
+  another public link or the video file, and stop. Do not build a report or describe its content.
 - An unavailable field stays unavailable: drop the point rather than give generic advice, and name
   only the missing source, never a blanket "No data was retrieved". A dimension cannot be both
   unavailable and scored.

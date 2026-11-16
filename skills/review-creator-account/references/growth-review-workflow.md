@@ -2,17 +2,19 @@
 
 Apply the target, evidence and probability boundaries in [growth-estimation.md](growth-estimation.md) first. This workflow requires the actual saved public snapshot; a prior chat summary is not that snapshot.
 
-In a public review, use `drive.py growth` for the report's single content slot. Choose a listed
-choice, save `review_growth_input.json` with the user's quantity/wording, and rerun before synthesis.
+In a public review, use `drive.py growth` for the report's single content slot. It lists the
+assessed choices, each with its own command; run the one that fits (adding `--posts <n>` and
+`--per day|week` only for a count the creator named) before synthesis. The script writes
+`review_growth_input.json`; never write or edit it by hand.
 Its metric/horizon follow the question (views/30 days by default). `drive.py report` binds the
 input to the retained snapshot, analysis and question, recomputes it, and carries its measurement,
 formula, ages and limits in `ACCOUNT_REVIEW.md`. Use the standalone path below for other results.
 
 Inside a complete public review, `drive.py growth` and the composed `ACCOUNT_REVIEW.md` currently
 support one `content_scenario` in one growth slot. Once `review_growth_input.json` exists,
-another `drive.py growth --metric ...` reads it rather than switching metrics. Do not overwrite it
+another `drive.py growth --metric ...` reads it rather than switching metrics. Do not replace it
 or place stock figures in that schema. For each additional metric or stock estimate (including a `needs_input` result),
-use the standalone interface in the same run with distinct input/output filenames. Extra content
+run `forecast.py` in the same run with a distinct `--output` file name (for example `--output FORECAST_SUBSCRIBERS.md`). Extra content
 calculations use the same saved snapshot, question and validated `content_scenario` contract;
 never substitute one metric's rows for another's. Keep all requested metrics independently gated.
 Compose the review with only its selected growth-slot result, then append each other calculator's

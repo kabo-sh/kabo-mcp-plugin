@@ -28,7 +28,7 @@
       "required": ["platform", "url"],
       "additionalProperties": false,
       "properties": {
-        "platform": { "enum": ["youtube", "instagram", "tiktok", "other"] },
+        "platform": { "enum": ["youtube", "instagram", "tiktok", "douyin", "xiaohongshu", "kuaishou", "facebook", "bilibili", "other"] },
         "url": { "type": "string", "minLength": 1 },
         "whose": {
           "enum": ["creator_own", "third_party", "unknown"],

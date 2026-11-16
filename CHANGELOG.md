@@ -2,6 +2,20 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.54 (2026-11-16)
+
+- `review-creator-account`: `forecast.py` turns a forecast request's facts (target, metrics, horizon,
+  dated counts, the creator's stated rate or item count) into every calculation input, picks the method
+  and prints the complete reply, so the model no longer writes forecast JSON. "How many views will this
+  video get" is answered from the saved snapshot's median item, or asks for history when there is none.
+  `drive.py growth --format/--posts/--per` binds the report's growth choice without a hand-copied file.
+- `review-creator-account`: the report check no longer reads product words such as "curl cream" as shell
+  commands, and allows domains that appear in the fetched captions, bios and link-in-bio text.
+- `review-creator-account-deep`: a pinned transcript cue is selected automatically, a watched video with
+  selected cues gets its first one when the author chose none, and over-long
+  display text is ended at its last complete sentence instead of being sent back for a rewrite.
+- Both Skills end a refused step with one JSON line carrying a fixed `reason`, so hosts can count failures.
+
 ## 1.0.53 (2026-11-16)
 
 - Offer one explicit reauthorization for an older read-only connection during onboarding or manual

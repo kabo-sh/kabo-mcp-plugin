@@ -198,6 +198,7 @@ const NON_ENGLISH_TEST_DATA = [
   "scripts/ideas-context-regression.py",
   "scripts/ideas-followthrough-regression.py",
   "scripts/mcp-pub-sync.test.mjs",
+  "scripts/public-video-sources.test.mjs",
   "scripts/publish-timing-report.test.mjs",
   "scripts/reach-drop-age-reading.test.mjs",
   "scripts/reach-drop-calendar-windows.test.mjs",

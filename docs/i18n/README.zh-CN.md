@@ -32,6 +32,10 @@
   <a href="https://chatgpt.com/plugins/plugin_asdk_app_6adac6e43f4481918fceac5ade2df2c6"><img alt="添加到 ChatGPT 和 Codex" src="https://img.shields.io/badge/Add_to-ChatGPT_%C2%B7_Codex-1C1917?style=for-the-badge" /></a>
   <a href="#install"><img alt="添加到 Grok Bot" src="https://img.shields.io/badge/Add_to-Grok_Bot-1C1917?style=for-the-badge" /></a>
   <a href="https://kabo.sh/integrations/muse?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_muse"><img alt="添加到 Muse" src="https://img.shields.io/badge/Add_to-Muse-1C1917?style=for-the-badge" /></a>
+  <a href="https://kabo.sh/mcp/workbuddy?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_workbuddy"><img alt="添加到 WorkBuddy" src="https://img.shields.io/badge/Add_to-WorkBuddy-1C1917?style=for-the-badge" /></a>
+  <a href="https://kabo.sh/mcp/doubao-work?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_doubao_work"><img alt="添加到 豆包工作" src="https://img.shields.io/badge/Add_to-%E8%B1%86%E5%8C%85%E5%B7%A5%E4%BD%9C-1C1917?style=for-the-badge&logo=bytedance&logoColor=white" /></a>
+  <a href="https://kabo.sh/mcp/qwen-work?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_qwen_work"><img alt="添加到 千问工作" src="https://img.shields.io/badge/Add_to-%E5%8D%83%E9%97%AE%E5%B7%A5%E4%BD%9C-1C1917?style=for-the-badge&logo=qwen&logoColor=white" /></a>
+  <a href="https://kabo.sh/mcp/deepseek-harness?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_deepseek_harness"><img alt="添加到 DeepSeek Harness" src="https://img.shields.io/badge/Add_to-DeepSeek_Harness-1C1917?style=for-the-badge&logo=deepseek&logoColor=white" /></a>
   <a href="https://kabo.sh/integrations/mcp?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_add_mcp"><img alt="任意 MCP 客户端" src="https://img.shields.io/badge/Any-MCP_client-1C1917?style=for-the-badge" /></a>
 </p>
 
