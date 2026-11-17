@@ -148,9 +148,8 @@ class Contract(unittest.TestCase):
     def test_missing_context_is_explicit(self):
         self.context({});self.review['title_review']=None
         for i in range(3):
-            self.fail(i,['topic_match','resolution_aspect'])
-            for key in ['topic_match','resolution_aspect']:
-                self.review['candidates'][i]['items'][key].update(basis='missing_context',reason='Missing evidence; cannot confirm.',fix='Provide the topic and intended format.')
+            self.fail(i,['topic_match'])
+            self.review['candidates'][i]['items']['topic_match'].update(basis='missing_context',reason='Missing evidence; cannot confirm.',fix='Provide the topic.')
             self.review['candidates'][i]['suitable']=False
         for p in self.review['comparisons']:p['winner']='neither'
         self.review['recommendation']['candidate_id']=None
@@ -273,13 +272,7 @@ class ProductionCases(unittest.TestCase):
         long = 'Como os trabalhadores das pirâmides comiam, dormiam e eram pagos de verdade no Egito'
         run, prepared = self.prepare([(1280, 720)], {'title': long})
         self.assertEqual(prepared['title_length']['status'], 'long')
-        self.review(run, 'A', title=dict(title=long, clarity=dict(verdict='pass', reason='Claro.', fix=''), pairing=[dict(candidate_id='A', verdict='pass', reason='Combina.', fix='')]),
-                    aspect=dict(verdict='fail', reason='Sem formato de destino.', fix='Diga o formato.', basis='missing_context'))
-        doc = json.loads((run / 'review.json').read_text())
-        doc['candidates'][0]['suitable'] = False
-        doc['candidates'][0]['priorities'] = ['resolution_aspect']
-        doc['recommendation']['candidate_id'] = None
-        m.write(run / 'review.json', doc)
+        self.review(run, 'A', title=dict(title=long, clarity=dict(verdict='pass', reason='Claro.', fix=''), pairing=[dict(candidate_id='A', verdict='pass', reason='Combina.', fix='')]))
         report = self.report(run)
         self.assertIn(f'| Tamanho | reprovado | {len(long)} caracteres; a busca', report)
         self.assertEqual(m.title_length('x' * 101)['status'], 'over')
@@ -298,7 +291,7 @@ class ProductionCases(unittest.TestCase):
         run, prepared = self.prepare([(749, 407), (740, 443)], {'video_summary': 'Duas capas para o mesmo vídeo.'})
         self.assertEqual([x['status'] for x in prepared['measurements']], ['nonstandard_size', 'nonstandard_size'])
         self.review(run, 'AB', aspect=dict(verdict='fail', reason='Sem formato informado.', fix='Informe o formato.', basis='missing_context'))
-        with self.assertRaisesRegex(ValueError, 'not missing context'):
+        with self.assertRaisesRegex(ValueError, 'not a missing-context failure'):
             m.deliver(run)
         self.review(run, 'AB')
         report = self.report(run)
@@ -333,16 +326,13 @@ class ProductionCases(unittest.TestCase):
         self.review(run, 'A', capture='original', ui=ui, title=title)
         with self.assertRaisesRegex(ValueError, 'only for a screenshot'):
             m.deliver(run)
-        review = self.review(run, 'A', capture='screenshot', ui=ui, title=title)
-        review['candidates'][0]['observations']['visible_text'].append('12:31')
-        m.write(run / 'review.json', review)
-        with self.assertRaisesRegex(ValueError, 'not cover text'):
-            m.deliver(run)
         self.review(run, 'A', capture='screenshot', ui=ui, title=title)
         report = self.report(run)
         self.assertIn('Texto na imagem: MITO X REALIDADE\n', report)
         self.assertIn('Interface da plataforma na captura (não faz parte da capa e não foi avaliada): 12:31; ', report)
-        self.assertIn('Esta imagem é uma captura de tela (431×326)', report)
+        self.assertIn('> Esta é uma captura de tela (431×326)', report)
+        self.assertIn('| Resolução e proporção | a confirmar |', report)
+        self.assertNotIn('1. Resolução e proporção', report)
 
     # Fix 3 (8c3a710c): the script decides the ratio; 2752x1536 is 0.78% from 16:9 and passes.
     def test_ratio_within_tolerance_is_decided_by_the_script(self):
@@ -404,5 +394,80 @@ class ProductionCases(unittest.TestCase):
         report = self.report(run)
         self.assertIn('# Kapak &#42;incelemesi&#42;', report)
         self.assertIn('| Kontrol topic_match |', report)
+
+
+class PreRoundCases(unittest.TestCase):
+    """Pre test thread 33a4dd88 on the 1.0.52 candidate (review-thumbnail 0.1.6)."""
+
+    setUp = ProductionCases.setUp
+    prepare = ProductionCases.prepare
+    report = ProductionCases.report
+
+    def fill(self, run, template, capture='original', visible=(), ui=()):
+        """Fill the prepare template the way a host would: replace every placeholder, keep the shape."""
+        review = json.loads(json.dumps(template))
+        for c in review['candidates']:
+            c['observations'] = dict(capture=capture, visible_text=list(visible), ui_text=list(ui), main_subject='一位歌手在复古画面里。', disclosures=[])
+            c['items'] = {i['id']: dict(verdict='pass', reason='画面清楚。', fix='', basis='observed') for i in m.ITEMS}
+            c.update(priorities=[], suitable=True, suitability_reason='主题清楚，可以直接用。')
+        if review['title_review']:
+            review['title_review']['clarity'] = dict(verdict='pass', reason='歌名和版本都清楚。', fix='')
+            for row in review['title_review']['pairing']:
+                row.update(verdict='pass', reason='封面展示了标题说的歌手。', fix='')
+        for row in review['comparisons']:
+            row.update(winner=row['pair'][0], reason='前者焦点更清楚，后者文字更多。')
+        review['recommendation'] = dict(candidate_id='A', reason='焦点最清楚。')
+        m.write(run / 'review.json', review)
+        return review
+
+    # Issue 1: cover text that also appears in the list card (an artist name) was rejected twice.
+    def test_cover_text_may_also_appear_in_the_interface(self):
+        run, prepared = self.prepare([(749, 407)], {'title': 'Rick Astley - Never Gonna Give You Up (Official Music Video)'}, language='zh-CN')
+        ui = ['Rick Astley - Never Gonna Give You Up (Official Music Video)', 'Rick Astley', '3:33', '16亿次观看']
+        review = self.fill(run, prepared['review_template'], capture='screenshot', visible=['RICK ASTLEY', 'NEVER GONNA GIVE YOU UP', '4K'], ui=ui)
+        review['candidates'][0]['items']['eye_catching']['reason'] = '大字“RICK ASTLEY”在小尺寸下也能读出。'
+        m.write(run / 'review.json', review)
+        report = self.report(run)
+        self.assertIn('图中文字：RICK ASTLEY、NEVER GONNA GIVE YOU UP、4K', report)
+        self.assertIn('> 这是截图（749×407），封面四周带有平台界面，所以比例不判。请发原图文件', report)
+        self.assertIn('| 分辨率与比例 | 待确认 |', report)
+
+    # Issue 2: an unknown target format is "to confirm", not a failure and not a first change.
+    def test_unknown_format_is_not_a_failure(self):
+        title = 'Never Gonna Give You Up 官方MV 4K修复版'
+        run, prepared = self.prepare([(1280, 720)], {'title': title}, language='zh-CN')
+        self.assertEqual('no_target', prepared['measurements'][0]['status'])
+        review = self.fill(run, prepared['review_template'], visible=['RICK ASTLEY', '4K'])
+        review['candidates'][0]['items']['resolution_aspect'].update(verdict='fail', reason='没有给出目标格式。', fix='告诉我平台。', basis='missing_context')
+        review['candidates'][0]['priorities'] = ['resolution_aspect']
+        m.write(run / 'review.json', review)
+        with self.assertRaisesRegex(ValueError, 'not a missing-context failure'):
+            m.deliver(run)
+        self.fill(run, prepared['review_template'], visible=['RICK ASTLEY', '4K'])
+        report = self.report(run)
+        self.assertIn('| 分辨率与比例 | 待确认 | 画面清楚。 脚本实测：1280×720（1.778:1）。没有给出目标格式，比例暂不判断', report)
+        self.assertIn('没有必须修改的项。', report)
+        self.assertNotIn('| 分辨率与比例 | 不过 |', report)
+        self.assertIn('## 推荐\n\nA\n', report)
+
+    # Issue 3: the first review.json was rejected for wrong fields; prepare now returns the exact shape.
+    def test_prepare_template_has_the_exact_shape(self):
+        run, prepared = self.prepare([(1280, 720), (1280, 721)], {'title': 'T', 'target_aspect_ratio': '16:9', 'target_aspect_source': 'user'}, language='en')
+        template = prepared['review_template']
+        self.assertEqual(template, json.loads((run / 'review.template.json').read_text()))
+        self.assertEqual(m.digest((run / 'request.json').read_bytes()), template['request_sha256'])
+        self.assertEqual(['candidate_id', 'reason'], list(template['recommendation']))
+        self.assertEqual([['A', 'B']], [row['pair'] for row in template['comparisons']])
+        self.assertEqual(['A', 'B'], [row['candidate_id'] for row in template['title_review']['pairing']])
+        with self.assertRaises(ValueError):
+            m.write(run / 'review.json', template)
+            m.deliver(run)
+        review = self.fill(run, template)
+        review['recommendation'] = {'candidate': 'A', 'reason': 'Clearest focus.'}
+        m.write(run / 'review.json', review)
+        with self.assertRaisesRegex(ValueError, r"recommendation: missing fields \['candidate_id'\], unexpected fields \['candidate'\]"):
+            m.deliver(run)
+        self.fill(run, template)
+        m.deliver(run)
 
 if __name__=='__main__':unittest.main()

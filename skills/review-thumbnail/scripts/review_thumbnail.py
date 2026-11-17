@@ -65,8 +65,13 @@ def write(path, value):
             os.unlink(name)
 
 
-def keys(value, expected):
-    require(isinstance(value, dict) and set(value) == set(expected), 'Unexpected or missing object fields: ' + ','.join(expected))
+def keys(value, expected, where='object'):
+    """Name the object and the exact missing or unexpected fields, so one correction is enough."""
+    if not isinstance(value, dict):
+        raise ValueError(f'{where} must be an object with exactly these fields: {", ".join(expected)} (see review_template from prepare)')
+    missing, extra = [k for k in expected if k not in value], sorted(set(value) - set(expected))
+    require(not missing and not extra, f'{where}: missing fields {missing}, unexpected fields {extra}; '
+            f'it needs exactly {", ".join(expected)} (see review_template from prepare)')
 
 
 def sentence(value):
@@ -93,7 +98,7 @@ def text_list(value, field, limit=200):
 
 
 def observations(value):
-    keys(value, ('capture', 'visible_text', 'ui_text', 'main_subject', 'disclosures'))
+    keys(value, ('capture', 'visible_text', 'ui_text', 'main_subject', 'disclosures'), 'observations')
     require(value['capture'] in ('original', 'screenshot'),
             'capture must be "original" (the cover image itself) or "screenshot" (a capture that shows platform interface '
             'such as a duration badge, video title, channel name or view count around or over the cover)')
@@ -101,9 +106,8 @@ def observations(value):
     # Platform interface text in a screenshot is not cover text: keep it apart so it is never judged as the cover's words.
     text_list(value['ui_text'], 'ui_text')
     require(value['capture'] == 'screenshot' or not value['ui_text'], 'ui_text is only for a screenshot; an original cover has no platform interface')
-    cover = {norm(t) for t in value['visible_text']}
-    for item in value['ui_text']:
-        require(norm(item) not in cover, f'Platform interface text is not cover text; list it only in ui_text: {item}')
+    # The same words may be on the cover and in the interface (an artist name on the cover and in the list title):
+    # list them in both. Only text that is on the cover itself belongs in visible_text.
     text_list(value['disclosures'], 'disclosures')
     sentence(value['main_subject'])
     seen = ' | '.join(norm(t) for t in value['visible_text'])
@@ -214,6 +218,37 @@ def title_length(title):
     return {'chars': chars, 'columns': columns, 'status': status}
 
 
+def review_template(request, request_sha256):
+    """The exact review.json shape for this request, so the first submission has the right fields and nesting."""
+    ids = [r['id'] for r in request['images']]
+    row = {'verdict': 'pass or fail', 'reason': 'one sentence', 'fix': 'empty for pass; one fix for fail', 'basis': 'observed or missing_context'}
+    template = {
+        'schema_version': REVIEW_VERSION,
+        'request_sha256': request_sha256,
+        'candidates': [{
+            'id': ident,
+            'observations': {'capture': 'original or screenshot', 'visible_text': ['each cover text exactly as written'],
+                             'ui_text': ['platform interface text of a screenshot; empty list for an original'],
+                             'main_subject': 'one sentence', 'disclosures': []},
+            'items': {item['id']: dict(row) for item in ITEMS},
+            'priorities': ['failed item ids, first 2-3'],
+            'suitable': True,
+            'suitability_reason': 'one sentence',
+        } for ident in ids],
+        'title_review': None,
+        'comparisons': [{'pair': list(pair), 'winner': f'{pair[0]}, {pair[1]}, tie, neither or insufficient', 'reason': 'one sentence'}
+                        for pair in itertools.combinations(ids, 2)],
+        'recommendation': {'candidate_id': f'{" or ".join(ids)} or null', 'reason': 'one sentence'},
+    }
+    if request['context'].get('title'):
+        template['title_review'] = {
+            'title': request['context']['title'],
+            'clarity': {'verdict': 'pass or fail', 'reason': 'one sentence', 'fix': 'empty for pass'},
+            'pairing': [{'candidate_id': ident, 'verdict': 'pass or fail', 'reason': 'one sentence', 'fix': 'empty for pass'} for ident in ids],
+        }
+    return template
+
+
 def prepare(source, run):
     from PIL import Image, ImageOps
     request = load(source)
@@ -256,11 +291,16 @@ def prepare(source, run):
     request['images'] = records
     request['schema_version'] = REQUEST_VERSION
     write(run / 'request.json', request)
+    template = review_template(request, digest((run / 'request.json').read_bytes()))
+    write(run / 'review.template.json', template)
     measured = [{'id': r['id'], **aspect_check(r, request['context'], 'original')} for r in records]
     result = {'status': 'prepared', 'run_dir': str(run.resolve()), 'measurements': measured,
               'next': 'Inspect all originals and small images, then author review.json. Preparation is not a review. '
                       'The ratio verdict is the script\'s: measurements[].status is final for an original image (a screenshot '
-                      'you mark with capture "screenshot" is not ratio-checked). Never restate or recompute the ratio or its tolerance.'}
+                      'you mark with capture "screenshot" is not ratio-checked). Never restate or recompute the ratio or its tolerance. '
+                      'Copy review_template (also saved as review.template.json, with request_sha256 already filled) to review.json '
+                      'and replace every placeholder; keep its field names and nesting exactly.',
+              'review_template': template}
     if request['context'].get('title'):
         result['title_length'] = title_length(request['context']['title'])
         result['next'] += ' A title was given: fill title_review (clarity and how the title pairs with each candidate).'
@@ -290,7 +330,7 @@ def inputs(run):
 
 
 def verdict_row(row, fields, where, quotable, ui=()):
-    keys(row, fields)
+    keys(row, fields, where)
     sentence(row['reason'])
     grounded(row['reason'], quotable, where + ' reason', ui)
     require(row['verdict'] in ('pass', 'fail'), 'Use only pass or fail; no scores or third verdict')
@@ -311,13 +351,13 @@ def check_title_review(request, review, ids, seen_by_id, ui_by_id):
         require(value is None, 'title_review must be null when the request has no title')
         return None
     require(isinstance(value, dict), 'A title was given: title_review must review it (clarity and pairing with each candidate)')
-    keys(value, ('title', 'clarity', 'pairing'))
+    keys(value, ('title', 'clarity', 'pairing'), 'title_review')
     require(value['title'] == title, 'title_review.title must be the exact title in the request context')
     title_seen = norm(title)
     verdict_row(value['clarity'], ('verdict', 'reason', 'fix'), 'title_review.clarity', title_seen)
     pairing = value['pairing']
     require(isinstance(pairing, list) and [row.get('candidate_id') if isinstance(row, dict) else None for row in pairing] == ids,
-            'title_review.pairing needs one row per candidate, in order A/B/C')
+            'title_review.pairing needs one row per candidate, in order A/B/C, each with candidate_id, verdict, reason and fix')
     for row in pairing:
         cid = row['candidate_id']
         verdict_row(row, ('candidate_id', 'verdict', 'reason', 'fix'), f'title_review.pairing {cid}', title_seen + ' | ' + seen_by_id[cid], ui_by_id[cid])
@@ -327,7 +367,7 @@ def check_title_review(request, review, ids, seen_by_id, ui_by_id):
 def validate(run):
     request = inputs(run)
     review = load(run / 'review.json')
-    keys(review, ('schema_version', 'request_sha256', 'candidates', 'title_review', 'comparisons', 'recommendation'))
+    keys(review, ('schema_version', 'request_sha256', 'candidates', 'title_review', 'comparisons', 'recommendation'), 'review.json')
     require(review['schema_version'] == REVIEW_VERSION, 'Wrong review version')
     require(review['request_sha256'] == digest((run / 'request.json').read_bytes()), 'Review is bound to different inputs')
     ids = [r['id'] for r in request['images']]
@@ -336,7 +376,7 @@ def validate(run):
     title_seen = norm(context['title']) if context.get('title') else ''
     outcomes, seen_by_id, ui_by_id = {}, {}, {}
     for candidate, image in zip(review['candidates'], request['images']):
-        keys(candidate, ('id', 'observations', 'items', 'priorities', 'suitable', 'suitability_reason'))
+        keys(candidate, ('id', 'observations', 'items', 'priorities', 'suitable', 'suitability_reason'), 'candidate ' + str(candidate.get('id')))
         seen = observations(candidate['observations'])
         ui = candidate['observations']['ui_text']
         seen_by_id[candidate['id']], ui_by_id[candidate['id']] = seen, ui
@@ -361,14 +401,14 @@ def validate(run):
                 require(not RATIO_CLAIM.search(written), f'{where}: the script measures the ratio and its tolerance and adds them to the '
                         'report; judge only sharpness and detail here and never write a ratio or percentage of your own')
                 status = aspect['status']
-                if status == 'no_target':
-                    require(row['verdict'] == 'fail' and row['basis'] == 'missing_context', 'Target aspect ratio is required to verify format')
-                elif status == 'fail':
+                if status == 'fail':
                     require(row['verdict'] == 'fail' and row['basis'] == 'observed',
                             f"Actual aspect ratio differs from target by {aspect['deviation_percent']}% (over 1%): resolution_aspect fails")
                 else:
-                    # pass: the ratio is fine, the row may still fail for blur. screenshot / nonstandard_size: not ratio-checked.
-                    require(row['basis'] == 'observed', f'{where}: the ratio is {status} by the script, not missing context')
+                    # pass: the ratio is fine. no_target / screenshot / nonstandard_size: the ratio is not judged and the
+                    # report shows it as "to confirm", never as a failure or a first change. The row may still fail for blur.
+                    require(row['basis'] == 'observed', f'{where}: the ratio is {status} by the script and is not judged, so it is not '
+                            'a missing-context failure; judge sharpness only (pass unless the image is blurry)')
         failed = {k for k, v in rows.items() if v['verdict'] == 'fail'}
         priorities = candidate['priorities']
         require(isinstance(priorities, list) and all(isinstance(v, str) for v in priorities), 'Priority IDs must be strings')
@@ -382,7 +422,7 @@ def validate(run):
     pairs = list(itertools.combinations(ids, 2))
     require(isinstance(review['comparisons'], list) and len(review['comparisons']) == len(pairs), 'Compare every pair exactly once')
     for row, pair in zip(review['comparisons'], pairs):
-        keys(row, ('pair', 'winner', 'reason'))
+        keys(row, ('pair', 'winner', 'reason'), 'comparison ' + '/'.join(pair))
         require(row['pair'] == list(pair) and row['winner'] in (*pair, 'tie', 'neither', 'insufficient'), 'Invalid pair or winner')
         sentence(row['reason'])
         grounded(row['reason'], seen_by_id[pair[0]] + ' | ' + seen_by_id[pair[1]] + ' | ' + title_seen, f'Comparison {pair[0]}/{pair[1]}', ui_by_id[pair[0]] + ui_by_id[pair[1]])
@@ -391,7 +431,7 @@ def validate(run):
         require(row['winner'] != 'tie' or len(eligible) == 2, 'Tie requires two suitable candidates')
         require(eligible or row['winner'] == 'neither', 'Both unsuitable: use neither')
     rec = review['recommendation']
-    keys(rec, ('candidate_id', 'reason'))
+    keys(rec, ('candidate_id', 'reason'), 'recommendation')
     sentence(rec['reason'])
     grounded(rec['reason'], ' | '.join(seen_by_id.values()) + ' | ' + title_seen, 'Recommendation', [t for ui in ui_by_id.values() for t in ui])
     require(rec['candidate_id'] is None or rec['candidate_id'] in ids, 'Unknown recommendation')
@@ -421,6 +461,9 @@ def aspect_sentence(aspect, context, labels):
     return template.format(**values)
 
 
+UNJUDGED = ('no_target', 'screenshot', 'nonstandard_size')
+
+
 def render(request, review, outcomes):
     labels = check_labels(request)
     names = {i['id']: labels[i['id']] for i in ITEMS}
@@ -431,16 +474,23 @@ def render(request, review, outcomes):
     for c in review['candidates']:
         obs = c['observations']
         shown = labels['list_sep'].join(text(t) for t in obs['visible_text']) or labels['no_text']
-        lines += ['## ' + c['id'], '', text(c['suitability_reason']), '', labels['text_in_image'] + shown, '']
+        aspect = outcomes[c['id']]['aspect']
+        lines += ['## ' + c['id'], '', text(c['suitability_reason']), '']
+        if aspect['status'] in UNJUDGED:
+            # Say up front why the ratio is not judged and what to send, not only inside the table row.
+            lines += ['> ' + text(aspect_sentence(aspect, request['context'], labels)), '']
+        lines += [labels['text_in_image'] + shown, '']
         if obs['ui_text']:
             lines += [labels['ui_text'] + labels['list_sep'].join(text(t) for t in obs['ui_text']), '']
         lines += header
         for item in ITEMS:
             r = c['items'][item['id']]
-            reason = text(r['reason'])
+            reason, verdict = text(r['reason']), word(r['verdict'])
             if item['id'] == 'resolution_aspect':
-                reason += ' ' + text(aspect_sentence(outcomes[c['id']]['aspect'], request['context'], labels))
-            lines.append(row(names[item['id']], word(r['verdict']), reason, text(r['fix']) if r['fix'] else '—'))
+                reason += ' ' + text(aspect_sentence(aspect, request['context'], labels))
+                if aspect['status'] in UNJUDGED and r['verdict'] == 'pass':
+                    verdict = labels['pending']
+            lines.append(row(names[item['id']], verdict, reason, text(r['fix']) if r['fix'] else '—'))
         lines += ['', '### ' + labels['change_first'], '']
         if not c['priorities']:
             lines.append(labels['no_changes'])

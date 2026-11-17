@@ -47,12 +47,12 @@ Author `review.json` with exactly these fields:
 `observations` is written per candidate before any judgment: `capture` is `original` or `screenshot`
 (platform interface such as a duration badge, video title, channel name or view count around or over
 the cover); `visible_text` lists each cover text exactly as written (empty list when the image has
-none); `ui_text` lists the platform interface text of a screenshot (empty for an original) and never
-repeats a `visible_text` entry; `main_subject` is one sentence, and
+none); `ui_text` lists the platform interface text of a screenshot (empty for an original); text
+printed on the cover that the interface repeats belongs in both; `main_subject` is one sentence, and
 `disclosures` lists source/AI/cloned-voice/financial disclosure labels, each of which must also appear
 in `visible_text`. Any quoted text (straight, curly, guillemet or CJK corner quotes) in an item reason, suitability reason,
 comparison, recommendation or title review must appear in the relevant candidate's `visible_text` or in
-the title; quoting interface text is rejected. A reason or fix may not ask
+the title; quoting text that is only in the interface is rejected. A reason or fix may not ask
 to remove or hide a recorded disclosure. Suggested new wording belongs in `fix`, which is not checked
 against `visible_text`.
 
@@ -60,12 +60,14 @@ The example abbreviates `items`; real reviews require all ten IDs from rubric.js
 in every candidate. All objects reject extra fields (including scores). Candidate order is A/B/C.
 Each item has `verdict: pass|fail`, one nonblank `reason`, `basis: observed|missing_context`, and
 `fix` (nonblank for fail, empty for pass). A missing-context item must fail. With no topic evidence,
-topic_match must fail for missing context; with no target ratio, resolution_aspect must do likewise.
+topic_match must fail for missing context. `prepare` prints `review_template` (and writes
+`review.template.json`): the exact shape for this request with `request_sha256` filled.
 The script owns the ratio. Per candidate it measures the size and gives a ratio status: `fail` (over 1%
-from the target: resolution_aspect must fail), `pass` (within 1%), `no_target` (must fail with
-missing_context), `screenshot` (capture is a screenshot) or `nonstandard_size` (a size within 2% of no
-common thumbnail ratio, unless the creator named the target). The last three are not ratio failures
-and need `basis: observed`. The resolution_aspect reason and fix judge sharpness and detail only and
+from the target: resolution_aspect must fail), `pass` (within 1%), `no_target` (no target ratio),
+`screenshot` (capture is a screenshot) or `nonstandard_size` (a size within 2% of no common thumbnail
+ratio, unless the creator named the target). The last three leave the ratio unjudged: the row needs
+`basis: observed`, fails only for blur, and a passing row is rendered as "to confirm" with the
+script's explanation, never as a failure or a first change. The resolution_aspect reason and fix judge sharpness and detail only and
 may contain no ratio notation or percentage other than the target itself; the report appends the
 script's measurement sentence. The 1% tolerance allows pixel rounding; it is not a quality score.
 

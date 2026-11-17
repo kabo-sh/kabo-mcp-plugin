@@ -34,8 +34,8 @@
     "insufficient": "insufficient",
     "aspect_pass": "Measured by the script: {size} ({ratio}:1); target {target} ({target_ratio}:1){source}. Difference {deviation}%, within the 1% tolerance, so the ratio passes.",
     "aspect_fail": "Measured by the script: {size} ({ratio}:1); target {target} ({target_ratio}:1){source}. Difference {deviation}%, over the 1% tolerance, so the ratio fails.",
-    "aspect_no_target": "Measured by the script: {size} ({ratio}:1). No target format was given, so the ratio cannot be checked yet.",
-    "aspect_screenshot": "This image is a screenshot ({size}) with platform interface around the cover, so the ratio of the original cover was not checked. Send the original image file to check it.",
+    "aspect_no_target": "Measured by the script: {size} ({ratio}:1). No target format was given, so the ratio is not judged yet; say where it will be used (for example YouTube 16:9 or Shorts 9:16) to check it.",
+    "aspect_screenshot": "This is a screenshot ({size}) with platform interface around the cover, so the ratio is not judged. Send the original image file to check it.",
     "aspect_nonstandard": "{size} ({ratio}:1) is not a standard thumbnail size, so it looks like a screenshot or a crop and the ratio was not checked. Send the original export to check it.",
     "source_user": ", as you asked",
     "source_format": ", the standard for the format named in this conversation",
@@ -46,7 +46,8 @@
     "title_length_ok": "{chars} characters, short enough to show in full in most lists.",
     "title_length_long": "{chars} characters; search and suggested lists show about 70 display characters, so the end is likely cut off.",
     "title_length_over": "{chars} characters, over YouTube's 100-character limit.",
-    "title_length_fix": "Shorten it to about 60 characters and keep the key words at the start."
+    "title_length_fix": "Shorten it to about 60 characters and keep the key words at the start.",
+    "pending": "to confirm"
   },
   "zh": {
     "report_title": "封面评测",
@@ -83,8 +84,8 @@
     "insufficient": "依据不足",
     "aspect_pass": "脚本实测：{size}（{ratio}:1）；目标 {target}（{target_ratio}:1）{source}。相差 {deviation}%，在 1% 容差内，比例通过。",
     "aspect_fail": "脚本实测：{size}（{ratio}:1）；目标 {target}（{target_ratio}:1）{source}。相差 {deviation}%，超出 1% 容差，比例不通过。",
-    "aspect_no_target": "脚本实测：{size}（{ratio}:1）。没有给出目标格式，暂时无法检查比例。",
-    "aspect_screenshot": "这张图是截图（{size}），封面四周带有平台界面，所以没有检查原封面的比例。发原图文件即可检查。",
+    "aspect_no_target": "脚本实测：{size}（{ratio}:1）。没有给出目标格式，比例暂不判断；告诉我用在哪里（例如 YouTube 16:9 或 Shorts 9:16）即可检查。",
+    "aspect_screenshot": "这是截图（{size}），封面四周带有平台界面，所以比例不判。请发原图文件，即可检查比例。",
     "aspect_nonstandard": "{size}（{ratio}:1）不是常见的封面尺寸，像是截图或裁剪图，所以没有检查比例。发导出的原图即可检查。",
     "source_user": "，按你的要求",
     "source_format": "，即对话中所说格式的标准比例",
@@ -95,7 +96,8 @@
     "title_length_ok": "{chars} 个字符，在多数列表里能完整显示。",
     "title_length_long": "{chars} 个字符；搜索和推荐列表大约只显示 70 个显示宽度，结尾很可能被截断。",
     "title_length_over": "{chars} 个字符，超过 YouTube 的 100 字符上限。",
-    "title_length_fix": "缩短到约 30 个汉字（60 个显示宽度）以内，把关键词放在前面。"
+    "title_length_fix": "缩短到约 30 个汉字（60 个显示宽度）以内，把关键词放在前面。",
+    "pending": "待确认"
   },
   "zh-Hant": {
     "report_title": "封面評測",
@@ -132,8 +134,8 @@
     "insufficient": "依據不足",
     "aspect_pass": "腳本實測：{size}（{ratio}:1）；目標 {target}（{target_ratio}:1）{source}。相差 {deviation}%，在 1% 容差內，比例通過。",
     "aspect_fail": "腳本實測：{size}（{ratio}:1）；目標 {target}（{target_ratio}:1）{source}。相差 {deviation}%，超出 1% 容差，比例不通過。",
-    "aspect_no_target": "腳本實測：{size}（{ratio}:1）。沒有提供目標格式，暫時無法檢查比例。",
-    "aspect_screenshot": "這張圖是截圖（{size}），封面四周帶有平台介面，所以沒有檢查原封面的比例。傳原圖檔案即可檢查。",
+    "aspect_no_target": "腳本實測：{size}（{ratio}:1）。沒有提供目標格式，比例暫不判斷；告訴我用在哪裡（例如 YouTube 16:9 或 Shorts 9:16）即可檢查。",
+    "aspect_screenshot": "這是截圖（{size}），封面四周帶有平台介面，所以比例不判。請傳原圖檔案，即可檢查比例。",
     "aspect_nonstandard": "{size}（{ratio}:1）不是常見的封面尺寸，像是截圖或裁切圖，所以沒有檢查比例。傳匯出的原圖即可檢查。",
     "source_user": "，依照你的要求",
     "source_format": "，即對話中所說格式的標準比例",
@@ -144,7 +146,8 @@
     "title_length_ok": "{chars} 個字元，在多數列表裡能完整顯示。",
     "title_length_long": "{chars} 個字元；搜尋和推薦列表大約只顯示 70 個顯示寬度，結尾很可能被截斷。",
     "title_length_over": "{chars} 個字元，超過 YouTube 的 100 字元上限。",
-    "title_length_fix": "縮短到約 30 個漢字（60 個顯示寬度）以內，把關鍵字放在前面。"
+    "title_length_fix": "縮短到約 30 個漢字（60 個顯示寬度）以內，把關鍵字放在前面。",
+    "pending": "待確認"
   },
   "pt": {
     "report_title": "Avaliação de thumbnail",
@@ -181,8 +184,8 @@
     "insufficient": "evidência insuficiente",
     "aspect_pass": "Medido pelo script: {size} ({ratio}:1); alvo {target} ({target_ratio}:1){source}. Diferença de {deviation}%, dentro da tolerância de 1%, então a proporção está aprovada.",
     "aspect_fail": "Medido pelo script: {size} ({ratio}:1); alvo {target} ({target_ratio}:1){source}. Diferença de {deviation}%, acima da tolerância de 1%, então a proporção está reprovada.",
-    "aspect_no_target": "Medido pelo script: {size} ({ratio}:1). Nenhum formato de destino foi informado, então a proporção ainda não pode ser verificada.",
-    "aspect_screenshot": "Esta imagem é uma captura de tela ({size}) com a interface da plataforma em volta da capa, então a proporção da capa original não foi verificada. Envie o arquivo original da imagem para verificar.",
+    "aspect_no_target": "Medido pelo script: {size} ({ratio}:1). Nenhum formato de destino foi informado, então a proporção ainda não é avaliada; diga onde vai usar (por exemplo YouTube 16:9 ou Shorts 9:16) para verificar.",
+    "aspect_screenshot": "Esta é uma captura de tela ({size}) com a interface da plataforma em volta da capa, então a proporção não é avaliada. Envie o arquivo original da imagem para verificar.",
     "aspect_nonstandard": "{size} ({ratio}:1) não é um tamanho padrão de thumbnail; parece uma captura de tela ou um recorte, então a proporção não foi verificada. Envie o arquivo exportado original para verificar.",
     "source_user": ", como você pediu",
     "source_format": ", o padrão do formato citado na conversa",
@@ -193,7 +196,8 @@
     "title_length_ok": "{chars} caracteres, curto o bastante para aparecer inteiro na maioria das listas.",
     "title_length_long": "{chars} caracteres; a busca e as sugestões mostram cerca de 70 caracteres, então o final provavelmente será cortado.",
     "title_length_over": "{chars} caracteres, acima do limite de 100 caracteres do YouTube.",
-    "title_length_fix": "Encurte para cerca de 60 caracteres e deixe as palavras-chave no início."
+    "title_length_fix": "Encurte para cerca de 60 caracteres e deixe as palavras-chave no início.",
+    "pending": "a confirmar"
   },
   "es": {
     "report_title": "Revisión de miniatura",
@@ -230,8 +234,8 @@
     "insufficient": "pruebas insuficientes",
     "aspect_pass": "Medido por el script: {size} ({ratio}:1); objetivo {target} ({target_ratio}:1){source}. Diferencia del {deviation}%, dentro de la tolerancia del 1%, así que la proporción se supera.",
     "aspect_fail": "Medido por el script: {size} ({ratio}:1); objetivo {target} ({target_ratio}:1){source}. Diferencia del {deviation}%, por encima de la tolerancia del 1%, así que la proporción no se supera.",
-    "aspect_no_target": "Medido por el script: {size} ({ratio}:1). No se indicó un formato de destino, así que todavía no se puede comprobar la proporción.",
-    "aspect_screenshot": "Esta imagen es una captura de pantalla ({size}) con la interfaz de la plataforma alrededor de la portada, así que no se comprobó la proporción de la portada original. Envía el archivo original para comprobarla.",
+    "aspect_no_target": "Medido por el script: {size} ({ratio}:1). No se indicó un formato de destino, así que la proporción todavía no se evalúa; di dónde se va a usar (por ejemplo YouTube 16:9 o Shorts 9:16) para comprobarla.",
+    "aspect_screenshot": "Esta es una captura de pantalla ({size}) con la interfaz de la plataforma alrededor de la portada, así que la proporción no se evalúa. Envía el archivo original para comprobarla.",
     "aspect_nonstandard": "{size} ({ratio}:1) no es un tamaño estándar de miniatura; parece una captura o un recorte, así que no se comprobó la proporción. Envía el archivo exportado original para comprobarla.",
     "source_user": ", como pediste",
     "source_format": ", el estándar del formato mencionado en la conversación",
@@ -242,6 +246,7 @@
     "title_length_ok": "{chars} caracteres, lo bastante corto para verse completo en la mayoría de las listas.",
     "title_length_long": "{chars} caracteres; la búsqueda y las sugerencias muestran unos 70 caracteres, así que el final probablemente se corte.",
     "title_length_over": "{chars} caracteres, por encima del límite de 100 caracteres de YouTube.",
-    "title_length_fix": "Acórtalo a unos 60 caracteres y deja las palabras clave al principio."
+    "title_length_fix": "Acórtalo a unos 60 caracteres y deja las palabras clave al principio.",
+    "pending": "por confirmar"
   }
 }

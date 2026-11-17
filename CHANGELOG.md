@@ -59,7 +59,7 @@ The version number follows `plugin.json`; the root package version in `.claude-p
 
 Fixes for production bad cases in review-thumbnail, content-ideas labels, batched scripts and account-based plans.
 
-- `review-thumbnail` 0.1.6 (request/review contract v3):
+- `review-thumbnail` 0.1.7 (request/review contract v3):
   - A title the creator gives, or one the conversation already shows (a library video, a list-card screenshot), is
     reviewed with the cover: `title_review` judges its clarity and how it complements each candidate, and the script
     measures its length (over 100 characters, or over 70 display columns, fails). Before, the reply promised a title
@@ -75,6 +75,12 @@ Fixes for production bad cases in review-thumbnail, content-ideas labels, batche
   - Report labels follow the creator's language: built-in English, Simplified and Traditional Chinese, Portuguese and
     Spanish; any other language supplies a complete, validated `labels` translation instead of falling back to
     English. The list separator is per language: other reports no longer use the Chinese enumeration comma.
+  - Pre test of the candidate (thread 33a4dd88): cover text that the list card repeats (an artist name on the cover
+    and in the video title) is allowed in both `visible_text` and `ui_text` instead of being rejected, and a
+    screenshot's report says up front that the ratio is not judged and asks for the original file. Without a target
+    format the ratio is "to confirm", not a failure and not a first change. `prepare` returns `review_template` (also
+    `review.template.json`, `request_sha256` filled) with the exact review.json shape, and a field error names the
+    object and its missing and unexpected fields.
 - `develop-content-ideas`: Traditional Chinese report tags (`zh-TW`, `zh-HK`, `zh-MO`, `zh-Hant`) render a
   Traditional label catalog instead of the Simplified one (I003). A language without a catalog keeps its own tag and
   the translated labels (`report_language.py <tag> --template` prints the entries to fill), never `en` (I011).

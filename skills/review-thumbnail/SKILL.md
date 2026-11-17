@@ -4,7 +4,7 @@ description: "Review and compare one to three uploaded video thumbnails, and the
 license: MIT
 compatibility: "Requires a vision-capable host, local file read/write access, Python 3 and Pillow for static image decoding and small-image preparation. Inline file delivery requires a host capability that displays an existing Markdown file unchanged. No Kabo data permission or backend checker is required."
 metadata:
-  version: "0.1.6"
+  version: "0.1.7"
   platform_agnostic: "true"
 ---
 
@@ -39,7 +39,8 @@ or an unambiguous requested format (YouTube long-form 16:9; vertical short-form 
 in `target_aspect_ratio` with `target_aspect_source`: `user` only when the creator named that ratio
 or size, `format` when they named a format whose standard ratio it is. Never say the creator asked
 for a ratio they did not name. Do not infer the intended format from the uploaded dimensions alone.
-If format is unclear, keep it absent and explain that the format check cannot pass yet.
+If format is unclear, keep it absent: the report then shows the ratio as "to confirm" and asks where
+the image will be used; it is not a failure.
 
 **Title.** When the creator asks about the title, or a title is available (they typed it, it shows in
 a screenshot of the video's list card, or the conversation already has the video, for example a
@@ -66,15 +67,18 @@ restate or contradict a ratio, tolerance or length; the report adds them itself.
 an earlier run directory.
 
 **Screenshots.** A capture with platform interface (a YouTube list card with duration badge, title,
-channel name or view count) is `capture: "screenshot"`; list that interface text in `ui_text`, never
-in `visible_text`, and never judge it as cover text. The script does not check the ratio of a
-screenshot, nor of a non-standard size such as 749×407 unless the creator named that ratio; the report
-says why and asks for the original file. Judge the rest of the cover as it appears.
+channel name or view count) is `capture: "screenshot"`; list that interface text in `ui_text` and
+never judge it as cover text. Words printed on the cover itself go in `visible_text` even when the
+list title repeats them (an artist name on the cover and in the title): list them in both. The script
+does not check the ratio of a screenshot, nor of a non-standard size such as 749×407 unless the creator
+named that ratio; the report says it is a screenshot, that the ratio is not judged, and asks for the
+original file. Judge the rest of the cover as it appears.
 
 **`resolution_aspect`.** Your row judges sharpness and detail at display size only, without any
-ratio or percentage. Its verdict follows the script's ratio `status`: `fail` means the row fails;
-`no_target` means it fails with `basis: missing_context`; with `pass`, `screenshot` or
-`nonstandard_size` the ratio is not a failure and the row fails only for blur or missing detail.
+ratio or percentage, and `basis: observed`. Its verdict follows the script's ratio `status`: `fail`
+means the row fails; with `pass`, `no_target`, `screenshot` or `nonstandard_size` the ratio is not a
+failure and the row fails only for blur or missing detail. When the ratio is not judged (`no_target`,
+`screenshot`, `nonstandard_size`) a passing row is shown as "to confirm" and is never a first change.
 
 ## Judge and compare
 
@@ -106,7 +110,9 @@ ratio or percentage. Its verdict follows the script's ratio `status`: `fail` mea
 6. With a title, fill `title_review`: its clarity (pass/fail, reason, fix) and, per candidate, whether
    title and cover complement each other (the cover shows what the title promises without repeating
    its words, together they raise one question). Otherwise `title_review` is null.
-7. Save `review.json` using the exact contract. Keep all ten rows, including on unsuitable images.
+7. Save `review.json`: start from `review_template` in the `prepare` output (also in
+   `review.template.json`, with `request_sha256` filled), replace every placeholder and keep its field
+   names and nesting exactly. Keep all ten rows, including on unsuitable images.
 
 ## Validate and deliver
 
