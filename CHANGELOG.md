@@ -9,6 +9,8 @@ The version number follows `plugin.json`; the root package version in `.claude-p
   `make_video`; questions come back through `get_remake_video` and answers go with
   `reply_to_video`. The old remake tools are retired: older plugins get a `tool_retired` error asking
   to update to 1.0.56 or later.
+- remake-viral-video 1.0.2 declares `platform_agnostic`, so on Kabo Web making a video never stops to ask
+  which platform to research (the host blocked loading it until a platform was named).
 
 ## 1.0.55 (unreleased)
 
