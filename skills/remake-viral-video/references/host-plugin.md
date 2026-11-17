@@ -88,6 +88,11 @@ Call `get_remake_video` with `{"job_id": "<id>", "project": true, "producer": tr
 
 A remake takes 30 min to 3 hours, mostly waiting. Do not promise a finish time.
 
+One video is made at a time per account: start another `make_video` only after the one in progress
+is `done` (or the creator cancels it). When the producer says it is waiting for another video, tell
+the creator so; once that video is `done`, send `reply_to_video` with the creator's go-on (for
+example "The other video is finished now, please continue.") -- it does not resume by itself.
+
 ## 6. Delivery and changes
 
 When the job lists a delivered video (the newest of `project.revisions`, its `video.download`;
