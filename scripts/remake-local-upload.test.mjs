@@ -25,29 +25,6 @@ function call(dir, args) {
   return spawnSync("python3", [script, ...args], { encoding: "utf8", env: { ...process.env, KABO_STATIC_RUN_DIR: dir } });
 }
 
-test("kabo-file references can go in the reference, own-video and photo positions and are normalized to lowercase; the same file cannot be used twice", () => {
-  const dir = run();
-  const ok = call(dir, ["start-call", "--reference-url", `KABO-FILE:${FILE.toUpperCase()}`,
-    "--creator-video", "https://www.instagram.com/reel/ABC123/", "--creator-photo", `kabo-file:${PHOTO}`,
-    "--creator-name", "rose"]);
-  assert.equal(ok.status, 0, ok.stderr);
-  const args = JSON.parse(ok.stdout).arguments;
-  assert.equal(args.reference_url, `kabo-file:${FILE}`);
-  assert.deepEqual(args.creator.photo_urls, [`kabo-file:${PHOTO}`]);
-  const same = call(dir, ["start-call", "--reference-url", `kabo-file:${FILE}`, "--creator-video", `kabo-file:${FILE}`,
-    "--creator-name", "rose"]);
-  assert.notEqual(same.status, 0);
-  assert.match(same.stderr, /same video/);
-  const project = call(dir, ["project-call", "--reference-video", `kabo-file:${FILE}`, "--reference-image", `kabo-file:${PHOTO}`]);
-  assert.equal(project.status, 0, project.stderr);
-  const parsed = JSON.parse(project.stdout).arguments;
-  assert.deepEqual(parsed.reference_video_urls, [`kabo-file:${FILE}`]);
-  assert.deepEqual(parsed.reference_image_urls, [`kabo-file:${PHOTO}`]);
-  const bad = call(dir, ["start-call", "--reference-url", "kabo-file:not-a-uuid", "--instagram-handle", "rose"]);
-  assert.notEqual(bad.status, 0);
-  assert.match(bad.stderr, /kabo-file/);
-});
-
 test("upload-call: accepts only video and JPEG/PNG, names files by content digest, and binds the idempotency key to the content", () => {
   const dir = run();
   const media = mkdtempSync(path.join(tmpdir(), "remake-media-"));

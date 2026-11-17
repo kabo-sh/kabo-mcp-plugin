@@ -4,7 +4,7 @@ description: "Build a reviewable four-week or date-range content calendar (up to
 license: MIT
 compatibility: "Requires Python 3 and read and write access to a local workspace. Uses no Kabo data tools: every input is an artifact the creator or another Skill already produced in this workspace."
 metadata:
-  version: "0.1.28"
+  version: "0.1.29"
 ---
 
 # Plan Content Calendar
@@ -48,6 +48,16 @@ For those conversation routes, read `references/advice-and-proposals.md` first, 
   questions alone.
 - **Advice**: answer the strategy now with stated assumptions, not a routing menu; missing account data
   blocks only an account-specific diagnosis.
+- **A plan for the next weeks built from account results** (an account review or analysis earlier in the
+  conversation, "make a 30-day plan from these results"): a proposal as above. Its cadence follows how
+  often the account actually posts, and it proposes no topic the account already published. Put the
+  account's dated posts (date and title or caption) from those results in `posts.json` and the
+  proposed topics in `plan.json`, then run
+  `python3 '<skill directory>/scripts/account_cadence.py' --posts posts.json --plan plan.json`
+  (no run directory is needed). Match the observed cadence (a daily poster gets about one post a day,
+  not three a week) and say it comes from their history; replace every possible duplicate it lists
+  unless the creator asked for a follow-up. When the frequency is unknown, ask once how often they post
+  or label the cadence as an assumption. Never invent a fixed default cadence for a known account.
 
 A four-week horizon does not imply eight posts: keep the creator-selected content set, never expand or
 clone it to fill weeks, and report unused slots honestly.

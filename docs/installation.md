@@ -198,9 +198,11 @@ plugin ID containing `@`.
 
 ### Doubao Work, Qwen Work, DeepSeek Harness and WorkBuddy
 
-`npx -y kabo-sh install` (kabo-sh 0.0.3 or later) adds Doubao Work, Qwen Work and DeepSeek Harness.
-WorkBuddy is handled through its bundled CodeBuddy command line; afterwards click Trust on Kabo in
-WorkBuddy's connector management and sign in. The manual steps are the same as in
+`npx -y kabo-sh install --host doubao | qwen-work | deepseek | workbuddy` installs into that one assistant
+(kabo-sh 0.0.5 or later; without `--host` it asks when it finds several assistants). WorkBuddy is handled
+through its bundled CodeBuddy command line; afterwards quit WorkBuddy completely and open it again, then
+click Trust on Kabo in WorkBuddy's connector management and sign in. `--host workbuddy` also covers the
+international build, WorkBuddy AI (a separate app with settings in `~/.workbuddy-ai`; macOS only for now). The manual steps are the same as in
 [INSTALL.md](../INSTALL.md#doubao-work-qwen-work-deepseek-harness-and-workbuddy):
 
 | Host | Skills folder | Connection |
@@ -212,9 +214,11 @@ WorkBuddy's connector management and sign in. The manual steps are the same as i
 
 Start with a message that names the Skill, for example "Please use the start-with-kabo skill to get me
 started"; Doubao Work runs a Skill only when it is named, and Qwen Work picks it from a natural request only some of the time. `~/.agents/skills` is also read by Codex, so a
-user with Kabo installed in Codex sees the Skills twice. In Doubao Work, Qwen Work and WorkBuddy, Kabo
-currently connects read-only: linking an account and saving pillars are unavailable there until the server
-grants write permission on first sign-in. These hosts create a new working folder for every conversation,
+user with Kabo installed in Codex sees the Skills twice. Since 2026-11-16 Kabo's
+first sign-in challenge asks for read and write access, so a new connection in these hosts can link an account
+and save pillars. A connection authorized earlier can still be read-only; Start With Kabo checks
+`granted_scopes` and offers one reconnection ([write-access.md](../skills/start-with-kabo/references/write-access.md)).
+Not yet confirmed on each real host. These hosts create a new working folder for every conversation,
 so the Skills keep their library in `~/kabo-workspace` (see [workspace.md](workspace.md)); Qwen Work is the exception and needs a project with a working folder.
 
 ### Cursor

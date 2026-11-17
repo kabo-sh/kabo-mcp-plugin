@@ -216,7 +216,8 @@ contract and ranking rules. In short:
 
 Set `report_language` on both IdeaRequest and IdeaSet to the language of the final report (BCP 47),
 separate from `language_targets`; read `references/report-language.md` whole before writing
-`idea_set.json`. Before asking for a topic, audience, goal or evidence, reuse the conversation up to
+`idea_set.json`. The report language is the creator's: Traditional Chinese is `zh-TW` (or `zh-HK`),
+and a language without built-in labels keeps its own tag with translated labels, never `en`. Before asking for a topic, audience, goal or evidence, reuse the conversation up to
 the current turn. Follow *Continuations* in `references/core-generation.md` to pass an earlier
 IdeaSet or exact visible chat through prep, while keeping the current request unchanged.
 An account review delivered earlier in this conversation (standard or deep) is the account
