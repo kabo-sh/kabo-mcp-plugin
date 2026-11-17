@@ -70,7 +70,8 @@ The storyboard is one JSON object: at the top `form` (medium, look, settings, sh
 captions, voice, music and sound), `total_s`, and, when the video has recurring characters,
 `characters`: one entry per character, `{name, look}` -- a short name used for them everywhere in
 the storyboard, and the fixed look every picture of them follows (build, face, hair, clothes,
-colours, props). Leave out `sheet`: the character sheets are made and attached during production.
+colours, props). `sheet` is filled in during production ("The same people in every shot" below);
+a plan handed to Kabo's producer to make leaves it out.
 Then `shots`, one per shot: `shot`, `t0`, `t1`, `words` (the exact words heard over it), `picture`
 (who or what, doing what, shot size; in a talking shot who speaks and who stays silent), `sources`
 (the attachments or handles it uses), `keep_change`, `motion` (`"still"` or how it moves),
@@ -123,6 +124,21 @@ the creator wrote it). Then choose the steps yourself, row by row, from the tabl
 Write the prompt yourself from `picture`, `form` (medium, look, `avoid`), the `look` of each
 character in the row's `on_screen_cast`, and the style
 card, as step 4 above says, and save it into the row when you save the storyboard again.
+
+## The same people in every shot: character sheets first
+
+Every character seen in more than one shot goes in the storyboard's top-level `characters`:
+`{name, look, sheet}`, where `name` is used the same way everywhere (each row's `on_screen_cast`
+lists the names seen in it, and `speaker` uses them too) and `look` is the one fixed appearance
+written into every picture of them. Before the shots, make one sheet per character: a `still` with
+`params.sheet_for` set to the name and a prompt of their look, full body, front view, plain
+background, in the project's look (a planning trial still may be a sheet). Save the handles with
+`remake_video {request:{action:"plan", job_id, sheets:{<name>: <handle>}}}`; the whole storyboard
+need not be sent again. Then give `params.on_screen_cast` on every `still` with characters in it:
+the host puts their sheets first in the references, so a character looks the same from shot to
+shot, and a still of a character without a sheet is turned back free until the sheet is made.
+Stills batched together share their references, so batch rows with the same cast. `animate` and
+`talking` start from those stills and keep the look.
 
 ## Characters that talk
 
