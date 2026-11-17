@@ -66,13 +66,20 @@ text, the medium and look, the layout, the voices and sound, the captions -- wha
 apart from what you infer. Then write the storyboard from it and save both (host mechanics below).
 A video takes many turns and the later ones see only the saved plan, not this turn's notes.
 
-The storyboard is one JSON object: at the top `form` (medium, look, characters with their full
-settings, shot count and pace, captions, voice, music and sound) and `total_s`; then `shots`, one
-per shot: `shot`, `t0`, `t1`, `words` (the exact words heard over it), `picture` (who or what,
-doing what, shot size; in a talking shot who speaks and who stays silent), `sources` (the
-attachments or handles it uses), `keep_change`, `motion` (`"still"` or how it moves),
-`on_screen_text`, and optionally `speaker`, `how` (the steps and the handles they use), `prompt`
-(the full prompt), `captions`, `sound`, `transition`. Every line of the script has a picture that
+The storyboard is one JSON object: at the top `form` (medium, look, settings, shot count and pace,
+captions, voice, music and sound), `total_s`, and, when the video has recurring characters,
+`characters`: one entry per character, `{name, look}` -- a short name used for them everywhere in
+the storyboard, and the fixed look every picture of them follows (build, face, hair, clothes,
+colours, props). Leave out `sheet`: the character sheets are made and attached during production.
+Then `shots`, one per shot: `shot`, `t0`, `t1`, `words` (the exact words heard over it), `picture`
+(who or what, doing what, shot size; in a talking shot who speaks and who stays silent), `sources`
+(the attachments or handles it uses), `keep_change`, `motion` (`"still"` or how it moves),
+`on_screen_text`, and optionally `on_screen_cast` (the `characters` names seen in this shot, a
+list), `speaker` (the `characters` name of who speaks), `how` (the steps and the handles they use),
+`prompt` (the full prompt), `captions`, `sound`, `transition`. Every character in a shot's picture
+is in its `on_screen_cast`, and the picture never redescribes a character's look differently from
+`characters`. (A style card's `cast` in `form` says what kind of figures appear at all; it is not
+`on_screen_cast`.) Every line of the script has a picture that
 shows what it says. A storyboard written before the material is broken down is not the plan.
 Each shot is its own picture; a shot whose reference moves (a person or thing acting, a camera
 move) is made to move (`animate`, `refvideo`, `talking`, a code animation), and only a shot over
@@ -109,7 +116,8 @@ the creator wrote it). Then choose the steps yourself, row by row, from the tabl
   row's `transition`, `mux`, `music` (`duck` under speech), `sfx`, then `captions` as the row or
   `form` says.
 
-Write the prompt yourself from `picture`, `form` (medium, look, characters, `avoid`) and the style
+Write the prompt yourself from `picture`, `form` (medium, look, `avoid`), the `look` of each
+character in the row's `on_screen_cast`, and the style
 card, as step 4 above says, and save it into the row when you save the storyboard again.
 
 ## Characters that talk
@@ -119,8 +127,8 @@ voice the lines with `tts` (one call per voice, preset voices); then `talking` (
 still + its line) or `lipsync` (an `animate` clip of it + the line) gives a talking shot per line;
 each shot takes the per-line audio of that line from the `tts` call of the voice that speaks it
 (match the words in that call's notes, not the order of the handles). On a character picture every
-`talking` call names the speaker in `params.speaker`, as the storyboard row does (a name and look,
-e.g. "the grandmother in the armchair"): the host counts the characters in the picture and, when
+`talking` call names the speaker in `params.speaker`, as the storyboard row does (its
+`characters` name with its look, e.g. "grandma, the grandmother in the armchair"): the host counts the characters in the picture and, when
 there is more than one, makes only the speaker's head and shoulders talk, so the others keep their
 mouths shut. A `params.region` [x, y, w, h] you give is used as it is; when the speaker cannot be
 told apart the call comes back with each character's box to pick a region from. `talking` and
