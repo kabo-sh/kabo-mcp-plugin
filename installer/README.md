@@ -22,7 +22,10 @@ What it does, by assistant:
 - **Codex** found: `codex plugin marketplace add kabo-sh/kabo-mcp-plugin` and
   `codex plugin add kabo@kabo-plugin-openai`.
 - **WorkBuddy** (desktop app) found: runs the command line that ships inside WorkBuddy against
-  WorkBuddy's own settings folder, with the same two plugin commands as Claude Code. Quit WorkBuddy
+  WorkBuddy's own settings folder, with the same two plugin commands as Claude Code. The international build,
+  **WorkBuddy AI** (`WorkBuddy AI.app`, settings in `~/.workbuddy-ai`), is a separate app and is handled the
+  same way: `--host workbuddy` covers every build found, `--host workbuddy-ai` only the international one
+  (macOS only for now; its Windows folder is not known yet). Quit WorkBuddy
   completely and open it again, then click Trust on Kabo in its connector management and sign in.
 - **CodeBuddy Code** (`codebuddy` command) found: the same two plugin commands.
 - **Doubao Work** (豆包工作) found: copies every Kabo Skill folder in full to `~/.agents/skills` (the
@@ -60,7 +63,7 @@ What it does, by assistant:
 It never signs in for you. Kabo sign-in happens in your browser (OAuth); no API key or password is
 read, printed or stored. The command prints the steps that are left for you.
 
-Options: `--host claude-code|codex|workbuddy|codebuddy|doubao|qwen-work|deepseek|grok-bot|muse|skills-only|all`,
+Options: `--host claude-code|codex|workbuddy|workbuddy-ai|codebuddy|doubao|qwen-work|deepseek|grok-bot|muse|skills-only|all`,
 `--dry-run` (print the commands, run nothing). `npx kabo-sh doctor` shows what was detected.
 
 The tests use temporary folders and override the home-directory lookup only in their child process;

@@ -97,7 +97,7 @@ installs nothing when it finds several assistants on the computer and asks which
 npx -y kabo-sh install --host doubao      # Doubao Work
 npx -y kabo-sh install --host qwen-work   # Qwen Work
 npx -y kabo-sh install --host deepseek    # DeepSeek Harness
-npx -y kabo-sh install --host workbuddy   # WorkBuddy and WorkBuddy AI
+npx -y kabo-sh install --host workbuddy   # WorkBuddy and WorkBuddy AI, each one found
 ```
 
 The installer reports, for each assistant, what it did and what is not done yet. Pass on only the steps
@@ -166,7 +166,10 @@ sees the Skills twice. The installer names the other assistants it finds.
 ### WorkBuddy
 
 Run `npx -y kabo-sh install --host workbuddy`. It installs the Kabo plugin through the CodeBuddy command line
-that ships inside WorkBuddy. Then ask the user to:
+that ships inside WorkBuddy, into the app's own settings folder. The international build, WorkBuddy AI, is a
+separate app (`WorkBuddy AI.app`, settings in `~/.workbuddy-ai`); the same command installs into every build it
+finds, and `--host workbuddy-ai` installs into WorkBuddy AI only. WorkBuddy AI is found on macOS only for now.
+Then ask the user, in the build they use, to:
 
 1. Quit WorkBuddy completely and open it again, so it loads the plugin. No other assistant needs a restart.
 2. Open WorkBuddy's connector management, click Trust on Kabo and sign in to Kabo in the browser. If Kabo

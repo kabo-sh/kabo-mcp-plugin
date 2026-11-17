@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -190,11 +190,59 @@ test("INSTALL.md gives assistants the installer command with an existing --host"
   }
 });
 
-test("WorkBuddy: INSTALL.md and the installer both say to restart WorkBuddy before trusting the connector", () => {
+// A HOME with fake WorkBuddy apps under ~/Applications (the installer also looks there on macOS). The bundled
+// command line is an empty script: a dry run only asks it for the marketplace list and runs nothing else.
+async function workBuddyApps(t, apps) {
+  const { home, env } = await twoDesktopApps(t);
+  await rm(path.join(home, ".qwenworkcn"), { recursive: true });
+  await rm(path.join(home, ".dsh"), { recursive: true });
+  for (const app of apps) {
+    const bin = path.join(home, "Applications", app, "Contents", "Resources", "app.asar.unpacked", "cli", "bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(path.join(bin, "codebuddy"), "");
+  }
+  return { home, env };
+}
+
+test("WorkBuddy and WorkBuddy AI: --host workbuddy installs into each build found, into its own settings folder", async (t) => {
+  const { home, env } = await workBuddyApps(t, ["WorkBuddy.app", "WorkBuddy AI.app"]);
+  const { output } = runInstaller(["install", "--host", "workbuddy", "--dry-run"], env);
+  assert.ok(output.includes(`CODEBUDDY_CONFIG_DIR=${path.join(home, ".workbuddy")} `));
+  assert.ok(output.includes(`CODEBUDDY_CONFIG_DIR=${path.join(home, ".workbuddy-ai")} `));
+  assert.match(output, /^WorkBuddy: Kabo plugin installed/m);
+  assert.match(output, /^WorkBuddy AI: Kabo plugin installed/m);
+  assert.match(output, /Quit WorkBuddy completely and open it again/);
+  assert.match(output, /Quit WorkBuddy AI completely and open it again/);
+
+  const only = runInstaller(["install", "--host", "workbuddy-ai", "--dry-run"], env).output;
+  assert.doesNotMatch(only, /^WorkBuddy: /m);
+  assert.match(only, /^WorkBuddy AI: Kabo plugin installed/m);
+
+  const asked = runInstaller(["install"], env);
+  assert.equal(asked.status, 2);
+  assert.match(asked.output, /--host workbuddy +WorkBuddy\n/);
+  assert.match(asked.output, /--host workbuddy-ai +WorkBuddy AI\n/);
+});
+
+test("WorkBuddy AI alone: --host workbuddy finds it; nothing found reports that instead of installing elsewhere", async (t) => {
+  const { home, env } = await workBuddyApps(t, ["WorkBuddy AI.app"]);
+  const { output } = runInstaller(["install", "--host", "workbuddy", "--dry-run"], env);
+  assert.ok(output.includes(`CODEBUDDY_CONFIG_DIR=${path.join(home, ".workbuddy-ai")} `));
+  assert.match(output, /^WorkBuddy AI: Kabo plugin installed/m);
+  assert.doesNotMatch(output, /^WorkBuddy: /m);
+
+  const none = await workBuddyApps(t, []);
+  const missing = runInstaller(["install", "--host", "workbuddy", "--dry-run"], none.env);
+  assert.equal(missing.status, 1);
+  assert.match(missing.output, /WorkBuddy's built-in command line was not found/);
+  assert.match(missing.output, /^WorkBuddy: not installed/m);
+});
+
+test("WorkBuddy: INSTALL.md says to restart WorkBuddy before trusting the connector, as the installer does", () => {
   const start = installDoc.indexOf("\n### WorkBuddy\n");
   assert.ok(start >= 0, 'INSTALL.md has no "### WorkBuddy" section');
   const section = installDoc.slice(start, installDoc.indexOf("\n## ", start));
   assert.match(section, /Quit WorkBuddy completely and open it again/);
   assert.match(section, /Trust/);
-  assert.ok(read("installer/bin/kabo.js").includes("Quit WorkBuddy completely and open it again"));
+  assert.match(section, /--host workbuddy-ai/);
 });

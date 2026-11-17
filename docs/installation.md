@@ -201,7 +201,8 @@ plugin ID containing `@`.
 `npx -y kabo-sh install --host doubao | qwen-work | deepseek | workbuddy` installs into that one assistant
 (kabo-sh 0.0.5 or later; without `--host` it asks when it finds several assistants). WorkBuddy is handled
 through its bundled CodeBuddy command line; afterwards quit WorkBuddy completely and open it again, then
-click Trust on Kabo in WorkBuddy's connector management and sign in. The manual steps are the same as in
+click Trust on Kabo in WorkBuddy's connector management and sign in. `--host workbuddy` also covers the
+international build, WorkBuddy AI (a separate app with settings in `~/.workbuddy-ai`; macOS only for now). The manual steps are the same as in
 [INSTALL.md](../INSTALL.md#doubao-work-qwen-work-deepseek-harness-and-workbuddy):
 
 | Host | Skills folder | Connection |

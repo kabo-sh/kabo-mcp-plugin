@@ -15,11 +15,12 @@ const MCP_URL = "https://kabo.sh/mcp-pub";
 const INSTALL_DOC = `${REPO_URL}/blob/stable/INSTALL.md`;
 const HOME = os.homedir();
 const CLONE_DIR = path.join(HOME, "kabo-mcp-plugin");
-const HOSTS = ["claude-code", "codex", "workbuddy", "codebuddy", "doubao", "qwen-work", "deepseek", "grok-bot", "muse", "skills-only"];
+const HOSTS = ["claude-code", "codex", "workbuddy", "workbuddy-ai", "codebuddy", "doubao", "qwen-work", "deepseek", "grok-bot", "muse", "skills-only"];
 const HOST_NAMES = {
   "claude-code": "Claude Code",
   codex: "Codex",
   workbuddy: "WorkBuddy",
+  "workbuddy-ai": "WorkBuddy AI",
   codebuddy: "CodeBuddy Code",
   doubao: "Doubao Work",
   "qwen-work": "Qwen Work",
@@ -71,19 +72,36 @@ function run(bin, args, env) {
 
 // ---------- detection ----------
 
-// WorkBuddy (Tencent) ships the CodeBuddy command line inside the desktop app. Pointing it at
-// ~/.workbuddy with CODEBUDDY_CONFIG_DIR makes it manage WorkBuddy's own plugins.
-function workBuddyCli() {
+// WorkBuddy (Tencent) ships the CodeBuddy command line inside the desktop app. Pointing it at the app's own
+// settings folder with CODEBUDDY_CONFIG_DIR makes it manage that app's plugins. The international build,
+// WorkBuddy AI, is a separate app with its own settings folder; on 2026-11-17 a Mac with both had
+// /Applications/WorkBuddy AI.app with the same bundled cli/bin/codebuddy, and ~/.workbuddy-ai with its own
+// plugins, skills and settings.json. Its Windows install folder is not known yet, so it is found on macOS only.
+const MAC_CLI = ["Contents", "Resources", "app.asar.unpacked", "cli", "bin", "codebuddy"];
+const WORKBUDDY_BUILDS = {
+  workbuddy: { name: "WorkBuddy", app: "WorkBuddy.app", windowsDir: "WorkBuddy", configDir: ".workbuddy" },
+  "workbuddy-ai": { name: "WorkBuddy AI", app: "WorkBuddy AI.app", windowsDir: null, configDir: ".workbuddy-ai" },
+};
+
+function workBuddyCli(host) {
+  const build = WORKBUDDY_BUILDS[host];
   const candidates = [
-    "/Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy",
-    path.join(HOME, "Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy"),
+    path.join("/Applications", build.app, ...MAC_CLI),
+    path.join(HOME, "Applications", build.app, ...MAC_CLI),
   ];
-  if (process.env.LOCALAPPDATA) {
+  if (process.env.LOCALAPPDATA && build.windowsDir) {
     candidates.push(
-      path.join(process.env.LOCALAPPDATA, "Programs", "WorkBuddy", "resources", "app.asar.unpacked", "cli", "bin", "codebuddy"),
+      path.join(process.env.LOCALAPPDATA, "Programs", build.windowsDir, "resources", "app.asar.unpacked", "cli", "bin", "codebuddy"),
     );
   }
   return candidates.find(exists);
+}
+
+// --host workbuddy covers both builds: the WorkBuddy page has one command for both, and both are the same
+// product, so neither one's steps can be mistaken for another vendor's. --host workbuddy-ai picks only the
+// international build.
+function workBuddyHostsFound() {
+  return Object.keys(WORKBUDDY_BUILDS).filter((host) => workBuddyCli(host));
 }
 
 // Cloud computers of hosted assistants (checked on 2026-11-12 by asking each assistant to run ls/which).
@@ -124,7 +142,7 @@ function detect() {
   const found = [];
   if (has("claude")) found.push("claude-code");
   if (has("codex")) found.push("codex");
-  if (workBuddyCli()) found.push("workbuddy");
+  found.push(...workBuddyHostsFound());
   if (has("codebuddy")) found.push("codebuddy");
   if (appPresent(DOUBAO)) found.push("doubao");
   if (appPresent(QWEN)) found.push("qwen-work");
@@ -215,21 +233,25 @@ function installCodex() {
 // WorkBuddy and CodeBuddy Code read the same plugin format as Claude Code (.claude-plugin/marketplace.json),
 // so the same marketplace and plugin names work.
 function installCodeBuddyFamily(host) {
-  const isWorkBuddy = host === "workbuddy";
-  const name = isWorkBuddy ? "WorkBuddy" : "CodeBuddy Code";
+  const build = WORKBUDDY_BUILDS[host];
+  const isWorkBuddy = Boolean(build);
+  const name = isWorkBuddy ? build.name : "CodeBuddy Code";
   out(name);
   let bin = "codebuddy";
   let pre = [];
   let env;
   if (isWorkBuddy) {
-    const cli = workBuddyCli();
+    const cli = workBuddyCli(host);
     if (!cli) {
-      out("  WorkBuddy's built-in command line was not found. Is WorkBuddy installed?");
+      out(`  ${name}'s built-in command line was not found. Is ${name} installed?`);
+      if (host === "workbuddy-ai" && process.platform === "win32") {
+        out("  On Windows the installer does not know WorkBuddy AI's install folder yet; follow the manual steps in INSTALL.md.");
+      }
       return { host: name, ok: false };
     }
     bin = process.execPath; // the bundled CLI is a Node script
     pre = [cli];
-    env = { CODEBUDDY_CONFIG_DIR: path.join(HOME, ".workbuddy") };
+    env = { CODEBUDDY_CONFIG_DIR: path.join(HOME, build.configDir) };
   }
   const ok =
     addMarketplace(bin, pre, env) && run(bin, [...pre, "plugin", "install", "kabo@kabo-mcp-plugin"], env);
@@ -239,11 +261,11 @@ function installCodeBuddyFamily(host) {
     ok: true,
     done: "Kabo plugin installed",
     pending: isWorkBuddy
-      ? "WorkBuddy has not reloaded it, and the Kabo connector is not trusted or signed in yet"
+      ? `${name} has not reloaded it, and the Kabo connector is not trusted or signed in yet`
       : "the Kabo connection is not signed in yet",
     left: isWorkBuddy
       ? [
-          "Quit WorkBuddy completely and open it again so it loads the Kabo plugin. Restarting only WorkBuddy is enough; no other assistant needs a restart.",
+          `Quit ${name} completely and open it again so it loads the Kabo plugin. Restarting only ${name} is enough; no other assistant needs a restart.`,
           "Open Connector management, find Kabo (custom connector), click Trust, then sign in to Kabo in your browser. If Kabo already shows as connected there, skip this step.",
           'Then send: "Please use the start-with-kabo skill to get me started."',
         ]
@@ -620,6 +642,7 @@ const INSTALLERS = {
   "claude-code": installClaudeCode,
   codex: installCodex,
   workbuddy: () => installCodeBuddyFamily("workbuddy"),
+  "workbuddy-ai": () => installCodeBuddyFamily("workbuddy-ai"),
   codebuddy: () => installCodeBuddyFamily("codebuddy"),
   doubao: installDoubao,
   "qwen-work": installQwenWork,
@@ -649,7 +672,8 @@ function doctor() {
   for (const bin of ["claude", "codex", "codebuddy", "git", "python3"]) {
     out(`  ${bin}: ${has(bin) ? "found" : "not found"}`);
   }
-  out(`  WorkBuddy app: ${workBuddyCli() ? "found" : "not found"}`);
+  out(`  WorkBuddy app: ${workBuddyCli("workbuddy") ? "found" : "not found"}`);
+  out(`  WorkBuddy AI app: ${workBuddyCli("workbuddy-ai") ? "found" : "not found"}`);
   out(`  Doubao Work app: ${appPresent(DOUBAO) ? "found" : "not found"}`);
   out(`  Qwen Work app: ${appPresent(QWEN) ? "found" : "not found"}`);
   out(`  DeepSeek Harness app: ${appPresent(DEEPSEEK) ? "found" : "not found"}`);
@@ -687,7 +711,11 @@ function install() {
   }
   out(`Kabo installer ${VERSION}${dryRun ? " (dry run: nothing is changed)" : ""}`);
   out("");
-  const hosts = forcedHost && forcedHost !== "all" ? [forcedHost] : detect();
+  let hosts = forcedHost && forcedHost !== "all" ? [forcedHost] : detect();
+  if (forcedHost === "workbuddy") {
+    const builds = workBuddyHostsFound();
+    if (builds.length) hosts = builds; // otherwise keep "workbuddy" so it reports that WorkBuddy was not found
+  }
   if (!forcedHost && hosts.length > 1) {
     askForHost(hosts);
     return;

@@ -46,6 +46,10 @@ Fixes for production bad cases in review-thumbnail, content-ideas labels, batche
   DeepSeek Harness changed DeepSeek's settings too and the reply told the user to restart DeepSeek Harness. Each
   result says what was done and what is not done yet instead of "installed". `INSTALL.md` gives every installer
   command with `--host` and adds the WorkBuddy restart before Trust. Not yet tested on a real WorkBuddy.
+- Installer: WorkBuddy AI, the international build, is a separate app (`WorkBuddy AI.app`, settings in
+  `~/.workbuddy-ai`) that 0.0.4 never found, so a WorkBuddy AI user got only another assistant's steps.
+  `--host workbuddy` now installs into every WorkBuddy build found, each into its own settings folder, and
+  `--host workbuddy-ai` picks the international one. macOS only: its Windows folder is not known yet.
 - README (and translations) and `docs/installation.md` no longer say Doubao Work, Qwen Work and WorkBuddy connect
   read-only: since 2026-11-16 the first sign-in challenge on `/mcp-pub` asks for `workspace:write` (checked on
   production). Older grants can still be read-only, and Start With Kabo offers one reconnection.
