@@ -2,6 +2,45 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.55 (unreleased)
+
+Fixes for production bad cases in review-thumbnail, content-ideas labels, batched scripts and account-based plans.
+
+- `review-thumbnail` 0.1.7 (request/review contract v3):
+  - A title the creator gives, or one the conversation already shows (a library video, a list-card screenshot), is
+    reviewed with the cover: `title_review` judges its clarity and how it complements each candidate, and the script
+    measures its length (over 100 characters, or over 70 display columns, fails). Before, the reply promised a title
+    review and delivered only the cover (8c61a39a, 8c3a710c, 50ea3c0c).
+  - Screenshots: `observations.capture` marks a screenshot and `ui_text` keeps platform interface text (duration,
+    title, view count) apart from the cover text; quoting it as cover text is rejected. A screenshot, or a size within
+    2% of no common thumbnail ratio (749x407, 740x443), is not ratio-checked unless the creator named the ratio; the
+    report says why and asks for the original file. `target_aspect_source` (`user` or `format`) records where a ratio
+    came from, so the report never says the creator asked for a ratio they did not name (da3ba5cc).
+  - The script owns numeric checks: `prepare` prints each image's measured ratio status, `deliver` enforces it and
+    the report appends the script's measurement sentence; a model-written ratio or percentage in the
+    `resolution_aspect` row is rejected. 2752x1536 is 0.78% from 16:9 and passes (8c3a710c).
+  - Report labels follow the creator's language: built-in English, Simplified and Traditional Chinese, Portuguese and
+    Spanish; any other language supplies a complete, validated `labels` translation instead of falling back to
+    English. The list separator is per language: other reports no longer use the Chinese enumeration comma.
+  - Pre test of the candidate (thread 33a4dd88): cover text that the list card repeats (an artist name on the cover
+    and in the video title) is allowed in both `visible_text` and `ui_text` instead of being rejected, and a
+    screenshot's report says up front that the ratio is not judged and asks for the original file. Without a target
+    format the ratio is "to confirm", not a failure and not a first change. `prepare` returns `review_template` (also
+    `review.template.json`, `request_sha256` filled) with the exact review.json shape, and a field error names the
+    object and its missing and unexpected fields.
+- `develop-content-ideas`: Traditional Chinese report tags (`zh-TW`, `zh-HK`, `zh-MO`, `zh-Hant`) render a
+  Traditional label catalog instead of the Simplified one (I003). A language without a catalog keeps its own tag and
+  the translated labels (`report_language.py <tag> --template` prints the entries to fill), never `en` (I011).
+- `create-script-and-packaging`: `scripts/check_batch_durations.py` estimates every script's spoken length in a
+  multi-script request against the requested duration and count; short scripts are extended or delivered in honest
+  batches, and the reply may claim the length only on `meets_request` (S056: fifteen 2:20-2:30 Shorts at about 180
+  words each).
+- `plan-content-calendar` 0.1.29: a plan built from account results follows the account's observed posting frequency
+  (`scripts/account_cadence.py`, last four weeks) or asks once when it is unknown, and replaces topics the account
+  already published (9abe9929).
+- The "Based on: ..." footer under answers (S022 Spanish shown in Portuguese, S039 Turkish shown in English) is
+  written by the Kabo agent service, not by these Skills.
+
 ## 1.0.54 (2026-11-16)
 
 - `review-creator-account`: `forecast.py` turns a forecast request's facts (target, metrics, horizon,
@@ -57,7 +96,7 @@ The version number follows `plugin.json`; the root package version in `.claude-p
   DeepSeek Harness and WorkBuddy, with `npx -y kabo-sh install` and the manual steps. Not yet accepted on
   real hosts after this change.
 
-## 1.0.51 (unreleased)
+## 1.0.51 (2026-11-14; GitHub Release)
 
 Fixes for the remaining bad cases in the 7-day production review of ideas and scripts.
 
@@ -91,7 +130,7 @@ Fixes for the remaining bad cases in the 7-day production review of ideas and sc
   says it was not saved (S055, S087, S099, S106, S126, S128).
 - New `scripts/ideas-followthrough-regression.py` and `scripts/script-followthrough-regression.py`.
 
-## 1.0.50 (unreleased)
+## 1.0.50 (2026-11-14; GitHub Release)
 
 - `review-thumbnail` 0.1.5: SKILL.md now runs `prepare` and `deliver` with `--run-dir review` and says the run
   directory must not exist yet. In production the host wrote `request-input.json` into a working folder and

@@ -2,7 +2,7 @@
 
 Read this when the request is not (only) an artifact-backed calendar: strategy or restart advice, a
 review of times the creator already stated, or a proposed plan for topics the creator supplied. None
-of these routes reserves a run or calls a script.
+of these routes reserves a run; only the cadence helper below is called, and it needs no run.
 
 The request may arrive in any language; the examples below describe equivalent intent.
 
@@ -22,3 +22,22 @@ When a calendar also needs new ideas or holiday context, the host discovers rele
 
 A four-week horizon does not imply eight posts. Preserve the Creator-selected content set; do not expand, clone, or request new ideas just to fill every week. Use the declared cadence, and report unused slots or uneven distribution honestly. Missing cadence still requires clarification under the rule below. If only informal ideas are supplied, obtain the proper selected artifacts through the host; do not fabricate selection provenance or approve extra content.
 
+
+## Plans built from account results
+
+"Make a concrete 30-day plan from these results" after an account review is a proposed plan: the
+creator supplied the account and the results, so deliver the dated draft now. Two things come from the
+account, not from a default:
+
+- **Cadence.** Use how often the account actually posts. Write the dated posts from the results to
+  `posts.json` (`{"as_of": "<creator's today>", "posts": [{"published_at": "YYYY-MM-DD", "title": "<title or caption>"}]}`)
+  and the draft's topics to `plan.json` (`{"days": 30, "topics": ["…"]}`), then run
+  `python3 '<skill directory>/scripts/account_cadence.py' --posts posts.json --plan plan.json`.
+  It returns posts per week over the last four weeks and the number of posts the window should hold.
+  Plan that many and say the cadence follows their posting history. When it reports the cadence as
+  unknown, ask once how often they post, or give the plan with the cadence labelled as an assumption.
+  A creator's stated cadence ("at least one video a day") always wins.
+- **No repeats.** Every topic must be new to the account. Replace each topic listed under
+  `possible_duplicates` (it shares a specific subject with a published post) and run the check again;
+  keep one only when the creator asked for a follow-up, and then name the earlier post. The check is a
+  word-overlap screen, so also compare meanings yourself before delivering.

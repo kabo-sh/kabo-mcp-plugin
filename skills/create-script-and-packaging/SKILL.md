@@ -45,6 +45,15 @@ after the emitted list: that idea is the selection, so do not ask the creator to
 reuse the platform and facts already in the conversation. Check the list before the final reply;
 never end with a part missing, and if a part truly cannot be done now, say which and why.
 
+**Several long scripts in one request.** When the creator asks for several full scripts with a spoken
+length ("a 2:30 script for every day from the 16th to the 30th"), each one must really be that long.
+Before delivering, put every script's spoken words in a batch file and run
+`python3 '<skill directory>/scripts/check_batch_durations.py' --batch batch.json`, as
+`references/duration-planning.md` says. Extend short scripts with real content and run it again; when
+they cannot all be written at full length in one reply, deliver complete full-length scripts in batches
+and say how many remain. Never say the scripts meet the requested length or count unless the check
+returns `meets_request`.
+
 **Links that cannot be read.** When the request depends on a supplied link (a title for this Reel, a
 script from this video) and its content cannot be read or analysed, say so plainly and ask for the
 missing content (the current title and what the video is about, or its script). Do not answer with
