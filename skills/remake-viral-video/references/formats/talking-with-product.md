@@ -31,7 +31,9 @@ and sourcing applies unchanged. This file only adds what differs.
   not to the creator's own testing, unless the creator's own lines say so.
 - In the plate prompt, describe the setting as the reference shows it, objects included. Do not
   ask for an empty desk, and do not name or invent products the reference does not show.
-- The creator's talking shots are empty-handed by design: talking models deform a held product, so
-  the runner keeps the product on the desk and in the reference's own close-ups instead. Do not
-  write that the creator holds, picks up or shows the product, and never promise the user a shot
-  of them holding it.
+- In the opening anchor prompt, keep the creator's hands empty, even when the reference speaker
+  holds or shows the product: a held object is redrawn deformed, so the runner removes any
+  sentence about holding it and adds "their hands are empty". The product is shown by the
+  reference's own close-ups and by the things on the desk, whose pixels the runner puts back
+  from the reference; do not name the product or describe how it looks in this prompt. Never
+  promise the creator a shot of them holding it.

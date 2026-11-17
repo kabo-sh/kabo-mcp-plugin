@@ -75,8 +75,12 @@ Then `shots`, one per shot: `shot`, `t0`, `t1`, `words` (the exact words heard o
 (who or what, doing what, shot size; in a talking shot who speaks and who stays silent), `sources`
 (the attachments or handles it uses), `keep_change`, `motion` (`"still"` or how it moves),
 `on_screen_text`, and optionally `on_screen_cast` (the `characters` names seen in this shot, a
-list), `speaker` (the `characters` name of who speaks), `how` (the steps and the handles they use),
-`prompt` (the full prompt), `captions`, `sound`, `transition`. Every character in a shot's picture
+list), `speaker` (who says the row's words on camera, by its `characters` name; `""` for a
+voice-over or when nobody is seen speaking), `how` (the steps that make the row, by step name with
+the handles, e.g. "still a05 -> talking (speaker: grandma)" or "still -> animate"; acting and
+delivery go in `motion` or `prompt`, not here), `prompt` (the full prompt), `captions`, `sound`,
+`transition`. A row whose words are said on camera by its speaker is a talking shot: its `how`
+names `talking` (or `lipsync` on a moving clip), never `animate` alone. Every character in a shot's picture
 is in its `on_screen_cast`, and the picture never redescribes a character's look differently from
 `characters`. (A style card's `cast` in `form` says what kind of figures appear at all; it is not
 `on_screen_cast`.) Every line of the script has a picture that
