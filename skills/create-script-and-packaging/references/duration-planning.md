@@ -72,3 +72,25 @@ timestamps are normalized to UTC. Report boundaries retain the original source
 strings selected by chronological order.
 
 The renderer emits one English set of timing labels. Before delivery, explain this timing basis in the requested language, preserving every estimate, target, sample statistic and the not-measured qualification; never leave an unexplained English fallback for another language. Creative text stays in its original language.
+
+## Several scripts with one requested length
+
+A request for many full scripts at a stated length (fifteen daily Shorts of 2:20–2:30, a week of
+one-minute Reels) is met only when every script reaches that length and every requested script is
+delivered. Write `batch.json`:
+
+```json
+{"target_seconds": {"min": 140, "max": 150}, "requested_count": 15, "pace": "deliberate",
+ "scripts": [{"id": "Nov 16", "language": "es", "spoken_text": "<only the words that will be spoken>"}]}
+```
+
+`target_seconds` may be one number. `pace` is the delivery the creator asked for (a calm, serene voice
+is `deliberate`). List every script written so far, then run
+`cd '<run>' && python3 '<skill directory>/scripts/check_batch_durations.py' --batch batch.json`.
+It estimates each script with the planning rates above and returns `meets_request` (exit 0),
+`needs_revision` with the `short`/`long` ids and how much more copy a short one needs, or
+`partial_batch` when fewer scripts than requested are written. On `needs_revision`, extend short
+scripts with real content (another example, step or payoff, never filler) and tighten long ones, then
+check again. When the full set cannot be written at full length in one reply, deliver the scripts that
+fit, say plainly how many remain and continue with the next batch. Never claim the requested length or
+count is met unless the check returns `meets_request`; say the estimate is not a measured read-through.
