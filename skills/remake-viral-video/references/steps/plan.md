@@ -84,7 +84,9 @@ delivery go in `motion` or `prompt`, not here), `prompt` (the full prompt), `cap
 names `talking` (or `lipsync` on a moving clip), never `animate` alone. Every character in a shot's picture
 is in its `on_screen_cast`, and the picture never redescribes a character's look differently from
 `characters`. (A style card's `cast` in `form` says what kind of figures appear at all; it is not
-`on_screen_cast`.) Every line of the script has a picture that
+`on_screen_cast`.) Captions follow the reference: when it has captions, `form` and each row's
+`captions` give their style (font, size, position, one word or a phrase at a time); `none` only
+when the reference has none or the creator asked for none. Every line of the script has a picture that
 shows what it says. A storyboard written before the material is broken down is not the plan.
 Each shot is its own picture; a shot whose reference moves (a person or thing acting, a camera
 move) is made to move (`animate`, `refvideo`, `talking`, a code animation), and only a shot over
