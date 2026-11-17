@@ -80,7 +80,11 @@ Call `get_remake_video` with `{"job_id": "<id>", "project": true, "producer": tr
   quote, a voice, a missing file). Give the creator `producer.message` in their language, keeping
   every option, number and name, with no recommendation of your own, and wait for their answer.
   Then call `reply_to_video` with `{job_id, message, idempotency_key}`: their answer in their own
-  words, verbatim, with a new key. Never answer for them.
+  words, verbatim, with a new key. Never answer for them, and never write your own instructions to
+  the producer: when you notice something wrong in what it reports, tell the creator what you
+  saw and send what they answer. Reply only after the latest `get_remake_video` shows
+  `needs_reply`, `done` or `failed`; while it is `working` a reply is refused (`conflict`) --
+  wait and read the job again.
 - `done`: the video is delivered and the producer has said what it made: deliver (step 6).
 - `failed`: the last round broke off or the job failed. Tell the creator plainly what
   `producer.message` says; if they want to go on, send their words with `reply_to_video` and the
