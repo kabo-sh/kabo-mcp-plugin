@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -60,7 +60,9 @@ test("the npm package points at this repository and stays out of the plugin pack
   assert.equal(installerPackage.repository.url, `git+${repoUrl}.git`);
   assert.equal(installerPackage.repository.directory, "installer");
   assert.equal(installerPackage.bin["kabo-sh"], "bin/kabo.js");
-  assert.deepEqual(installerPackage.dependencies ?? {}, {}, "the installer has no runtime dependencies");
+  // One pinned dependency, the YAML parser that edits DeepSeek Harness's patch file; nothing else.
+  assert.deepEqual(Object.keys(installerPackage.dependencies ?? {}), ["yaml"]);
+  assert.match(installerPackage.dependencies.yaml, /^\d+\.\d+\.\d+$/, "the yaml dependency is pinned to an exact version");
   assert.equal(isPackageFile("installer/bin/kabo.js"), false);
   assert.equal(isPackageFile("installer/package.json"), false);
 });
@@ -115,4 +117,84 @@ test("every host points to INSTALL.md on the stable branch, and that file exists
   assert.ok(existsSync(path.join(root, "INSTALL.md")));
   assert.ok(dryRun("skills-only", home).includes(link));
   assert.ok(read("installer/bin/kabo.js").includes("/blob/stable/INSTALL.md"));
+});
+
+// The hosts the installer accepts, read from its help text.
+function installerHosts() {
+  const help = execFileSync(process.execPath, [path.join(installerDir, "bin/kabo.js"), "--help"], { encoding: "utf8" });
+  const line = help.split("\n").find((entry) => entry.includes("--host <name>"));
+  return line.split("--host <name>")[1].trim().split(" | ");
+}
+
+// A HOME with the data folders of Qwen Work and DeepSeek Harness, and a PATH with only node on it, so detection finds
+// exactly those two desktop apps and no command-line host.
+async function twoDesktopApps(t) {
+  const home = await temp(t);
+  await mkdir(path.join(home, ".qwenworkcn"), { recursive: true });
+  await mkdir(path.join(home, ".dsh", "profiles", "desktop"), { recursive: true });
+  const bin = path.join(home, "bin");
+  await mkdir(bin);
+  await symlink(process.execPath, path.join(bin, "node"));
+  return { home, env: { PATH: bin, HOME: home, USERPROFILE: home, KABO_DETECT_FOLDERS_ONLY: "1" } };
+}
+
+function runInstaller(args, env) {
+  try {
+    return { status: 0, output: execFileSync(process.execPath, [path.join(installerDir, "bin/kabo.js"), ...args], { env, encoding: "utf8" }) };
+  } catch (error) {
+    return { status: error.status, output: `${error.stdout}` };
+  }
+}
+
+test("several assistants found and none named: the installer installs nothing and asks for --host", async (t) => {
+  const { home, env } = await twoDesktopApps(t);
+  // Not a dry run: the point is that no other assistant's settings are touched.
+  const { status, output } = runInstaller(["install"], env);
+  assert.equal(status, 2);
+  assert.match(output, /Found more than one assistant on this computer: Qwen Work, DeepSeek Harness\./);
+  assert.match(output, /Nothing was installed\./);
+  assert.match(output, /npx -y kabo-sh install --host qwen-work /);
+  assert.match(output, /npx -y kabo-sh install --host deepseek /);
+  assert.match(output, /npx -y kabo-sh install --host all/);
+  for (const written of [".agents", "kabo-mcp-plugin", ".qwenworkcn/mcp.json", ".dsh/profiles/desktop/cordis.patch.yml"]) {
+    assert.equal(existsSync(path.join(home, written)), false, `${written} must not be created`);
+  }
+});
+
+test("--host all installs into every assistant found and labels each block", async (t) => {
+  const { env } = await twoDesktopApps(t);
+  const { output } = runInstaller(["install", "--host", "all", "--dry-run"], env);
+  assert.match(output, /Results for 2 assistants\. Each block applies only to the assistant it names\./);
+  assert.match(output, /^Qwen Work: /m);
+  assert.match(output, /^DeepSeek Harness: /m);
+});
+
+test("each host's result says what was done and what is not done yet, never just 'installed'", async (t) => {
+  for (const host of ["claude-code", "codex", "doubao", "qwen-work", "grok-bot", "muse", "skills-only"]) {
+    const output = dryRun(host, await temp(t));
+    const name = host === "skills-only" ? "Skills" : null;
+    assert.match(output, new RegExp(`^${name ?? "[^\\n]+"}: [^\\n]+\\(dry run\\)\\. Not done yet: [^\\n]+\\.$`, "m"), host);
+    assert.doesNotMatch(output, /installed\. What is left/, host);
+    assert.match(output, /Kabo is ready only after the sign-in and one check/, host);
+  }
+});
+
+test("INSTALL.md gives assistants the installer command with an existing --host", () => {
+  const hosts = installerHosts();
+  const uses = [...installDoc.matchAll(/kabo-sh install[^\n`]*/g)].map((match) => match[0]);
+  assert.ok(uses.length > 0, "INSTALL.md shows the installer command");
+  for (const use of uses) {
+    const host = use.match(/--host ([\w-]+)/)?.[1];
+    assert.ok(host, `"${use}" must name the host: without --host the installer stops when it finds several assistants`);
+    assert.ok(hosts.includes(host), `"${use}" names a host the installer does not know`);
+  }
+});
+
+test("WorkBuddy: INSTALL.md and the installer both say to restart WorkBuddy before trusting the connector", () => {
+  const start = installDoc.indexOf("\n### WorkBuddy\n");
+  assert.ok(start >= 0, 'INSTALL.md has no "### WorkBuddy" section');
+  const section = installDoc.slice(start, installDoc.indexOf("\n## ", start));
+  assert.match(section, /Quit WorkBuddy completely and open it again/);
+  assert.match(section, /Trust/);
+  assert.ok(read("installer/bin/kabo.js").includes("Quit WorkBuddy completely and open it again"));
 });

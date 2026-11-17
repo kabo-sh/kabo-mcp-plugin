@@ -35,6 +35,11 @@ jobs:
         run: python3 -m pip install --user --disable-pip-version-check pillow==11.0.0
       - name: Check the package materials and run the tests
         run: npm run verify
+      - name: Run the kabo-sh installer's own tests
+        working-directory: installer
+        run: |
+          npm ci --ignore-scripts
+          npm test
       - name: Build twice from this commit and compare
         id: package
         shell: bash

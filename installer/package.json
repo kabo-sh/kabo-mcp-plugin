@@ -1,7 +1,7 @@
 {
   "name": "kabo-sh",
-  "version": "0.0.1",
-  "description": "Install Kabo (creator research tools and skills for YouTube, Instagram and TikTok) into your AI assistant: Claude Code, Codex, Grok Bot, Muse and other MCP clients.",
+  "version": "0.0.5",
+  "description": "Install Kabo (creator research tools and skills for YouTube, Instagram and TikTok) into your AI assistant: Claude Code, Codex, WorkBuddy, CodeBuddy, Doubao Work, Qwen Work, DeepSeek Harness, Grok Bot, Muse and other MCP clients.",
   "bin": {
     "kabo-sh": "bin/kabo.js",
     "kabo": "bin/kabo.js"
@@ -26,10 +26,23 @@
     "mcp",
     "claude-code",
     "codex",
+    "workbuddy",
+    "codebuddy",
+    "doubao",
+    "qwen",
+    "deepseek",
+    "grok",
+    "muse",
     "skills",
     "youtube",
     "instagram",
     "tiktok",
     "creator"
-  ]
+  ],
+  "dependencies": {
+    "yaml": "2.9.1"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
 }
