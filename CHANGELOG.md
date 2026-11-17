@@ -2,7 +2,7 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
-## 1.0.56 (unreleased)
+## 1.0.56
 
 - remake-viral-video: one Skill for Kabo Web and the plugin. In the plugin it plans the video
   (storyboard), checks it and its quote with `check_video_plan`, and hands it to Kabo's producer with
