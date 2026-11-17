@@ -4,7 +4,7 @@ description: "Have Kabo make a finished MP4: remake a reference video with the c
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
 metadata:
-  version: "1.0.0"
+  version: "1.0.1"
 allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
 
@@ -141,7 +141,13 @@ like the creator. Cancel a job only when the creator asks; spend so far stays ch
   then carry on normally.
 
 **An approved script** (the creator already has the spoken words, here or earlier in the
-conversation) is a whole remake without a reference: follow `references/approved-script.md`.
+conversation) is a whole remake without a reference: follow `references/approved-script.md`. It
+needs footage the creator explicitly chose for appearance and voice, and it takes no reference. A
+script read over pictures with nobody on camera is built from steps instead (`tts` of the exact
+words, pictures from their material or `still` / `animate`, `mux`, `captions`, `music`, deliver)
+-- and so is a script the creator wants made in a reference's form when they have no footage of
+their own: plan it from the reference as `references/steps/plan.md` ("Plan first, then make it") says, with their words as the lines, never
+the script or narration whole remake.
 
 ## 1. Collect the inputs (whole remake only)
 

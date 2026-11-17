@@ -6,8 +6,10 @@ script written earlier in this conversation and approved (for example by
 creator saying those words, using the creator's own footage for face and voice. This is the same
 remake job as the reference path; only the inputs and the script gate differ, and the rest of
 `SKILL.md` (waiting, the model choice, production, delivery, failures) applies unchanged. Use it
-only when the creator asks for a video of a script; a request to remake a video follows the
-reference path.
+only when the creator asks for a video of a script and has footage of themselves for it; a request
+to remake a video follows the reference path, and a script with no creator footage (read over
+pictures, or to be made in a reference's form) is built from steps (`SKILL.md`, "An approved
+script"). Never send a reference with `input_kind:"script"`.
 
 ## 1. Inputs
 
