@@ -2,6 +2,16 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.56
+
+- remake-viral-video: one Skill for Kabo Web and the plugin. In the plugin it plans the video
+  (storyboard), checks it and its quote with `check_video_plan`, and hands it to Kabo's producer with
+  `make_video`; questions come back through `get_remake_video` and answers go with
+  `reply_to_video`. The old remake tools are retired: older plugins get a `tool_retired` error asking
+  to update to 1.0.56 or later.
+- remake-viral-video 1.0.2 declares `platform_agnostic`, so on Kabo Web making a video never stops to ask
+  which platform to research (the host blocked loading it until a platform was named).
+
 ## 1.0.55 (unreleased)
 
 Fixes for production bad cases in review-thumbnail, content-ideas labels, batched scripts and account-based plans.

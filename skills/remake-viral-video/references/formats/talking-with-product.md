@@ -1,15 +1,13 @@
 # Format: talking with a product
 
-> Host edition (ported from creator-remake-web 0.1.32, creator-skills `f74df60a`). The runner does
-> every picture step; take only the writing rules from this file. `brief_input.json` is
-> `brief/work/brief_input.json` in the run directory.
+> The runner does every picture step; take only the writing rules from this file.
 
 **When this applies**: `brief_input.json` has `reference.type: "talking_product"`. The speaker
 talks to the camera about a physical thing they show -- held up to the lens, standing on the
 desk, worn -- and the video cuts to close-ups of it. The runner measured this from the video; you
 do not decide it.
 
-Read `references/formats/talking-head.md` first: everything there about the content layer, the four rewrite slots
+Read `talking-head.md` first: everything there about the content layer, the four rewrite slots
 and sourcing applies unchanged. This file only adds what differs.
 
 ## What the runner does with the product
@@ -33,7 +31,9 @@ and sourcing applies unchanged. This file only adds what differs.
   not to the creator's own testing, unless the creator's own lines say so.
 - In the plate prompt, describe the setting as the reference shows it, objects included. Do not
   ask for an empty desk, and do not name or invent products the reference does not show.
-- The creator's talking shots are empty-handed by design: talking models deform a held product, so
-  the runner keeps the product on the desk and in the reference's own close-ups instead. Do not
-  write that the creator holds, picks up or shows the product, and never promise the user a shot
-  of them holding it.
+- In the opening anchor prompt, keep the creator's hands empty, even when the reference speaker
+  holds or shows the product: a held object is redrawn deformed, so the runner removes any
+  sentence about holding it and adds "their hands are empty". The product is shown by the
+  reference's own close-ups and by the things on the desk, whose pixels the runner puts back
+  from the reference; do not name the product or describe how it looks in this prompt. Never
+  promise the creator a shot of them holding it.

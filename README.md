@@ -48,7 +48,7 @@ Two things set it apart:
 - **Remake a viral video with you on camera, from your phone.** Send a link to a talking-head video
   that took off. Kabo breaks it down, drafts your script, and delivers a finished vertical MP4. The
   video is made on Kabo's servers, so you can start it from an assistant's mobile app and come back
-  for the result.
+  for the result. Remakes need plugin 1.0.56 or later: update an older install first.
 
 New Kabo accounts get 100 daily credits for their first 7 days. Details are on the [pricing page](https://kabo.sh/pricing?utm_source=github&utm_medium=referral&utm_campaign=202611_mcp_plugin_readme&utm_content=readme_free).
 

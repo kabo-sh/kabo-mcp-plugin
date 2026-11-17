@@ -1,44 +1,80 @@
 ---
 name: remake-viral-video
-description: "Have Kabo produce a finished MP4: remake a viral talking-head or voice-over video (up to 10 min) with the creator, make one from an approved script, build one from steps (new words on the creator's own video, the creator in a reference's shot, B-roll, or nobody on camera: animation, narration), or change a delivered one. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
+description: "Have Kabo make a finished MP4: remake a reference video with the creator (talking, with screens or a product, or narrated; up to 10 min), turn an approved script into a video, build one from steps (new words on their own video, B-roll, a product ad, animation or narration without a face), or change a delivered one. Use only when the user wants the video itself made or changed, script and captions included; not for writing or adapting a script, breaking down a video, or reviewing an account."
 license: MIT
-compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its remake tools, Python 3, read and write access to a local workspace, and network access from scripts to the signed storage.googleapis.com download links that Kabo tool results return. Kabo permission: video (all eight tools: remakes, edits of delivered videos, step-by-step projects and local file uploads)."
-allowed-tools: start_remake_video get_remake_video render_remake_video edit_remake_video start_video_project make_video_step finish_video_project upload_file
+compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
+metadata:
+  version: "1.0.2"
+  platform_agnostic: "true"
+allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
 
 # Remake Viral Video
 
-Kabo's servers make every picture and sound, through three paths: a whole remake (steps 1-8:
-the runner analyses, voices, films, grades, captions and delivers; you write the script), an edit
-of a delivered video (`edit_remake_video`), or single steps in a project or on a delivered job
-(`start_video_project`, `make_video_step`, `finish_video_project`). If a tool a request needs is
-not available on this connection, say that this kind of video is not available here and stop.
+Kabo's servers make every picture and sound, through three paths: a whole remake (the runner
+analyses, voices, films, grades, captions and delivers; you write the script), an edit of a
+delivered video, or single steps in a project or on a delivered job.
 
 A remake takes 30 min to 3 hours, mostly waiting on the runner. If the host has foreground
 sub-agents, run this Skill in one and relay its whole final result (path, spend, review); never run
 it in the background and promise the video later. Otherwise follow the steps in the main thread.
 
+**Your host.** If the `remake_video` tool is listed, you are on Kabo Web and you make the video
+yourself: every call and wait is as `references/host-web.md` says, and inside any reference follow
+the `**On Kabo Web**` block where one is given; everything else applies as written. Otherwise you
+are in the plugin: you plan the video and Kabo's producer makes it -- follow
+`references/host-plugin.md`, with "Choose what to make" below and `references/steps/plan.md` for
+the plan; the rest of this Skill is what the producer follows. If no tool a request needs is
+available, say that this kind of video is not available here and stop.
+
 ## Choose what to make
 
-Use this Skill only to make or change the video itself. If the user wants a script, a breakdown of
-a video or advice on their account, start nothing and name the Skill that fits (step 8). Otherwise,
-before any tool call, write one line: what must stay, what must change, and the table rows that do
-it. Decide by that, not by the request's wording ("remake" included):
+Use this Skill only to make or change the video itself; if the creator wants only a script, a
+breakdown of a video or advice on their account, start nothing and name the Skill that fits
+(`create-script-and-packaging`, `analyze-content-video`). Otherwise, before any tool call, write
+one line for yourself: what must stay, what must change, and the table rows that do it. Decide by
+that, not by how the request is worded ("remake" included):
 
-1. Keep everything the user did not ask to change.
+1. Keep everything the creator did not ask to change.
 2. Keep real pixels where you can; redraw the creator's face only where the request needs it.
 3. Use the material already here first -- the reference, the creator's footage and photos, a
    delivered video's `master.mp4`, takes, B-roll and first frames, earlier results. Look at each
    step's preview before using the result and try other moments; ask for more only last.
-4. Ask only what only the user can decide or knows (a fact, a real trade-off, money beyond the
-   plan). Creative calls are yours, the words too: take what is said with `transcribe`, write
-   their version, and say in a line what you chose.
-5. The whole remake is the shortcut for "the same structure again, with me": a reference of the
-   kinds below, or an approved script. **When a narrated reference video IS provided (screen walkthrough, UI tutorial, animated/drawn explainer, map or chart narration), always run the whole remake (`start_remake_video` -> `references/formats/narration.md`), never `start_video_project` / `make_video_step`.** It is not the fallback, and a reference plus the creator's
-   footage does not make a request one. The creator's own video is footage to keep, not a reference. What it does not make (the
-   reference's own shot and moves, the creator's own video with new words, B-roll, a product
-   close-up, or faceless videos without a narrated reference to remake) is built from steps, or added as edits after delivery. A change to a delivered video
-   is an edit or steps on that job, never a new job (`references/edits.md`).
+4. Ask only what only the creator can decide or knows (a fact, a real trade-off). Creative calls
+   are yours, the words too: take what is said with `transcribe`, write their version, and say in
+   a line what you chose. When they ask for a video, the deliverable is the video: write any
+   script, prompts or captions they also asked for, show them in your reply, and go on to make the
+   video in the same flow. Never stop at a script or prompts, and never answer that a video cannot
+   be made here while the tools are listed.
+5. The whole remake is the shortcut for "the same structure again, with me": a reference of one
+   of the four kinds below, or an approved script. It is not the fallback, and a reference plus
+   the creator's footage does not make a request one; the creator's own video is footage to keep,
+   not a reference. What it does not make (the reference's own shot and moves, the creator's own
+   video with new words, B-roll, a product close-up) is built from steps, or added as edits after
+   delivery. A change to a delivered video is an edit or steps on that job, never a new remake;
+   when only one moment of it changes, rebuild only that span and put it back in
+   (`references/steps/edits.md`).
+6. Nobody on camera **when there is no narrated reference video to remake** (a freeform animation
+   or kinetic-typography video from a prompt, product photos turned into an ad, a multi-photo
+   montage, a live-video HUD callout overlay, a re-edit of their own video, or a silent or
+   out-of-scope reference that the whole remake refuses): build it from steps (project, steps,
+   deliver); never ask for their face. For a code-animated video (an explainer, a chart, product
+   photos, an illustrated story), write a shot list first and pick one style card and the
+   components from `references/motion-catalog.md`; with a reference to make it like, first write
+   its style in two layers (`references/steps/motion-graphics.md`, step 0), choose the card by its
+   `medium`, carry the medium and `avoid` into every `still` prompt, and re-make once a shot whose
+   medium, look, cast, dimension, layout or elements differ from the reference frame; one
+   `motion_graphics` call per shot (a component when one fits, else an exemplar page by name --
+   spec C; content stays out of the bottom-fifth caption band).
+   **Whenever a narrated reference video IS provided (a screen walkthrough, UI tutorial, animated
+   or drawn explainer, map or chart narration), always run the whole remake
+   (`references/formats/narration.md`), never project steps** -- except when the creator has
+   nothing of their own to give (no clip, photo or recording; nobody on camera and a preset voice)
+   or the reference is a dialogue between characters, a song or a silent piece: then build it from
+   steps, taking the reference's look, characters, pacing and sound as the model and their script
+   or lines as the words (characters that act or talk: `still` then `animate`; one `tts` call per
+   voice). Needing a voice they have not recorded: ask once for a recording or a preset voice, as
+   `references/steps/project.md` ("No voice to clone") says, and wait.
 
 | Keep | Change | Step | Redraws the face |
 |---|---|---|---|
@@ -49,285 +85,167 @@ it. Decide by that, not by the request's wording ("remake" included):
 | a movement in any video | who does it | `motion` (a picture of the creator: a `frame` of their footage will do) | yes |
 | the creator's look | a new still of them (pose, framing, outfit, setting) | `first_frame` (edits a `frame` or photo) | yes |
 | the creator's look | a new shot of them, silent | `refvideo` | yes |
-| a picture of the creator | they speak a line | `talking` | yes |
+| a picture of the creator, or a `still` of a drawn or generated character | they speak a line (character: `speaker` names who talks; the host finds them) | `talking` | yes |
 | any video or picture | what is laid over, cut in, joined, arranged or enlarged | `overlay`, `splice`, `concat`, `layout`, `crop`, `trim`, `frame` | no |
 | any video | its speed, length, shake, flash or punch-in zoom | `retime`, `shake`, `flash`, `impact_zoom` | no |
 | a sound | its level, fades, tempo or length | `audio_edit` | no |
 | pictures | held as a clip, maybe a slow push-in | `still_video` | no |
 | any video or picture | burned-in text removed | `inpaint_text` | no |
-| a video or sound | -- (what is said, timed) | `transcribe` | no |
-| -- | a picture without the creator; UI/map/diagram/chart/HUD motion graphic; text; captions; music; sound | `still`, `animate`, `motion_graphics`, `text_cards`, `captions`, `music`, `mux` | no |
+| any video or sound | -- (read what is said, timed) | `transcribe` | no |
+| a delivered video's voice and the parts not asked about | one span's picture | a new clip of that span's length, then `splice` (`audio:"base"`) and deliver | no |
+| -- | a picture without the creator (nobody speaks a line on camera in it); a code animation (diagram, chart, map, UI, text in motion, photos in motion, callouts over a video); text to read; captions; music; sound | `still`, `animate`, `motion_graphics`, `text_cards`, `captions`, `music`, `sfx`, `mux` | no |
 
-Before the first project step or edit, read `references/atoms.md` (steps and costs) or `references/edits.md`, say in 2-3 lines what you will make and the rough cost,
-then go ahead. A `degraded` face check never blocks delivery: say which part looks less
-like the creator. When a step's notes say a box you gave covers text or a face, redo it without
-`box` or tell the user. Cancel a job (`get_remake_video` with `"cancel": true`) only when the user asks;
-spend so far stays charged. Stopping takes a minute or two: keep calling `get_remake_video` (30 s apart)
-until the job or `last_step` is no longer running; if you stop sooner, tell the user the
-cancel was requested and is still stopping, not that it stopped.
+Before the first edit, project or step, read `references/steps/plan.md` (plan and storyboard) and
+`references/steps/atoms.md` (what each step takes); then `project.md`, `edits.md` and
+`motion-graphics.md` in the same folder as the work needs. Before the first paid step, say in two
+or three lines what you will make, with what your host adds (Web: the host's quote; see the host
+file), then go ahead. A `degraded` face check never blocks delivery: say which part looks less
+like the creator. Cancel a job only when the creator asks; spend so far stays charged.
 
 ## What a whole remake covers
 
-- A reference of **10 minutes or less** where **one person talks to the camera** for most of the
-  video, at any distance, with a fixed or slightly handheld camera. Three talking kinds (the
-  runner tells them apart; nothing to ask): pure talking head; talking with screens (the video cuts to screen recordings or
-  screenshots, or shows them floating over the speaker's room); talking with a product (the
-  speaker shows a physical thing and the video cuts to close-ups of it). Also **voice-over**
-  references (nobody on camera; a voice over a screen recording, an animated explainer, scenes or
-  kinetic type): the creator's cloned voice reads the script and every picture is made anew --
-  see `references/formats/narration.md`.
-- Refused by the runner before any video is generated (`out_of_scope`): references over 10
-  minutes, walking, vehicle or first-person vlogs where the camera keeps moving, dialogues between
-  several people, and -- for a talking head -- a speaker on camera less than about half the time
-  or mostly other footage. So are creator videos with no clear frontal view of the creator's face,
-  except a voice-over, which needs only the creator's voice.
+- A reference of **ten minutes or less**, of one of four kinds, which the runner tells apart by
+  itself from the video (nothing to ask or choose):
+  - **talking head**: the speaker on camera for most of the video, at any distance, seated or
+    standing, anywhere, with a fixed or slightly handheld camera;
+  - **talking with screens**: the speaker cuts to screen recordings or screenshots (an app, a
+    page, a chat), full screen or floating over their room;
+  - **talking with a product**: the speaker shows a physical thing -- held up, on the desk, worn
+    -- with close-ups of it; the creator talks empty-handed while the product stays in the scene
+    and the reference's close-ups (tell the creator once, before the script gate);
+  - **narration**: nobody talks to the camera; a voice carries the video over pictures -- a
+    screen recording, an animated or drawn explainer, scenes, kinetic type. The creator's cloned
+    voice reads the script and every picture is made anew in the creator's look
+    (`references/formats/narration.md`): a picture with words in it -- an interface, a list, a
+    chart -- is a motion graphic you write with real text, a scene without words is generated.
+    Real pages and apps cannot be recorded here.
+- Refused by the runner before anything is paid for (`out_of_scope`): references over ten
+  minutes, walking, vehicle or first-person vlogs where the camera keeps moving, dialogues
+  between several people, references with nobody speaking at all, references where the speaker
+  is on camera less than about half the time (a quarter when the rest is their screens or the
+  product they show) without being a narrated video, and references that are mostly other
+  footage. So are creator videos with no clear frontal view of the creator's face (a narration
+  remake needs only their voice: at least a few seconds of them speaking).
 - The creator is framed as the reference frames its speaker, shot by shot; the reference's other
-  shots (cutaways, inserts, other people) are reused from its own footage. The reference's speaker
-  never appears in the result.
+  shots (cutaways, inserts, other people) are reused from its own footage. Screens and product
+  close-ups are the reference's own pictures; the reference's speaker never appears in the result.
 - One method: the reference's content and setting are kept and the creator is placed into a
-  rebuilt scene (route B), not into its own shot and moves. Four kinds of line are rewritten in the creator's voice (the opening, the original
-  author's claims about themselves, one closing summary and the call to action); the rest of the
-  reference's lines are kept, or dropped with a reason. The whole face is generated, so likeness is
-  lower than real footage of the creator.
-- The final video has no on-screen label, notice or watermark; never say it has one.
-- Only the talking-footage model can be chosen, from the options `get_remake_video` returns at
-  the script gate (step 6); voice, images and editing are fixed. If the user asks for another
-  model (e.g. Veo, HeyGen, ElevenLabs), say so in a line and go on.
+  rebuilt scene (route B), not into its own shot and moves. Four kinds of line are rewritten in
+  the creator's voice (the opening, the original author's claims about themselves, one closing
+  summary and the call to action); the rest of the reference's lines are kept, adapted or dropped
+  with a reason. The whole face is generated, so likeness is lower than real footage.
+- The final video has no on-screen label, notice or watermark. Never say it carries one.
+- Only the model that makes the talking footage can be chosen, from the options the host returns
+  after the script is written; voice, images and editing use one fixed production setup. If the
+  creator asks for any other model (for example Veo, HeyGen or ElevenLabs), say in one line that
+  the talking footage can be made with one of those options only and the rest cannot be changed,
+  then carry on normally.
 
-## Set up one run
-
-`<skill directory>` is the folder holding this `SKILL.md`. Reserve one run per video (a remake, a project or its edits):
-
-```sh
-python3 '<skill directory>/scripts/static_host.py' init --workspace '<user-workspace>'
-```
-
-It prints the run directory. Run every later command from it with `KABO_STATIC_RUN_DIR` set to it
-in the same command (`cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 ...`):
-many hosts do not keep environment variables or the working directory between commands. Paths such
-as `host-results/...`, `brief/...` and `script/...` are relative to the run directory; `scripts/...`
-and `references/...` live in `<skill directory>` and are called by that absolute path. Quote
-filesystem paths in commands. Every command below is complete as written: do not run a script
-with `--help`, read its source or search other Skills.
-
-**Saving a tool result.** When a step says to save a result, write the complete
-`get_remake_video` or `render_remake_video` result (the host's result export, or the result
-unchanged) to `host-results/<NN>-<tool name>.json`, numbered in call order. Never retype the brief or
-rebuild a file from what was displayed.
-
-**No reference, only a script?** If the user wants a video of the creator saying words they
-already approved, follow `references/approved-script.md` for steps 1-4.
+**An approved script** (the creator already has the spoken words, here or earlier in the
+conversation) is a whole remake without a reference: follow `references/approved-script.md`. It
+needs footage the creator explicitly chose for appearance and voice, and it takes no reference. A
+script read over pictures with nobody on camera is built from steps instead (`tts` of the exact
+words, pictures from their material or `still` / `animate`, `mux`, `captions`, `music`, deliver)
+-- and so is a script the creator wants made in a reference's form when they have no footage of
+their own: plan it from the reference as `references/steps/plan.md` ("Plan first, then make it") says, with their words as the lines, never
+the script or narration whole remake.
 
 ## 1. Collect the inputs (whole remake only)
 
-Steps and edits take what they need. Once per conversation, before asking for anything or starting, say in two or three sentences:
+Steps and edits take what "Choose what to make" needs. **Say what this can remake, once, at the
+start**: in your first reply about a whole remake, before asking for or checking anything, tell
+the creator in two or three short lines, in their language: whole remakes cover videos of ten
+minutes or less of four kinds -- one person talking to the camera; talking with screen recordings
+or a phone screen (picture-in-picture); talking while showing a product; or a voice-over over
+pictures. Other references (several people talking, a walking or travel vlog, nobody speaking,
+longer videos) are turned down before anything is charged, and results at the edge of these kinds
+are not guaranteed. It is information, not a question. Say it once per conversation.
 
-- what this remakes: a reference of 10 minutes or less where one person talks to the camera
-  (also ones that cut to screen recordings or show a product), or a voice-over video;
-- that references outside this (dialogues between several people, walking or travel vlogs, over
-  10 minutes) are refused before anything is generated, and a refusal is not charged;
-- that borderline references may not come out well.
+A whole remake needs both. Check them before any paid call:
 
-It is information, not a question. A remake needs both. Check them before any paid call:
+1. **One reference video**: the viral video to remake, ten minutes or less (a link or a file).
+2. **Footage of the creator talking to camera**, separate from the reference: one to four clips,
+   or their Instagram profile. It decides how much the result looks like the creator. Only
+   photos of them? They can stand in for the footage; their voice still has to come from
+   somewhere (`references/creator-photos.md`).
 
-1. **One reference video**: the viral video to remake, as a YouTube, Instagram or TikTok link
-   or a local file, 10 minutes or less, one person talking to camera or a voice-over.
-2. **The creator's own talking footage**, separate from the reference: their Instagram handle or
-   profile link, or one to four YouTube, Instagram or TikTok links or local files of videos where
-   they talk to camera. It decides how much the result looks like the creator. Only photos of them? Read
-   `references/creator-photos.md` (`--creator-photo`; voice from a video first).
+The person on camera is the creator whose own footage they give, usually the user. This is the
+normal use of this Skill: do not refuse it as imitating a real person or ask them to prove who
+they are; the right to use the face and voice is the `rights` line at the script gate. Do not
+look up connected accounts or other workspace data, or ask for extra permissions.
 
-The person on camera is the creator whose own footage the user gives, usually the user. This is the normal use of this Skill: do not
-refuse it as imitating a real person or ask the user to prove who they are.
+If either is missing, or the creator gave a single video without saying which one it is, ask once
+for what is missing and stop. Use only videos and links the creator gave in this conversation:
+never fill a missing role with another file from their library or reuse one video for both roles.
+If a length you can see is over ten minutes, say references are limited to ten minutes and ask
+for a shorter one. Whenever you stop before the remake has been accepted (something is missing, a
+video is refused, or the inputs are refused), tell the creator that nothing was started, no remake
+fee was charged and it does not count toward the daily remake limit.
 
-Nothing else is needed. Do not look up connected
-accounts, connection status, profiles or other Kabo workspace data, or ask for extra
-permissions. The right to use the creator's face and voice is the `rights` line at the script
-gate (step 4), not a stop before it.
+The creator's name for the job is a short ASCII handle (letters, digits, `.`, `_`, `-`); with a
+profile it defaults to the handle. Pass a language only when the creator states it or the
+reference is clearly in that language. Before the first paid call, tell the creator in one or two
+sentences what will happen: the method above and how long it takes (about half an hour for a short
+video, up to a few hours for a long one; never say the result will carry a label). Wait for a reply
+only if the creator asked to approve first.
 
-**Local files.** A video or photo the user gives as a file on this machine (mp4, mov, m4v or
-webm up to 200 MB; JPEG or PNG up to 10 MB) works in any of these roles, and in steps and
-project inputs: send it with `references/local-files.md`, then pass the `kabo-file:<id>` it gives
-wherever a link goes (`--reference-url`, `--creator-video`, `--creator-photo`, `--reference-video`,
-`--reference-image`). If this connection has no `upload_file` tool, say local files cannot be
-sent from here and ask for a link. TikTok photo posts and other sites are not supported: ask for a
-YouTube, Instagram or TikTok video link instead. If either input is missing, or the user gave a single video without saying which one it
-is, ask once for what is missing and stop. Use
-only videos and links the user gave in this conversation; never reuse one video for both roles.
-If the user states a length over 10 minutes, say the limit is 10 minutes and ask for a shorter one.
+## 2. Wait for the script gate
 
-Whenever you stop before `start_remake_video` has accepted the job (something missing, a video or
-the inputs refused), tell the user that no remake was started, no remake fee was
-charged and it does not count toward the daily remake limit. Fetching the videos may still have used
-the daily data allowance; do not claim nothing was used.
+The runner checks the reference first (within about a minute it refuses a clearly unsupported
+one), then analyses it: about ten minutes, up to about 45 for a ten-minute reference. Report each
+stage change in one line. You do not judge the video yourself beyond what the creator says or
+what is plainly visible in their message.
 
-`--creator-name` is a short ASCII name for the creator (letters, digits, `.`, `_`, `-`). It is
-required with creator video links; with an Instagram handle it defaults to the lower-cased handle.
-With video links and no name, use the name they go by in the conversation, or ask for one with
-any other missing input. Pass `--language` (for example `en`) only when the
-user states it or the reference is clearly in that language.
+## 3. Write the script (the only creative gate)
 
-## 2. Start the job and wait for the script gate
+At the script gate read `references/script-gate.md` whole, then the references it names for the
+judgement in front of you: proofread the reference's sentences; keep its lines word for word and
+in order and rewrite only the four slots, each with a reason; source every fact in a rewritten
+line to the creator's own lines or mark it as an inference; keep the reference's on-screen title
+and numbered list; write the opening record with 2-3 candidates and choose one yourself; record
+your calls in the decisions record (nobody answers questions at this point); write the plate and
+anchor prompts without describing the framing, holding the creator's hair and outfit exactly as in
+the identity references. **Narration**: read `references/formats/narration.md` whole; there is no
+plate or anchor job, the decisions carry the picture plan, and you preview the pictures and fix
+them before production.
 
-Before the first paid call, tell the user in a sentence or two what will happen: the method above
-and that it takes 30 min to 3 hours. Wait for a reply only if the user asked to approve first. Then build the arguments:
+## 4. Choose the talking model (before anything is generated or charged)
 
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' start-call --reference-url '<reference link>' --instagram-handle '<handle or profile link>'
-```
+After the script is written and accepted, the host returns the model options with their
+estimated cost (for a narration remake, one option: the narration production). Show them exactly
+as your host file says: in their order, with every number, name and cost; no recommendation of
+your own, no option dropped, nothing said to have started. End your reply there and wait. Read
+the answer by its meaning, in any language:
 
-For creator video links, pass `--creator-video '<link>'` once per link (one to four) instead of
-`--instagram-handle`, and add `--creator-name '<name>'` (required then). Add `--language '<code>'`
-only as step 1 says.
-
-It checks the links and prints `{"tool": "start_remake_video", "arguments": {...}}`. Call
-`start_remake_video` with exactly those arguments. A refusal from the script is an input problem:
-relay it and ask for a corrected input; nothing was started.
-
-- The `idempotency_key` is stable for the same inputs in this run. On a timeout or lost response,
-  call again with exactly the same arguments; the key returns the same job instead of creating and
-  charging another. Never create a second job for the same request.
-- `fetching_inputs` means the videos are still being fetched (`job_id` is null). Tell the user
-  `message` in one line, then call `start_remake_video` again with the same arguments after
-  `retry_after_s` seconds; the same fetches are picked up.
-- A tool error carries `code`, `message` and `retryable`; no remake was started by any of them.
-  Read `references/tool-errors.md` and follow it.
-
-Once there is a `job_id`, call `get_remake_video` with `{"job_id": "<id>", "wait_s": 30, "all_models": true}` until the
-status is no longer `preparing` (10-45 min by length). Report each stage change in one line.
-
-**Supported kinds only.** `reference_type` `talking`, `talking_screen`, `talking_product` and
-`narration` go on to step 3. Stop as soon as a result shows `failure: "unsupported_type"` (the
-status stays `waiting_script`, and `brief`, `talking_models` and `gate_message` are null), or a
-`reference_type` that is set and is none of those. Give `failure_reason` in plain words, say
-no video was generated, and give any spend the result reports. Do not say whether it
-counts toward the daily limit. Do not call `render_remake_video`; this job is finished.
-
-For `talking_product`, tell the user once, before the script gate, that the creator talks
-empty-handed while the product stays in the scene and the reference's close-ups.
-
-A final status at this point (`out_of_scope`, `failed`, `timed_out`) is handled as in step 8; when
-it comes from `start_remake_video`, its reason is in `message`.
-
-## 3. Save the brief
-
-At `waiting_script` the result carries `brief.download`, `gate_message` and the model options
-(step 6).
-Save the result as above, then fetch the brief at once (the link is short-lived):
-
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch --input 'host-results/<NN>-get_remake_video.json'
-```
-
-It downloads and checks the bundle and writes the four brief files under `brief/work/`. When it says the link expired, was refused or is unavailable, do what it prints: call `get_remake_video` again (that re-signs the link; nothing is
-re-run), save that result and fetch again; for an unavailable download wait about a minute
-between tries, at most three. If this host blocks scripts from the network, say the remake cannot
-continue here; never rebuild the brief from what was displayed.
-
-## 4. Write the script (the only creative gate)
-
-Read `references/script-gate.md` whole, then the references it names for the judgement in front of
-you. In short:
-
-- Proofread the reference's sentences and record it in the script as `proofread`.
-- Keep the reference's lines word for word and in order; rewrite only the four slots, each with
-  `slot`, `why`, `replaces` and `basis`; source every fact in a rewritten line to the creator's own
-  lines or mark it as an inference; never invent the creator's experience.
-- Keep the reference's on-screen title and numbered list; record every inherited element in the
-  ledger, with a reason for each adapt or drop.
-- Write the opening record with 2-3 candidates, and choose one yourself.
-- Record your calls in the decisions record; nobody answers questions at this point.
-- Write the plate and anchor prompts without describing the framing, holding the creator's hair
-  and outfit exactly as in the identity references.
-
-Write the four documents as `script/script.json`, `script/opening_review.json`,
-`script/decisions.json` and `script/route_b_jobs.json`.
-
-**Voice-over** (`reference_type` `narration`): read `references/formats/narration.md` whole. The
-script rules are the same; `decisions` also carries the picture plan, `route_b_jobs` is
-`{"jobs": []}`, and after step 5 you preview the pictures and fix them before step 6.
-
-## 5. Check the documents
-
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/check_documents.py' check
-```
-
-It prints `status`, `errors` and `warnings`. Fix every error it names and run it again; apply each
-warning that fits. Advance only on `status: ready` (structure only; the runner checks again).
-
-## 6. Choose the talking model and render
-
-Nothing is generated or charged before this step. **Voice-over**: there is no model to choose.
-Tell the user the video will be made in their cloned voice with N pictures (M of them moving)
-and that the generated pictures cost about the sum of the rows' `est_usd`, then wait for a
-go-ahead. After it, preview the stills once (narration.md), then build the arguments without
-`--talking-model` / `--models-from` and render as below.
-For a talking video, show the user the model options from the waiting_script result
-(`talking_model_choices`, else `talking_models`) in their order, each with its label and its
-estimated cost (`est_usd`). Each `est_usd` is the whole video's estimated total, rounded up; say
-the final charge is usually a little lower. Do not add a recommendation of your own, drop options or change the
-order. Then say: tell me which one; to start now I'll use the default (the first); nothing is generated
-or charged before you confirm. Do not ask for a number or "OK". Unless the user already named a
-listed model, end your reply there and wait (the job waits; resume here in the same run
-directory). Read the answer by its meaning, in any language:
-
-- An option picked (by number, name or description): its `id`. A clear "just start": the first.
-- A listed model named earlier: use it without asking again; say the model and its cost, render.
+- An option picked (by number, name or description): use its id.
+- A plain go-ahead with no choice: the host's default (the first option, or the model the
+  creator already selected in a form).
+- A listed model named earlier: use it without asking again; say the model and its cost.
 - A question about the options: answer from the list, then wait. Unclear or off-topic: ask once,
-  briefly; do not render.
+  briefly; start nothing.
 
-Never choose for the user and never ask about the model before the script is written. Then build
-the arguments (this repeats the check):
+Never choose for the creator, never send the model in the same turn you wrote the script, and
+never ask about the model before the script is written. If the runner returns the script with a
+list of failures, nothing paid was spent: fix only what it names, keep the rest, submit again;
+the chosen model is kept.
 
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/check_documents.py' render-args --talking-model '<id>' --models-from 'host-results/<NN>-get_remake_video.json'
-```
+## 5. Production and delivery
 
-It writes `render/render_remake_video.json`. Call `render_remake_video` with that file's content as
-its arguments, unchanged; it returns `status: "running"`. On a timeout or lost response call it
-again with the same arguments: an accepted render never launches twice. For a `conflict` or `quota_exceeded` error, read
-`references/tool-errors.md`. A result with `failure: "unsupported_type"` is handled as in step 2.
+Production takes about twenty to thirty minutes for a short video and one to two hours for a
+ten-minute one (Seedance 2.0 can queue about twenty minutes more). Report the stage in one line
+when it changes; do not promise a finish time. A narration job stops once after production for
+you to look at every line's picture (`references/formats/narration.md`, last section).
 
-**The runner checks the documents first, after render returns.** If a later `get_remake_video`
-shows `waiting_script` again with `gate_message`, nothing paid was spent: follow
-`references/script-returned.md`.
+At delivery, first add anything asked that the remake does not make (B-roll, an overlay, a
+close-up) as edits or steps on this job. Then tell the creator: that the video is ready (no
+on-screen label or watermark); for a reference, what you rewrote and why in two or three lines,
+and any inference line they should confirm before publishing; for a script, that the approved
+words were preserved and only segmentation may differ; the spend the result reports; and what
+Kabo's final review found, as your host file says. Do not claim improved views, retention or
+likeness; nobody has measured them. Suggest they watch it in full before publishing.
 
-## 7. Production and delivery
+## 6. When it does not finish
 
-Production takes 20-30 minutes, 1-2 hours for a 10-minute video. Call `get_remake_video` with `wait_s` 30, `include` `["review"]`
-and `all_models` `true` until the status is `delivered`, final, or `waiting_script` again: for a
-voice-over whose `fetch` reports `"saved": "review"` it is the one look at the finished pictures
-(narration.md, last section); otherwise the documents were rejected (step 6). While it is
-`running`, report the stage in one line when it changes. Do not promise a finish time.
-
-At `delivered`, first add anything asked that the remake does not make (B-roll, a close-up) as
-edits or steps on this job. Then save the latest result and fetch the video at once:
-
-```sh
-cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/static_host.py' fetch --input 'host-results/<NN>-get_remake_video.json'
-```
-
-It checks the MP4 and prints its local `path`. A failed download is handled as in step 3. Then tell the user:
-
-- that the video is ready, with the local path (it carries no label or watermark);
-- what you rewrote and why, in two or three lines, and any inference line they should confirm
-  before publishing;
-- the spend the result reports (`spend_usd`), when present;
-- what Kabo's final review found, from `review`.
-
-Read `references/final-review.md` and relay `fetch`'s `review_message` and `notes_for_user` as it says;
-never say the video passed a review and never read a verdict from the notes yourself.
-
-Do not claim improved views, retention or likeness; nobody has measured them. Suggest the user
-watch it in full before publishing.
-
-## 8. When it does not finish
-
-Every final status (`out_of_scope`, `failed`, `timed_out`) carries `failure` and usually
-`failure_reason`. Read `references/when-it-does-not-finish.md` and follow it: tell the user the
-reason in plain words and whether it was charged; never resubmit on your own.
-
-When the user's next step is outside this Skill, name the Skill that fits -- for example
-`create-script-and-packaging` for a script only, or `analyze-content-video` for a teardown of the
-reference -- without running it.
+Every final status (`out_of_scope`, `failed`, `timed_out`) comes with the runner's reason. Read
+`references/when-it-does-not-finish.md` and follow it: tell the creator the reason in plain words
+and whether it was charged and counts toward the daily limit; never resubmit on your own.
