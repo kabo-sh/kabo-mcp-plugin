@@ -40,6 +40,19 @@ Fixes for production bad cases in review-thumbnail, content-ideas labels, batche
   already published (9abe9929).
 - The "Based on: ..." footer under answers (S022 Spanish shown in Portuguese, S039 Turkish shown in English) is
   written by the Kabo agent service, not by these Skills.
+- Installer (`kabo-sh` 0.0.5, not published yet): the source moves into `installer/` (identical to the published
+  0.0.4, which lived in another repository). Without `--host`, finding several assistants now installs nothing and
+  asks which one; `--host all` keeps the old behavior. Before, running it in WorkBuddy on a computer that also had
+  DeepSeek Harness changed DeepSeek's settings too and the reply told the user to restart DeepSeek Harness. Each
+  result says what was done and what is not done yet instead of "installed". `INSTALL.md` gives every installer
+  command with `--host` and adds the WorkBuddy restart before Trust. Not yet tested on a real WorkBuddy.
+- Installer: WorkBuddy AI, the international build, is a separate app (`WorkBuddy AI.app`, settings in
+  `~/.workbuddy-ai`) that 0.0.4 never found, so a WorkBuddy AI user got only another assistant's steps.
+  `--host workbuddy` now installs into every WorkBuddy build found, each into its own settings folder, and
+  `--host workbuddy-ai` picks the international one. macOS only: its Windows folder is not known yet.
+- README (and translations) and `docs/installation.md` no longer say Doubao Work, Qwen Work and WorkBuddy connect
+  read-only: since 2026-11-16 the first sign-in challenge on `/mcp-pub` asks for `workspace:write` (checked on
+  production). Older grants can still be read-only, and Start With Kabo offers one reconnection.
 
 ## 1.0.54 (2026-11-16)
 

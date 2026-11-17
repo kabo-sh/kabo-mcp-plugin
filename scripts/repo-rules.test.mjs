@@ -216,6 +216,10 @@ const NON_ENGLISH_OTHER = [
   "contracts/directory-mcp/annotations.md",
   // A review rule that quotes the literal magnitude words it is about.
   ".coderabbit.yaml",
+  // The kabo-sh installer quotes Doubao Work's and Qwen Work's Chinese menu labels and the first message their users
+  // send, so the printed steps match what the user sees in the app.
+  "installer/README.md",
+  "installer/bin/kabo.js",
 ];
 // The README language switcher names each language in that language and links into docs/i18n/. Listed apart
 // because the entry is valid whether or not the switcher is present.

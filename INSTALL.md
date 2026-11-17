@@ -88,14 +88,21 @@ Muse Code (the command-line agent): add a `streamable_http` server named `kabo` 
 
 ## Doubao Work, Qwen Work, DeepSeek Harness and WorkBuddy
 
-On the user's computer, one command installs the Skills and the connection where the host allows it
-(kabo-sh 0.0.3 or later handles Doubao Work, Qwen Work and DeepSeek Harness; WorkBuddy is handled
-through its bundled CodeBuddy command line, after which the user clicks Trust on Kabo in WorkBuddy's
-connector management and signs in):
+On the user's computer, one command installs the Skills and the connection where the host allows it.
+Always name the assistant you are running in with `--host`, so that Kabo is installed only there and the
+installer prints only that assistant's remaining steps (kabo-sh 0.0.5 or later; without `--host` it
+installs nothing when it finds several assistants on the computer and asks which one):
 
 ```sh
-npx -y kabo-sh install
+npx -y kabo-sh install --host doubao      # Doubao Work
+npx -y kabo-sh install --host qwen-work   # Qwen Work
+npx -y kabo-sh install --host deepseek    # DeepSeek Harness
+npx -y kabo-sh install --host workbuddy   # WorkBuddy and WorkBuddy AI, each one found
 ```
+
+The installer reports, for each assistant, what it did and what is not done yet. Pass on only the steps
+for the assistant you are running in, and do not tell the user Kabo is ready until the check under
+"After installing" has passed.
 
 If it cannot run, do the steps below by hand. In every one of these hosts, the first message to the
 assistant should name the Skill, for example "Please use the start-with-kabo skill to get me started":
@@ -152,13 +159,26 @@ See [write-access recovery](skills/start-with-kabo/references/write-access.md) f
 3. Restart DeepSeek Harness and sign in to Kabo in the browser. With that scope argument Kabo grants
    write permission on first sign-in.
 
-`~/.agents/skills` is also read by Codex: a user with Kabo installed in Codex will see the Skills twice.
+`~/.agents/skills` is shared by Doubao Work, DeepSeek Harness and Codex: installing for one of them also shows the
+Kabo Skills in the others, which can use them only once Kabo is connected there. A user with Kabo installed in Codex
+sees the Skills twice. The installer names the other assistants it finds.
 
 ### WorkBuddy
 
-Use `npx -y kabo-sh install`, then ask the user to open WorkBuddy's connector management, click Trust
-on Kabo and sign in. By hand, add the Skills to WorkBuddy's Skills folder and the connection
-`https://kabo.sh/mcp-pub` as a remote server.
+Run `npx -y kabo-sh install --host workbuddy`. It installs the Kabo plugin through the CodeBuddy command line
+that ships inside WorkBuddy, into the app's own settings folder. The international build, WorkBuddy AI, is a
+separate app (`WorkBuddy AI.app`, settings in `~/.workbuddy-ai`); the same command installs into every build it
+finds, and `--host workbuddy-ai` installs into WorkBuddy AI only. WorkBuddy AI is found on macOS only for now.
+Then ask the user, in the build they use, to:
+
+1. Quit WorkBuddy completely and open it again, so it loads the plugin. No other assistant needs a restart.
+2. Open WorkBuddy's connector management, click Trust on Kabo and sign in to Kabo in the browser. If Kabo
+   already shows as connected, skip this step.
+3. Send "Please use the start-with-kabo skill to get me started" after the check under "After installing"
+   has passed.
+
+By hand, add the Skills to WorkBuddy's Skills folder and the connection `https://kabo.sh/mcp-pub` as a
+remote server, then do the same three steps.
 
 ## Any other assistant
 
