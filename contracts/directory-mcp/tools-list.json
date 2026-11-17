@@ -17116,7 +17116,7 @@
                   "minLength": 1,
                   "type": "string"
                 },
-                "maxItems": 4,
+                "maxItems": 8,
                 "minItems": 1,
                 "type": "array"
               },
