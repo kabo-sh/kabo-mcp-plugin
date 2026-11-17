@@ -136,7 +136,7 @@ background, in the project's look (a planning trial still may be a sheet). Save 
 `remake_video {request:{action:"plan", job_id, sheets:{<name>: <handle>}}}`; the whole storyboard
 need not be sent again. Then give `params.on_screen_cast` on every `still` with characters in it:
 the host puts their sheets first in the references, so a character looks the same from shot to
-shot, and a still of a character without a sheet is turned back free until the sheet is made.
+shot, and a still of a character without a sheet is turned back until the sheet is made.
 Stills batched together share their references, so batch rows with the same cast. `animate` and
 `talking` start from those stills and keep the look.
 
