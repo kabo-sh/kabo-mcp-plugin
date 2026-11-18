@@ -30,7 +30,7 @@ test("the twenty-two pinned Skills unpack completely; root directory, host ident
   assert.deepEqual(runtime.skills, ids);
   // The tool surface has converged to the tools the plugin actually uses: the required and optional groups exactly cover the tools/list pinned in this repo (the contract is not in the package), no more and no fewer.
   const pinnedNames = JSON.parse(await readFile(new URL("../contracts/directory-mcp/tools-list.json", import.meta.url))).tools.map(tool => tool.name).sort();
-  assert.equal(pinnedNames.length, 80);
+  assert.equal(pinnedNames.length, 78);
   assert.deepEqual([...runtime.requiredTools, ...runtime.optionalTools].sort(), pinnedNames);
   assert.ok(runtime.optionalTools.includes("public_video_measure_media_signals"));
   assert.equal(files.some(file => /^(plugin|bin|hooks)\//.test(file.name)), false);

@@ -132,6 +132,7 @@ const LOCALIZED_SKILL_DATA = [
   "skills/analyze-creator-competitors/scripts/render_reply.py",
   "skills/analyze-creator-competitors/scripts/validate_discovery_intents.py",
   "skills/create-script-and-packaging/scripts/validate_script_package.py",
+  "skills/develop-content-ideas/references/report-locales-zh-hant.json",
   "skills/develop-content-ideas/references/report-locales.json",
   "skills/develop-content-ideas/scripts/project_comments.py",
   "skills/develop-content-ideas/scripts/render_idea_report.py",
@@ -184,7 +185,7 @@ const LOCALIZED_SKILL_DATA = [
   "skills/review-creator-account/scripts/compose_review.py",
   "skills/review-creator-account/scripts/estimate_growth.py",
   "skills/review-creator-account/scripts/validate_creator_report.py",
-  "skills/review-thumbnail/references/labels-zh.json",
+  "skills/review-thumbnail/references/labels.json",
   "skills/review-thumbnail/scripts/review_thumbnail.py",
   "skills/verify-platform-rule/references/sources/bilibili.json",
 ];
@@ -199,6 +200,7 @@ const NON_ENGLISH_TEST_DATA = [
   "scripts/fixtures/creator-profile/youtube.json",
   "scripts/ideas-context-regression.py",
   "scripts/ideas-followthrough-regression.py",
+  "scripts/ideas-report-language-regression.py",
   "scripts/mcp-pub-sync.test.mjs",
   "scripts/public-video-sources.test.mjs",
   "scripts/publish-timing-report.test.mjs",
@@ -206,6 +208,7 @@ const NON_ENGLISH_TEST_DATA = [
   "scripts/reach-drop-calendar-windows.test.mjs",
   "scripts/remake-local-upload.test.mjs",
   "scripts/review-thumbnail-regression.py",
+  "scripts/script-batch-duration-regression.py",
   "scripts/short-window-topic-regression.py",
   "scripts/static-skills.test.mjs",
   "scripts/trends-profile.test.mjs",
@@ -215,6 +218,10 @@ const NON_ENGLISH_OTHER = [
   "contracts/directory-mcp/annotations.md",
   // A review rule that quotes the literal magnitude words it is about.
   ".coderabbit.yaml",
+  // The kabo-sh installer quotes Doubao Work's and Qwen Work's Chinese menu labels and the first message their users
+  // send, so the printed steps match what the user sees in the app.
+  "installer/README.md",
+  "installer/bin/kabo.js",
 ];
 // The README language switcher names each language in that language and links into docs/i18n/. Listed apart
 // because the entry is valid whether or not the switcher is present.

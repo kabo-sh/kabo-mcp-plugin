@@ -10,7 +10,7 @@ A, and that is inherent, not a bug you can tune away.
 
 > Host edition: sections 0, 2 and 7 of the route-B manual. The hosted runner runs every command
 > named here (`cr ...`); take only the writing rules. Where this file says `analysis.json`, read
-> the reference part of `brief/work/brief_input.json`; where it says the content library, read
+> the reference part of the brief's `brief_input.json`; where it says the content library, read
 > the creator lines in the same file.
 
 ## 0. The script: the reference's lines, four slots rewritten

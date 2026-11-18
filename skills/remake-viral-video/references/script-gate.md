@@ -7,37 +7,37 @@ write anything.
 
 ## What you start from
 
-`brief/work/brief_input.json` in the run directory holds everything you need: the reference's
+The brief's `brief_input.json` holds everything you need: the reference's
 sentences, shots, beats and cut rate, its type, the creator's measured habits and their own lines
-(`creator.own_lines`, each with `video`, `t0`, `t1`, `text`). Start from the drafts next to it:
+(`creator.own_lines`, each with `video`, `t0`, `t1`, `text`). Start from the drafts next to it (where they are: `host-web.md` or `host-plugin.md`):
 
-- `brief/work/script.draft.json` -- one line per reference sentence, each already marked
+- `script.draft.json` -- one line per reference sentence, each already marked
   `ref: viral_line`, the inherit ledger with every non-talking reference shot as `keep`, and any
   title or list overlay the analysis found;
-- `brief/work/decisions.draft.json` -- the decisions record with its required choices;
-- `brief/work/route_b/jobs.template.json` -- the plate and first-frame image jobs, with their
+- `decisions.draft.json` -- the decisions record with its required choices;
+- `route_b/jobs.template.json` -- the plate and first-frame image jobs, with their
   references, outputs and each anchor's measured `framing` already filled in.
 
 Read the matching sections of the bundled references for the judgement in front of you:
 
-- `references/creator-into-scene.md` section 0 (the script: four rewrite slots, the record and
+- `creator-into-scene.md` section 0 (the script: four rewrite slots, the record and
   the inherit ledger), section 0.5 (what the decisions record holds), section 2 (plate and
   first-frame prompts) and section 7 (the one wording that breaks this route).
-- `references/opening-review.md` for the opening record.
-- `references/rewrite-and-sources.md` for sourcing: every fact and number traces back to the
+- `opening-review.md` for the opening record.
+- `rewrite-and-sources.md` for sourcing: every fact and number traces back to the
   creator's own line or is marked as an inference.
-- `references/formats/talking-head.md` for the talking-head format, and, when
+- `formats/talking-head.md` for the talking-head format, and, when
   `brief_input.json` says `reference.type` is `talking_screen` or `talking_product`, also
-  `references/formats/talking-with-screens.md` or `references/formats/talking-with-product.md`.
-- `references/formats/narration.md` for a voice-over reference (`reference_type` `narration`):
+  `formats/talking-with-screens.md` or `formats/talking-with-product.md`.
+- `formats/narration.md` for a voice-over reference (`reference_type` `narration`):
   the picture plan, previewing the pictures and the one picture review.
 
 These references were written for a local command-line kit. Every command they name is run by the
 hosted runner here; take only the writing rules from them. Do not ask the user to run anything.
 
 The brief is text only: you cannot see the reference's keyframes or the creator's identity frames.
-If a brief bundle ever carries preview images, the fetch step saves them in `brief/` and you may
-open them with your own image viewer; the hair and outfit wording rules below still apply.
+If a brief ever carries preview images, you may look at them; the hair and outfit wording rules
+below still apply.
 
 ## Proofread the reference first
 
@@ -58,9 +58,9 @@ sentence. Always include `note`, with `fixes` empty when nothing was misheard.
 
 ## The four documents
 
-Write each as a JSON file in the run's `script/` folder: `script/script.json`,
-`script/opening_review.json`, `script/decisions.json` and `script/route_b_jobs.json`. Each must be
-256 KiB or less.
+Write each as JSON (on Kabo Web as the text of a start file; in the plugin as `script/script.json`,
+`script/opening_review.json`, `script/decisions.json` and `script/route_b_jobs.json` in the run
+directory). Each must be 256 KiB or less.
 
 1. `script` -- from `script.draft.json`. Change only the rewrite slots; give each a `why` and
    `replaces`. Adapt or drop inherited entries only with a reason. The reference's on-screen
@@ -114,10 +114,10 @@ Write each as a JSON file in the run's `script/` folder: `script/script.json`,
    - Prefer rewriting an author claim in the creator's voice (what they would say in that place,
      from their own lines) over dropping it. If after that the script still keeps less than about
      half of the reference's spoken length (for example most of the reference is the original
-     author's own story), tell the user at step 6, before the model question, in one line: the
+     author's own story), tell the creator when you show the model options, before the model question, in one line: the
      remake will be about N seconds instead of the reference's M, and why.
 2. `opening_review` -- the opening decision record, in the shape shown in
-   `references/opening-review.md` with `"stage": "script"` and `"route": "B"`: non-empty
+   `opening-review.md` with `"stage": "script"` and `"route": "B"`: non-empty
    `intent`, `picture`, `sound`, `relationship`, `creator_fit` and `conditions`; `evidence` rows
    with `source` and `observation`; `checks` rows with `status` (`pass`, `fail`, `unavailable`
    or `not_applicable`) and `basis`; 2-3 `candidates` with `first_line` and `assessment`;
@@ -151,14 +151,23 @@ reused from the reference's own footage, its captions removed, under the lines s
 only the host's shots are remade with the creator. `brief_input.json` lists them under
 `reference.inserts` with the draft lines that fall on each (`draft_lines`, indices into the
 draft's `lines`). Keep at least one line on every insert (rewording it is fine); deleting all of
-an insert's lines drops that shot from the video. Do not add image jobs for inserts.
+an insert's lines drops that shot from the video. Do not add image jobs for inserts. An insert
+marked `shows: "screen"` or `shows: "object"` is a screen or a product shot: keep the line over it
+word for word where you can (the runner splits it where the reference cuts between the speaker and
+the insert, which keeps the creator on camera for the speaker's words); a rewritten line over it
+cannot be split.
 
-## Before you submit
+## Before you submit, and when the script comes back
 
-Run the local check (SKILL.md step 5). It catches structural mistakes only; the runner checks the
-script, the opening record and the decisions again after `render_remake_video` has accepted them,
-before anything paid is generated. If the runner rejects them, a later `get_remake_video` returns
-`waiting_script` again with `gate_message` listing each failure (for example `cr check-script: ...`,
-`cr check-opening: ...`, `cr decisions brief: ...`) and a fresh brief, with nothing spent. Save the
-fresh brief, fix only what `gate_message` names, keep the rest of the documents as they were, run
-the local check again and submit all four files again with the same talking model.
+Submit as your host file says (in the plugin, run the local check first: it catches structural
+mistakes only). The runner checks the script, the opening record and the decisions again before
+anything paid is generated. A rejected start or render names the problem: fix that document and
+submit again, as many times as it takes; do not rewrite documents that were not named.
+
+If the runner rejects them after accepting the submission, the job shows `waiting_script` again
+with `gate_message` listing each failure (for example `cr check-script: ...`,
+`cr check-opening: ...`, `cr decisions brief: ...`) and a fresh brief, with nothing spent. Fix only
+what `gate_message` names, keep the rest of the documents as they were, and submit all four
+again. The model the creator chose is kept: do not ask again.
+
+**On Kabo Web**: call start again with all four files (`host-web.md`).

@@ -38,7 +38,7 @@ test('publish: writes only bundles and the Web overlay, leaves the channel index
   const root = pluginRepo({ 'alpha-skill': '# a1', 'beta-skill': '# b1', 'new-skill': '# n', 'remake-viral-video': '# r' });
   const result = await publish({ store, pluginRoot: root, pluginCommit: COMMIT, now: new Date('2026-11-05T01:00:00Z') });
   assert.deepEqual(Object.fromEntries(Object.entries(result.skills).map(([id, e]) => [id, e.version])), { 'alpha-skill': '1.2.6', 'beta-skill': '0.4.11' });
-  assert.deepEqual(result.skipped, [{ id: 'new-skill', reason: 'not live on any channel' }]);
+  assert.deepEqual(result.skipped, [{ id: 'new-skill', reason: 'not live on any channel' }, { id: 'remake-viral-video', reason: 'not live on any channel' }]);
   assert.ok((await store.read('channels/production/index.json')).bytes.equals(before));
   const overlay = JSON.parse((await store.read(TARGETS.index)).bytes);
   for (const entry of Object.values(overlay.skills)) {
@@ -159,6 +159,17 @@ test('publish --debut: a listed skill on no channel debuts at its declared metad
   const second = await publish({ store, pluginRoot: root, pluginCommit: 'd'.repeat(40) });
   assert.equal(second.skills['new-skill'].version, '0.1.5');
   assert.deepEqual(second.debuted, []);
+});
+
+test('publish: remake-viral-video is no longer excluded; like any new skill it goes to Web only through the debut list', async () => {
+  const { store } = await liveStore();
+  const root = pluginRepo({ 'alpha-skill': '# a1', 'remake-viral-video': '# r' });
+  fs.writeFileSync(path.join(root, 'skills', 'remake-viral-video', 'SKILL.md'), versioned('remake-viral-video', '1.0.2', '# r'));
+  const unlisted = await publish({ store, pluginRoot: root, pluginCommit: COMMIT });
+  assert.deepEqual(unlisted.skipped, [{ id: 'remake-viral-video', reason: 'not live on any channel' }]);
+  const listed = await publish({ store, pluginRoot: root, pluginCommit: COMMIT, debut: ['remake-viral-video'] });
+  assert.equal(listed.skills['remake-viral-video'].version, '1.0.2');
+  assert.deepEqual(listed.debuted, ['remake-viral-video']);
 });
 
 test('publish --debut: a listed new skill without a valid metadata.version fails the whole publish and writes nothing', async () => {

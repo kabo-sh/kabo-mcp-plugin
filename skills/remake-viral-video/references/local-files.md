@@ -1,8 +1,15 @@
-# Local files
+# Local files (in the plugin)
+
+On Kabo Web this file does not apply: uploads are listed in the conversation and passed by their
+`file_id` (`host-web.md`).
 
 A video or photo the user gave as a file on this machine is sent to Kabo once and then used by its
 `kabo-file:<id>` reference wherever a link goes. Send each file separately, before the call that
 uses it. Only send files the user gave in this conversation, for the role they gave them.
+
+Reserve a run directory once per video (`<skill directory>` is the folder holding `SKILL.md`):
+`python3 '<skill directory>/scripts/static_host.py' init --workspace '<user-workspace>'` prints it.
+Run the commands below from it, with `KABO_STATIC_RUN_DIR` set to it in the same command.
 
 1. Build the arguments (the file name is not sent; the file is named by its content):
 
@@ -24,10 +31,10 @@ uses it. Only send files the user gave in this conversation, for the role they g
    Then call `upload_file` again with only the printed `file_id`. When that answers `ready`, its
    `ref` is `kabo-file:<file_id>`. If a step says the link expired or was refused, do what it prints
    (call `upload_file` again with the step 1 arguments; nothing is duplicated).
-4. Pass `kabo-file:<file_id>` in place of the link: `--reference-url`, `--creator-video`,
-   `--creator-photo`, `--reference-video` or `--reference-image`. Kabo still checks the content: a
-   reference over 10 minutes, a photo that is not JPEG or PNG, or a video given as a photo is refused
-   before anything is generated.
+4. Pass `kabo-file:<file_id>` in place of a link in `start_video_project`: `creator.video_urls`,
+   `creator.photo_urls`, `reference_video_urls` or `reference_image_urls`. Kabo still checks the
+   content: a reference over 10 minutes, a photo that is not JPEG or PNG, or a video given as a
+   photo is refused before anything is generated.
 
 If the upload script reports that this host blocks network access for scripts, say that local
 files cannot be sent from here and ask for a YouTube, Instagram or TikTok link instead.
