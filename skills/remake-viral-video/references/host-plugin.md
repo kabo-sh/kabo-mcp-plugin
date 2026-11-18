@@ -38,9 +38,11 @@ say in the storyboard's `picture` only what the row must show.
 
 Write the analysis (plain text) and the storyboard (one JSON object) exactly as
 `steps/plan.md` says ("The plan: analysis and storyboard"): `form`, `total_s` and, for recurring
-characters, `characters` (`{name, look}` each, no `sheet`) at the top, then one row per shot with
+characters, places and objects, `characters`, `environments` and `props` (`{name, look}` each, no
+`sheet`) at the top, then one row per shot with
 `shot`, `t0`, `t1`, `words`, `picture`, `sources`, `keep_change`, `motion`, `on_screen_text`, and
-optionally `on_screen_cast`, `speaker`, `how`, `prompt`, `captions`, `sound`, `transition`.
+optionally `on_screen_cast`, `location`, `camera`, `positions`, `props`, `speaker`, `how`,
+`prompt`, `captions`, `sound`, `transition`.
 Keep the reference's form (`steps/plan.md`, "Break the reference down first"): one picture per
 shot, motion where it moves, the voices and talking shots it has. For an approved script, put
 every word of it, unchanged and in order, into the rows' `words`. Leave `how` and `prompt` out
