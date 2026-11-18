@@ -38,7 +38,11 @@ def public_only_request_errors(request: dict) -> list[str]:
         return []
     errors = []
     if source.get("acquisition") != "public_url" or not source.get("url"):
-        errors.append("unknown ownership requires an explicit public_url source")
+        errors.append("unknown ownership requires an explicit public_url source" + (
+            ": `unknown` is the public-link-only scope, so a file on this machine is never `unknown`. Ask whose "
+            "video it is, or choose `third_party` for someone else's video and `own_unpublished` or "
+            "`own_published` for the creator's own cut, then write the request again"
+            if source.get("acquisition") == "local_file" else ""))
     if "owner_data" not in source or source["owner_data"] is not None:
         errors.append("unknown ownership requires owner_data=null")
     if (request.get("acquire") or {}).get("owner_metrics") != "skip":
@@ -136,14 +140,16 @@ def main() -> int:
                         help="the analysis mode; sets the default --max-connector-calls")
     parser.add_argument("--max-connector-calls", type=int)
     parser.add_argument("--confirmed-by-user", action="store_true")
-    parser.add_argument("--output", type=Path, required=True)
+    # Run from the run directory, the request's place is fixed; a command that left the flag out once stopped a run.
+    parser.add_argument("--output", type=Path, default=Path("analysis/video-analysis-request.json"))
     args = parser.parse_args()
     if args.max_connector_calls is None:
         args.max_connector_calls = default_budget(args.mode, args.subject_state)
         if args.max_connector_calls is None:
             parser.error("give --mode (for its default call ceiling) or --max-connector-calls")
     try:
-        request_id = args.output.parent.parent.name
+        # Resolved first: a relative `analysis/video-analysis-request.json` has no grandparent name of its own.
+        request_id = args.output.resolve().parent.parent.name
         if sum(bool(item) for item in (args.file_ref, args.url, args.envelope)) > 1:
             raise ValueError("--url, --file-ref and --envelope each describe the video; give one of them")
         if args.file_ref:

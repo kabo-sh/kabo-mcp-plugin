@@ -181,6 +181,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--deadline-s", type=float, default=40.0)
     args = parser.parse_args(argv)
     deadline = started + max(1.0, args.deadline_s)
+    # Listening to the file is part of this run's observation; the evidence builder ends the stage.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import acv_timing
+    acv_timing.open_for_artifact(args.artifact)
 
     media = args.media.expanduser()
     refused = readable(media)

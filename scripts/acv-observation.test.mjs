@@ -42,7 +42,7 @@ const TOOLS = { collect_public_metadata: "public_video_collect_public_metadata",
 
 // One fixed job id per operation, so a second media call in the same run (after a fallback) never reuses one.
 const JOB_NUMBER = { collect_public_metadata: 1, fetch_transcript: 2, extract_keyframes: 3, measure_media_signals: 4 };
-function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyTranscript = false, frameTimes = [0, 0.5, 1, 12, 25] } = {}) {
+function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyTranscript = false, frameTimes = [0, 0.5, 1, 12, 25], measuredDuration, cues } = {}) {
   const base = {
     schema_version: "1.0", connector_id: "public-video-media", operation, provider: "fixture", status: failed ? "failed" : "completed",
     summary: "ok", limitations: failed ? ["the platform refused the download"] : [], credential_values_recorded: false, job_id: jobId,
@@ -56,17 +56,20 @@ function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyT
       webpage_url: TIKTOK } } };
   if (operation === "fetch_transcript" && emptyTranscript)
     return { ...base, data: { cues: [], origin: "speech_recognition", cue_count: 0, artifacts: [] } };
+  if (operation === "fetch_transcript" && cues)
+    return { ...base, data: { cues, origin: "speech_recognition", cue_count: cues.length, artifacts: [] } };
   if (operation === "fetch_transcript")
     return { ...base, data: { cues: [{ text: "I ruined it again.", start_ms: 0, end_ms: 2400 }, { text: "Here is why your pan keeps burning.", start_ms: 2400, end_ms: 9000 }],
       origin: "speech_recognition", cue_count: 2, artifacts: [] } };
   if (operation === "measure_media_signals")
-    return { ...base, data: { shots: { count: 2, cuts_at_s: [12.5], shots: [{ start_s: 0, end_s: 12.5 }, { start_s: 12.5, end_s: 30 }] }, artifacts: [] } };
+    return { ...base, data: { shots: { count: 2, cuts_at_s: [12.5], shots: [{ start_s: 0, end_s: 12.5 }, { start_s: 12.5, end_s: 30 }] }, artifacts: [],
+      ...(measuredDuration ? { duration_s: measuredDuration } : {}) } };
   const frames = frameTimes.map((t, i) => ({ bytes: 100, sha256: "c".repeat(64), frame_id: `frame-${String(i + 1).padStart(4, "0")}`, t_seconds: t,
     object_ref: `creator-media/${jobId}/epoch-1/frame-${String(i + 1).padStart(4, "0")}.jpg` }));
   return { ...base, data: { frames, artifacts: frames.map((f) => ({ kind: "keyframes", bytes: 100, sha256: f.sha256, object_ref: f.object_ref })),
     selection: "duration_scaled_v1", duration_s: 30, frame_count: frames.length } };
 }
-function composite(args, { failed = false, duration, emptyTranscript, frameTimes } = {}) {
+function composite(args, { failed = false, duration, emptyTranscript, frameTimes, measuredDuration, cues } = {}) {
   const jobs = [], list = [];
   args.requests.forEach((request) => {
     const group = `${request.content_id}/${request.operation}`;
@@ -74,7 +77,7 @@ function composite(args, { failed = false, duration, emptyTranscript, frameTimes
     const lost = failed && request.operation !== "collect_public_metadata";
     jobs.push({ group, content_id: request.content_id, operation: request.operation, attempt: 1, job_id: jobId, status: lost ? "failed" : "completed" });
     list.push({ tool: TOOLS[request.operation], parameters: request.parameters, group, attempts: 1,
-      result: mediaEnvelope(request.operation, jobId, { failed: lost, duration, emptyTranscript, frameTimes }) });
+      result: mediaEnvelope(request.operation, jobId, { failed: lost, duration, emptyTranscript, frameTimes, measuredDuration, cues }) });
   });
   return { schema_version: "kabo-composite-fetch.v1", tool: "collect_video_media", status: "completed", calls: list,
     summary: { requests: jobs.length, pending: 0, jobs }, coverage: { deadline_reached: false, unfinished: [], provider_calls: 0, pending: 0 }, limitations: [] };
@@ -116,14 +119,15 @@ const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
 // Drive one public-link observation to the end with the given tool answers; returns the run, its final output and
 // every call handed over, in order. `mediaFailed` fails the media call's observing jobs (true, or a function of the
 // media call's number in this run); `afterRound` runs after each round's results are saved, before the resume.
+const OBSERVED = /"status": "(?:observed|nothing_observed)"/;
 async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed = false, mode = "diagnosis", duration,
-  emptyTranscript, afterRound, frameTimes } = {}) {
+  emptyTranscript, afterRound, frameTimes, args = [], cues, url = TIKTOK } = {}) {
   const run = await newRun(t);
-  let out = python("observe_video.py", ["--url", TIKTOK, "--mode", mode, ...(source ? ["--observe-source", source] : [])], run).out;
+  let out = python("observe_video.py", ["--url", url, "--mode", mode, ...(source ? ["--observe-source", source] : []), ...args], run).out;
   const steps = [...viewerSteps];
   const handed = [];
   let mediaCalls = 0;
-  for (let round = 0; round < 8 && !/"status": "observed"/.test(out); round += 1) {
+  for (let round = 0; round < 8 && !OBSERVED.test(out); round += 1) {
     const calls = callLines(out), files = slotFiles(out);
     assert.ok(calls.length, out);
     for (const [index, call] of calls.entries()) {
@@ -131,7 +135,7 @@ async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed =
       if (call.tool === "collect_video_media") {
         const failed = typeof mediaFailed === "function" ? mediaFailed(mediaCalls) : mediaFailed;
         mediaCalls += 1;
-        await writeFile(files[index], mcp(composite(call.arguments, { failed, duration, emptyTranscript, frameTimes })));
+        await writeFile(files[index], mcp(composite(call.arguments, { failed, duration, emptyTranscript, frameTimes, cues })));
       } else await writeFile(files[index], typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
     }
     if (afterRound) await afterRound(run, round);
@@ -139,7 +143,7 @@ async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed =
     assert.equal(resumed.code, 0, resumed.out);
     out = resumed.out;
   }
-  assert.match(out, /"status": "observed"/);
+  assert.match(out, OBSERVED);
   return { run, out, handed };
 }
 const operationsOf = (call) => call.arguments.requests.map((request) => request.operation);
@@ -317,9 +321,10 @@ for (const [name, options, code, failure] of [
     assert.match(back.out, new RegExp(`whole_video failed \\(${code}\\); falling back to server_frames`));
     const media = back.handed.filter((call) => call.tool === "collect_video_media");
     assert.equal(media.length, 2, back.out);
-    assert.deepEqual(operationsOf(media[0]), ["collect_public_metadata"]);
+    // With the duration unknown, the viewing's media call also measures: the measurement reports the duration.
+    assert.deepEqual(operationsOf(media[0]), ["collect_public_metadata", "measure_media_signals"]);
     // Exactly what the first call did not ask for, under the same run key.
-    assert.deepEqual(operationsOf(media[1]), ["fetch_transcript", "extract_keyframes", "measure_media_signals"]);
+    assert.deepEqual(operationsOf(media[1]), ["fetch_transcript", "extract_keyframes"]);
     assert.equal(media[1].arguments.run_key, media[0].arguments.run_key);
     // Never a second paid viewing in the same run.
     assert.equal(back.handed.filter((call) => call.tool === "analyze_content_video").length, 1);
@@ -343,6 +348,9 @@ for (const [name, options, code, failure] of [
 test("a duration the media call returned keeps an over-long video from starting a viewing", async (t) => {
   const { out, handed } = await observe(t, null, { mediaFailed: true, duration: 900 });
   assert.equal(handed.filter((call) => call.tool === "analyze_content_video").length, 0, out);
+  // Every source came back empty: the run says so instead of "observed".
+  assert.match(out, /"status": "nothing_observed"/);
+  assert.match(out, /Follow \*Stops and gaps\*/);
   assert.match(out, /Fallback: server_frames failed \(media_unavailable\); the video runs 900s, past the whole-video limit of 600s/);
 });
 
@@ -461,7 +469,8 @@ test("one brief from any source: sections 1, 2, 5, 6 and 7 are byte-identical wh
 });
 
 test("method selection: no focus is the base card only; unknown or excess focus exits 2; missing evidence skips or refuses", async (t) => {
-  const { run, out } = await observe(t, "whole_video");
+  // The duration is given, so the viewing needs no measurement and the run has none.
+  const { run, out } = await observe(t, "whole_video", { args: ["--duration-s", "30"] });
   await writeRequest(run);
   assert.equal(build(run, flagsOf(out)).code, 0);
   const plain = await prepare(run, ["--mode", "diagnosis"], "");
@@ -646,7 +655,7 @@ test("cards first: the pre-fetch selection skips nothing, and the sound card mak
 test("cards first: a chosen card the evidence cannot support is skipped by prepare_analysis.py, and the brief says so", async (t) => {
   const run = await newRun(t);
   await selectFirst(run, "editing-pacing");
-  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis", "--observe-source", "whole_video"], run);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis", "--duration-s", "30", "--observe-source", "whole_video"], run);
   const { out } = await driveFrom(run, first.out);
   await writeRequest(run);
   assert.equal(build(run, flagsOf(out)).code, 0);
@@ -812,7 +821,7 @@ test("duration gate: a forced viewing of a video the metadata says is too long n
   const run = await newRun(t);
   let out = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis", "--observe-source", "whole_video"], run).out;
   assert.deepEqual(callLines(out).map((call) => call.tool), ["collect_video_media"]);
-  assert.deepEqual(operationsOf(callLines(out)[0]), ["collect_public_metadata"]);
+  assert.deepEqual(operationsOf(callLines(out)[0]), ["collect_public_metadata", "measure_media_signals"]);
   const handed = [];
   for (let round = 0; round < 4 && !/"status": "observed"/.test(out); round += 1) {
     const calls = callLines(out), files = slotFiles(out);
@@ -843,25 +852,90 @@ test("duration gate: when no media result reports a duration, the sound card's v
   assert.match(flagsOf(done.out), /--limitation 'Whole-video viewing not started because the video duration could not be read/);
 });
 
-test("duration gate: YouTube reads the duration from its own metadata envelope, and without it no viewing starts", async (t) => {
+test("duration gate: YouTube reads the duration from its own metadata envelope or from the measurement, and without either no viewing starts", async (t) => {
   const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
   const youtubeEnvelope = { schema_version: "1.0", connector_id: "youtube-public", operation: "get_video", status: "completed",
     data: { rows: [{ id: "dQw4w9WgXcQ", duration_seconds: 45 }] } };
-  const run = await newRun(t);
-  const first = python("observe_video.py", ["--url", YT, "--mode", "diagnosis", "--observe-source", "whole_video"], run);
-  assert.equal(first.code, 0, first.out);
-  assert.equal(callLines(first.out).length, 0);
-  assert.match(first.out, /starts only once the video's duration is known/);
-  await writeFile(path.join(run, "snapshot/envelope-01.json"), JSON.stringify(youtubeEnvelope));
-  const resumed = shell(first.out.split("\n").find((line) => line.includes("then run this one command")).split("then run this one command: ")[1]);
-  assert.deepEqual(callLines(resumed.out).map((call) => call.tool), ["analyze_content_video"]);
+  // The first round measures the file, beside the youtube_get_video call the Skill makes in the same turn: no round is added.
+  const begin = async () => {
+    const run = await newRun(t);
+    const first = python("observe_video.py", ["--url", YT, "--mode", "diagnosis", "--observe-source", "whole_video"], run);
+    assert.equal(first.code, 0, first.out);
+    const calls = callLines(first.out);
+    assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media"]);
+    assert.deepEqual(operationsOf(calls[0]), ["measure_media_signals"]);
+    return { run, first, call: calls[0], file: slotFiles(first.out)[0] };
+  };
+
+  const persisted = await begin();
+  await writeFile(path.join(persisted.run, "snapshot/envelope-01.json"), JSON.stringify(youtubeEnvelope));
+  await writeFile(persisted.file, mcp(composite(persisted.call.arguments)));
+  const resumed = shell(resumeOf(persisted.first.out));
+  assert.deepEqual(callLines(resumed.out).map((call) => call.tool), ["analyze_content_video"], resumed.out);
   assert.equal(callLines(resumed.out)[0].arguments.source_url, YT);
 
-  const bare = await newRun(t);
-  const waiting = python("observe_video.py", ["--url", YT, "--mode", "diagnosis", "--observe-source", "whole_video"], bare);
+  // youtube_get_video answered unsupported (the provider's quota): the measurement's duration starts the viewing.
+  const measured = await begin();
+  await writeFile(measured.file, mcp(composite(measured.call.arguments, { measuredDuration: 41.5 })));
+  const started = shell(resumeOf(measured.first.out));
+  assert.deepEqual(callLines(started.out).map((call) => call.tool), ["analyze_content_video"], started.out);
+  assert.match(started.out, /runs 41\.5s, within the whole-video limit/);
+  await writeFile(slotFiles(started.out)[0], mcp(viewerFixture));
+  const done = shell(resumeOf(started.out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
+  assert.match(done.out, /"status": "observed"/, done.out);
+  assert.match(flagsOf(done.out), /--duration-s 41\.5/);
+  const made = python("prepare_link_request.py", ["--url", YT, "--platform", "youtube", "--subject-state", "unknown", "--mode", "diagnosis",
+    "--confirmed-by-user"], measured.run);
+  assert.equal(made.code, 0, made.out);
+  // A relative --output still names the run: the request id is the run directory's name, so no id ends in "-unknown".
+  assert.equal((await readJson(path.join(measured.run, "analysis/video-analysis-request.json"))).request_id, path.basename(measured.run));
+  const built = build(measured.run, flagsOf(done.out));
+  assert.equal(built.code, 0, built.out);
+  const evidence = await readJson(path.join(measured.run, "analysis/content_evidence.json"));
+  assertValidEvidence(evidence);
+  assert.deepEqual([evidence.media.duration_s, evidence.media.duration_source], [41.5, "connector_measure"]);
+  assert.equal(evidence.transcript.source_connector, "kabo-video-analysis");
+  // With the duration known, a whole-video run gets a hook window by the video's length, and the promise is anchored.
+  assert.equal((await prepare(measured.run, ["--mode", "diagnosis"])).code, 0);
+  const promise = await readJson(path.join(measured.run, "analysis/promise_payoff.json"));
+  assert.deepEqual([promise.hook_window_s, promise.hook_window_basis, promise.promise.status], [3, "video_length", "located"]);
+
+  // Neither: after one round for the metadata the viewing is refused and server frames take over.
+  const bare = await begin();
+  await writeFile(bare.file, mcp(composite(bare.call.arguments)));
+  const waiting = shell(resumeOf(bare.first.out));
+  assert.match(waiting.out, /starts only once the video's duration is known/);
   const fell = shell(waiting.out.split("\n").find((line) => line.includes("then run this one command")).split("then run this one command: ")[1]);
   assert.match(fell.out, /trying server_frames/);
   assert.deepEqual(callLines(fell.out).map((call) => call.tool), ["collect_video_media"]);
+  // The measurement was already asked for under this run key: only the rest is asked now.
+  assert.deepEqual(operationsOf(callLines(fell.out)[0]), ["fetch_transcript", "extract_keyframes"]);
+});
+
+test("duration gate: Instagram metadata carries no duration, so the forced viewing's media call measures and the viewing starts", async (t) => {
+  const IG = "https://www.instagram.com/reel/DAbCdEfGhIj/";
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", IG, "--mode", "diagnosis", "--observe-source", "whole_video"], run);
+  const [call] = callLines(first.out);
+  assert.deepEqual(operationsOf(call), ["collect_public_metadata", "measure_media_signals"]);
+  // The metadata answers with duration_seconds null, as Instagram's does; the measurement reports 23.3s.
+  await writeFile(slotFiles(first.out)[0], mcp(composite(call.arguments, { duration: null, measuredDuration: 23.3 })));
+  const started = shell(resumeOf(first.out));
+  assert.deepEqual(callLines(started.out).map((item) => item.tool), ["analyze_content_video"], started.out);
+});
+
+test("a duration given with --duration-s reaches media.duration_s on a whole-video-only run", async (t) => {
+  const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+  const { run, out, handed } = await observe(t, "whole_video", { url: YT, args: ["--duration-s", "45"] });
+  // Known up front: no measurement is needed, and nothing but the viewing is called.
+  assert.deepEqual(handed.map((call) => call.tool), ["analyze_content_video"]);
+  assert.match(flagsOf(out), /--duration-s 45/);
+  assert.equal(python("prepare_link_request.py", ["--url", YT, "--platform", "youtube", "--subject-state", "unknown", "--mode", "diagnosis",
+    "--confirmed-by-user"], run).code, 0);
+  assert.equal(build(run, flagsOf(out)).code, 0);
+  const evidence = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assertValidEvidence(evidence);
+  assert.deepEqual([evidence.media.duration_s, evidence.media.duration_source], [45, "host_supplied"]);
 });
 
 // A video attached in Kabo, read by the media tool from the stored file. The envelopes follow the backend tests that
@@ -1013,6 +1087,8 @@ test("frame reads come in chunks of at most 15 object refs, so a host shows ever
   for (const read of reads) {
     assert.equal(read.tool, "read_research_data_artifacts");
     assert.ok(read.arguments.object_refs.length <= 15);
+    // Read inline: no delivery, so the host shows the images instead of a link it cannot save.
+    assert.equal(read.arguments.delivery, undefined);
   }
   assert.equal(new Set(reads.flatMap((read) => read.arguments.object_refs)).size, 32);
   assert.match(out, /make these 3 reads now/);
@@ -1187,5 +1263,146 @@ print(json.dumps([timecode(0.4), timecode(4.017), timecode(15.207), timecode(4.9
                   format_time_range("0.000–4.017s"), prose_timecodes("sound from 0.4s", {0.4})]))
 `;
   const result = spawnSync("python3", ["-I", "-B", "-c", probe, scripts], { encoding: "utf8" });
-  assert.deepEqual(JSON.parse(result.stdout), ["0:00.4", "0:04", "0:15.2", "0:04.9", "1:01", "[0:00–0:04]", "sound from [0:00.4]"]);
+  // Rounded to the tenth shown: 4.9999s is 0:05, not a truncated 0:04.9.
+  assert.deepEqual(JSON.parse(result.stdout), ["0:00.4", "0:04", "0:15.2", "0:05", "1:01", "[0:00–0:04]", "sound from [0:00.4]"]);
+});
+
+// Findings of the observation bake-off: what each source returned, honestly read.
+const viewerWith = ({ dimensions, transcript = viewerFixture.transcript }) =>
+  ({ ...viewerFixture, result: { ...viewerFixture.result, dimensions }, transcript });
+async function evidenceFrom(t, { envelopes, viewer, request = {} }) {
+  const run = await newRun(t);
+  await writeRequest(run, request);
+  const flags = [];
+  for (const [index, envelope] of envelopes.entries()) {
+    const file = path.join(run, `snapshot/envelope-${String(index + 1).padStart(2, "0")}.json`);
+    await writeFile(file, JSON.stringify(envelope));
+    flags.push(`--envelope ${file}`);
+  }
+  if (viewer) {
+    await writeFile(path.join(run, "host-results/viewer.json"), mcp(viewer));
+    flags.push(`--viewer ${path.join(run, "host-results/viewer.json")}`);
+  }
+  const built = build(run, flags.join(" "));
+  assert.equal(built.code, 0, built.out);
+  const evidence = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assertValidEvidence(evidence);
+  return { run, evidence };
+}
+const measureEnvelope = (duration, cuts = [5.03]) => ({ ...mediaEnvelope("measure_media_signals", uuid(4)),
+  data: { shots: { count: cuts.length + 1, cuts_at_s: cuts }, artifacts: [], duration_s: duration } });
+const transcriptEnvelope = (cues, extra = {}) => ({ ...mediaEnvelope("fetch_transcript", uuid(2), { cues }), ...extra });
+
+test("a gone video: every source empty prints nothing_observed and no build arguments, and a brief from no evidence is refused with the stop rule", async (t) => {
+  const { out } = await observe(t, null, {
+    mediaFailed: true, viewerSteps: [JSON.stringify({ code: "not_found", message: "The video could not be fetched.", retryable: false })] });
+  assert.match(out, /"status": "nothing_observed"/);
+  assert.doesNotMatch(out, /"status": "observed"/);
+  assert.doesNotMatch(out, /Pass these to build_content_evidence\.py/);
+  assert.match(out, /Follow \*Stops and gaps\* in the Skill/);
+  // Built anyway (a host that went on): the brief is refused, pointing to the stop rule.
+  const empty = transcriptEnvelope([], { status: "completed_partial", data: { cues: [], artifacts: [], cue_count: 0 } });
+  const { run } = await evidenceFrom(t, { envelopes: [empty, { ...mediaEnvelope("extract_keyframes", uuid(3)), status: "completed_partial",
+    data: { frames: [], artifacts: [], selection: "none", frame_count: 0 } }] });
+  const refused = await prepare(run, ["--mode", "diagnosis"]);
+  assert.equal(refused.code, 2, refused.out);
+  assert.match(refused.out, /"status": "refused"/);
+  assert.match(refused.out, /Stops and gaps/);
+  assert.equal(existsSync(path.join(run, "analysis/brief.md")), false);
+});
+
+test("a limitation recorded twice in one observation is passed to the builder once", async (t) => {
+  const { out } = await observe(t, null, { afterRound: async (dir) => {
+    const file = path.join(dir, "observe-video.json");
+    const state = await readJson(file);
+    state.limitations = ["The source could not be fetched.", "The source could not be fetched."];
+    await writeFile(file, JSON.stringify(state));
+  } });
+  assert.equal(flagsOf(out).split("--limitation 'The source could not be fetched.'").length, 2, flagsOf(out));
+});
+
+test("whole-video notes past the end are dropped and named, with the minutes-read-as-seconds pattern; the brief flags notes beside measured cuts", async (t) => {
+  const { run, evidence } = await evidenceFrom(t, {
+    envelopes: [measureEnvelope(417.5, [5.03, 126.8])],
+    viewer: viewerWith({ dimensions: [
+      { key: "hook", score: 1, summary: "x", evidence: [{ startMs: 4000, endMs: 9000, note: "The sketch becomes the finished drawing." }] },
+      { key: "Audio Integration", score: 1, summary: "x", evidence: [{ startMs: 0, endMs: 30000, note: "A soft piano track runs under the voice." }] },
+      { key: "payoff", score: 1, summary: "x", evidence: [{ startMs: 209000, endMs: 215000, note: "The planet appears." },
+        { startMs: 637000, endMs: 640000, note: "The final image." }, { startMs: 658000, endMs: 660000, note: "End card." }] },
+    ] }) });
+  const ids = evidence.viewer_observations.items.map((item) => item.start_ms);
+  assert.deepEqual(ids, [0, 4000, 209000]);
+  const line = evidence.limitations.find((text) => /start after the end of this 417\.5s video and were dropped/.test(text));
+  assert.ok(line, evidence.limitations.join("\n"));
+  assert.match(line, /minutes:seconds read as seconds \(637s as 6:37, 658s as 6:58\)/);
+  assert.match(line, /No time was converted/);
+  assert.equal((await prepare(run, ["--mode", "diagnosis"])).code, 0);
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.match(brief, /The sketch becomes the finished drawing\. \(measured cut at 5\.03s, 1\.03s after the note's start\)/);
+  // An "Audio Integration" note is heard sound.
+  assert.match(brief, /Music and mix evidence: whole-video sound note `V01`/);
+  assert.doesNotMatch(brief, /neither measured nor heard/);
+});
+
+test("transcript sources: a lone invented line over music is flagged against the viewer's silence and never anchors the promise", async (t) => {
+  const { run, evidence } = await evidenceFrom(t, {
+    envelopes: [measureEnvelope(20), transcriptEnvelope([{ text: "Thanks for watching!", start_ms: 1000, end_ms: 2000 }])],
+    viewer: viewerWith({ dimensions: viewerFixture.result.dimensions, transcript: [] }) });
+  assert.equal(evidence.transcript.source_connector, "public-video-media");
+  assert.deepEqual(evidence.transcript.suspect_cues, [{ index: 0, reason: "generic_line" }]);
+  assert.deepEqual(evidence.transcript.sources.map((item) => [item.source, item.used]), [["fetched", true], ["whole_video_viewer", false]]);
+  assert.ok(evidence.transcript.conflicts.some((text) => /while the whole-video viewer heard no words/.test(text)), evidence.transcript.conflicts);
+  assert.equal((await prepare(run, ["--mode", "diagnosis"])).code, 0);
+  const promise = await readJson(path.join(run, "analysis/promise_payoff.json"));
+  assert.equal(promise.promise.status, "unavailable");
+  assert.match(promise.promise.reason, /cue 0 there is a sound marker or a line speech recognition invents/);
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.match(brief, /- Fetched transcript \(kept\): available, 1 cues/);
+  assert.match(brief, /- Whole-video viewer's transcript \(not kept\): no_speech_heard, 0 cues/);
+  assert.match(brief, /On-screen text in the frames: yours to read/);
+  assert.match(brief, /- Conflict: The fetched transcript holds 1 cue\(s\)/);
+  assert.match(brief, /`transcript\.cue\[0\]` 1s: Thanks for watching! \[no evidence of speech: generic line/);
+});
+
+test("transcript sources: a marker-only fetched transcript gives way to the viewer's words, and its stale no-transcript line is gone", async (t) => {
+  const empty = transcriptEnvelope([{ text: "[Music]", start_ms: 0, end_ms: 9000 }], {
+    status: "completed_partial", limitations: ["This video exposes no subtitle track; no transcript was retrieved this run. Do not substitute prior knowledge."] });
+  const { evidence } = await evidenceFrom(t, { envelopes: [measureEnvelope(30), empty], viewer: viewerFixture });
+  assert.equal(evidence.transcript.source_connector, "kabo-video-analysis");
+  assert.match(evidence.transcript.status_basis, /held only sound markers or generic lines/);
+  assert.equal(evidence.transcript.cues[0].text, "I ruined it again.");
+  assert.ok(!evidence.limitations.some((text) => /no transcript was retrieved/.test(text)), evidence.limitations.join("\n"));
+  assert.ok(evidence.limitations.some((text) => /the transcript here is the one the whole-video viewer heard/.test(text)));
+});
+
+test("transcript sources: disagreeing words, another language and cues past the end are each named", async (t) => {
+  const dutch = [{ text: "Dit is het verhaal van een man die niet wist wat hij moest doen, maar ook dat was voor niets", start_ms: 0, end_ms: 4000 },
+    { text: "En dat is het einde van dit verhaal voor nu", start_ms: 40000, end_ms: 42000 }];
+  const { evidence } = await evidenceFrom(t, { envelopes: [measureEnvelope(30), transcriptEnvelope(dutch, { data: { cues: dutch, origin: "platform_captions", language: "nl", cue_count: 2, artifacts: [] } })],
+    viewer: viewerFixture });
+  const conflicts = evidence.transcript.conflicts.join("\n");
+  assert.match(conflicts, /disagree \(about \d+% shared words\)/);
+  assert.match(conflicts, /reads as nl while the whole-video viewer heard en/);
+  assert.match(conflicts, /cue\[1\] is after the end of the video \(30s\)/);
+  assert.deepEqual(evidence.transcript.suspect_cues, [{ index: 1, reason: "past_end" }]);
+  assert.equal(evidence.transcript.sources[0].detected_language, "nl");
+});
+
+test("a whole-video failure a host saved as plain text is read as that failure; an input refusal repeats the start without the new inputs", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis", "--duration-s", "30", "--observe-source", "whole_video"], run);
+  const calls = callLines(first.out), files = slotFiles(first.out);
+  await writeFile(files[0], "MCP error -32602: Input validation error: Invalid arguments for tool analyze_content_video: unrecognized key wait_s");
+  await writeFile(files[1], mcp(composite(calls[1].arguments)));
+  const retried = shell(resumeOf(first.out));
+  assert.equal(retried.code, 0, retried.out);
+  assert.deepEqual(callLines(retried.out), [{ tool: "analyze_content_video", arguments: { source_url: TIKTOK, idempotency_key: calls[0].arguments.idempotency_key } }]);
+  const probe = `
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import viewer_response
+print(json.dumps(viewer_response.read(b"MCP error -32603: subscription_required: an active Pro subscription is required")["error"]))
+`;
+  const read = JSON.parse(spawnSync("python3", ["-I", "-B", "-c", probe, scripts], { encoding: "utf8" }).stdout);
+  assert.equal(read.code, "subscription_required");
 });

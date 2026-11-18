@@ -55,6 +55,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import public_video_sources  # noqa: E402
 import viewer_response  # noqa: E402
 import acv_timing  # noqa: E402
+import transcript_checks  # noqa: E402
 
 SCHEMA_VERSION = "content-evidence.v1"
 MEDIA_CONNECTOR = "public-video-media"
@@ -744,7 +745,8 @@ def post_facts(post: dict[str, Any] | None) -> dict[str, Any]:
 def media_block(frames: dict[str, Any] | None, metadata: dict[str, Any] | None,
                 local: dict[str, Any] | None = None,
                 measurements: dict[str, Any] | None = None,
-                captions: dict[str, Any] | None = None) -> dict[str, Any]:
+                captions: dict[str, Any] | None = None,
+                stated_duration_s: float | None = None) -> dict[str, Any]:
     if local is not None:
         facts = as_record(local.get("media"))
         duration = facts.get("duration_s")
@@ -778,12 +780,23 @@ def media_block(frames: dict[str, Any] | None, metadata: dict[str, Any] | None,
     # transcript response carries the platform-declared duration for them; it ranks last.
     spoken = as_record(captions.get("data")).get("duration_seconds") if usable(captions) else None
     spoken = spoken if isinstance(spoken, (int, float)) and spoken > 0 else None
+    # The measurement probes the same downloaded file the keyframes do: on a whole-video run it is the call that
+    # learns the duration before the viewing starts, and often the only one that carries it.
+    measured = as_record(measurements.get("data")).get("duration_s") if usable(measurements) else None
+    measured = measured if isinstance(measured, (int, float)) and not isinstance(measured, bool) and measured > 0 else None
+    stated = (stated_duration_s if isinstance(stated_duration_s, (int, float)) and stated_duration_s > 0 else None)
     if observed is not None:
         duration, source = float(observed), "connector_extract_keyframes"
+    elif measured is not None:
+        duration, source = float(measured), "connector_measure"
     elif declared is not None:
         duration, source = float(declared), "connector_metadata"
     elif spoken is not None:
         duration, source = float(spoken), "connector_transcript"
+    elif stated is not None:
+        # The duration the observation was given (observe_video.py --duration-s) or learned outside these
+        # envelopes; it ranks last, below anything fetched about this copy.
+        duration, source = float(stated), "host_supplied"
     else:
         duration, source = None, "unavailable"
     block: dict[str, Any] = {
@@ -824,6 +837,47 @@ def media_block(frames: dict[str, Any] | None, metadata: dict[str, Any] | None,
         if observed is not None and declared is not None and abs(float(observed) - float(declared)) > 1:
             block["discrepancies"] = [{"field": "duration_s", "declared": declared, "observed": observed}]
     return block
+
+
+def past_end_notes(block: dict[str, Any], duration_s: float | None) -> list[dict[str, Any]]:
+    """Remove from `block` the whole-video notes that start after the video ends; return them.
+
+    The viewer reports its own times. On a seven-minute video it once placed notes at 637 and 658 seconds of a
+    417.5-second video, and another at 209 s where the frames showed the moment at 126.8 s: it read 2:09 as 209
+    seconds. A note past the end cannot be placed, so it is dropped and named; it is never silently converted."""
+    if not isinstance(duration_s, (int, float)) or not block.get("items"):
+        return []
+    limit_ms = (duration_s + transcript_checks.END_TOLERANCE_S) * 1000
+    dropped = [item for item in block["items"] if item["start_ms"] > limit_ms]
+    if dropped:
+        block["items"] = [item for item in block["items"] if item["start_ms"] <= limit_ms]
+        if not block["items"]:
+            block.update(status="unavailable", failure={"code": "no_observations", "retryable": False})
+    return dropped
+
+
+def minutes_read_as_seconds(seconds: float, duration_s: float) -> str | None:
+    """`2:09` when `seconds` (129 s) looks like minutes:seconds read as plain seconds (209) and fits the video."""
+    whole = int(seconds)
+    minutes, rest = divmod(whole, 100)
+    if minutes and rest < 60 and minutes * 60 + rest <= duration_s + transcript_checks.END_TOLERANCE_S:
+        return f"{minutes}:{rest:02d}"
+    return None
+
+
+def past_end_limitation(dropped: list[dict[str, Any]], duration_s: float) -> str:
+    named = ", ".join(f"{item['id']} ({item['start_ms'] / 1000:g}s)" for item in dropped)
+    text = (f"Whole-video notes {named} start after the end of this {duration_s:g}s video and were dropped: "
+            "the viewer's times for them cannot be placed.")
+    readings = [(item, minutes_read_as_seconds(item["start_ms"] / 1000, duration_s)) for item in dropped]
+    if readings and all(reading for _, reading in readings):
+        shown = ", ".join(f"{item['start_ms'] / 1000:g}s as {reading}" for item, reading in readings)
+        text += (f" Their times look like minutes:seconds read as seconds ({shown}), so the other notes' times "
+                 "may be misread the same way: check each against the frames or measured cuts before citing it. "
+                 "No time was converted.")
+    else:
+        text += " Check the other notes' times against the frames or measured cuts before citing them."
+    return text
 
 
 def cues_from(records: Any) -> list[dict[str, Any]]:
@@ -1135,6 +1189,7 @@ def build(
     analysis_root: Path | None = None,
     now: datetime | None = None,
     viewer: dict[str, Any] | None = None,
+    stated_duration_s: float | None = None,
 ) -> dict[str, Any]:
     from prepare_link_request import public_only_request_errors
     scope_errors = public_only_request_errors(request)
@@ -1259,16 +1314,28 @@ def build(
         used_local_transcript = True
     else:
         used_local_transcript = False
+    media = media_block(frames, metadata, local_media, measurements, captions, stated_duration_s)
+    duration_s = media.get("duration_s") if isinstance(media.get("duration_s"), (int, float)) else None
     viewer_block = viewer_response.observations(viewer) if viewer is not None else None
+    viewer_notes_dropped = past_end_notes(viewer_block, duration_s) if viewer_block is not None else []
     viewer_cues = cues_from(viewer_response.transcript_cues(viewer))
+    fetched_transcript = transcript if transcript.get("source_connector") and not used_local_transcript else None
+    fetched_cues = list((fetched_transcript or {}).get("cues") or [])
+    # Words the fetched transcript holds that may stand for speech: none when it carries only sound markers or the
+    # generic lines speech recognition invents over music.
+    fetched_worded = transcript_checks.worded_cues(fetched_cues, duration_s)
+    fetched_empty = transcript["status"] != "available" or (
+        transcript.get("granularity") == "timestamped" and not fetched_worded)
     used_viewer_transcript = False
-    if viewer_cues and transcript["status"] != "available":
-        # The viewer heard the audio itself: its words fill the transcript only when no fetched transcript exists.
+    if viewer_cues and fetched_empty and not used_local_transcript:
+        # The viewer heard the audio itself: its words fill the transcript when no fetched transcript holds words.
         text = "\n".join(cue["text"] for cue in viewer_cues)
+        why = ("no fetched transcript was available" if transcript["status"] != "available" else
+               f"the fetched transcript's {len(fetched_cues)} cue(s) held only sound markers or generic lines")
         transcript = {
             "status": "available",
             "status_basis": (f"the whole-video viewer ({viewer_response.START_TOOL}) returned {len(viewer_cues)} "
-                             "timed cues heard from the video's audio; no fetched transcript was available"),
+                             f"timed cues heard from the video's audio; {why}"),
             "source_connector": viewer_response.CONNECTOR,
             "granularity": "timestamped",
             "timestamps_available": True,
@@ -1281,6 +1348,40 @@ def build(
             "origin": "speech_recognition",
         }
         used_viewer_transcript = True
+    viewer_run = as_record(as_record(viewer).get("run"))
+    viewer_heard = viewer_run.get("status") == "completed"
+    sources = []
+    if fetched_transcript is not None:
+        sources.append(transcript_checks.source_entry(
+            "fetched", str(fetched_transcript["status"]), fetched_cues, used=not used_viewer_transcript,
+            declared=fetched_transcript.get("language"), origin=fetched_transcript.get("origin")))
+    if viewer is not None:
+        sources.append(transcript_checks.source_entry(
+            "whole_video_viewer", ("available" if viewer_cues else "no_speech_heard") if viewer_heard
+            else str((viewer_block or {}).get("status") or "unavailable"), viewer_cues, used=used_viewer_transcript,
+            origin="speech_recognition"))
+    if local_transcript is not None:
+        heard = as_record(local_transcript).get("origin") == "speech_recognition" or as_record(local_transcript).get(
+            "status") in {"no_speech_detected", "no_audio_track"}
+        sources.append(transcript_checks.source_entry(
+            "local_speech_recognition" if heard else "subtitle_file", str(as_record(local_transcript).get("status")),
+            cues_from(as_record(local_transcript).get("cues")), used=used_local_transcript,
+            declared=as_record(local_transcript).get("language"), origin=transcript.get("origin")))
+    video_facts = as_record(as_record(metadata.get("data")).get("video")) if usable(metadata) else {}
+    transcript_conflicts = transcript_checks.conflicts(
+        fetched_cues if fetched_transcript is not None else None, viewer_cues if viewer is not None else None,
+        fetched_language=(fetched_transcript or {}).get("language"), viewer_heard=viewer_heard,
+        duration_s=duration_s,
+        metadata_text=" ".join(str(video_facts.get(key) or "") for key in ("title", "description")) or None,
+        used=transcript.get("cues") or [],
+        used_label="the whole-video viewer's transcript" if used_viewer_transcript else "the transcript")
+    suspect = transcript_checks.suspect_cues(transcript.get("cues") or [], duration_s)
+    if sources:
+        transcript["sources"] = sources
+    if transcript_conflicts:
+        transcript["conflicts"] = transcript_conflicts
+    if suspect:
+        transcript["suspect_cues"] = suspect
     frame_block = frames_block(frames, local_media)
     # Local extraction already writes its own real files under hashed names and records each
     # path. Only connector pixels are renamed by host envelope staging.
@@ -1293,6 +1394,13 @@ def build(
     notes: list[str] = []
     for _, envelope in envelopes:
         if envelope.get("status") == "unsupported" and role_of(envelope) in served_elsewhere:
+            continue
+        if role_of(envelope) == "captions" and used_viewer_transcript:
+            # Its "no transcript was retrieved" is true of that call only: the viewer's words fill the transcript.
+            replaced = (f"{envelope.get('operation')} returned no words; the transcript here is the one the "
+                        "whole-video viewer heard.")
+            if replaced not in notes:
+                notes.append(replaced)
             continue
         fact = f"{envelope.get('operation')} returned {envelope.get('status')}."
         for value in envelope.get("limitations") or []:
@@ -1329,6 +1437,11 @@ def build(
                      "second the words were not read, which is not the same as silence.")
     if viewer_cues and not used_viewer_transcript:
         notes.append("The whole-video viewer also returned a transcript; the fetched transcript was used instead.")
+    if viewer_notes_dropped:
+        notes.append(past_end_limitation(viewer_notes_dropped, duration_s))
+    for text in transcript_conflicts:
+        if text not in notes:
+            notes.append(text)
     if viewer_block is not None and viewer_block["status"] != "available":
         code = (viewer_block.get("failure") or {}).get("code")
         notes.append("Whole-video viewing " + ("was still running when observation closed" if viewer_block["status"] == "pending"
@@ -1378,7 +1491,7 @@ def build(
             + pending_entries
             + ([viewer_acquisition_entry(viewer)] if viewer is not None else [])
         ),
-        "media": media_block(frames, metadata, local_media, measurements, captions),
+        "media": media,
         "transcript": transcript,
         "frames": frame_block,
         "owner_metrics": owner_metrics or {"status": "unavailable", "source_mode": "unavailable",
@@ -1508,7 +1621,10 @@ def main() -> int:
                         help="the artifact read_subtitle_file.py wrote, for a subtitle file the creator supplied")
     parser.add_argument("--viewer", type=Path,
                         help="the saved whole-video viewing result (analyze_content_video / get_analysis_run)")
-    parser.add_argument("--run-id")
+    parser.add_argument("--run-id", help="by default the run directory's name, when the output is in <run>/analysis/")
+    parser.add_argument("--duration-s", type=float,
+                        help="the video's duration as observe_video.py printed it; used only when no envelope "
+                             "carries one")
     parser.add_argument("--snapshot-root", type=Path,
                         help="this run's snapshot directory; bind staged frame bytes to canonical IDs")
     parser.add_argument("--output", type=Path, required=True)
@@ -1530,10 +1646,19 @@ def main() -> int:
                         raise ValueError("evidence and reference outputs must not overwrite an input")
             if reference_path.exists() or reference_path.is_symlink():
                 raise ValueError("the reference sidecar already exists; no input or output was overwritten")
+        request = load_json(args.request)
+        run_id = args.run_id
+        if not run_id and not request.get("request_id"):
+            # The run directory names the run: <run>/analysis/content_evidence.json. A request written with a relative
+            # path once carried an empty request id, and every id composed from it ended in "-unknown".
+            candidate = args.output.resolve().parent.parent
+            if args.output.resolve().parent.name == "analysis" and (candidate / ".static-run.json").is_file():
+                run_id = candidate.name
         evidence = build(
-            load_json(args.request),
+            request,
             args.envelope,
-            run_id=args.run_id,
+            run_id=run_id,
+            stated_duration_s=args.duration_s,
             owner_metrics=load_json(args.owner_metrics) if args.owner_metrics else None,
             limitations=args.limitation,
             published_at=args.published_at,

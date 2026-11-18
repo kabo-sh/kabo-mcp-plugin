@@ -301,7 +301,7 @@ def finish(record: dict[str, Any]) -> None:
                 "save and fetch it the way the Skill says for read_research_data_artifacts, then open each image's "
                 "path before any visual claim:")
             say("read: " + json.dumps({"tool": "read_research_data_artifacts",
-                                       "arguments": {"job_id": job_id, "object_refs": refs, "delivery": "download"}},
+                                       "arguments": {"job_id": job_id, "object_refs": refs}},
                                       ensure_ascii=False))
             return
     say("No frames arrived: keep the missing-visual-evidence limit and read the transcript and measurements only.")

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -32,11 +33,11 @@ _RANGE_SEPARATORS = ("–", "—", "-", "~")
 
 
 def timecode(seconds: float) -> str:
-    """`15.207` -> `0:15.2`, `4.017` -> `0:04`, `0.4` -> `0:00.4`. Truncates rather than rounds: a cue
-    at 15.9s is still inside the fifteenth second, and rounding it to 0:16 would point past the thing
-    it names. A non-zero tenth is kept: on a short video "sound from 0:00" hides a measured 0.4s."""
-    total = int(seconds)
-    tenth = min(9, int((seconds - total) * 10 + 1e-6))
+    """`15.207` -> `0:15.2`, `4.017` -> `0:04`, `0.4` -> `0:00.4`, `9.75` -> `0:09.8`. Rounded to the tenth the
+    timecode shows: truncating printed a measured 9.75s as 0:09.7, a moment that is not the one measured. A
+    non-zero tenth is kept: on a short video "sound from 0:00" hides a measured 0.4s."""
+    tenths = int(math.floor(float(seconds) * 10 + 0.5 + 1e-6))
+    total, tenth = divmod(tenths, 10)
     return f"{total // 60}:{total % 60:02d}" + (f".{tenth}" if tenth else "")
 
 
@@ -92,8 +93,29 @@ def format_time_range(value: str) -> str:
 # not, so a timecode written upstream would be rejected as an invented figure. The object keeps
 # the precise seconds; the document shows the timecode.
 _NUM = r"\d+(?:\.\d+)?"
-_PROSE_RANGE = re.compile(rf"({_NUM})s?\s*[–—~-]\s*({_NUM})s")
-_PROSE_POINT = re.compile(r"(\d+\.\d+)s")
+_PROSE_RANGE = re.compile(rf"(?<![\w.])({_NUM})s?\s*[–—~-]\s*({_NUM})s\b")
+_PROSE_POINT = re.compile(r"(?<![\w.])(\d+\.\d+)s\b")
+# A figure is a length, not a moment, when the words around it say so: "cuts every 0.03-1.4s", "the last
+# 3.07s", "a 2.5s pause". Such a figure stays a duration and is printed with a space ("3.07 s"), which no
+# later pass reads as a position. A moment keeps its own words ("at", "from", "to") and is converted.
+_DURATION_BEFORE = re.compile(
+    r"\b(?:every|each|last|lasts|lasting|lasted|final|first|for|takes|took|within|under|over|only|just|about|"
+    r"around|roughly|nearly|almost|up to|spans?|gaps? of|pauses? of|long|another|extra|whole|entire)\s*$",
+    re.IGNORECASE)
+# Checked over the last two words, so "at about 3.07s" stays a moment.
+_POSITION_BEFORE = re.compile(r"\b(?:at|from|to|until|till|by|between|since|before|after|near)\b(?:\s+\S+)?\s*$",
+                              re.IGNORECASE)
+_DURATION_AFTER = re.compile(r"^\s*(?:long|apart|later|earlier|each|per\b|gaps?\b|pauses?\b|of (?:silence|"
+                             r"speech|music|footage|video|it|the)|in total|total)", re.IGNORECASE)
+
+
+def _is_duration(text: str, start: int, end: int) -> bool:
+    before = text[max(0, start - 24):start]
+    # A length named by what follows: "a 2.5s-long shot", "a 1.4s pause".
+    if _POSITION_BEFORE.search(before):
+        return False
+    return bool(_DURATION_BEFORE.search(before) or _DURATION_AFTER.match(text[end:end + 24])
+                or re.match(r"^-?(?:long|pause|gap|shot|cut|hold|beat|clip)\b", text[end:end + 8]))
 
 
 def evidence_positions(result: dict) -> set:
@@ -118,18 +140,23 @@ def prose_timecodes(text: str, positions: set | None = None) -> str:
     rewritten, because nothing says it is a moment rather than a length.
     """
     known = positions or set()
+    text = text or ""
 
     def _range(match: re.Match) -> str:
+        if _is_duration(match.string, match.start(), match.end()):
+            return f"{match.group(1)}–{match.group(2)} s"
         return f"[{timecode(float(match.group(1)))}–{timecode(float(match.group(2)))}]"
 
     def _point(match: re.Match) -> str:
         figure = match.group(1)
+        if _is_duration(match.string, match.start(), match.end()):
+            return f"{figure} s"
         decimals = len(figure.partition(".")[2])
         if decimals < 2 and round(float(figure), 3) not in known:
             return match.group(0)
         return f"[{timecode(float(figure))}]"
 
-    return _PROSE_POINT.sub(_point, _PROSE_RANGE.sub(_range, text or ""))
+    return _PROSE_POINT.sub(_point, _PROSE_RANGE.sub(_range, text))
 
 
 # The connective tissue this file adds around the model's own words, in Chinese and English.
@@ -141,14 +168,38 @@ def prose_timecodes(text: str, positions: set | None = None) -> str:
 # and for a language other than zh or en the host localizes headings and labels as SKILL.md says.
 # `colon` follows the label: Chinese prose takes the full-width mark.
 STRINGS = {
-    "zh": {"why": "现在的效果", "action": "要改什么", "reuse": "怎么复用", "avoid": "怎么避开", "say": "这样说",
+    "zh": {"why": "现在的效果", "action": "要改什么", "reuse": "怎么复用", "avoid": "怎么避开", "fix": "怎么修正",
+           "yours": "你的下一条怎么做", "say": "这样说",
            "at": "位置", "on_screen": "画面文字", "shot": "镜头", "next": "下一步",
            "colon": "："},
     "en": {"why": "What it does now", "action": "What to change", "reuse": "How to reuse it",
-           "avoid": "How to avoid it",
+           "avoid": "How to avoid it", "fix": "How to fix it", "yours": "What to do in yours",
            "say": "Say this", "at": "Where", "on_screen": "On screen", "shot": "Shot",
            "next": "Next", "colon": ": "},
 }
+# Each card's action label, by position and by whose video it is. Own video: reuse what works, fix what holds it
+# back, then the change to make. Someone else's: reuse the mechanism, avoid what copying would bring along, then
+# what to do in the creator's own next video. No two cards of one report share a label.
+ACTION_LABELS = {"own": ("reuse", "fix", "action"), "others": ("reuse", "avoid", "yours")}
+ACTION_LABEL_KEYS = ("action", "reuse", "avoid", "fix", "yours")
+
+
+def action_label(card_index: int, others: bool, words: dict) -> str:
+    keys = ACTION_LABELS["others" if others else "own"]
+    return words[keys[min(card_index, len(keys) - 1)]]
+
+
+def strip_label(action: str) -> str:
+    """The action without a label it already starts with ("How to avoid it: ..."): the renderer adds the label, and
+    a model that wrote it too produced "How to avoid it: How to avoid it: ..."."""
+    text = action.strip()
+    for words in STRINGS.values():
+        for key in ACTION_LABEL_KEYS:
+            label = words[key]
+            match = re.match(rf"^\**\s*{re.escape(label)}\s*\**\s*[:：]\s*\**\s*", text, re.IGNORECASE)
+            if match:
+                return text[match.end():].strip()
+    return text
 
 
 def lang_of(view: dict) -> str:
@@ -227,9 +278,7 @@ def render(result: dict) -> str:
             # On somebody else's video card 2 is what copying it would bring along, so its action
             # says how to avoid that, not what to change in a post that is not the creator's.
             others = (result.get("details") or {}).get("subject_state") in ("third_party", "unknown")
-            action_label = (words["reuse"] if card_index == 0
-                            else words["avoid"] if card_index == 1 and others else words["action"])
-            out.append(f"**{action_label}**{words['colon']}{card['action'].strip()}")
+            out.append(f"**{action_label(card_index, others, words)}**{words['colon']}{strip_label(card['action'])}")
         # No `source_url` branch. The schema allows the field and SKILL.md never described it, so
         # two of three isolated runs set it and the renderer printed a naked URL under the change
         # instruction. Labelling it was the wrong repair -- it made a meaningless link tidy instead

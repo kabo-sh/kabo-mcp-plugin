@@ -7,6 +7,11 @@ A creator asking about a cut they have not published has no link to give, and th
 case for the question they most want answered: is this ready. The file is right there and this
 package reads it.
 
+**Whose file.** `unknown` is the public-link-only scope, so a file on this machine is never
+`unknown`: take `own_unpublished` or `own_published` from the creator's statement, or `third_party`
+for someone else's video, and ask when nothing says which. A file has no caption, counts or
+comments: when the creator asks how the video performed, ask once for its published link.
+
 1. **Ask what the machine has, before committing to it.**
    `cd '<run directory>' && python3 <skill directory>/scripts/probe_media_tools.py --require ffmpeg,ffprobe`. Exit 3 means the tools are not
    installed: **say so and install nothing.** Hand the creator the one line the script printed and

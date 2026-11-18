@@ -250,10 +250,12 @@
             "connector_extract_keyframes",
             "connector_metadata",
             "connector_transcript",
+            "connector_measure",
+            "host_supplied",
             "local_probe",
             "unavailable"
           ],
-          "description": "extract_keyframes probes the downloaded file; collect_public_metadata returns the platform-declared duration and was observed to be null for Instagram. connector_transcript is the platform-declared duration that fetch_transcript carries on Douyin, Xiaohongshu and Kuaishou, used only when neither of the first two gave one. local_probe is the creator's own file, probed on the machine this run executed on - it is the master they exported, not the copy a platform re-encoded and delivered, and the same is true of every other field in this block on that path."
+          "description": "extract_keyframes probes the downloaded file; collect_public_metadata returns the platform-declared duration and was observed to be null for Instagram. connector_transcript is the platform-declared duration that fetch_transcript carries on Douyin, Xiaohongshu and Kuaishou, used only when neither of the first two gave one. connector_measure is the duration measure_media_signals probes from the downloaded file, used when no keyframes carried one (a whole-video run measures before its viewing starts). host_supplied is the duration the observation was given or learned outside these envelopes (observe_video.py --duration-s), used only when no fetched source carried one. local_probe is the creator's own file, probed on the machine this run executed on - it is the master they exported, not the copy a platform re-encoded and delivered, and the same is true of every other field in this block on that path."
         },
         "width": {
           "type": [
@@ -912,6 +914,103 @@
             null
           ],
           "description": "Who produced these words. platform_captions are published with the video and are what a viewer with captions on would read. speech_recognition is a machine transcribing the audio after the fact: it carries a word error rate, so a line taken from it may be quoted as what the analysis heard but never as the creator's exact wording, and a proper noun or figure read from it needs a frame to confirm it. creator_supplied is a subtitle or text file the creator handed over for this run: its wording may be quoted as theirs, because no machine guessed at it - that is the whole reason this field distinguishes the two. What it is not is evidence of what the platform published, and it was not checked against the audio, so a second taken from it is the file's claim about the video rather than a measurement of it."
+        },
+        "sources": {
+          "type": "array",
+          "description": "Every transcript source this run had, the kept one marked used: the fetched transcript, the whole-video viewer's, a subtitle file or local speech recognition. Written so a reader sees which words were not kept and why; only the kept transcript's cues may be cited. On-screen text in the frames is a further source the analysis reads itself.",
+          "items": {
+            "type": "object",
+            "required": [
+              "source",
+              "used",
+              "status",
+              "cue_count"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "enum": [
+                  "fetched",
+                  "whole_video_viewer",
+                  "subtitle_file",
+                  "local_speech_recognition"
+                ]
+              },
+              "used": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string"
+              },
+              "origin": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cue_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "worded_cue_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "language": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The language the source declared, when it declared one."
+              },
+              "detected_language": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The language its words read as, from common function words or the writing system; null when too short or mixed to tell."
+              },
+              "excerpt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Its first worded lines, shortened, so a disagreement can be seen without opening the source."
+              }
+            }
+          }
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Each disagreement among the transcript sources, or with the video's length and language, in one sentence. Also recorded in limitations."
+        },
+        "suspect_cues": {
+          "type": "array",
+          "description": "Cues of the kept transcript that are no evidence of speech: only a sound marker, a generic line speech recognition invents over music or silence, or a start past the end of the video. They stay in cues verbatim; a promise is never anchored on one.",
+          "items": {
+            "type": "object",
+            "required": [
+              "index",
+              "reason"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "enum": [
+                  "sound_marker_only",
+                  "generic_line",
+                  "past_end"
+                ]
+              }
+            }
+          }
         }
       }
     },

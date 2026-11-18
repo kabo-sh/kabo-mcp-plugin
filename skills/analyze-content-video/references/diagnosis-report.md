@@ -36,8 +36,10 @@ no change belongs in the structured observations; a change answering no stated p
 diagnosis — it is the case the description calls a teardown of someone else's video, and it is not
 the craft teardown mode. Their published video is not the creator's to repair, so card 2 reads as
 what they would inherit by copying it (its action, labelled "How to avoid it", says how not to
-inherit it), and card 3 is what they do differently in their own next video — never a repair order
-for a post that is already out.
+inherit it), and card 3 is what they do differently in their own next video (labelled "What to do in
+yours") — never a repair order for a post that is already out. On the creator's own video the three
+actions are labelled "How to reuse it", "How to fix it" and "What to change". The renderer adds each
+label: start no `action` with one.
 
 `decision` is one word for the editing decision the report stands on. Own video: `keep` (it works;
 the changes are small), `recut` (re-edit the footage already shot) or `replace` (needs new footage

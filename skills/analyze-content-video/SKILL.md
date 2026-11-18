@@ -92,8 +92,9 @@ supported, tell the creator which link could not be read and stop. A video attac
   exactly the calls the script prints. Make the other calls in the table (YouTube metadata, post
   row, baseline) in the same turn as its first calls: none waits on another.
 - **Save every complete result.** The displayed tool result may be abridged, so never retype or
-  paste data. Call the data tools and `read_research_data_artifacts` (text
-  and frames alike) with `"delivery": "download"` (beside `parameters` for data tools): the result
+  paste data. Call the data tools and text artifact reads with `"delivery": "download"` (beside
+  `parameters` for data tools; frame reads go exactly as `observe_video.py` prints them, without
+  `delivery`, so the images arrive inline and are viewed): the result
   then carries a download link instead of the data: never download that link yourself with a shell
   command or a browser. Save the download result itself, complete and now small, link included, to
   a file (the host's result export, or the result unchanged) and run `fetch` on it at once — `fetch`
@@ -253,8 +254,8 @@ Its deliverables are the `.txt` / `.srt` files it writes. It never invents missi
 ## Stops and gaps
 
 - When the backend reports that the source video itself could not be fetched (results carry
-  `data.source_unavailable: true`; it may be deleted or limited to some regions), there is nothing to
-  diagnose: tell the creator in one or two sentences that the video can't be fetched and why, ask for
+  `data.source_unavailable: true`; it may be deleted or limited to some regions), or
+  `observe_video.py` prints `nothing_observed`, there is nothing to diagnose: tell the creator in one or two sentences that the video can't be fetched and why, ask for
   another public link or the video file, and stop. Do not build a report or describe its content.
 - If measurements, a long video's words, real video (a photo post) or an edit are out of reach,
   follow *When part of the media is out of reach* in `references/evidence-reading.md`.

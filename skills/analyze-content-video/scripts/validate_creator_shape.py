@@ -197,9 +197,14 @@ MAGNITUDES = {
     "m": 1_000_000, "million": 1_000_000,
     "b": 1_000_000_000, "bn": 1_000_000_000, "billion": 1_000_000_000,
 }
+# A unit letter followed by a superscript or a digit is a unit of measure, not a scale: "600 m²" is six hundred
+# square metres read off a frame, not six hundred million.
 FIGURE = re.compile(
-    r"(\d+(?:[.,]\d+)*|(?<![A-Za-z0-9.])\.\d+)\s*(万亿|千万|百万|万|亿|千(?![米克瓦卡])|thousand|million|billion|bn|[kmb](?![a-z]))?",
+    r"(\d+(?:[.,]\d+)*|(?<![A-Za-z0-9.])\.\d+)\s*(万亿|千万|百万|万|亿|千(?![米克瓦卡])|thousand|million|billion|bn|[kmb](?![a-z0-9\u00b2\u00b3]))?",
     re.IGNORECASE)
+# A dot between groups of three digits is a thousands separator in many locales: "3.430 views" in a pt-BR
+# report is 3430, and "1.234.567" is a count, never a decimal.
+DOT_THOUSANDS = re.compile(r"^\d{1,3}(?:\.\d{3})+$")
 # A clock is not a figure the creator stands behind, and splitting one produces two that nobody
 # wrote: `14:00` yields `14` and `00`. Hours are governed by the block rules above, which already
 # know a time range from a UTC offset, so times are lifted out before figures are read.
@@ -260,7 +265,12 @@ def source_values(*objects) -> set:
 
 def is_grounded(token: str, unit: str, values: set) -> bool:
     """True when the object holds this figure, or holds something it rounds from at this scale."""
+    if DOT_THOUSANDS.match(token) and is_grounded(token.replace(".", ""), unit, values):
+        return True
     plain = token.replace(",", "")
+    if plain.count(".") > 1:
+        # Only a thousands-separated count has two dots; it was not grounded as one above.
+        return False
     try:
         target = float(plain)
     except ValueError:
@@ -374,7 +384,7 @@ def envelope_errors(result: dict, task: str) -> list[str]:
     return errors
 
 
-def check(result: dict, analysis: dict, evidence: dict) -> list[str]:
+def check(result: dict, analysis: dict, evidence: dict, computed: list | None = None) -> list[str]:
     errors: list[str] = []
     errors.extend(envelope_errors(result, "analyze_content_video"))
     view = result.get("creator_view") or {}
@@ -399,7 +409,7 @@ def check(result: dict, analysis: dict, evidence: dict) -> list[str]:
         if not scope_errors and analysis.get("deterministic") != compute(evidence, None, "unknown"):
             errors.append("unknown ownership must retain the public-only unassessed deterministic block")
         if (analysis.get("evidence_completeness") or {}).get("account_baseline") != "unavailable":
-            errors.append("unknown ownership cannot declare an account baseline")
+            errors.append("unknown ownership has no account baseline: evidence_completeness.account_baseline must be \"unavailable\" (leave it out of the judgment and compose_video_analysis.py fills it)")
         if analysis.get("revisions"):
             errors.append("unknown ownership carries no source revisions")
     cues = ((evidence.get("transcript") or {}).get("cues")) or []
@@ -537,7 +547,7 @@ def check(result: dict, analysis: dict, evidence: dict) -> list[str]:
         # Its exact canonical value was checked above; do not add derived counts to the
         # source-number pool available to unrelated model-authored claims.
         authored_view.pop("data_note", None)
-    errors.extend(figure_errors(authored_view, source_values(analysis, evidence)))
+    errors.extend(figure_errors(authored_view, source_values(analysis, evidence, *(computed or []))))
     return errors
 
 
@@ -548,7 +558,10 @@ def main() -> int:
     parser.add_argument("evidence", type=Path)
     args = parser.parse_args()
 
-    errors = check(load(args.result), load(args.analysis), load(args.evidence))
+    # The promise-payoff gap is computed beside the evidence (compute_promise_payoff.py): a figure taken from it is
+    # computed, not invented.
+    computed = [load(path) for path in (args.evidence.parent / "promise_payoff.json",) if path.is_file()]
+    errors = check(load(args.result), load(args.analysis), load(args.evidence), computed)
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)

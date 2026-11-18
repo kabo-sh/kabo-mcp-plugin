@@ -264,7 +264,7 @@ def validate(analysis: dict, evidence: dict, request: dict | None) -> list[str]:
         scope_errors = public_only_evidence_errors(evidence)
         errors += scope_errors
         require(completeness.get("account_baseline") == "unavailable",
-                "unknown ownership cannot declare an account baseline", errors)
+                "unknown ownership has no account baseline: evidence_completeness.account_baseline must be \"unavailable\" (leave it out of the judgment and compose_video_analysis.py fills it)", errors)
         if not scope_errors:
             require(deterministic == compute(evidence, None, "unknown"),
                     "unknown ownership must retain the public-only unassessed deterministic block", errors)

@@ -8,8 +8,8 @@ already failed, the method cards selected: the `sound` card adds a whole-video v
 - `server_frames`: one `collect_video_media` call (transcript, keyframes, measurements, metadata) that the
   backend queues and waits for, as collect_media.py does.
 - `whole_video`: one `analyze_content_video` call (a viewer watches the whole video with its audio), read back
-  with `get_analysis_run` until it is terminal; plus a metadata-only media call where the platform's metadata
-  comes from the media tool. The submission returns at once (KS8: no server-side wait on the initial call);
+  with `get_analysis_run` until it is terminal; plus a media call for the platform's metadata where it comes
+  from the media tool and, while the duration is unknown, a measurement that reports it (in the same call). The submission returns at once (KS8: no server-side wait on the initial call);
   each reading waits inside the tool (`wait_s`). Both ask for `delivery: "download"`: a
   completed answer then carries a signed download of the complete result, which this script downloads and checks
   (sha256 and bytes, expiry) with static_host.py's downloader; an inline answer (a host that ignores `delivery`)
@@ -21,8 +21,9 @@ had only the metadata-only call) starts one more media call for exactly those op
 each source is judged on the media results that carry its operations. The mode bends the order the way
 observation_order.py says: a transcript export never starts a viewing, a craft teardown never views without frames.
 The paid viewing starts only once the video's duration is known to be within the whole-video limit: from
-`--duration-s`, the media results (metadata, frames or transcript, in a call already being made or a metadata-only
-call where that is the platform's route) or the YouTube metadata envelope the run persisted. Until then it waits
+`--duration-s`, the media results (metadata, frames, measurement or transcript, in a call already being made or the
+viewing's own media call, which measures the file while the duration is unknown) or the YouTube metadata envelope
+the run persisted. A run where every source came back empty prints `nothing_observed` and no build arguments. Until then it waits
 in the rounds the media call already takes; when the duration stays unknown or is over the limit, no viewing
 starts, a limitation says why, and the other source carries on (or, with nothing left, the run ends with that gap).
 
@@ -140,12 +141,15 @@ def platform_of(url: str) -> str | None:
     return found["platform"] if found else None
 
 
-def media_operations(source: str, mode: str, platform: str | None) -> list[str]:
+def media_operations(source: str, mode: str, platform: str | None, *, need_duration: bool = False) -> list[str]:
     metadata = ((public_video_sources.source(platform) or {}).get("metadata_route") == "media_call"
                 and mode in METADATA_MODES)
     if source == "whole_video":
-        # The viewer replaces frames and measurements, not the post's metadata.
-        return ["metadata"] if metadata else []
+        # The viewer replaces frames and measurements, not the post's metadata. With the duration still unknown, the
+        # same call also measures the file: the measurement reports the duration the viewing waits for, where the
+        # metadata has none (Instagram) or comes from a tool that may answer unsupported (YouTube's).
+        return (["metadata"] if metadata else []) + (["measure"] if need_duration and mode != "transcript_export"
+                                                      else [])
     return (["metadata"] if metadata else []) + MODE_OPERATIONS[mode]
 
 
@@ -274,7 +278,9 @@ def begin(current: dict[str, Any], note: str = "") -> int:
     media = current["media"]
     requested = list(media.get("requested") or (media.get("operations") or [] if media.get("active") else []))
     # Only what no earlier media call asked for: a request already made is never made again under this run key.
-    missing = [name for name in media_operations(source, current["mode"], current["platform"]) if name not in requested]
+    need_duration = source in {"whole_video", "combined"} and known_duration(current) is None
+    missing = [name for name in media_operations(source, current["mode"], current["platform"],
+                                                 need_duration=need_duration) if name not in requested]
     start_media = bool(missing)
     if start_media:
         if media.get("active"):
@@ -534,9 +540,10 @@ def finish_media(mode: str) -> dict[str, Any]:
             job_id = body.get("job_id") or (jobs.get(call["group"]) or {}).get("job_id")
             if refs and job_id:
                 # A host cut one 60-frame read off after 16 images: read at most READ_CHUNK frames per call.
+                # No `delivery`: the read shows the images inline, which is how the frames get viewed. A host that
+                # answers with a download link instead is told to save and fetch it.
                 read = [{"tool": "read_research_data_artifacts",
-                         "arguments": {"job_id": job_id, "object_refs": refs[start:start + READ_CHUNK],
-                                       "delivery": "download"}}
+                         "arguments": {"job_id": job_id, "object_refs": refs[start:start + READ_CHUNK]}}
                         for start in range(0, len(refs), READ_CHUNK)]
     for group, job in jobs.items():
         operation = group.rsplit("/", 1)[-1]
@@ -544,6 +551,24 @@ def finish_media(mode: str) -> dict[str, Any]:
             pending.append(f"{operation}={job['job_id']}")
     return {"envelopes": envelopes, "pending": pending, "usable": usable, "source_unavailable": gone, "read": read,
             "duration_s": duration}
+
+
+def observed_anything(current: dict[str, Any], media: dict[str, Any] | None) -> bool:
+    """Whether any source brought something to analyse: frames, transcript words or whole-video notes.
+
+    A gone video once came back as every media job `completed_partial` and empty, with no flag saying the source
+    was unavailable, and a viewing that failed too: the run printed `observed` and the brief was built from
+    nothing. A transcript export's finished transcript with no words is its answer, so it counts."""
+    if media is not None and media["usable"]:
+        return True
+    viewer = current["viewer"]
+    if not (viewer.get("active") and viewer.get("status") == "completed" and viewer.get("persisted")):
+        return False
+    try:
+        reading = viewer_response.read(Path(viewer["persisted"]).read_bytes())
+    except (OSError, ValueError):
+        return False
+    return bool(viewer_response.items(reading["run"]) or viewer_response.transcript_cues(reading))
 
 
 def fall_back(current: dict[str, Any], failed: str, code: str | None) -> int | None:
@@ -594,14 +619,30 @@ def settle(current: dict[str, Any]) -> int:
         flags += [f"--deferred-incomplete {item}" for item in media["pending"]]
     if viewer.get("active") and viewer.get("persisted"):
         flags.append(f"--viewer {viewer['persisted']}")
-    flags += [f"--limitation {collect_media.quote(text)}" for text in current.get("limitations") or []]
+    duration = current.get("duration_s")
+    if duration is None and media is not None:
+        duration = media["duration_s"]
+    if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration > 0:
+        # Given with --duration-s or read from a result: the evidence records it even when no envelope passed to the
+        # builder carries it (a whole-video run needs it for the hook window and the promise).
+        flags.append(f"--duration-s {duration:g}")
+    # One line per limitation, however many times a round recorded it.
+    flags += [f"--limitation {collect_media.quote(text)}" for text in dict.fromkeys(current.get("limitations") or [])]
     current["done"] = True
     save_state(current)
-    say(json.dumps({"status": "observed", "source": current["source"], "tried": current["tried"],
-                    "whole_video": viewer.get("status") if viewer.get("active") else None,
+    nothing = not observed_anything(current, media)
+    say(json.dumps({"status": "nothing_observed" if nothing else "observed", "source": current["source"],
+                    "tried": current["tried"], "whole_video": viewer.get("status") if viewer.get("active") else None,
                     "media_pending": media["pending"] if media else []}, ensure_ascii=False))
-    for line in current.get("fallback_notes") or []:
+    for line in dict.fromkeys(current.get("fallback_notes") or []):
         say("Fallback: " + line)
+    if nothing:
+        say("Every observation source came back empty: no frames, no transcript words and no whole-video notes. "
+            "There is nothing to analyse, so do not build a report or describe the video's content. Follow "
+            "*Stops and gaps* in the Skill: tell the creator in one or two sentences that this video could not be "
+            "read (it may be deleted, private or limited to some regions), ask for another public link or the video "
+            "file, and stop.")
+        return 0
     if viewer.get("active") and not viewer_ok:
         say("The whole-video viewing did not complete, so its notes are unavailable; the evidence builder records "
             "that. Say so beside the claims it weakens, never as a backend failure.")

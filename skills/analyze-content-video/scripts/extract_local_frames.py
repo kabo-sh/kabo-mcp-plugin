@@ -298,6 +298,10 @@ def read_media_facts(payload: dict) -> dict:
     return facts
 
 
+# Body spacing above which a thinned body counts as degraded coverage.
+DEGRADED_ABOVE_S = 1.0
+
+
 def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
                 hook_multiplier: int, budget: int) -> dict:
     """Where to sample, and what to record about the choice.
@@ -325,6 +329,9 @@ def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
         body_degraded = True
 
     body_interval_s = remaining_s / body_frames if body_frames else 0.0
+    # Thinned is not degraded while the body is still sampled at least once a second: the planned
+    # interval the connector reads to the same standard, and no cut it can resolve is lost.
+    body_degraded = body_degraded and body_interval_s > DEGRADED_ABOVE_S
     timestamps += [round(hook_dense_window_s + index * body_interval_s, 3)
                    for index in range(1, body_frames)]
     closing_frame_s = round(max(0.0, duration_s - CLOSING_OFFSET_S), 3)
@@ -832,6 +839,11 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="Probe and plan, write no frames.")
     args = parser.parse_args()
     deadline = started_at + args.deadline_s
+    if not args.dry_run:
+        # Reading the file is this run's observation; the evidence builder ends the stage.
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import acv_timing
+        acv_timing.open_for_artifact(args.artifact)
 
     media = args.media.expanduser()
     if not media.is_absolute():

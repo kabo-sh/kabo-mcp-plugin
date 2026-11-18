@@ -109,6 +109,18 @@ def open_stage(analysis: Path, stage: str) -> None:
         pass
 
 
+def open_for_artifact(artifact: Path, stage: str = "observe") -> None:
+    """Open `stage` for a local step whose artifact goes to <run>/analysis/ (frame extraction, measurement, local
+    speech recognition): the evidence builder closes it, so reading a file on this machine is timed as the
+    observation it is. Anywhere else (no reserved run around it) nothing is recorded."""
+    try:
+        analysis = Path(artifact).resolve().parent
+        if analysis.name == "analysis" and (analysis.parent / ".static-run.json").is_file():
+            open_stage(analysis, stage)
+    except OSError:
+        pass
+
+
 def close_stage(analysis: Path, stage: str) -> None:
     marker = Path(analysis) / OPEN
     opened = _read(marker, {})

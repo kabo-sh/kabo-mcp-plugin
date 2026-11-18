@@ -35,9 +35,9 @@ needs a frame.
 
 **Reading the frame bytes.** A completed keyframe job lists `frames[]` / `artifacts[]` refs. Select
 the exact refs you need and read them with `read_research_data_artifacts` (`job_id` plus those
-`object_refs`, with `"delivery": "download"`). If that read shows you the images themselves, they
-are viewed: do not save or stage them, one by one or at all; the evidence builder lists frames from
-the keyframe envelope, not from their bytes. When the read returns a download link instead, save
+`object_refs`, without `delivery`, as `observe_video.py` prints the reads: the images arrive inline,
+which is the working path). If that read shows you the images themselves, they are viewed: do not save or stage them, one by one or at all; the evidence builder lists frames from
+the keyframe envelope, not from their bytes. When a host returns a download link instead, save
 that small result and run `static_host.py fetch` on it (it is fetched, not persisted). Then open each image's `path` from fetch's output with the
 host's own file or image viewer: a file on disk is not yet seen. Only for items fetch lists as
 unavailable, or when scripts cannot reach the network, read those refs again without `delivery`

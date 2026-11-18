@@ -7,8 +7,8 @@ layer of scores, verdicts and advice. This run uses it as eyes and ears only: th
 advice is dropped here, in one place, so it can never reach the evidence, the brief or the report.
 
 Accepted inputs: the tool's complete MCP result (with `structuredContent`, or one JSON text block), the bare
-result object, a failed call (an MCP error result, or the bare `{code, message, retryable}` failure body a host
-may save instead), or the redacted copy `observe_video.py` persists (`schema_version: acv-whole-video/v1`).
+result object, a failed call (an MCP error result, the bare `{code, message, retryable}` failure body a host
+may save instead, or the plain text a host shows for it, "MCP error -32602: ..."), or the redacted copy `observe_video.py` persists (`schema_version: acv-whole-video/v1`).
 
 A completed result asked for with `delivery: "download"` carries a `download` object in place of `result` and
 `transcript`; `download_offer` finds it, and observe_video.py downloads and checks the complete result (the
@@ -143,11 +143,31 @@ def _structured(value: dict[str, Any]) -> Any:
 # Invalid arguments for tool ...").
 INVALID_PARAMS = -32602
 INPUT_REJECTED = re.compile(r"-32602|input validation error|invalid arguments for tool", re.IGNORECASE)
+# Some hosts show a failed call as plain text, not JSON ("MCP error -32602: Input validation error: ..."), and that
+# text is what gets saved. It is read as the failure it states.
+PLAIN_ERROR = re.compile(r"^\s*(?:MCP error\b|Error\b|Tool error\b|[a-z][a-z0-9_]{1,63}:\s)", re.IGNORECASE)
+
+
+def plain_error(raw: bytes) -> str | None:
+    """The text of a failure saved as plain text rather than JSON; None for anything else."""
+    try:
+        json.loads(raw)
+        return None
+    except ValueError:
+        pass
+    try:
+        text = raw.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return None
+    return text if text and PLAIN_ERROR.match(text) else None
 
 
 def input_rejected(raw: bytes) -> bool:
     """Whether the saved result is the server refusing the call's arguments, before any analysis ran: an MCP error
     result, or a JSON-RPC error object a host saved instead."""
+    text = plain_error(raw)
+    if text is not None:
+        return bool(INPUT_REJECTED.search(text))
     try:
         value = json.loads(raw)
     except ValueError:
@@ -199,12 +219,15 @@ def run_of(raw: bytes) -> Any:
 def read(raw: bytes) -> dict[str, Any]:
     """{"run": redacted run | None, "error": {code, message, retryable} | None, "raw_sha256", "polls",
     "idempotency_key", "source_url"} from the saved bytes. Raises ValueError for an unusable save."""
+    digest = hashlib.sha256(raw).hexdigest()
+    base = {"raw_sha256": digest, "polls": 0, "idempotency_key": None, "source_url": None}
+    text = plain_error(raw)
+    if text is not None:
+        return {**base, "run": None, "error": {"code": _error_code(text), "message": text[:300], "retryable": False}}
     try:
         value = json.loads(raw)
     except ValueError:
         raise ValueError("the saved whole-video result is not JSON; save the tool's result whole, as returned") from None
-    digest = hashlib.sha256(raw).hexdigest()
-    base = {"raw_sha256": digest, "polls": 0, "idempotency_key": None, "source_url": None}
     if isinstance(value, dict) and value.get("schema_version") == PERSISTED:
         run = value.get("response")
         return {**base, "raw_sha256": value.get("raw_sha256") or digest, "polls": int(value.get("polls") or 0),

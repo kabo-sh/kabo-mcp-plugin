@@ -251,7 +251,7 @@ def qualify_revision_refs(analysis: dict[str, Any], evidence_refs: set[str]) -> 
     return result, changed
 
 
-def completeness(evidence: dict[str, Any], judgment: dict[str, Any]) -> dict[str, Any]:
+def completeness(evidence: dict[str, Any], judgment: dict[str, Any], subject_state: Any = None) -> dict[str, Any]:
     """What the analysis could see, read off the evidence rather than restated.
 
     `media` and `frames` are a two-value enum in the analysis while the evidence has four states,
@@ -272,6 +272,10 @@ def completeness(evidence: dict[str, Any], judgment: dict[str, Any]) -> dict[str
     # Whether a comparable baseline was retrieved is not a fact about this video's own evidence,
     # so it is the one member of this block the judgment supplies.
     baseline = record(judgment.get("evidence_completeness")).get("account_baseline")
+    if baseline is None and subject_state in {"unknown", "third_party"}:
+        # Someone else's or an unattributed video has no account baseline of the creator's to compare with: that
+        # follows from whose video it is, so it is filled here rather than left for the judgment to remember.
+        baseline = "unavailable"
     if baseline is not None:
         block["account_baseline"] = baseline
     return block
@@ -370,7 +374,7 @@ def compose(judgment: dict[str, Any], evidence: dict[str, Any], deterministic: d
         "evidence_ref": evidence.get("evidence_id"),
         # The evidence ref carries more than identity; the analysis carries only identity.
         "content_ref": {key: ref.get(key) for key in CONTENT_REF_KEYS},
-        "evidence_completeness": completeness(evidence, judgment),
+        "evidence_completeness": completeness(evidence, judgment, record(request.get("source")).get("subject_state")),
         "deterministic": deterministic,
         "reproducibility": {
             "run_id": run_id,

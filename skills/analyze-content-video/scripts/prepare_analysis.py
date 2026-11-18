@@ -33,6 +33,7 @@ SKILL = SCRIPTS.parent
 sys.path.insert(0, str(SCRIPTS))
 import acv_timing  # noqa: E402
 import select_method  # noqa: E402
+import transcript_checks  # noqa: E402
 
 BRIEF_TEXTS = SKILL / "references" / "analysis-brief"
 MODES = ("diagnosis", "content_read", "craft_teardown")
@@ -55,6 +56,16 @@ NEXT = {
 PROBED_SUMMARY = ("shots", "silence", "freeze", "framing")
 # A sound cue in a transcript: a bracketed tag such as [Music] (in any language) or a music note.
 SOUND_MARKER = re.compile(r"\[[^\[\]\n]{1,40}\]|[\u266a\u266b\u266c]")
+# Whole-video note aspects that are about what was heard ("Audio Integration", "Audio Quality", "Voice", ...).
+SOUND_ASPECT = re.compile(r"audio|sound|music|voice|vocal|speech|narrat|song|\bmix|sfx", re.IGNORECASE)
+# How far from a note's start a measured cut is shown beside it: the viewer's times are its own estimates.
+NEAR_CUT_S = 2.0
+REASON_TEXT = {"sound_marker_only": "sound marker only", "generic_line": "generic line, likely invented over music",
+               "past_end": "starts after the video ends"}
+STOP_TEXT = ("Nothing was observed: no frames, no transcript words, no whole-video notes and no images arrived. "
+             "Follow *Stops and gaps* in the Skill: tell the creator the video could not be read (it may be deleted, "
+             "private or limited to some regions), ask for another public link or the video file, and stop. Do not "
+             "write a judgment, a report or an answer about the video's content.")
 
 
 def load(path: Path) -> Any:
@@ -94,7 +105,8 @@ def deterministic(run: Path, mode: str, evidence: dict[str, Any], request: dict[
         lines += ["### Promise and payoff (`analysis/promise_payoff.json`)", "",
                   "It anchors the promise; the payoff is your judgment. To measure the gap, name the cue that pays "
                   "it off: `cd '<run directory>' && python3 <skill directory>/scripts/compute_promise_payoff.py analysis/content_evidence.json "
-                  "--payoff-cue <i>`. Never report a distance it did not compute.", "", "```json",
+                  "--payoff-cue <i> --output analysis/promise_payoff.json`; it rewrites this file, so the gap it "
+                  "measures may be cited. Never report a distance it did not compute.", "", "```json",
                   json.dumps(load(run / "analysis/promise_payoff.json"), ensure_ascii=False, indent=1), "```", ""]
     except RuntimeError as error:
         lines += ["### Promise and payoff", "", f"Not computed: {one_line(error)[:300]}", ""]
@@ -116,7 +128,59 @@ def deterministic(run: Path, mode: str, evidence: dict[str, Any], request: dict[
     return lines
 
 
-def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[str, Any]) -> list[str]:
+def observed_nothing(evidence: dict[str, Any]) -> bool:
+    """True when no source brought anything to analyse: no frames, no transcript words, no notes, no images."""
+    if (evidence.get("frames") or {}).get("status") == "available":
+        return False
+    transcript = evidence.get("transcript") or {}
+    if transcript.get("status") == "available" and (
+            transcript.get("plain_text") or transcript_checks.worded_cues(transcript.get("cues") or [])):
+        return False
+    if (evidence.get("viewer_observations") or {}).get("items"):
+        return False
+    return not any(item.get("status") == "available" for item in (evidence.get("images") or {}).get("items") or []
+                   if isinstance(item, dict))
+
+
+def note_flags(note: dict[str, Any], duration: Any, cuts: list[float]) -> str:
+    """What to check before citing a whole-video note: a span past the end, a measured cut near its start."""
+    flags = []
+    start, end = note["start_ms"] / 1000, note["end_ms"] / 1000
+    if isinstance(duration, (int, float)) and end > duration + transcript_checks.END_TOLERANCE_S:
+        flags.append(f"runs past the end of the {duration:g}s video")
+    near = [cut for cut in cuts if abs(cut - start) <= NEAR_CUT_S and abs(cut - start) > 0.5]
+    if near:
+        closest = min(near, key=lambda cut: abs(cut - start))
+        flags.append(f"measured cut at {closest:g}s, {round(abs(closest - start), 2):g}s "
+                     + ("after" if closest > start else "before") + " the note's start")
+    return f" ({'; '.join(flags)})" if flags else ""
+
+
+def transcript_lines(transcript: dict[str, Any]) -> list[str]:
+    """Each transcript source this run had and every disagreement among them."""
+    lines = []
+    names = {"fetched": "Fetched transcript", "whole_video_viewer": "Whole-video viewer's transcript",
+             "subtitle_file": "Subtitle file", "local_speech_recognition": "Local speech recognition"}
+    for item in transcript.get("sources") or []:
+        facts = [item.get("status"), f"{item.get('cue_count')} cues"]
+        if item.get("origin"):
+            facts.append(f"origin {item['origin']}")
+        if item.get("language"):
+            facts.append(f"declared {item['language']}")
+        if item.get("detected_language"):
+            facts.append(f"reads as {item['detected_language']}")
+        lines.append(f"- {names.get(item.get('source'), item.get('source'))} ({'kept' if item.get('used') else 'not kept'}): "
+                     + ", ".join(str(fact) for fact in facts if fact)
+                     + (f" — \"{item['excerpt']}\"" if item.get("excerpt") else ""))
+    if lines:
+        lines.append("- On-screen text in the frames: yours to read. Compare it with the kept transcript before "
+                     "quoting a line; where they disagree, the frame shows what the viewer reads.")
+    lines += [f"- Conflict: {one_line(text)}" for text in transcript.get("conflicts") or []]
+    return lines
+
+
+def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[str, Any],
+                   request: dict[str, Any] | None = None) -> list[str]:
     lines = [f"Observation source: {source or 'unknown'}. Evidence `{evidence.get('evidence_id')}`. The complete "
              "list of legal references is `analysis/content_evidence.references.json`; the values are in "
              "`analysis/content_evidence.json`.", ""]
@@ -131,6 +195,11 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
     media = evidence.get("media") or {}
     if media.get("duration_s") is not None:
         lines.append(f"- `media.duration_s` {media['duration_s']}")
+    if ((request or {}).get("source") or {}).get("acquisition") == "local_file":
+        lines.append("- This is a file on this machine: it carries no caption, view counts or comments. When the "
+                     "creator asks how the video performed, why it flopped or took off, ask once for the published "
+                     "link (a link run reads its counts and caption); until then answer from the file and name "
+                     "those numbers as missing.")
     metadata = evidence.get("content_metadata") or {}
     lines.append(f"- `content_metadata` {metadata.get('status')}")
     for field in ("title", "caption"):
@@ -167,7 +236,12 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
     cues = transcript.get("cues") or []
     lines += [f"### Transcript ({transcript.get('status')}, origin {transcript.get('origin')}, "
               f"{len(cues)} cues)", "", f"Basis: {one_line(transcript.get('status_basis'))}"]
+    lines += transcript_lines(transcript)
+    suspect = {item["index"]: item["reason"] for item in transcript.get("suspect_cues") or []
+               if isinstance(item, dict) and isinstance(item.get("index"), int)}
     lines += [f"- `transcript.cue[{index}]` {seconds(cue.get('start_s'))}: {one_line(cue.get('text'))}"
+              + (f" [no evidence of speech: {REASON_TEXT.get(suspect[index], suspect[index])}]"
+                 if index in suspect else "")
               for index, cue in enumerate(cues)]
     if transcript.get("plain_text") and not cues:
         lines.append(f"- `transcript.plain_text` (untimed): {one_line(transcript['plain_text'])}")
@@ -180,8 +254,13 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
         lines += [f"### Whole-video notes ({viewer.get('status')}, {len(notes)})", ""]
         if failure:
             lines.append(f"Viewing failure: {failure.get('code')}.")
+        if notes:
+            lines.append("The times are the viewer's own estimates. Where a measured cut or a frame places a moment "
+                         "differently, cite the cut or the frame's time, not the note's.")
+        cuts = [float(cut) for cut in ((media.get("probed") or {}).get("shots") or {}).get("cuts_at_s") or []
+                if isinstance(cut, (int, float))]
         lines += [f"- `{note['id']}` {note['start_ms'] / 1000:g}–{note['end_ms'] / 1000:g}s [{note['aspect']}]: "
-                  f"{one_line(note['note'])}" for note in notes]
+                  f"{one_line(note['note'])}{note_flags(note, media.get('duration_s'), cuts)}" for note in notes]
         lines.append("")
 
     probed = media.get("probed") or {}
@@ -220,10 +299,15 @@ def sound_lines(evidence: dict[str, Any]) -> list[str]:
             f"`transcript.cue[{index}]` {' '.join(dict.fromkeys(found))}" for index, found in marked))
     elif cues:
         lines.append("- No sound markers (such as [Music] or a music note) in the transcript cues.")
-    probed = (evidence.get("media") or {}).get("probed") or {}
+    media = evidence.get("media") or {}
+    probed = media.get("probed") or {}
+    if media.get("has_audio") is False or (evidence.get("transcript") or {}).get("status") == "no_audio_track":
+        lines += ["- The file has no audio track: there is no music, voice or mix to analyse. Say that, instead of "
+                  "judging the sound or calling it unmeasured.", ""]
+        return lines
     measured = [name for name in ("loudness", "silence") if probed.get(name)]
     notes = [item for item in ((evidence.get("viewer_observations") or {}).get("items") or [])
-             if isinstance(item, dict) and str(item.get("aspect") or "").lower() in {"audio", "sound", "music"}]
+             if isinstance(item, dict) and SOUND_ASPECT.search(str(item.get("aspect") or ""))]
     if measured or notes:
         lines.append("- Music and mix evidence: " + ", ".join(
             [f"`media.probed.{name}`" for name in measured] + [f"whole-video sound note `{item['id']}`" for item in notes]))
@@ -331,6 +415,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.focus is None and chosen.is_file():
             # The cards chosen from the request before the fetch; this run checks them against the evidence.
             focus = select_method.requested_focus(load(chosen))
+        if observed_nothing(evidence):
+            print(json.dumps({"status": "refused", "error": STOP_TEXT}, ensure_ascii=False))
+            return 2
         method = select_method.select(index, args.mode, focus, evidence)
     except select_method.SelectionError as error:
         print(json.dumps({"status": "refused", "error": str(error)}, ensure_ascii=False))
@@ -342,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
         (analysis / "method.json").write_text(json.dumps(method, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         source = acv_timing.load(analysis).get("observation_source")
         text = brief(question, args.mode, focus, method, args.library, index,
-                     evidence_index(evidence, source, method), deterministic(run, args.mode, evidence, request),
+                     evidence_index(evidence, source, method, request), deterministic(run, args.mode, evidence, request),
                      subject_state=str((request.get("source") or {}).get("subject_state") or "unknown"))
         (analysis / "brief.md").write_text(text, encoding="utf-8")
     except (ValueError, OSError, KeyError, TypeError, RuntimeError) as error:
