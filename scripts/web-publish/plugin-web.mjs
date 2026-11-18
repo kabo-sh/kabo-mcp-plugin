@@ -43,9 +43,10 @@ export const TEST_ACCOUNTS_OBJECT = `${OVERLAY_PREFIX}test-accounts.json`;
 //   different content), and /health could not tell old from new.
 export const VERSIONS_OBJECT = `${OVERLAY_PREFIX}versions.json`;
 const historyObject = (sha) => `${OVERLAY_PREFIX}history/${sha}.json`;
-// Remake on Web is handled by creator-remake-web (production channel); the plugin's remake-viral-video uses a
-//   different tool surface and does not go to Web.
-export const EXCLUDED = new Set(['remake-viral-video']);
+// Skills that never go to Web. Empty since 1.0.56: remake-viral-video is now the one remake Skill for Web and the
+//   plugin (Web hosts it via the Agent Service host policy), so it publishes like any other Skill; its first
+//   appearance on a target is still gated by PLUGIN_WEB_DEBUT.
+export const EXCLUDED = new Set();
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
 const COMMIT = /^[0-9a-f]{40}$/;
