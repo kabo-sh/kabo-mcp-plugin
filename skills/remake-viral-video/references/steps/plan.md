@@ -82,10 +82,13 @@ Then `shots`, one per shot: `shot`, `t0`, `t1`, `words` (the exact words heard o
 (who or what, doing what, shot size; in a talking shot who speaks and who stays silent), `sources`
 (the attachments or handles it uses), `keep_change`, `motion` (`"still"` or how it moves),
 `on_screen_text`, and optionally `on_screen_cast` (the `characters` names seen in this shot, a
-list), `speaker` (who says the row's words on camera, by its `characters` name; `""` for a
+list), `location` (its place, by its `environments` name), `camera` (the camera position on that
+place: `wide`, `reverse`, `top`, `low` ...), `positions` (`{name: left | center | right}` for the
+characters seen), `props` (the `props` names seen), `speaker` (who says the row's words on camera, by its `characters` name; `""` for a
 voice-over or when nobody is seen speaking), `how` (the steps that make the row, by step name with
 the handles, e.g. "still a05 -> talking (speaker: grandma)" or "still -> animate"; acting and
-delivery go in `motion` or `prompt`, not here), `prompt` (the full prompt), `captions`, `sound`,
+delivery go in `motion` or `prompt`, not here), `prompt` (the full prompt: what happens, camera
+and framing; it names the characters, place and props and never copies their looks), `captions`, `sound`,
 `transition`. A row whose words are said on camera by its speaker is a talking shot: its `how`
 names `talking` (or `lipsync` on a moving clip), never `animate` alone. Every character in a shot's picture
 is in its `on_screen_cast`, and the picture never redescribes a character's look differently from
@@ -133,28 +136,62 @@ Write the prompt yourself from `picture`, `form` (medium, look, `avoid`), the `l
 character in the row's `on_screen_cast`, and the style
 card, as step 4 above says, and save it into the row when you save the storyboard again.
 
-## The same people in every shot: character sheets first
+## The same people and places in every shot: cards first
 
-Every character seen in more than one shot goes in the storyboard's top-level `characters`:
-`{name, look, sheet}`, where `name` is used the same way everywhere (each row's `on_screen_cast`
-lists the names seen in it, and `speaker` uses them too) and `look` is the one fixed appearance
-written into every picture of them. Before the shots, make one sheet per character: a `still` with
-`params.sheet_for` set to the name and a prompt of their look, full body, front view, plain
-background, in the project's look (a planning trial still may be a sheet). Save the handles with
-`remake_video {request:{action:"plan", job_id, sheets:{<name>: <handle>}}}`; the whole storyboard
-need not be sent again. Then give `params.on_screen_cast` on every `still` with characters in it:
-the host puts their sheets first in the references, so a character looks the same from shot to
-shot, and a still of a character without a sheet is turned back until the sheet is made.
-Stills batched together share their references, so batch rows with the same cast. `animate` and
-`talking` start from those stills and keep the look.
+Every character seen in more than one shot goes in the storyboard's top-level `characters`, every
+place seen in more than one shot in `environments`, and every object that recurs or matters to the
+story in `props`, each `{name, look, sheet}`: `name` is used the same way everywhere (rows'
+`on_screen_cast`, `speaker`, `location`, `props`) and `look` is the one fixed appearance (for a
+place, written by direction: "window on the north wall, sofa against the east wall", so every
+angle agrees). When the plan is saved, Kabo keeps these as the project's cards; from then on a step
+only names them and Kabo adds their sheets and looks to the picture. Write only the names in
+prompts: a look copied into a prompt drifts.
+
+Before the shots:
+
+- **Characters.** One sheet per character: a `still` with `params.sheet_for` set to the name, in
+  the project's look: one character sheet on a plain white background, a head-and-shoulders
+  close-up on the left and three full-body views of the same person on the right (front,
+  three-quarter, back). Save the handles with
+  `remake_video {request:{action:"plan", job_id, sheets:{<name>: <handle>}}}`; the whole
+  storyboard need not be sent again.
+- **Places.** One picture of the place without people, `params.sheet_for`
+  `{kind: "environment", name, as: "ref", view: "wide"}`; then, from it (`inputs.refs`), one
+  vertical picture per other camera position the shots use (`as: "ref"` with its `view`:
+  `reverse`, `top`, `low` ...). A grid of all angles is only for the creator to check; it never
+  goes into a shot.
+- **Props** that must look the same: one sheet each, `sheet_for` `{kind: "prop", name}`.
+
+Then every `still` with characters gives `params.on_screen_cast` (`[]` when nobody is in it),
+`params.location` and `params.camera`, `params.positions` when more than one character is seen,
+and `params.props` when they are seen; in a batch one value per item (a list, `null` for an item
+without) or one for all. Leave `inputs.refs` out of shots: Kabo sends at most three pictures (the
+characters' sheets and the place's picture from that camera), and more drew worse. A still of a
+character without a sheet is turned back until the sheet is made. `animate` and `talking` start
+from those stills and keep the look; `animate` must not add a character the still does not show.
+
+## Make the rows by shot number
+
+The saved storyboard is also kept in the project, so steps say the shot instead of pairing rows
+with handles: `still {params:{shot: N}}` (a batch: `shot: [3, 7, 10]`) takes the row's prompt and
+its characters, place and camera; `animate {params:{shot: N}}` takes the shot's latest picture and
+the row's `motion`; `tts {params:{shot: N}}` reads the row's `words` in its speaker's card voice;
+`talking {params:{shot: N}}` makes the shot's picture say the shot's voice; `trim`, `retime` and
+`mux` take the shot's latest clip; `concat {params:{shots: "all"}}` joins every shot's latest clip
+in storyboard order (a talking clip over an animated one over any other). Give a prompt or a handle
+only to change what the row says. A refusal names what to make first: `shot_missing` (no picture
+or voice for that shot yet), `shot_mismatch` (a handle made for another shot), `shot_no_words`,
+`talking_speaker_not_in_picture` (the shot's picture was drawn without its speaker). Pair handles
+yourself only for steps outside the storyboard.
 
 ## Characters that talk
 
-A drawn or invented character, with or without the creator: make each character with `still`;
-voice the lines with `tts` (one call per voice, preset voices); then `talking` (the character's
-still + its line) or `lipsync` (an `animate` clip of it + the line) gives a talking shot per line;
-each shot takes the per-line audio of that line from the `tts` call of the voice that speaks it
-(match the words in that call's notes, not the order of the handles). On a character picture every
+A drawn or invented character, with or without the creator: make each character's sheet and the
+shots' stills as above; voice each row with `tts {params:{shot: N}}` (the row's words in its
+speaker's voice; a batch of them in one call); then `talking {params:{shot: N}}` (the shot's
+picture with its voice) or `lipsync` on an `animate` clip of it gives the talking shot. Without a
+saved storyboard, take each line's audio from the `tts` call of the voice that speaks it (match the
+words in that call's notes, not the order of the handles). On a character picture every
 `talking` call names the speaker in `params.speaker`, as the storyboard row does (its
 `characters` name with its look, e.g. "grandma, the grandmother in the armchair"): the host counts the characters in the picture and, when
 there is more than one, makes only the speaker's head and shoulders talk, so the others keep their
