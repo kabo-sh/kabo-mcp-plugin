@@ -72,6 +72,12 @@ captions, voice, music and sound), `total_s`, and, when the video has recurring 
 the storyboard, and the fixed look every picture of them follows (build, face, hair, clothes,
 colours, props). `sheet` is filled in during production ("The same people in every shot" below);
 a plan handed to Kabo's producer to make leaves it out.
+`total_s` follows the reference when there is one. Without one (the creator's request and
+material only) and with no length asked for, plan the length the format needs, not the fewest
+seconds the material fills: a product or brand promo runs about 20-30 s, an explainer or a story as
+long as its words take at the voice's pace, one clip with overlays keeps that clip's length. A held
+picture lasts about 3-4 s at most, so a few photos become more shots (details, moves, a closing
+lockup), not a shorter video. Never shorten the plan to spend less.
 Then `shots`, one per shot: `shot`, `t0`, `t1`, `words` (the exact words heard over it), `picture`
 (who or what, doing what, shot size; in a talking shot who speaks and who stays silent), `sources`
 (the attachments or handles it uses), `keep_change`, `motion` (`"still"` or how it moves),
