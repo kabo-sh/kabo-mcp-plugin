@@ -183,6 +183,11 @@ def selected_cards() -> list[str]:
 
 def viewer_arguments(current: dict[str, Any], *, start: bool) -> dict[str, Any]:
     viewer = current["viewer"]
+    if current.get("legacy_viewer_args"):
+        # A server that does not know wait_s / delivery yet: the original arguments, answered inline, polled at the
+        # script's own pace (POLL_INTERVAL_S).
+        return ({"source_url": current["url"], "idempotency_key": viewer["key"]} if start
+                else {"analysis_id": viewer["analysis_id"]})
     if start:
         return {"source_url": current["url"], "idempotency_key": viewer["key"], "delivery": "download"}
     if viewer.get("redeliver") == "inline":
@@ -329,6 +334,14 @@ def read_viewer(current: dict[str, Any], file: Path, tool: str) -> None:
                          "then run the same resume command again")
     raw = file.read_bytes()
     viewer = current["viewer"]
+    if not current.get("legacy_viewer_args") and viewer_response.input_rejected(raw):
+        # The server refused the newer inputs (wait_s / delivery) before anything ran: nothing was started or
+        # charged. Send the same call once more with the original arguments, and keep them for the rest of the run.
+        current["legacy_viewer_args"] = True
+        viewer["legacy_retry"] = tool
+        current.setdefault("fallback_notes", []).append(
+            f"{tool} did not accept wait_s / delivery on this server; repeated with its original arguments")
+        return
     if tool == POLL_TOOL:
         viewer["polls"] = int(viewer.get("polls") or 0) + 1
     viewer["read_at"] = now().isoformat()
@@ -645,6 +658,9 @@ def resume(args: argparse.Namespace) -> int:
         if not media_waiting:
             current["media"]["done"] = True
     start_viewer = False
+    retry = viewer.pop("legacy_retry", None)
+    if retry == START_TOOL:
+        start_viewer = True
     if current.get("viewer_deferred"):
         verdict, code = viewer_gate(current, media_in_flight=media_waiting)
         if verdict == "start":
@@ -656,11 +672,13 @@ def resume(args: argparse.Namespace) -> int:
             refuse_viewer(current, code)
         save_state(current)
     if start_viewer:
+        note = ("This server does not take wait_s / delivery yet: starting the viewing with the original arguments."
+                if retry == START_TOOL else
+                f"The video runs {current['duration_s']:g}s, within the whole-video limit: starting the viewing")
         hand_over_calls(current, start_viewer=True, poll_viewer=False, media=media_waiting,
-                        note=f"The video runs {current['duration_s']:g}s, within the whole-video limit: starting the "
-                             "viewing" + (" while the media jobs finish." if media_waiting else "."))
+                        note=note + (" The media jobs are still running." if media_waiting else ""))
         return 0
-    if viewer_waiting and not media_waiting and not viewer.get("redeliver"):
+    if viewer_waiting and not media_waiting and not viewer.get("redeliver") and not retry:
         # Nothing else is running and the tool came back sooner than the interval (it did not wait): wait the rest
         # here rather than spend a model turn on a reading that comes back running.
         remaining = POLL_INTERVAL_S - seconds_since(handed_at)
@@ -672,7 +690,9 @@ def resume(args: argparse.Namespace) -> int:
         parts = []
         if viewer_waiting:
             parts.append("the whole-video result's download could not be used; reading it again"
-                         if viewer.get("redeliver") else f"the whole-video analysis is {viewer.get('status') or 'starting'}")
+                         if viewer.get("redeliver") else
+                         "reading the whole-video analysis again with its original arguments" if retry else
+                         f"the whole-video analysis is {viewer.get('status') or 'starting'}")
         if media_waiting:
             parts.append(f"{media_pending(current)} media job(s) are still running")
         hand_over_calls(current, start_viewer=False, poll_viewer=viewer_waiting and bool(viewer.get("analysis_id")),

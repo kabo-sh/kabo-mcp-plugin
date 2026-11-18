@@ -100,6 +100,8 @@ def redact(run: dict[str, Any]) -> dict[str, Any]:
 
 
 def _error_code(text: str) -> str:
+    if INPUT_REJECTED.search(text):
+        return "validation_error"
     lowered = text.lower()
     for code in KNOWN_CODES:
         if code in lowered:
@@ -134,6 +136,36 @@ def _structured(value: dict[str, Any]) -> Any:
         except ValueError:
             raise ValueError("the saved whole-video result carries no structured result") from None
     return value
+
+
+# How an MCP server answers arguments its closed input schema does not accept: JSON-RPC InvalidParams, which the
+# MCP server library turns into an error result whose text names it ("MCP error -32602: Input validation error:
+# Invalid arguments for tool ...").
+INVALID_PARAMS = -32602
+INPUT_REJECTED = re.compile(r"-32602|input validation error|invalid arguments for tool", re.IGNORECASE)
+
+
+def input_rejected(raw: bytes) -> bool:
+    """Whether the saved result is the server refusing the call's arguments, before any analysis ran: an MCP error
+    result, or a JSON-RPC error object a host saved instead."""
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return False
+    if not isinstance(value, dict):
+        return False
+    error = value.get("error") if isinstance(value.get("error"), dict) else value
+    if error.get("code") == INVALID_PARAMS:
+        return True
+    if isinstance(error.get("message"), str) and "id" not in error and "status" not in error \
+            and INPUT_REJECTED.search(error["message"]):
+        return True
+    if value.get("isError") and not isinstance(value.get("structuredContent"), dict):
+        blocks = value.get("content") if isinstance(value.get("content"), list) else []
+        text = " ".join(block.get("text", "") for block in blocks
+                        if isinstance(block, dict) and isinstance(block.get("text"), str))
+        return bool(INPUT_REJECTED.search(text))
+    return False
 
 
 def download_offer(raw: bytes) -> dict[str, Any] | None:
@@ -183,6 +215,12 @@ def read(raw: bytes) -> dict[str, Any]:
     # A failed tool call, in either form a host saves it: the bare failure body, or the MCP error result (whose
     # text may itself be that body).
     failure = _failure_body(value)
+    if failure is None and isinstance(value.get("error"), dict) and "id" not in value.get("error", {}):
+        # A JSON-RPC error object a host saved in place of a tool result.
+        rpc = value["error"]
+        message = rpc.get("message") if isinstance(rpc.get("message"), str) else ""
+        failure = {"code": "validation_error" if rpc.get("code") == INVALID_PARAMS else _error_code(message),
+                   "message": message[:300] or "no message", "retryable": False}
     if failure is not None:
         return {**base, "run": None, "error": failure}
     if value.get("isError") and not isinstance(value.get("structuredContent"), dict):

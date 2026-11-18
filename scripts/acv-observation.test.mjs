@@ -943,3 +943,51 @@ test("kabo-file: no audio or no speech (completed_partial) and no speech recogni
   assert.notEqual(deaf.evidence.transcript.status, "available");
   assert.equal((await prepare(deaf.run, ["--mode", "content_read"], "what does it show?")).code, 0);
 });
+
+// A server that does not know wait_s / delivery yet refuses them as invalid arguments (closed input schemas): the
+// script repeats that call once with the original arguments and keeps them for the rest of the run. Any other
+// failure is the viewing's own answer and is never retried this way.
+const REJECTED = (tool) => JSON.stringify({ isError: true, content: [{ type: "text",
+  text: `MCP error -32602: Input validation error: Invalid arguments for tool ${tool}: Unrecognized key: "delivery"` }] });
+
+test("an older server refusing wait_s / delivery: the call is repeated once without them, and later readings omit them", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis", "--duration-s", "30", "--observe-source", "whole_video"], run);
+  const calls = callLines(first.out), files = slotFiles(first.out);
+  assert.equal(calls[0].arguments.delivery, "download");
+  await writeFile(files[0], REJECTED("analyze_content_video"));
+  await writeFile(files[1], mcp(composite(calls[1].arguments)));
+  const retried = shell(resumeOf(first.out));
+  assert.equal(retried.code, 0, retried.out);
+  const key = calls[0].arguments.idempotency_key;
+  assert.deepEqual(callLines(retried.out), [{ tool: "analyze_content_video", arguments: { source_url: TIKTOK, idempotency_key: key } }]);
+  assert.equal((await readJson(path.join(run, "observe-video.json"))).legacy_viewer_args, true);
+  await writeFile(slotFiles(retried.out)[0], mcp(queued));
+  const polled = shell(resumeOf(retried.out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
+  assert.deepEqual(callLines(polled.out), [{ tool: "get_analysis_run", arguments: { analysis_id: viewerFixture.id } }]);
+  await writeFile(slotFiles(polled.out)[0], mcp(viewerFixture));
+  const done = shell(resumeOf(polled.out));
+  assert.match(done.out, /"status": "observed"/);
+  assert.match(done.out, /"whole_video": "completed"/);
+
+  // The same refusal saved as a JSON-RPC error, on a reading: the reading is repeated with the analysis id alone.
+  const other = await newRun(t);
+  const start = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis", "--duration-s", "30", "--observe-source", "whole_video"], other);
+  const startCalls = callLines(start.out), startFiles = slotFiles(start.out);
+  await writeFile(startFiles[0], mcp(queued));
+  await writeFile(startFiles[1], mcp(composite(startCalls[1].arguments)));
+  const reading = shell(resumeOf(start.out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
+  assert.deepEqual(callLines(reading.out)[0].arguments, { analysis_id: viewerFixture.id, wait_s: 45, delivery: "download" });
+  await writeFile(slotFiles(reading.out)[0], JSON.stringify({ jsonrpc: "2.0", id: 7, error: { code: -32602,
+    message: "Input validation error: Invalid arguments for tool get_analysis_run" } }));
+  const again = shell(resumeOf(reading.out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
+  assert.deepEqual(callLines(again.out), [{ tool: "get_analysis_run", arguments: { analysis_id: viewerFixture.id } }]);
+});
+
+test("a failure that is not an input refusal is never repeated without the new inputs", async (t) => {
+  const { out, handed, run } = await observe(t, "whole_video", { viewerSteps: [JSON.stringify({ isError: true,
+    content: [{ type: "text", text: "quota_exceeded: The analysis quota is used up." }] })] });
+  assert.equal(handed.filter((call) => call.tool === "analyze_content_video").length, 1);
+  assert.match(out, /whole_video failed \(quota_exceeded\); falling back to server_frames/);
+  assert.equal((await readJson(path.join(run, "observe-video.json"))).legacy_viewer_args, undefined);
+});
