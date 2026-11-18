@@ -111,9 +111,12 @@ def evidence_handles(evidence: dict, analysis: dict | None = None) -> set[str]:
         "transcript.text_sha256", "transcript.status", "transcript.language", "transcript.segment_count",
         "transcript.character_count", "transcript.plain_text",
         "media.has_audio", "media.duration_s", "media.frames.scene_detection",
-        "media.probed.mean_volume_db", "audio_attribution.uses_original_audio",
+        "media.probed.mean_volume_db",
         "deterministic.hook_stage", "deterministic.sustain_stage", "deterministic.cohort",
     }
+    # Sound attribution is citable only when the evidence carries it.
+    if isinstance(evidence.get("audio_attribution"), dict):
+        handles.add("audio_attribution.uses_original_audio")
     # Only cues whose text actually reached the evidence object can be cited. Minting these from
     # segment_count let an analysis quote transcript.cue[7] having never read a word of it, and the
     # reference resolved because the index was in range.

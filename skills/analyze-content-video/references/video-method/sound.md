@@ -18,7 +18,8 @@ Judge sound only from what was heard or measured for this video:
 - **Transcript origin**: words with `transcript.origin` `speech_recognition` on a video using an
   existing track, or where no one is seen speaking, may be lyrics.
 
-With none of the first two, say the sound was not analysed and stop there.
+A transcript is heard words only. With neither a measure nor a heard note, say the music and mix
+were not analysed and stop there; the words may still be used as words.
 
 ## Six questions
 

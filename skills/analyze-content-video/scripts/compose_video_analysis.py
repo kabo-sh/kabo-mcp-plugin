@@ -364,7 +364,7 @@ def compose(judgment: dict[str, Any], evidence: dict[str, Any], deterministic: d
         )
     analysis: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
-        "analysis_id": f"va-{prefix}-{ref.get('content_id')}-{run_id}",
+        "analysis_id": f"va-{prefix}-{ref.get('content_id') or 'unresolved'}-{run_id}",
         "subject_state": record(request.get("source")).get("subject_state"),
         "request_ref": request.get("request_id"),
         "evidence_ref": evidence.get("evidence_id"),

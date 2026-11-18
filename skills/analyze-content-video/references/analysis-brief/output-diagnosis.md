@@ -18,8 +18,17 @@ Advance only on `status: ready`, with one correction opportunity in total, as
 cd '<run directory>' && python3 <skill directory>/scripts/build_creator_result.py --print-view-contract --observations-from analysis/video_judgment.json
 ```
 
-Finish with the final step; its deliverable is `report/VIDEO_DIAGNOSIS.md`, delivered as *Delivery*
-in `SKILL.md` says:
+Check the view before the final step. The check runs every gate of the final step on scratch
+copies, writes nothing and prints each violation with its field and limit:
+
+```sh
+cd '<run directory>' && python3 <skill directory>/scripts/finish_diagnosis.py --run-dir '<run directory>' --check
+```
+
+On `needs_correction`, correct `analysis/creator_view.json` once for every violation listed (the
+view's one correction; the judgment stays as saved) and run the check once more. Advance only on
+`status: ready`; if it is still not ready, stop and report the gap. Then finish with the final
+step; its deliverable is `report/VIDEO_DIAGNOSIS.md`, delivered as *Delivery* in `SKILL.md` says:
 
 ```sh
 cd '<run directory>' && python3 <skill directory>/scripts/finish_diagnosis.py --run-dir '<run directory>'

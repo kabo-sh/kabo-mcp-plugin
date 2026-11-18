@@ -35,8 +35,14 @@ no change belongs in the structured observations; a change answering no stated p
 **When the video is somebody else's**, the sequence stays but the subject moves. This is still a
 diagnosis — it is the case the description calls a teardown of someone else's video, and it is not
 the craft teardown mode. Their published video is not the creator's to repair, so card 2 reads as
-what they would inherit by copying it, and card 3 is what they do differently in their own next
-video — never a repair order for a post that is already out.
+what they would inherit by copying it (its action, labelled "How to avoid it", says how not to
+inherit it), and card 3 is what they do differently in their own next video — never a repair order
+for a post that is already out.
+
+`decision` is one word for the editing decision the report stands on. Own video: `keep` (it works;
+the changes are small), `recut` (re-edit the footage already shot) or `replace` (needs new footage
+or a new version). Someone else's or unknown: `borrow` (use the mechanism in their own next video)
+or `skip` (nothing transfers). The view contract prints the values allowed for this run.
 
 Two of that six-section layout's sections are deliberately not reproduced. A single virality verdict is
 refused for the reason `composite_score` is fixed to null — hook stage and sustain stage were
@@ -60,6 +66,8 @@ The caps are in **display columns**, not characters: a full-width character coun
 everything else as one. A cap counted in characters is a different cap in every script — these
 figures were set on Chinese reports, and read as characters they gave a Latin-script report about
 a third of the room for the same content.
+
+Run `finish_diagnosis.py --check` after writing the view: it reports every field over its cap.
 
 | Field | Columns |
 |---|---:|
@@ -88,7 +96,8 @@ Put claim-specific uncertainty once beside the claim it weakens, not in this mea
 
 ## What a change instruction contains
 
-- `time_range` points into the original cut. Whenever it is present, name what is at that moment —
+- `time_range` points into the original cut, in seconds as the evidence records them: a span
+  `4.03–6.13s` or one moment `5.03s`; the report prints it as m:ss. Whenever it is present, name what is at that moment —
   the on-screen words in `on_screen_text`, or what the shot does in `visual_direction`, or both. A
   bare second is not evidence the creator can check.
 - `spoken_line` is a line the creator can read aloud in their own next video. On their own video

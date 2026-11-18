@@ -66,6 +66,9 @@ MEDIA_CONNECTOR = "public-video-media"
 # metadata role comes from on YouTube, and the downloader keeps it on the other platforms.
 YOUTUBE_METADATA_CONNECTOR = "youtube-public"
 YOUTUBE_METADATA_OPERATION = "get_video"
+# tiktok_search_get_video: TikTok's own answer about the video (counts, caption, sound), read as metadata.
+TIKTOK_METADATA_CONNECTOR = "tiktok-search"
+TIKTOK_METADATA_OPERATION = "get_video"
 KEYFRAME_OPERATIONS = {
     "extract_keyframes",
     "extract_keyframes_hosted_media",
@@ -242,6 +245,9 @@ def role_of(envelope: dict[str, Any]) -> str | None:
     if (envelope.get("connector_id") == YOUTUBE_METADATA_CONNECTOR
             and str(envelope.get("operation")) == YOUTUBE_METADATA_OPERATION):
         return "metadata"
+    if (envelope.get("connector_id") == TIKTOK_METADATA_CONNECTOR
+            and str(envelope.get("operation")) == TIKTOK_METADATA_OPERATION):
+        return "metadata"
     if (envelope.get("connector_id") in POST_CONNECTORS
             and str(envelope.get("operation")) == POST_OPERATION):
         return "public_post"
@@ -261,6 +267,9 @@ def normalise_metadata(envelope: dict[str, Any]) -> dict[str, Any]:
     each reader a second shape keeps one definition of what a metadata envelope looks like --
     and the fields are the same facts under different names, not different facts.
     """
+    if (envelope.get("connector_id") == TIKTOK_METADATA_CONNECTOR
+            and str(envelope.get("operation")) == TIKTOK_METADATA_OPERATION):
+        return normalise_tiktok_metadata(envelope)
     if (envelope.get("connector_id") != YOUTUBE_METADATA_CONNECTOR
             or str(envelope.get("operation")) != YOUTUBE_METADATA_OPERATION):
         return envelope
@@ -299,6 +308,60 @@ def normalise_metadata(envelope: dict[str, Any]) -> dict[str, Any]:
             "tags": row.get("tags") or [],
         }
     }
+    return normalised
+
+
+def unresolved_safe_id(ref: dict[str, Any]) -> str:
+    """The content id for an evidence id; an unresolved short link gets a stable token from its URL, never a guess."""
+    if ref.get("content_id"):
+        return str(ref["content_id"])
+    return "unresolved-" + hashlib.sha256(str(ref.get("permalink") or "").encode("utf-8")).hexdigest()[:12]
+
+
+def normalise_tiktok_metadata(envelope: dict[str, Any]) -> dict[str, Any]:
+    """The aweme row of tiktok_search_get_video in the downloader's data.video shape, plus the sound it declares."""
+    video = as_record(as_record(envelope.get("data")).get("video"))
+    if not video:
+        return envelope
+    stats = as_record(video.get("statistics"))
+    music = as_record(video.get("music"))
+    author = as_record(video.get("author"))
+
+    def count(value: Any) -> Any:
+        return value if type(value) is int else None
+
+    created = video.get("create_time")
+    published = (datetime.fromtimestamp(created, timezone.utc).isoformat().replace("+00:00", "Z")
+                 if type(created) is int and created > 0 else None)
+    duration_ms = as_record(video.get("video")).get("duration")
+    tags = [str(item.get("hashtag_name")) for item in video.get("text_extra") or []
+            if isinstance(item, dict) and item.get("type") == 1 and item.get("hashtag_name")]
+    desc = video.get("desc")
+    normalised = dict(envelope)
+    normalised["data"] = {"video": {
+        "id": str(video["aweme_id"]) if video.get("aweme_id") else None,
+        "title": None,
+        "description": desc if isinstance(desc, str) else None,
+        "webpage_url": None,
+        "channel": author.get("unique_id") or None,
+        "channel_id": author.get("uid") or None,
+        "duration_seconds": duration_ms / 1000 if type(duration_ms) in (int, float) and duration_ms > 0 else None,
+        "upload_date": published,
+        "view_count": count(stats.get("play_count")),
+        "like_count": count(stats.get("digg_count")),
+        "comment_count": count(stats.get("comment_count")),
+        # The cover is an expiring signed CDN link, so it is not written into the evidence.
+        "thumbnail": None,
+        "tags": tags,
+    }}
+    if music:
+        original = music.get("is_original_sound")
+        normalised["data"]["audio"] = {
+            "uses_original_audio": original if isinstance(original, bool) else None,
+            "audio_id": str(music.get("id_str") or music.get("id")) if (music.get("id_str") or music.get("id")) else None,
+            "artist_name": music.get("author") if isinstance(music.get("author"), str) else None,
+            "song_name": music.get("title") if isinstance(music.get("title"), str) else None,
+        }
     return normalised
 
 
@@ -370,7 +433,8 @@ def video_identity(envelopes: list[dict[str, Any]], platform: Any, file_id: str 
 
 
 def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, published_at: str | None,
-                post_published_at: str | None = None, identity: dict[str, Any] | None = None) -> dict[str, Any]:
+                post_published_at: str | None = None, identity: dict[str, Any] | None = None,
+                metadata_ids: list[str] | None = None) -> dict[str, Any]:
     source = as_record(request.get("source"))
     video = as_record(as_record(metadata.get("data")).get("video")) if usable(metadata) else {}
     platform = source.get("platform")
@@ -382,15 +446,17 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
     permalink = source.get("url") or video.get("webpage_url")
     # A short link (v.douyin.com, b23.tv, ...) has no readable id: the backend resolves it and writes it into every
     # result's video_identity, including transcript-only exports.
+    # With no id in the request (an unresolved short link), take the id a metadata result of this run gives; with none it stays null, never guessed.
     content_id = (source.get("content_id") or video.get("id") or content_id_from_url(platform, permalink)
                   or as_record(identity).get("platform_video_id")
+                  or next((str(item) for item in metadata_ids or [] if item), None)
                   or (Path(str(file_ref)).stem if file_ref else None))
     if not permalink and file_ref:
         # An unpublished draft has no platform address; its locator is the file itself.
         permalink = Path(str(file_ref)).expanduser().resolve().as_uri()
-    if not content_id or not permalink:
-        raise ValueError("content_ref needs a content_id and a URL or file_ref: put the original post or video "
-                         "link in the request's source.url, or its id in source.content_id")
+    if not permalink:
+        raise ValueError("content_ref needs the video's URL or file_ref: put the original post or video link in "
+                         "the request's source.url")
     # The post projection's publish time only fills in what metadata did not give: metadata is the platform's own
     # answer about its video, and takes priority when both exist.
     published = published_at or video.get("upload_date") or post_published_at
@@ -401,7 +467,8 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
         text = str(published).strip()
         try:
             if re.fullmatch(r"\d{8}", text):  # the metadata's compact YYYYMMDD upload date
-                datetime.strptime(text, "%Y%m%d")
+                # Written as an ISO date: the brief and the report quote it, and 20260919 reads as a number.
+                published = datetime.strptime(text, "%Y%m%d").date().isoformat()
             elif "T" in text:
                 datetime.fromisoformat(text.replace("Z", "+00:00"))
                 precise = True
@@ -411,7 +478,7 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
             raise ValueError(f"published_at {text!r} is neither a date nor an ISO date-time") from None
     return {
         "platform": platform,
-        "content_id": str(content_id),
+        "content_id": str(content_id) if content_id else None,
         "permalink": str(permalink),
         "published_at": str(published) if published else "unknown",
         "published_at_precision": "second" if precise else "day",
@@ -1172,7 +1239,10 @@ def build(
     file_id = source_url.split(":", 1)[1].lower() if source_url.lower().startswith("kabo-file:") else None
     identity = video_identity([envelope for _, envelope in envelopes], as_record(request.get("source")).get("platform"),
                               file_id)
-    ref = content_ref(request, metadata, published_at, post_facts(post).get("published_at"), identity)
+    metadata_ids = [as_record(as_record(item.get("data")).get("video")).get("id")
+                    for item in by_role.get("metadata", []) if usable(item)]
+    ref = content_ref(request, metadata, published_at, post_facts(post).get("published_at"), identity,
+                      metadata_ids)
     # Tier 1 before tier 2, which is the order SKILL.md states. A supplied subtitle file is the
     # fallback for a cut with no published captions, not an override of the ones the platform
     # returned: taking it unconditionally would throw away what a viewer with captions on actually
@@ -1297,7 +1367,7 @@ def build(
 
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
-        "evidence_id": f"ev-{public_video_sources.content_id_prefix(ref['platform'])}-{ref['content_id']}",
+        "evidence_id": f"ev-{public_video_sources.content_id_prefix(ref['platform'])}-{unresolved_safe_id(ref)}",
         "request_ref": request.get("request_id"),
         "content_ref": ref,
         "acquisition": (
@@ -1326,6 +1396,12 @@ def build(
     facts = post_facts(post)
     if not facts.get("public_metrics"):
         facts["public_metrics"] = metadata_public_metrics(metadata, ref["platform"])
+    if not facts.get("audio_attribution"):
+        # With no sound in the post row, use the sound platform metadata declares (TikTok's music.is_original_sound and so on).
+        declared = next((as_record(as_record(item.get("data")).get("audio")) for item in by_role.get("metadata", [])
+                         if usable(item) and as_record(as_record(item.get("data")).get("audio"))), None)
+        if declared:
+            facts["audio_attribution"] = {**declared, "trend_metrics_available": False}
     for key in ("public_metrics", "derived", "audio_attribution"):
         if facts.get(key):
             evidence[key] = facts[key]

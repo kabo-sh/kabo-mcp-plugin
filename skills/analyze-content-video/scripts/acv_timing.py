@@ -2,7 +2,12 @@
 """Stage timing of one video analysis run, in <run>/analysis/timing.json.
 
     {"schema_version": "acv-timing/v1", "observation_source": "server_frames|whole_video|local_frames|combined",
-     "stages": [{"stage": "observe|prepare|judge|validate", "started_at": ISO, "ended_at": ISO, "duration_ms": 123}]}
+     "stages": [{"stage": "observe|prepare|judge|validate", "started_at": ISO, "ended_at": ISO, "duration_ms": 123}],
+     "reply": {"file": "analysis/answer.md", "chars": 2599, "ended_at": ISO, "total_ms": 121000}}
+
+`reply` is the delivered answer: the validated report of a diagnosis, recorded by finish_diagnosis.py, or the
+answer of a content read or craft teardown, recorded by `acv_timing.py answer` (which also closes the judge stage).
+`total_ms` runs from the first recorded stage start to the reply.
 
 Each script that starts or ends a stage appends its own entry; a stage that starts in one script and ends in
 another keeps its start in the sidecar `.timing-open.json` until it ends. Timing never decides anything and a
@@ -10,7 +15,9 @@ failure to write it never fails the run: it is a measurement of the run, not par
 """
 from __future__ import annotations
 
+import argparse
 import json
+import sys
 import os
 import tempfile
 from datetime import datetime, timezone
@@ -118,3 +125,56 @@ def close_stage(analysis: Path, stage: str) -> None:
 def last_end(analysis: Path, stage: str) -> str | None:
     entries = [entry for entry in load(analysis)["stages"] if entry.get("stage") == stage]
     return entries[-1]["ended_at"] if entries else None
+
+
+def record_reply(analysis: Path, file: str, chars: int, ended_at: str | None = None) -> dict[str, Any] | None:
+    """Record the delivered answer's length and the run's total time up to it; a later call replaces it."""
+    ended_at = ended_at or now()
+    try:
+        document = load(analysis)
+        starts = [entry.get("started_at") for entry in document["stages"] if entry.get("started_at")]
+        reply = {"file": file, "chars": chars, "ended_at": ended_at,
+                 "total_ms": _ms(min(starts), ended_at) if starts else None}
+        document["reply"] = reply
+        _write(Path(analysis) / FILE, document)
+        return reply
+    except (OSError, ValueError):
+        return None
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Record the end of a content read or craft teardown answer.")
+    sub = parser.add_subparsers(dest="command", required=True)
+    answer = sub.add_parser("answer", help="close the judge stage and record the answer's length")
+    answer.add_argument("--run", type=Path, required=True)
+    answer.add_argument("--answer", required=True, help="the answer file, relative to the run directory")
+    args = parser.parse_args(argv)
+    run = args.run.resolve()
+    path = (run / args.answer).resolve()
+    if not path.is_relative_to(run):
+        print(json.dumps({"status": "failed", "error": "--answer names a file inside the run directory"}))
+        return 1
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        print(json.dumps({"status": "failed", "error": f"cannot read the answer: {error}"}))
+        return 1
+    if not text.strip():
+        print(json.dumps({"status": "failed", "error": "the answer file is empty; write the answer first"}))
+        return 1
+    analysis = run / "analysis"
+    ended = now()
+    # The judge stage runs from the end of prepare to the finished answer; a repeat keeps only the latest.
+    prepared = last_end(analysis, "prepare")
+    if prepared:
+        replace(analysis, "judge", prepared, ended)
+    reply = record_reply(analysis, args.answer, len(text.strip()), ended)
+    print(json.dumps({"status": "recorded", "chars": len(text.strip()),
+                      "total_ms": (reply or {}).get("total_ms")}))
+    print("Reply with the answer as written.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.dont_write_bytecode = True
+    raise SystemExit(main())

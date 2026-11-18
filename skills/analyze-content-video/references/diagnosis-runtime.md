@@ -6,19 +6,26 @@ final validated report closes it.
 
 ## 1. The request
 
-Read `references/video-analysis-request.schema.json` and write
-`analysis/video-analysis-request.json` at its absolute run path before building evidence. Preserve
-the creator's original public URL, chosen ownership state, approved budget and confirmation state;
-an unresolved post ID stays null.
+Prepare `analysis/video-analysis-request.json` with `prepare_link_request.py` before building
+evidence; it preserves the creator's original link, the chosen ownership state and confirmation, and
+leaves an unresolved post ID null. For a public link, `<platform>` is the link's platform, and
+`--mode` (the mode from *Which question is this*) sets the call ceiling for that mode:
+
+```sh
+cd '<run directory>' && python3 <skill directory>/scripts/prepare_link_request.py --url '<link exactly as given>' --platform <platform> --subject-state <chosen-state> --mode <mode> --confirmed-by-user --output analysis/video-analysis-request.json
+```
+
+Write the request by hand from `references/video-analysis-request.schema.json` only for a local
+file (`references/local-file.md`).
 
 Use the linked-media helper **only when an input actually declares
 `schema_version: linked-media-evidence.v1`**, directly or inside its `linked_media` field. A normal
 connector envelope (`schema_version: 1.0`) does not qualify, and never call the helper to find out.
-`<chosen-state>` is the ownership state from analysis step 1 and `<approved-ceiling>` the approved
-tool-call budget:
+`<chosen-state>` is the ownership state from analysis step 1 (`--max-connector-calls <n>` replaces
+the mode's default ceiling when the creator approved another):
 
 ```sh
-cd '<run directory>' && python3 <skill directory>/scripts/prepare_link_request.py --envelope snapshot/<file>.json [--envelope ...] --subject-state <chosen-state> --max-connector-calls <approved-ceiling> --confirmed-by-user --output analysis/video-analysis-request.json
+cd '<run directory>' && python3 <skill directory>/scripts/prepare_link_request.py --envelope snapshot/<file>.json [--envelope ...] --subject-state <chosen-state> --mode <mode> --confirmed-by-user --output analysis/video-analysis-request.json
 ```
 
 Omit `--confirmed-by-user` unless that confirmation exists. Do not manufacture a linked-media
@@ -29,7 +36,7 @@ stored file. `<platform>` is the one it was posted on or is made for, as the cre
 ownership state may apply:
 
 ```sh
-cd '<run directory>' && python3 <skill directory>/scripts/prepare_link_request.py --file-ref 'kabo-file:<id>' --platform <platform> --subject-state <chosen-state> --max-connector-calls <approved-ceiling> --confirmed-by-user --output analysis/video-analysis-request.json
+cd '<run directory>' && python3 <skill directory>/scripts/prepare_link_request.py --file-ref 'kabo-file:<id>' --platform <platform> --subject-state <chosen-state> --mode <mode> --confirmed-by-user --output analysis/video-analysis-request.json
 ```
  A transcript does not establish the content ID: take it from
 metadata already read or from the packet, and keep a missing identity missing, never a guessed
@@ -109,12 +116,18 @@ what the fields should say. Omit the read-only `data_note`. Every figure in the 
 next-edit timings, must trace to the composed analysis or evidence; rounding and magnitude notation
 are allowed and clock times are not numeric claims. For a new duration that is editorial advice,
 give a qualitative instruction anchored to a verified moment. Never add observations or alter the
-saved judgment to manufacture grounding. Write `analysis/creator_view.json` once.
+saved judgment to manufacture grounding. Write `analysis/creator_view.json`, then run
+`finish_diagnosis.py --check`: it runs every gate of the final step on scratch copies, writes nothing
+and lists each violation with its field and limit. Correct the view once for all of them and check
+once more; advance only on `status: ready`. This is the view's one correction, separate from the
+judgment's; the judgment stays as saved.
 
 ## 5. Finishing
 
-`finish_diagnosis.py` runs these six commands in order and stops at the first failure. Do not run
-them yourself, and do not call the result builder on its own after writing the view:
+`finish_diagnosis.py` runs these six commands in order and stops at the first failure. It renders
+the report beside its final name and moves it into `report/` only after every gate passed, so a
+failed finish leaves no report file. Do not run them yourself, and do not call the result builder
+on its own after writing the view:
 
 ```sh
 cd '<run directory>' && python3 <skill directory>/scripts/compose_video_analysis.py --judgment analysis/video_judgment.json --evidence analysis/content_evidence.json --deterministic analysis/deterministic.json --request analysis/video-analysis-request.json --output analysis/video_analysis.json

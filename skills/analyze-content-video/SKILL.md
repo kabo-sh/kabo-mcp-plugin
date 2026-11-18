@@ -50,7 +50,8 @@ variables nor the working directory between commands:
 complete: do not probe scripts with `--help` or read their source. Quote paths and use `grep` rather
 than `rg`. Write each JSON file you author at its absolute run path, then run the next command. A
 failed script or validator step ends the run: report it; never reserve a second run, repeat
-completed retrieval or rewrite a judgment to get past a validator.
+completed retrieval or rewrite a judgment to get past a validator. A check that answers
+`needs_correction` is not a failure: the brief allows its one correction.
 
 **Declare the run.** Right after the run directory is reserved, call the Kabo tool `start_skill_run` once with `skill_id` `analyze-content-video` and `run_id` set to the last path segment of the run directory. It records the run once, so never call it again for the same run. If it fails with `credits_exhausted`, tell the user their credits are used up, give them the link in the error, and stop. If the tool is not available, continue without it.
 
@@ -181,10 +182,9 @@ Diagnosis, content read and craft teardown run the same steps. Read
    analysis or the transcript for it. For a local file, read `references/local-file.md` whole before
    anything else; it replaces step 4. A content read sets `acquire.owner_metrics` to `skip` and
    fetches no baseline; a craft teardown first writes `analysis/craft-request.json`.
-2. **The request.** Read `references/video-analysis-request.schema.json` and write
-   `analysis/video-analysis-request.json` (or prepare it from a linked-media packet or a
-   `kabo-file:<id>`, as the runtime reference says). Preserve the original URL, ownership state,
-   approved budget and confirmation.
+2. **The request.** Prepare `analysis/video-analysis-request.json` with
+   `prepare_link_request.py` (`--url` for a link, `--file-ref` for a `kabo-file:<id>`, `--mode` for
+   the call ceiling), as the runtime reference says; write it by hand only for a local file.
 3. **Choose the method, before fetching.** Write the creator's own words, verbatim, to
    `analysis/question.txt` (empty for a bare link). Read `references/video-method/index.md` and
    choose zero to two topic cards that match what they asked; with no specific ask, choose none:
@@ -209,9 +209,9 @@ Diagnosis, content read and craft teardown run the same steps. Read
    each result as it says, then run the resume command; repeat while it prints calls (jobs still
    running: it waits between readings itself). The run is not over while it is observing. When it
    prints `status: observed` it has persisted everything in `snapshot/`, names the arguments for the
-   evidence builder and prints the one `read_research_data_artifacts` call that brings the frames
-   in. When that read shows you the images themselves, they are viewed: do not save or stage them.
-   Save and fetch the read only when it returns a download link. Fetch and persist every other
+   evidence builder and prints the `read_research_data_artifacts` calls (at most 15 frames each)
+   that bring the frames in; make them all. When a read shows you the images themselves, they are viewed: do not save or stage them.
+   Save and fetch a read only when it returns a download link. Fetch and persist every other
    response as *Data tools and complete evidence* says.
 5. **Build the evidence** once, with one `--envelope` for every `snapshot/envelope-*.json` (the
    observation's and any you persisted) plus the `--viewer` and `--deferred-incomplete` arguments
@@ -233,8 +233,9 @@ Diagnosis, content read and craft teardown run the same steps. Read
    evidence cannot support is skipped, and the brief says so) and writes `analysis/brief.md`. Exit
    2 means the mode's own method lacks its evidence: say which evidence is missing.
 7. **Read `analysis/brief.md` whole, then write what its section 7 asks**: for a diagnosis the
-   judgment JSON, its reference check, the creator view and `finish_diagnosis.py`; for a content
-   read the answer in the chat; for a craft teardown `report/craft-teardown.md`. Its rules bind you
+   judgment JSON, its reference check, the creator view, its `--check` and `finish_diagnosis.py`;
+   for a content read `analysis/answer.md`, then the answer in the chat; for a craft teardown
+   `report/craft-teardown.md`. Its rules bind you
    as if they were written here. A content read writes no report and is never called a diagnosis;
    offer a diagnosis or craft teardown once at the end when the creator may want one.
 

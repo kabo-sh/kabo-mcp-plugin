@@ -273,7 +273,7 @@ for (const item of CASES) {
     assert.ok(evidenceSchema(evidence), JSON.stringify(evidenceSchema.errors));
     assert.equal(evidence.evidence_id, `ev-${item.prefix}-${item.id}`);
     assert.equal(evidence.content_ref.platform, item.platform);
-    assert.equal(evidence.content_ref.published_at, item.platform === "douyin" ? "20261101" : "20261105");
+    assert.equal(evidence.content_ref.published_at, item.platform === "douyin" ? "2026-11-01" : "2026-11-05");
     assert.equal(evidence.content_metadata.status, "available");
     assert.equal(evidence.content_metadata.title, item.platform === "douyin" ? "One thing" : "161K views · 2.3K reactions | Reel");
     assert.equal(evidence.transcript.status, "available");
@@ -334,11 +334,12 @@ test("short link, transcript only: the link has no readable id, so the backend's
   assert.equal(exported.code, 0, exported.out);
   assert.match(await readFile(path.join(run, "report/transcript.txt"), "utf8"), /Here is the one thing you need/);
 
-  // A short link without video_identity still reports the missing id; nothing is guessed.
+  // A short link without video_identity keeps its id null instead of failing the run; nothing is guessed.
   const none = await buildOnly(t, "douyin-short-none", { platform: "douyin", url: "https://v.douyin.com/iRNBho6u/", content_id: null },
     [mediaEnvelope("fetch_transcript", uuid(2), transcriptData(null))]);
-  assert.equal(none.built.code, 1);
-  assert.match(none.built.out, /content_ref needs a content_id/);
+  assert.equal(none.built.code, 0, none.built.out);
+  assert.equal(none.evidence.content_ref.content_id, null);
+  assert.match(none.evidence.evidence_id, /^ev-dy-unresolved-/);
 
   // The result says the video belongs to another platform: the requested platform was wrong; say so rather than mix them.
   const other = await buildOnly(t, "douyin-mismatch", { platform: "tiktok", url: "https://v.douyin.com/iRNBho6u/", content_id: null },

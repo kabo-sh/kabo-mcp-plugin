@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -52,6 +53,8 @@ NEXT = {
 }
 # The measured signals worth a line in the index; the rest of media.probed stays in the evidence file.
 PROBED_SUMMARY = ("shots", "silence", "freeze", "framing")
+# A sound cue in a transcript: a bracketed tag such as [Music] (in any language) or a music note.
+SOUND_MARKER = re.compile(r"\[[^\[\]\n]{1,40}\]|[\u266a\u266b\u266c]")
 
 
 def load(path: Path) -> Any:
@@ -122,7 +125,8 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
     if method.get("skipped"):
         lines.append("")
     ref = evidence.get("content_ref") or {}
-    lines += ["### Post", "", f"- platform {ref.get('platform')}, content `{ref.get('content_id')}`, format "
+    content = f"`{ref['content_id']}`" if ref.get("content_id") else "id unresolved (short link)"
+    lines += ["### Post", "", f"- platform {ref.get('platform')}, content {content}, format "
               f"{ref.get('format')}, published {ref.get('published_at')}"]
     media = evidence.get("media") or {}
     if media.get("duration_s") is not None:
@@ -138,10 +142,7 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
         lines.append(f"- `public_metrics.{metric['native_name']}` = {metric.get('value')}")
     for item in evidence.get("derived") or []:
         lines.append(f"- `derived.{item['name']}` = {item.get('value')}")
-    attribution = evidence.get("audio_attribution")
-    if attribution:
-        lines.append(f"- `audio_attribution`: {json.dumps(attribution, ensure_ascii=False)}")
-    lines.append("")
+    lines += [""] + sound_lines(evidence)
 
     frames = evidence.get("frames") or {}
     items = frames.get("items") or []
@@ -199,6 +200,37 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
         lines += ["### Limitations already recorded", ""]
         lines += [f"- {one_line(text)}" for text in evidence["limitations"]]
         lines.append("")
+    return lines
+
+
+def sound_lines(evidence: dict[str, Any]) -> list[str]:
+    """What this run has for deciding whose words the transcript holds and whether the sound was analysed."""
+    lines = ["### Sound", ""]
+    attribution = evidence.get("audio_attribution")
+    if attribution:
+        lines.append(f"- `audio_attribution`: {json.dumps(attribution, ensure_ascii=False)}")
+    else:
+        lines.append("- `audio_attribution` unavailable: no source in this run declares whether the sound is "
+                     "original or an existing track.")
+    cues = (evidence.get("transcript") or {}).get("cues") or []
+    marked = [(index, SOUND_MARKER.findall(str(cue.get("text") or ""))) for index, cue in enumerate(cues)]
+    marked = [(index, found) for index, found in marked if found]
+    if marked:
+        lines.append("- Sound markers in the transcript: " + ", ".join(
+            f"`transcript.cue[{index}]` {' '.join(dict.fromkeys(found))}" for index, found in marked))
+    elif cues:
+        lines.append("- No sound markers (such as [Music] or a music note) in the transcript cues.")
+    probed = (evidence.get("media") or {}).get("probed") or {}
+    measured = [name for name in ("loudness", "silence") if probed.get(name)]
+    notes = [item for item in ((evidence.get("viewer_observations") or {}).get("items") or [])
+             if isinstance(item, dict) and str(item.get("aspect") or "").lower() in {"audio", "sound", "music"}]
+    if measured or notes:
+        lines.append("- Music and mix evidence: " + ", ".join(
+            [f"`media.probed.{name}`" for name in measured] + [f"whole-video sound note `{item['id']}`" for item in notes]))
+    else:
+        lines.append("- Music and mix: neither measured nor heard in a whole-video note, so they were not analysed; "
+                     "any transcript is heard words only.")
+    lines.append("")
     return lines
 
 

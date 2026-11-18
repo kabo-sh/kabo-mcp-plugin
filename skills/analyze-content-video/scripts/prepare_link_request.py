@@ -1,7 +1,8 @@
 """Prepare the existing request schema from a host-read post; never guess nested source fields.
 
-Two inputs: linked-media packets (`--envelope`), or `--file-ref kabo-file:<id>` with `--platform` for a video
-the creator attached in Kabo. The media tool reads that stored file the way it reads a link, so the request is
+Three inputs: linked-media packets (`--envelope`), `--url <public link>` with `--platform` for a link the creator
+gave, or `--file-ref kabo-file:<id>` with `--platform` for a video the creator attached in Kabo. With `--mode`, the
+call ceiling defaults to what that mode's observation uses (MODE_CALLS); `--max-connector-calls` overrides it. The media tool reads that stored file the way it reads a link, so the request is
 a connector request (`acquisition: public_url`, the reference as its `url`, the file id as its content id); a
 file on the creator's own machine is a `local_file` request instead and is never uploaded.
 """
@@ -16,6 +17,18 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import collect_media  # noqa: E402
 import public_video_sources  # noqa: E402
+
+
+# The tool-call ceiling each mode's observation of one video usually needs: the media call and its readings,
+# a whole-video viewing, frame reads and metadata; an own-published diagnosis adds the baseline. A declared ceiling, not billing.
+MODE_CALLS = {"diagnosis": 12, "craft_teardown": 12, "content_read": 8, "transcript_export": 6}
+BASELINE_CALLS = 3
+
+
+def default_budget(mode: str | None, subject: str) -> int | None:
+    if mode is None:
+        return None
+    return MODE_CALLS[mode] + (BASELINE_CALLS if mode == "diagnosis" and subject == "own_published" else 0)
 
 
 def public_only_request_errors(request: dict) -> list[str]:
@@ -72,6 +85,26 @@ def prepare_file(file_ref: str, platform: str, subject: str, budget: int, confir
     return request_for(platform, ref, ref.split(":", 1)[1], "video", subject, budget, confirmed, request_id)
 
 
+def prepare_url(url: str, platform: str, subject: str, budget: int, confirmed: bool, request_id: str) -> dict:
+    """The request for a public link the creator gave: its id when the link itself names one, else null."""
+    check_budget(budget)
+    if platform not in public_video_sources.platform_ids():
+        raise ValueError("--platform names the platform of the link: " + ", ".join(public_video_sources.platform_ids()))
+    if subject == "own_unpublished":
+        raise ValueError("a public link cannot identify an unpublished draft")
+    link = str(url).strip()
+    if collect_media.is_file_ref(link):
+        raise ValueError("a kabo-file:<id> reference goes with --file-ref, not --url")
+    if not link.lower().startswith("https://"):
+        raise ValueError("--url takes the public https link exactly as the creator gave it")
+    found = public_video_sources.match_url(link)
+    if found is not None and found["platform"] != platform:
+        raise ValueError(f"the link is a {found['platform']} link, but --platform says {platform}")
+    # A short link has no id until the server resolves it: keep null; the evidence builder takes it from this run's results, never a guess.
+    content_id = public_video_sources.content_id_from_url(platform, link)
+    return request_for(platform, link, content_id, None, subject, budget, confirmed, request_id)
+
+
 def prepare(bundles: list[dict], subject: str, budget: int, confirmed: bool, request_id: str) -> dict:
     check_budget(budget)
     bundles = [candidate for body in bundles for candidate in (body, body.get("linked_media", {}))
@@ -95,20 +128,30 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--envelope", type=Path, action="append", default=[])
     parser.add_argument("--file-ref", help="kabo-file:<id> of a video the creator attached in Kabo")
-    parser.add_argument("--platform", help="with --file-ref: the platform the video is for")
+    parser.add_argument("--url", help="the public video link exactly as the creator gave it")
+    parser.add_argument("--platform", help="with --file-ref or --url: the platform the video is on or for")
     parser.add_argument("--subject-state", choices=["own_unpublished", "own_published", "third_party", "unknown"],
                         required=True)
-    parser.add_argument("--max-connector-calls", type=int, required=True)
+    parser.add_argument("--mode", choices=sorted(MODE_CALLS),
+                        help="the analysis mode; sets the default --max-connector-calls")
+    parser.add_argument("--max-connector-calls", type=int)
     parser.add_argument("--confirmed-by-user", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.max_connector_calls is None:
+        args.max_connector_calls = default_budget(args.mode, args.subject_state)
+        if args.max_connector_calls is None:
+            parser.error("give --mode (for its default call ceiling) or --max-connector-calls")
     try:
         request_id = args.output.parent.parent.name
+        if sum(bool(item) for item in (args.file_ref, args.url, args.envelope)) > 1:
+            raise ValueError("--url, --file-ref and --envelope each describe the video; give one of them")
         if args.file_ref:
-            if args.envelope:
-                raise ValueError("--file-ref and --envelope describe two different copies of a video; give one")
             request = prepare_file(args.file_ref, args.platform, args.subject_state, args.max_connector_calls,
                                    args.confirmed_by_user, request_id)
+        elif args.url:
+            request = prepare_url(args.url, args.platform, args.subject_state, args.max_connector_calls,
+                                  args.confirmed_by_user, request_id)
         else:
             bodies = [json.loads(p.read_text()) for p in args.envelope]
             request = prepare(bodies, args.subject_state, args.max_connector_calls, args.confirmed_by_user,

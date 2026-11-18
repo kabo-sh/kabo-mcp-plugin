@@ -229,8 +229,13 @@ character and energy, speech present and whether music drowns it, sound effects 
 - **Say cuts land on or off the beat** unless a beat measurement exists for this video. Cut times
   alone are not beat times. Suggesting a cut on an audible hit is a fix, not a measurement.
 
-These three were the claims that changed between repeated readings of the same video. With no
-heard or measured sound, say the sound was not analysed.
+These three were the claims that changed between repeated readings of the same video.
+
+Words and music are separate evidence. A transcript, captions or machine-heard, is heard words:
+use it for what is said or sung, under the rules above. The music and the mix (character, energy,
+levels, a silent lead-in) need a measure (`media.probed.loudness`, `media.probed.silence`) or a
+whole-video note about sound; a transcript says nothing about them. With neither, say the music and
+mix were not analysed, and still use the words.
 
 ## 7. What comes first in the answer
 

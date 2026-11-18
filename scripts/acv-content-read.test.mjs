@@ -69,7 +69,10 @@ test("a content read writes no report, and heard words are first checked for lyr
   assert.match(contentRead, /`audio_attribution` names an existing track/);
   assert.match(contentRead, /may\s+be that track's lyrics/);
   assert.match(contentRead, /never summarize its words as the video's\s+message/);
-  assert.match(contentRead, /writes no file/);
+  assert.match(contentRead, /writes no report/);
+  // Without a declared track, the rule names what to decide from instead of leaving the trigger unknowable.
+  assert.match(contentRead, /When `audio_attribution` is unavailable, decide from what the run has/);
+  assert.match(contentRead, /acv_timing\.py answer --run '<run directory>' --answer analysis\/answer\.md/);
   // The delivery note at the top only constrains the diagnosis report; a content read answers from the evidence
   // and must not be blocked by that sentence.
   assert.match(skill, /A content read has no report: it answers from the evidence/);

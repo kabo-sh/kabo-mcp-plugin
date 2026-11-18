@@ -68,6 +68,23 @@ CHANGE_HOOK_MAX = 2
 
 OBSERVATION_REF = re.compile(r"^observations\.(.+)$")
 
+# details.decision: the one editing decision the report stands on; own and someone else's videos take different values.
+DECISIONS = {
+    "own": {
+        "keep": "It works: keep this cut (or this format next time); the changes in card 3 are small.",
+        "recut": "Re-edit the footage already shot, as card 3 says; no new shooting.",
+        "replace": "The change needs new footage or a new version: reshoot or replace what card 3 names.",
+    },
+    "others": {
+        "borrow": "Use the mechanism card 3 describes in the creator's own next video.",
+        "skip": "Nothing here transfers to the creator's own videos; card 3 says what to do instead.",
+    },
+}
+
+
+def decisions_for(subject: str | None) -> dict[str, str]:
+    return DECISIONS["own" if subject in ("own_published", "own_unpublished") else "others"]
+
 # A card that has to be read twice has not saved the creator any time. Three runs of the V3 shape
 # put a median of 613 characters into a single `why_for_you` — three times the whole report's
 # thesis — while every other field stayed short on its own. These caps hold each field to the
@@ -386,6 +403,12 @@ def check(result: dict, analysis: dict, evidence: dict) -> list[str]:
         if analysis.get("revisions"):
             errors.append("unknown ownership carries no source revisions")
     cues = ((evidence.get("transcript") or {}).get("cues")) or []
+
+    decision = (result.get("details") or {}).get("decision")
+    if decision is not None and decision not in decisions_for(subject):
+        errors.append(
+            f"details.decision is {decision!r}; for this video it is one of "
+            f"{', '.join(decisions_for(subject))}")
 
     for field in ("summary", "data_note"):
         limit = FIELD_LIMITS[field]

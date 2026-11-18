@@ -32,10 +32,12 @@ _RANGE_SEPARATORS = ("–", "—", "-", "~")
 
 
 def timecode(seconds: float) -> str:
-    """`15.207` -> `0:15`. Truncates rather than rounds: a cue at 15.9s is still inside the
-    fifteenth second, and rounding it to 0:16 would point past the thing it names."""
+    """`15.207` -> `0:15.2`, `4.017` -> `0:04`, `0.4` -> `0:00.4`. Truncates rather than rounds: a cue
+    at 15.9s is still inside the fifteenth second, and rounding it to 0:16 would point past the thing
+    it names. A non-zero tenth is kept: on a short video "sound from 0:00" hides a measured 0.4s."""
     total = int(seconds)
-    return f"{total // 60}:{total % 60:02d}"
+    tenth = min(9, int((seconds - total) * 10 + 1e-6))
+    return f"{total // 60}:{total % 60:02d}" + (f".{tenth}" if tenth else "")
 
 
 def format_time_range(value: str) -> str:
@@ -139,10 +141,11 @@ def prose_timecodes(text: str, positions: set | None = None) -> str:
 # and for a language other than zh or en the host localizes headings and labels as SKILL.md says.
 # `colon` follows the label: Chinese prose takes the full-width mark.
 STRINGS = {
-    "zh": {"why": "现在的效果", "action": "要改什么", "reuse": "怎么复用", "say": "这样说",
+    "zh": {"why": "现在的效果", "action": "要改什么", "reuse": "怎么复用", "avoid": "怎么避开", "say": "这样说",
            "at": "位置", "on_screen": "画面文字", "shot": "镜头", "next": "下一步",
            "colon": "："},
     "en": {"why": "What it does now", "action": "What to change", "reuse": "How to reuse it",
+           "avoid": "How to avoid it",
            "say": "Say this", "at": "Where", "on_screen": "On screen", "shot": "Shot",
            "next": "Next", "colon": ": "},
 }
@@ -161,15 +164,20 @@ def render_hook(hook: dict, words: dict) -> list[str]:
     the instruction. The rationale rides with the direction instead of claiming its own line.
     """
     lines = []
+    shown_text = False
     # A timestamp only earns its place when something at that moment is named, so the two are
     # printed together or not at all.
     if hook.get("time_range"):
-        detail = hook.get("on_screen_text") or hook.get("visual_direction") or ""
+        detail = hook.get("visual_direction") or hook.get("on_screen_text") or ""
+        shown_text = not hook.get("visual_direction")
         purpose = f" ({hook['purpose']})" if hook.get("purpose") else ""
         lines.append(f"- **{format_time_range(hook['time_range'])}**"
                      + (f" — {detail}" if detail else "") + purpose)
     elif hook.get("visual_direction"):
         lines.append(f"- **{words['shot']}**{words['colon']}{hook['visual_direction']}")
+    # On-screen text is a concrete instruction; a shot description beside it must not drop it.
+    if hook.get("on_screen_text") and not shown_text:
+        lines.append(f"- **{words['on_screen']}**{words['colon']}{hook['on_screen_text']}")
     if hook.get("spoken_line"):
         lines.append(f"- **{words['say']}**{words['colon']}{hook['spoken_line']}")
     return lines
@@ -216,7 +224,11 @@ def render(result: dict) -> str:
             # The first card is always the strengths card: its action says how to reuse a
             # mechanism that already works. Labelling that "What to change" renders a positive
             # reading as a defect.
-            action_label = words["reuse"] if card_index == 0 else words["action"]
+            # On somebody else's video card 2 is what copying it would bring along, so its action
+            # says how to avoid that, not what to change in a post that is not the creator's.
+            others = (result.get("details") or {}).get("subject_state") in ("third_party", "unknown")
+            action_label = (words["reuse"] if card_index == 0
+                            else words["avoid"] if card_index == 1 and others else words["action"])
             out.append(f"**{action_label}**{words['colon']}{card['action'].strip()}")
         # No `source_url` branch. The schema allows the field and SKILL.md never described it, so
         # two of three isolated runs set it and the renderer printed a naked URL under the change

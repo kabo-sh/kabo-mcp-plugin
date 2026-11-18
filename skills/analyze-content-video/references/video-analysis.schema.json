@@ -59,7 +59,8 @@
           "type": "string"
         },
         "content_id": {
-          "type": "string"
+          "type": ["string", "null"],
+          "description": "Null only while a short link stays unresolved: no response named the video, and an id is never guessed."
         },
         "permalink": {
           "type": "string"

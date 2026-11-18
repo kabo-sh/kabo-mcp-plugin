@@ -67,6 +67,8 @@ MEDIA_TOOL = collect_media.TOOL
 START_TOOL = viewer_response.START_TOOL
 POLL_TOOL = viewer_response.POLL_TOOL
 PERSISTED_VIEWER = "snapshot/whole-video.json"
+# At most this many frames per read: hosts cap the images one tool result may show.
+READ_CHUNK = 15
 # A reading waits inside the call for a final status (`wait_s`), the way collect_video_media waits for its jobs.
 # 45 seconds, the same budget as collect_media.py: it keeps the call inside the 60-second tool timeout some hosts
 # (Codex) apply. The submission itself does not wait (docs/skills-spec.md KS8, decision of 2026-10-20). Where a reading still comes back sooner (a host or server that does not
@@ -531,8 +533,11 @@ def finish_media(mode: str) -> dict[str, Any]:
                     if isinstance(item, dict) and item.get("object_ref")]
             job_id = body.get("job_id") or (jobs.get(call["group"]) or {}).get("job_id")
             if refs and job_id:
-                read = {"tool": "read_research_data_artifacts",
-                        "arguments": {"job_id": job_id, "object_refs": refs, "delivery": "download"}}
+                # A host cut one 60-frame read off after 16 images: read at most READ_CHUNK frames per call.
+                read = [{"tool": "read_research_data_artifacts",
+                         "arguments": {"job_id": job_id, "object_refs": refs[start:start + READ_CHUNK],
+                                       "delivery": "download"}}
+                        for start in range(0, len(refs), READ_CHUNK)]
     for group, job in jobs.items():
         operation = group.rsplit("/", 1)[-1]
         if operation not in placed and job.get("job_id") and job.get("status") in static_host.PENDING:
@@ -606,11 +611,16 @@ def settle(current: dict[str, Any]) -> int:
     say("Pass these to build_content_evidence.py, plus one --envelope for each other snapshot/envelope-*.json this "
         "run persisted: " + " ".join(flags))
     if media and media["read"]:
-        say("Frames: make this one read now. If its result shows you the images, they are viewed: do not save or "
-            "stage them, and go on to build_content_evidence.py. Only if it returns a download link instead, save "
+        reads = media["read"]
+        say(("Frames: make this one read now. " if len(reads) == 1 else
+             f"Frames: make these {len(reads)} reads now, one after another, each at most {READ_CHUNK} frames so "
+             "the host shows every image. ")
+            + "If a result shows you the images, they are viewed: do not save or stage them, and go on to "
+            "build_content_evidence.py after the last read. Only if a read returns a download link instead, save "
             "and fetch it the way the Skill says for read_research_data_artifacts, then open each image's path "
             "before any visual claim:")
-        say("read: " + json.dumps(media["read"], ensure_ascii=False))
+        for item in reads:
+            say("read: " + json.dumps(item, ensure_ascii=False))
     elif viewer_ok:
         say("No frames were taken: what is visible comes from the whole-video notes, which are reported "
             "observations, not frames.")

@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -42,7 +42,7 @@ const TOOLS = { collect_public_metadata: "public_video_collect_public_metadata",
 
 // One fixed job id per operation, so a second media call in the same run (after a fallback) never reuses one.
 const JOB_NUMBER = { collect_public_metadata: 1, fetch_transcript: 2, extract_keyframes: 3, measure_media_signals: 4 };
-function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyTranscript = false } = {}) {
+function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyTranscript = false, frameTimes = [0, 0.5, 1, 12, 25] } = {}) {
   const base = {
     schema_version: "1.0", connector_id: "public-video-media", operation, provider: "fixture", status: failed ? "failed" : "completed",
     summary: "ok", limitations: failed ? ["the platform refused the download"] : [], credential_values_recorded: false, job_id: jobId,
@@ -61,12 +61,12 @@ function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyT
       origin: "speech_recognition", cue_count: 2, artifacts: [] } };
   if (operation === "measure_media_signals")
     return { ...base, data: { shots: { count: 2, cuts_at_s: [12.5], shots: [{ start_s: 0, end_s: 12.5 }, { start_s: 12.5, end_s: 30 }] }, artifacts: [] } };
-  const frames = [0, 0.5, 1, 12, 25].map((t, i) => ({ bytes: 100, sha256: "c".repeat(64), frame_id: `frame-${String(i + 1).padStart(4, "0")}`, t_seconds: t,
+  const frames = frameTimes.map((t, i) => ({ bytes: 100, sha256: "c".repeat(64), frame_id: `frame-${String(i + 1).padStart(4, "0")}`, t_seconds: t,
     object_ref: `creator-media/${jobId}/epoch-1/frame-${String(i + 1).padStart(4, "0")}.jpg` }));
   return { ...base, data: { frames, artifacts: frames.map((f) => ({ kind: "keyframes", bytes: 100, sha256: f.sha256, object_ref: f.object_ref })),
     selection: "duration_scaled_v1", duration_s: 30, frame_count: frames.length } };
 }
-function composite(args, { failed = false, duration, emptyTranscript } = {}) {
+function composite(args, { failed = false, duration, emptyTranscript, frameTimes } = {}) {
   const jobs = [], list = [];
   args.requests.forEach((request) => {
     const group = `${request.content_id}/${request.operation}`;
@@ -74,7 +74,7 @@ function composite(args, { failed = false, duration, emptyTranscript } = {}) {
     const lost = failed && request.operation !== "collect_public_metadata";
     jobs.push({ group, content_id: request.content_id, operation: request.operation, attempt: 1, job_id: jobId, status: lost ? "failed" : "completed" });
     list.push({ tool: TOOLS[request.operation], parameters: request.parameters, group, attempts: 1,
-      result: mediaEnvelope(request.operation, jobId, { failed: lost, duration, emptyTranscript }) });
+      result: mediaEnvelope(request.operation, jobId, { failed: lost, duration, emptyTranscript, frameTimes }) });
   });
   return { schema_version: "kabo-composite-fetch.v1", tool: "collect_video_media", status: "completed", calls: list,
     summary: { requests: jobs.length, pending: 0, jobs }, coverage: { deadline_reached: false, unfinished: [], provider_calls: 0, pending: 0 }, limitations: [] };
@@ -117,7 +117,7 @@ const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
 // every call handed over, in order. `mediaFailed` fails the media call's observing jobs (true, or a function of the
 // media call's number in this run); `afterRound` runs after each round's results are saved, before the resume.
 async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed = false, mode = "diagnosis", duration,
-  emptyTranscript, afterRound } = {}) {
+  emptyTranscript, afterRound, frameTimes } = {}) {
   const run = await newRun(t);
   let out = python("observe_video.py", ["--url", TIKTOK, "--mode", mode, ...(source ? ["--observe-source", source] : [])], run).out;
   const steps = [...viewerSteps];
@@ -131,7 +131,7 @@ async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed =
       if (call.tool === "collect_video_media") {
         const failed = typeof mediaFailed === "function" ? mediaFailed(mediaCalls) : mediaFailed;
         mediaCalls += 1;
-        await writeFile(files[index], mcp(composite(call.arguments, { failed, duration, emptyTranscript })));
+        await writeFile(files[index], mcp(composite(call.arguments, { failed, duration, emptyTranscript, frameTimes })));
       } else await writeFile(files[index], typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
     }
     if (afterRound) await afterRound(run, round);
@@ -990,4 +990,202 @@ test("a failure that is not an input refusal is never repeated without the new i
   assert.equal(handed.filter((call) => call.tool === "analyze_content_video").length, 1);
   assert.match(out, /whole_video failed \(quota_exceeded\); falling back to server_frames/);
   assert.equal((await readJson(path.join(run, "observe-video.json"))).legacy_viewer_args, undefined);
+});
+
+// End-to-end findings: what real runs of this Skill tripped over, pinned so they stay fixed.
+// The builder never overwrites its outputs; a rebuild in the same run clears them first.
+async function rebuild(run, flags) {
+  for (const name of ["content_evidence.json", "content_evidence.references.json"]) await rm(path.join(run, "analysis", name), { force: true });
+  return build(run, flags);
+}
+async function envelopeFlags(run, out, keep = () => true) {
+  const files = flagsOf(out).split(" ").filter((word) => word.startsWith("snapshot/envelope-"));
+  const kept = [];
+  for (const file of files) if (keep(await readJson(path.join(run, file)))) kept.push(`--envelope ${file}`);
+  return kept.join(" ");
+}
+
+test("frame reads come in chunks of at most 15 object refs, so a host shows every image", async (t) => {
+  const frameTimes = Array.from({ length: 32 }, (_, i) => i * 0.9);
+  const { out } = await observe(t, null, { frameTimes });
+  const reads = out.split("\n").filter((line) => line.startsWith("read: ")).map((line) => JSON.parse(line.slice(6)));
+  assert.equal(reads.length, 3, out);
+  for (const read of reads) {
+    assert.equal(read.tool, "read_research_data_artifacts");
+    assert.ok(read.arguments.object_refs.length <= 15);
+  }
+  assert.equal(new Set(reads.flatMap((read) => read.arguments.object_refs)).size, 32);
+  assert.match(out, /make these 3 reads now/);
+});
+
+test("prepare_link_request --url: mode defaults, an unresolved short link keeps a null id, a wrong platform is refused", async (t) => {
+  const run = await newRun(t);
+  const make = (args, name) => python("prepare_link_request.py", [...args, "--output", path.join(run, "analysis", name)], run);
+  const made = make(["--url", TIKTOK, "--platform", "tiktok", "--subject-state", "unknown", "--mode", "content_read", "--confirmed-by-user"], "a.json");
+  assert.equal(made.code, 0, made.out);
+  const request = await readJson(path.join(run, "analysis/a.json"));
+  assert.deepEqual([request.source.acquisition, request.source.url, request.source.content_id, request.budget.max_connector_calls,
+    request.acquire.owner_metrics, request.baseline ?? null], ["public_url", TIKTOK, "7300000000000000001", 8, "skip", null]);
+  const own = make(["--url", TIKTOK, "--platform", "tiktok", "--subject-state", "own_published", "--mode", "diagnosis"], "b.json");
+  assert.equal(own.code, 0, own.out);
+  assert.equal((await readJson(path.join(run, "analysis/b.json"))).budget.max_connector_calls, 15);
+  const short = make(["--url", "https://www.tiktok.com/t/ZTfCHqHy2/", "--platform", "tiktok", "--subject-state", "unknown", "--mode", "diagnosis"], "c.json");
+  assert.equal(short.code, 0, short.out);
+  assert.equal((await readJson(path.join(run, "analysis/c.json"))).source.content_id, null);
+  assert.match(make(["--url", TIKTOK, "--platform", "instagram", "--subject-state", "unknown", "--mode", "diagnosis"], "d.json").out, /is a tiktok link/);
+  assert.notEqual(make(["--url", TIKTOK, "--platform", "tiktok", "--subject-state", "unknown"], "e.json").code, 0);
+  assert.equal(make(["--url", TIKTOK, "--platform", "tiktok", "--subject-state", "unknown", "--max-connector-calls", "4"], "f.json").code, 0);
+});
+
+test("evidence: compact upload dates become ISO; an unresolved short link builds with a null id; tiktok_search_get_video is metadata", async (t) => {
+  const { run, out } = await observe(t, null);
+  await writeRequest(run);
+  assert.equal(build(run, flagsOf(out)).code, 0);
+  const dated = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assert.equal(dated.content_ref.published_at, "2026-11-01");
+
+  // A short link nobody resolved, and no metadata result: the id stays null instead of failing the build.
+  const SHORT = "https://www.tiktok.com/t/ZTfCHqHy2/";
+  await rm(path.join(run, "analysis/video-analysis-request.json"));
+  assert.equal(python("prepare_link_request.py", ["--url", SHORT, "--platform", "tiktok", "--subject-state", "unknown", "--mode", "diagnosis",
+    "--confirmed-by-user", "--output", path.join(run, "analysis/video-analysis-request.json")], run).code, 0);
+  const media = await envelopeFlags(run, out, (envelope) => envelope.operation !== "collect_public_metadata");
+  const bare = await rebuild(run, media);
+  assert.equal(bare.code, 0, bare.out);
+  const unresolved = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assertValidEvidence(unresolved);
+  assert.equal(unresolved.content_ref.content_id, null);
+  assert.match(unresolved.evidence_id, /^ev-tt-unresolved-[0-9a-f]{12}$/);
+  assert.equal(unresolved.audio_attribution, undefined);
+  const refs = await readJson(path.join(run, "analysis/content_evidence.references.json"));
+  assert.doesNotMatch(JSON.stringify(refs), /audio_attribution/);
+
+  // The TikTok search row names the video, its counts, caption, hashtags and declared sound.
+  await writeFile(path.join(run, "snapshot/envelope-09.json"), JSON.stringify({
+    schema_version: "1.0", connector_id: "tiktok-search", operation: "get_video", provider: "fixture", status: "completed",
+    summary: "ok", limitations: [], credential_values_recorded: false, request_id: "req-tt", retrieved_at: "2026-11-16T00:00:00Z",
+    raw_sha256: "d".repeat(64), observation_refs: [], evidence_ref: "ev-tt",
+    data: { video: { aweme_id: "7183729178263473414", desc: "Best detergent #dishwasher #CleanTok", create_time: 1672592291,
+      statistics: { play_count: 477554, digg_count: 32322, comment_count: 1791 }, author: { unique_id: "laundry" },
+      video: { duration: 30000 }, text_extra: [{ type: 1, hashtag_name: "dishwasher" }, { type: 1, hashtag_name: "cleantok" }],
+      music: { id_str: "7183729185767066374", is_original_sound: true, author: "Laundry", title: "original sound - laundry" } } } }));
+  const full = await rebuild(run, `${media} --envelope snapshot/envelope-09.json`);
+  assert.equal(full.code, 0, full.out);
+  const tiktok = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assertValidEvidence(tiktok);
+  assert.equal(tiktok.content_ref.content_id, "7183729178263473414");
+  assert.equal(tiktok.content_ref.published_at, "2023-01-01T16:58:11Z");
+  assert.equal(tiktok.content_metadata.status, "available");
+  assert.equal(tiktok.content_metadata.caption, "Best detergent #dishwasher #CleanTok");
+  assert.deepEqual(tiktok.content_metadata.tags, ["dishwasher", "cleantok"]);
+  assert.deepEqual(tiktok.public_metrics.map((metric) => [metric.native_name, metric.value]),
+    [["view_count", 477554], ["like_count", 32322], ["comment_count", 1791]]);
+  assert.equal(tiktok.audio_attribution.uses_original_audio, true);
+  assert.match(JSON.stringify(await readJson(path.join(run, "analysis/content_evidence.references.json"))), /audio_attribution\.uses_original_audio/);
+});
+
+test("the brief's Sound lines: attribution unavailable, sound markers in the cues, and whether music and mix were analysed", async (t) => {
+  const { run, out } = await observe(t, null);
+  await writeRequest(run);
+  assert.equal(build(run, flagsOf(out)).code, 0);
+  const file = path.join(run, "analysis/content_evidence.json");
+  const evidence = await readJson(file);
+  evidence.transcript.cues[1].text = "[Music] here is why ♪";
+  await writeFile(file, JSON.stringify(evidence));
+  assert.equal((await prepare(run, ["--mode", "content_read"], "what does it say?")).code, 0);
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const sound = brief.slice(brief.indexOf("### Sound"), brief.indexOf("### Frames"));
+  assert.match(sound, /`audio_attribution` unavailable/);
+  assert.match(sound, /`transcript\.cue\[1\]` \[Music\] ♪/);
+  assert.match(sound, /Music and mix: neither measured nor heard/);
+  assert.match(section(brief, 7), /When `audio_attribution` is unavailable, decide from what the run has: sound markers/);
+  assert.match(section(brief, 6), /Say no more than the cited evidence shows/);
+  assert.match(section(brief, 6), /English when there are none/);
+  assert.match(section(brief, 5), /a transcript says nothing about them/);
+});
+
+test("content read and craft teardown close the judge stage and record the answer's length", async (t) => {
+  const { run, out } = await observe(t, null, { mode: "content_read" });
+  await writeRequest(run);
+  assert.equal(build(run, flagsOf(out)).code, 0);
+  assert.equal((await prepare(run, ["--mode", "content_read"], "what is he doing?")).code, 0);
+  assert.notEqual(python("acv_timing.py", ["answer", "--run", run, "--answer", "analysis/answer.md"], run).code, 0);
+  await writeFile(path.join(run, "analysis/answer.md"), "He burns the pan at 0:00, then explains why.\n");
+  const recorded = python("acv_timing.py", ["answer", "--run", run, "--answer", "analysis/answer.md"], run);
+  assert.equal(recorded.code, 0, recorded.out);
+  const timing = await readJson(path.join(run, "analysis/timing.json"));
+  assert.deepEqual(timing.stages.map((stage) => stage.stage), ["observe", "prepare", "judge"]);
+  assert.equal(timing.reply.chars, "He burns the pan at 0:00, then explains why.".length);
+  assert.ok(timing.reply.total_ms >= 0);
+  assert.notEqual(python("acv_timing.py", ["answer", "--run", run, "--answer", "../outside.md"], run).code, 0);
+});
+
+const JUDGMENT = { observations: [{ observation_id: "obs-1", dimension: "first_frame_promise", t_start_s: 0, t_end_s: 0,
+  statement: "The burnt pan is in the first frame.", basis: "frame", evidence_refs: ["frame-0001"], confidence: "medium" }],
+  evidence_completeness: { account_baseline: "unavailable" } };
+function creatorView({ long = false, decision = "borrow" } = {}) {
+  const card = (title) => ({ title, why_for_you: "First line\nSecond line\nThird line", action: "Keep the result first.",
+    evidence_refs: ["observations.obs-1"] });
+  const second = card("What you would inherit");
+  if (long) second.why_for_you = `${"x".repeat(479)}\nSecond line\nThird line`;
+  const third = { ...card("What to do in yours"), hooks: [{ purpose: "Open on the result", visual_direction: "The burnt pan, close up",
+    on_screen_text: "Why does this keep happening?" }] };
+  return { decision, creator_view: { language: "en", headline: "The result comes first", summary: "The pan opens the video.",
+    cards: [card("What works"), second, third], next_actions: ["Film your own result shot."] } };
+}
+
+test("finish_diagnosis --check lists every view violation and writes nothing; a failed finish leaves no report", async (t) => {
+  const { run, out } = await observe(t, null);
+  await writeRequest(run);
+  assert.equal(build(run, flagsOf(out)).code, 0);
+  assert.equal((await prepare(run, ["--mode", "diagnosis"], "")).code, 0);
+  await writeFile(path.join(run, "analysis/video_judgment.json"), JSON.stringify(JUDGMENT));
+  const contract = JSON.parse(python("build_creator_result.py", ["--print-view-contract", "--observations-from", "analysis/video_judgment.json"], run).out);
+  assert.deepEqual(Object.keys(contract.document.decision.allowed), ["borrow", "skip"]);
+  assert.equal(contract.display_column_limits["cards[].why_for_you"], 480);
+  assert.equal(contract.creator_view.cards.why_for_you.max_display_columns, 480);
+  assert.match(contract.creator_view.cards.hooks.fields.time_range, /"4\.03–6\.13s"/);
+  assert.match(contract.creator_view.language, /English|en when there are none/);
+
+  await writeFile(path.join(run, "analysis/creator_view.json"), JSON.stringify(creatorView({ long: true, decision: "recut" })));
+  const checked = python("finish_diagnosis.py", ["--run-dir", run, "--check"], run);
+  assert.equal(checked.code, 0, checked.out);
+  const verdict = JSON.parse(checked.out.slice(0, checked.out.lastIndexOf("}") + 1));
+  assert.equal(verdict.status, "needs_correction");
+  assert.ok(verdict.violations.some((line) => /why_for_you runs \d+ columns against a 480 limit/.test(line)), checked.out);
+  assert.ok(verdict.violations.some((line) => /details\.decision is 'recut'; for this video it is one of borrow, skip/.test(line)), checked.out);
+  assert.equal(existsSync(path.join(run, "report/VIDEO_DIAGNOSIS.md")), false);
+  assert.equal(existsSync(path.join(run, "analysis/creator-task-result.json")), false);
+  assert.ok(!(await readJson(path.join(run, "analysis/timing.json"))).stages.some((stage) => stage.stage === "validate"));
+
+  const failed = python("finish_diagnosis.py", ["--run-dir", run], run);
+  assert.notEqual(failed.code, 0);
+  assert.match(failed.out, /no report was written/);
+  assert.equal(existsSync(path.join(run, "report/VIDEO_DIAGNOSIS.md")), false);
+  assert.deepEqual((await readdir(path.join(run, "report"))).filter((name) => !name.startsWith("transcript")), []);
+
+  await writeFile(path.join(run, "analysis/creator_view.json"), JSON.stringify(creatorView()));
+  assert.match(python("finish_diagnosis.py", ["--run-dir", run, "--check"], run).out, /"status": "ready"/);
+  const finished = python("finish_diagnosis.py", ["--run-dir", run], run);
+  assert.equal(finished.code, 0, finished.out);
+  const report = await readFile(path.join(run, "report/VIDEO_DIAGNOSIS.md"), "utf8");
+  assert.match(report, /- \*\*On screen\*\*: Why does this keep happening\?/);
+  assert.match(report, /- \*\*Shot\*\*: The burnt pan, close up/);
+  assert.match(report, /\*\*How to avoid it\*\*: Keep the result first\./);
+  assert.match(finished.out, /leave it, and every file path, out of the reply/);
+  const timing = await readJson(path.join(run, "analysis/timing.json"));
+  assert.equal(timing.reply.file, "report/VIDEO_DIAGNOSIS.md");
+  assert.equal(timing.reply.chars, report.trim().length);
+});
+
+test("the report keeps a non-zero tenth of a second: a measured 0.4s is not printed as 0:00", () => {
+  const probe = `
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from render_video_report import timecode, format_time_range, prose_timecodes
+print(json.dumps([timecode(0.4), timecode(4.017), timecode(15.207), timecode(4.9999), timecode(61.0),
+                  format_time_range("0.000–4.017s"), prose_timecodes("sound from 0.4s", {0.4})]))
+`;
+  const result = spawnSync("python3", ["-I", "-B", "-c", probe, scripts], { encoding: "utf8" });
+  assert.deepEqual(JSON.parse(result.stdout), ["0:00.4", "0:04", "0:15.2", "0:04.9", "1:01", "[0:00–0:04]", "sound from [0:00.4]"]);
 });
