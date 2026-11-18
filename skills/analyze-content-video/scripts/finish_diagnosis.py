@@ -13,6 +13,8 @@ import subprocess
 import sys
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import acv_timing  # noqa: E402
 
 
 def commands(run: Path) -> list[list[str]]:
@@ -43,11 +45,20 @@ def main() -> int:
     if not (run / "analysis").is_dir():
         parser.error("--run-dir must name the existing reserved run containing analysis/")
     (run / "report").mkdir(exist_ok=True)
+    analysis = run / "analysis"
+    # Timing only measures: judge runs from the end of prepare to here, validate is this script's own span. A
+    # retried finish replaces both entries rather than adding a second pair.
+    started = acv_timing.now()
+    prepared = acv_timing.last_end(analysis, "prepare")
+    if prepared:
+        acv_timing.replace(analysis, "judge", prepared, started)
     for command in commands(run):
         result = subprocess.run(command, cwd=run)
         if result.returncode:
             print(f"Diagnosis report stopped at {Path(command[2]).name}; no later step ran.", file=sys.stderr)
+            acv_timing.replace(analysis, "validate", started)
             return result.returncode if result.returncode > 0 else 1
+    acv_timing.replace(analysis, "validate", started)
     return 0
 
 

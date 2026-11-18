@@ -29,7 +29,8 @@ package reads it.
    them to the artifact step 2 wrote, landing in `media.probed` exactly as a published video's would.
    **Never fold it into the frame command.** Sharing a command means sharing its time, and a
    measurement that runs out or fails on its own leaves the frames already written untouched.
-4. **Get the words** — see the three tiers under *Getting the words* below.
+4. **Get the words** — see the three tiers under *Getting the words* below. A local file is read
+   here only: it is never uploaded, and no Kabo tool sees it.
 5. **Then build**, with `--local-media analysis/local-media.json` and, where there is one,
    `--local-transcript analysis/local-transcript.json`.
 
@@ -100,11 +101,17 @@ re-encode turns into audible distortion, so it is worth saying on the master.
    behind it: save the cues it returned, timings unchanged, as `analysis/host-transcript.srt` and
    read that with `--origin speech_recognition` added. The origin is the point — those words are
    what the analysis heard, quotable as heard but never as the creator's exact wording.
-3. **Local speech recognition** — not implemented in this version. `probe_media_tools.py` reports
-   it as a gap and prints the one line that would install it. This Skill never runs an install, and
-   **it does not run this tier even where the library is already present**: nothing here would call
-   it, and reporting it as available would send a creator to install a dependency that changes
-   nothing.
+3. **Local speech recognition** — only when `probe_media_tools.py` reports `faster_whisper` as
+   `available` (the package and its speech model are both on this machine):
+   `cd '<run directory>' && python3 <skill directory>/scripts/transcribe_local.py --media <the same absolute path> --artifact analysis/local-transcript.json`,
+   adding `--language <code>` when the creator states the language. It writes the same artifact as
+   the subtitle reader, with origin `speech_recognition`: quote the words as heard, never as the
+   creator's exact wording. When it says it stopped at its time limit, run the same command again
+   until it reports `"complete": true`; what it never reached is unread, not silent.
+   `no_speech_detected` (music or silence only) is an answer, not a failure. When the probe reports
+   it `absent` or `model_missing`, or the script exits 3, **install nothing**: give the creator the
+   one install line it printed and carry on without the words. This Skill never runs an install and
+   never downloads the model.
 
-When neither of the first two produced words, say the argument was never read — the same sentence a
+When none of the three produced words, say the argument was never read — the same sentence a
 connector run says when its transcript did not arrive — and carry on from frames and metadata.

@@ -1,0 +1,1 @@
+{"schema_version":"observation-order/v2","default":["server_frames"],"fallback":{"server_frames":["whole_video"],"whole_video":["server_frames"]},"add_when_cards":{"sound":["whole_video"]},"whole_video_max_ms":600000,"whole_video_platforms":["youtube","instagram","tiktok"]}

@@ -63,6 +63,7 @@ def has_retrieved_evidence(evidence: dict) -> bool:
         # tags and publishes no cover: the run learned something about the video either way,
         # and a run that learned something may not report that it learned nothing.
         or metadata.get("status") == "available"
+        or bool((evidence.get("viewer_observations") or {}).get("items"))
     )
 
 
@@ -118,11 +119,16 @@ def evidence_handles(evidence: dict, analysis: dict | None = None) -> set[str]:
     # reference resolved because the index was in range.
     handles |= {f"transcript.cue[{i}]"
                 for i in range(len((evidence.get("transcript") or {}).get("cues") or []))}
+    # A whole-video note is cited by its own id, exactly like a frame id. Only notes that reached the evidence
+    # object resolve; the scores and advice the viewer also returned are never in it, so never citable.
+    handles |= {item["id"] for item in (evidence.get("viewer_observations") or {}).get("items") or []
+                if isinstance(item, dict) and isinstance(item.get("id"), str)}
     handles |= {f"observations.{o['observation_id']}"
                 for o in (analysis or {}).get("observations") or []}
-    caption = (evidence.get("content_metadata") or {}).get("caption")
-    if isinstance(caption, str) and caption.strip():
-        handles.add("content_metadata.caption")
+    metadata = evidence.get("content_metadata") or {}
+    for field in ("title", "caption"):
+        if isinstance(metadata.get(field), str) and metadata[field].strip():
+            handles.add(f"content_metadata.{field}")
     return handles
 
 
@@ -238,6 +244,10 @@ def validate(analysis: dict, evidence: dict, request: dict | None) -> list[str]:
             if not timed:
                 require(obs.get("t_start_s") is None and obs.get("t_end_s") is None,
                         f"{obs['observation_id']} anchors a plain-text transcript to a timestamp", errors)
+        if obs.get("basis") == "viewer_observation":
+            notes = {i.get("id") for i in (evidence.get("viewer_observations") or {}).get("items") or []}
+            require(bool(notes.intersection(obs.get("evidence_refs") or [])),
+                    f"{obs['observation_id']} rests on a whole-video note but cites none", errors)
         if obs.get("dimension") == "spoken_hook":
             require(transcript_status == "available",
                     f"{obs['observation_id']} describes speech without a transcript", errors)

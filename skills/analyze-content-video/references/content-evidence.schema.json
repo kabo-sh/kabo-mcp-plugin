@@ -1506,6 +1506,42 @@
           }
         }
       }
+    },
+    "viewer_observations": {
+      "type": "object",
+      "description": "What a whole-video viewer saw and heard, kept as observations only. Each item is one timestamped note the viewer anchored to a span of the video, with the viewer's aspect key verbatim. Every score, summary, verdict and piece of advice the viewer also returned is dropped before this object is written and listed by name in discarded_fields; none of it may appear anywhere in the evidence, the analysis brief or the report. Items are reported observations: they carry time and may be cited by id, but they are not frames, and cut timing or shot length is never measured from them.",
+      "required": ["status", "source", "analysis_id", "failure", "items", "discarded_fields"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["available", "unavailable", "pending", "not_attempted"] },
+        "source": { "const": "whole_video" },
+        "analysis_id": { "type": ["string", "null"] },
+        "failure": {
+          "type": ["object", "null"],
+          "required": ["code", "retryable"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "retryable": { "type": "boolean" }
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "start_ms", "end_ms", "aspect", "note"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^V[0-9]{2,}$" },
+              "start_ms": { "type": "integer", "minimum": 0 },
+              "end_ms": { "type": "integer", "minimum": 0 },
+              "aspect": { "type": "string", "minLength": 1 },
+              "note": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "discarded_fields": { "type": "array", "items": { "type": "string" } }
+      }
     }
   }
 }

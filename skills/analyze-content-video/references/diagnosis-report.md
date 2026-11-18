@@ -102,22 +102,9 @@ Put claim-specific uncertainty once beside the claim it weakens, not in this mea
 
 ### When the change is the opening of a short video
 
-`references/hook-core/` is a method for short-video openings: fifteen opening patterns and the
-material each one needs. It is method, not evidence about this video. Reach for it when the change
-card is changing the opening of a short-form video. A long-form hook window runs fifteen to thirty
-seconds; these patterns were drawn from the first one to three, so do not apply them to a
-long-form opening — judge that one from this video's own evidence. Never open the files under
-`references/hook-core/` directly; the script below reads them.
-
-Read the catalogue once with
-`cd '<run directory>' && python3 <skill directory>/scripts/prepare_video_hook.py --platform <platform> --output analysis/hook-catalog.json`,
-then read one to three patterns that fit what this video and this creator already have by adding
-`--pattern-id <id>` for each, with `--output analysis/hook-patterns.json`. Choose by material: a
-pattern whose material the creator does not have is a preparation task, not an opening.
-
-What a pattern adds is that it treats the opening as one decision across picture and sound — what
-the first frame shows, what is first heard (a line, a sound, or a silence chosen on purpose), and
-what the two together make the viewer want to know. Write the new opening as one hook in that shape:
+How to choose and write a new opening is the `opening` card (in the brief when it was selected; it
+reads `references/hook-core/` through `scripts/prepare_video_hook.py`, never directly). Put it in the
+card fields this way:
 
 - `visual_direction`: the first frame and the first sound together, and the question their
   combination raises. Leave `time_range` off: this hook is about the next cut, not a moment in
@@ -126,24 +113,18 @@ what the two together make the viewer want to know. Write the new opening as one
 - The card's `action`: the material to prepare when the creator has not shown they have it — "a
   screenshot of the result you can actually show" — never written as if they already own it.
 
-On their own video the strongest opening usually already exists somewhere in the cut. When it
-does, give it its own hook — the `time_range` and what is on screen there — and let the opening
-hook say how to bring it to the front. On somebody else's video the pattern is the mechanism that
-transfers, and the opening is for the creator's next video.
+When the strongest opening already exists in the creator's own cut, give it its own hook — the
+`time_range` and what is on screen there — and let the opening hook say how to bring it to the front.
 
 `finish_diagnosis.py` runs `validate_creator_shape.py`, which enforces the sequence, the pairing,
 the observation reference, the timestamp binding and the `spoken_line` rule; do not run it yourself.
 
 ## Promise and payoff
 
-`scripts/compute_promise_payoff.py` measures how long the video takes to deliver what its opening
-promised. Both ends are already in the dimension vocabulary — `first_frame_promise` and `payoff` —
-and this reports the distance between them.
-
-It anchors the promise itself: the first thing said inside `frames.sampling_plan.hook_window_s`.
-It will not locate the payoff, because a payoff is a meaning and not a pattern. Name the cue you
-judge pays it off and the script returns the gap; name nothing and it returns the candidate cues
-and says the judgement has not been made. Do not report a distance the script did not compute.
+`scripts/compute_promise_payoff.py` (run by `prepare_analysis.py`, results in section 4 of the brief)
+anchors the promise: the first thing said inside `frames.sampling_plan.hook_window_s`. It will not
+locate the payoff. Name the cue you judge pays it off and the script returns the gap; name nothing
+and it returns the candidate cues. Do not report a distance the script did not compute.
 
 ## What the document does not carry
 

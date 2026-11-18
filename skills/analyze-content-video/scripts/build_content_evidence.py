@@ -53,6 +53,8 @@ linked_media = importlib.util.module_from_spec(_linked_spec)
 _linked_spec.loader.exec_module(linked_media)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import public_video_sources  # noqa: E402
+import viewer_response  # noqa: E402
+import acv_timing  # noqa: E402
 
 SCHEMA_VERSION = "content-evidence.v1"
 MEDIA_CONNECTOR = "public-video-media"
@@ -340,7 +342,7 @@ def carried_metadata(frames: dict[str, Any] | None) -> dict[str, Any] | None:
     return carried
 
 
-def video_identity(envelopes: list[dict[str, Any]], platform: Any) -> dict[str, Any] | None:
+def video_identity(envelopes: list[dict[str, Any]], platform: Any, file_id: str | None = None) -> dict[str, Any] | None:
     """The video the backend says these responses are about (``data.video_identity``), or None.
 
     Short links only name a video after the server resolved them, and a transcript-only export has no
@@ -357,6 +359,10 @@ def video_identity(envelopes: list[dict[str, Any]], platform: Any) -> dict[str, 
             raise ValueError("the media responses name two different videos; build the evidence from one video's "
                              "responses only")
         found = identity
+    if found is not None and file_id and str(found.get("platform_video_id")).lower() == file_id:
+        # A video attached in Kabo (kabo-file:<id>) is named by its file id and is on no platform yet: the request's
+        # platform is the one the creator named for it.
+        return found
     if found is not None and found.get("platform") != platform:
         raise ValueError(f"the media responses identify a {found.get('platform')} video, but the request names "
                          f"{platform!r}: set the platform of the link the creator gave")
@@ -429,6 +435,26 @@ def acquisition_entry(envelope: dict[str, Any]) -> dict[str, Any]:
         "raw_retained_outside_git": True,
         "credits_charged": None,
         "note": None,
+    }
+
+
+def viewer_acquisition_entry(viewer: dict[str, Any]) -> dict[str, Any]:
+    """One ledger entry for the whole-video viewing: the start call and every poll of the same analysis."""
+    run = viewer.get("run") or {}
+    polls = int(viewer.get("polls") or 0)
+    return {
+        "step": "connector_call",
+        "connector_id": viewer_response.CONNECTOR,
+        "operation": viewer_response.START_TOOL,
+        "connector_request_id": str(run.get("id") or viewer.get("idempotency_key") or "unknown"),
+        "status": viewer_response.acquisition_status(viewer),
+        "retrieved_at": run.get("updatedAt"),
+        "raw_hash": viewer.get("raw_sha256"),
+        "raw_retained_outside_git": True,
+        "credits_charged": None,
+        "note": (f"whole-video viewing; final state read after {polls} {viewer_response.POLL_TOOL} poll(s); "
+                 "only timestamped notes and the transcript were kept, every score, verdict and piece of advice "
+                 "was discarded"),
     }
 
 
@@ -779,6 +805,12 @@ def local_transcript_block(local: dict[str, Any], request: dict[str, Any]) -> di
         "text_sha256": None,
         "origin": None,
     }
+    if local.get("status") in {"no_speech_detected", "no_audio_track"}:
+        # Local speech recognition read the whole file and heard no words: that is the answer, not a failure.
+        block["status"] = local["status"]
+        block["status_basis"] = str(local.get("status_basis") or "local speech recognition heard no speech")
+        block["origin"] = "speech_recognition"
+        return block
     if local.get("status") != "available":
         block["status"] = "provider_error"
         block["status_basis"] = str(local.get("status_basis") or "the supplied subtitle file could not be read")
@@ -1035,6 +1067,7 @@ def build(
     snapshot_root: Path | None = None,
     analysis_root: Path | None = None,
     now: datetime | None = None,
+    viewer: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     from prepare_link_request import public_only_request_errors
     scope_errors = public_only_request_errors(request)
@@ -1047,6 +1080,14 @@ def build(
         raise ValueError(
             f"a local media artifact was given but the request declares acquisition "
             f"{acquisition_mode!r}: the evidence would claim it measured a file the request never named"
+        )
+    if viewer is not None and (acquisition_mode == "local_file" or local_media is not None
+                               or local_transcript is not None):
+        # The whole-video viewer watched the platform's copy; a local file is the creator's master. One object
+        # never claims both readings describe the same thing.
+        raise ValueError(
+            "a whole-video viewing result was given for a local file: the viewer watched the published copy, "
+            "not this file, and is not evidence about it"
         )
     # A deferred job still unfinished has a job id and no envelope yet. It is recorded as pending
     # (polling window over, run still going) or deferred_incomplete (the run is closing), never as
@@ -1064,7 +1105,8 @@ def build(
                 "status": status, "retrieved_at": None, "raw_hash": None, "raw_retained_outside_git": True,
                 "credits_charged": None, "note": "deferred job still unfinished when the acquisition window closed",
             })
-    if not envelope_paths and not pending_entries and local_media is None and local_transcript is None:
+    if (not envelope_paths and not pending_entries and local_media is None and local_transcript is None
+            and viewer is None):
         # An evidence object records at least one acquisition; with none there is nothing to derive.
         raise ValueError("no connector envelope was given: persist every fetch this run made, failed ones "
                          "included, and pass each with --envelope")
@@ -1084,7 +1126,8 @@ def build(
     ]
     # Hosts also retain readiness catalogs in the same staging directory. They are acquisition
     # metadata, not connector evidence; unknown documents and malformed envelopes still fail.
-    if not envelopes and not linked_bundles and not pending_entries and local_media is None and local_transcript is None:
+    if (not envelopes and not linked_bundles and not pending_entries and local_media is None
+            and local_transcript is None and viewer is None):
         raise ValueError("no content acquisition was given: a readiness catalog is not post evidence")
     by_role: dict[str, list[dict[str, Any]]] = {}
     for _, envelope in envelopes:
@@ -1125,7 +1168,10 @@ def build(
     local_steps = [as_record(step) for step in as_record(local_media).get("steps") or []]
     local_steps += [as_record(step) for step in as_record(local_transcript).get("steps") or []]
 
-    identity = video_identity([envelope for _, envelope in envelopes], as_record(request.get("source")).get("platform"))
+    source_url = str(as_record(request.get("source")).get("url") or "")
+    file_id = source_url.split(":", 1)[1].lower() if source_url.lower().startswith("kabo-file:") else None
+    identity = video_identity([envelope for _, envelope in envelopes], as_record(request.get("source")).get("platform"),
+                              file_id)
     ref = content_ref(request, metadata, published_at, post_facts(post).get("published_at"), identity)
     # Tier 1 before tier 2, which is the order SKILL.md states. A supplied subtitle file is the
     # fallback for a cut with no published captions, not an override of the ones the platform
@@ -1143,6 +1189,28 @@ def build(
         used_local_transcript = True
     else:
         used_local_transcript = False
+    viewer_block = viewer_response.observations(viewer) if viewer is not None else None
+    viewer_cues = cues_from(viewer_response.transcript_cues(viewer))
+    used_viewer_transcript = False
+    if viewer_cues and transcript["status"] != "available":
+        # The viewer heard the audio itself: its words fill the transcript only when no fetched transcript exists.
+        text = "\n".join(cue["text"] for cue in viewer_cues)
+        transcript = {
+            "status": "available",
+            "status_basis": (f"the whole-video viewer ({viewer_response.START_TOOL}) returned {len(viewer_cues)} "
+                             "timed cues heard from the video's audio; no fetched transcript was available"),
+            "source_connector": viewer_response.CONNECTOR,
+            "granularity": "timestamped",
+            "timestamps_available": True,
+            "language_requested": transcript.get("language_requested"),
+            "language": None,
+            "segment_count": len(viewer_cues),
+            "character_count": len(text),
+            "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "cues": viewer_cues,
+            "origin": "speech_recognition",
+        }
+        used_viewer_transcript = True
     frame_block = frames_block(frames, local_media)
     # Local extraction already writes its own real files under hashed names and records each
     # path. Only connector pixels are renamed by host envelope staging.
@@ -1150,7 +1218,8 @@ def build(
         if analysis_root is None:
             raise ValueError("snapshot frame binding requires this run's analysis directory")
         materialise_frame_aliases(frame_block, snapshot_root, analysis_root)
-    anything = transcript["status"] == "available" or frame_block["status"] == "available" or usable(metadata)
+    anything = (transcript["status"] == "available" or frame_block["status"] == "available" or usable(metadata)
+                or bool(viewer_block and viewer_block["items"]))
     notes: list[str] = []
     for _, envelope in envelopes:
         if envelope.get("status") == "unsupported" and role_of(envelope) in served_elsewhere:
@@ -1184,6 +1253,17 @@ def build(
                 f"The supplied subtitle file runs past the end of this cut (a line starts at "
                 f"{last_cue:g}s in a {duration:g}s video), so it may belong to a different version."
             )
+    if used_local_transcript and as_record(local_transcript).get("complete") is False:
+        reached = as_record(local_transcript).get("transcribed_until_s")
+        notes.append(f"Local speech recognition stopped at its time limit after {reached}s of the file: past that "
+                     "second the words were not read, which is not the same as silence.")
+    if viewer_cues and not used_viewer_transcript:
+        notes.append("The whole-video viewer also returned a transcript; the fetched transcript was used instead.")
+    if viewer_block is not None and viewer_block["status"] != "available":
+        code = (viewer_block.get("failure") or {}).get("code")
+        notes.append("Whole-video viewing " + ("was still running when observation closed" if viewer_block["status"] == "pending"
+                                                else f"returned no observations ({code})")
+                     + ", so its timestamped notes are unavailable.")
     if ref["published_at"] == "unknown":
         notes.append("No publish date was available from the retrieved metadata.")
     if usable(metadata):
@@ -1212,6 +1292,8 @@ def build(
         hashes["local_media_input"] = local_media["input_sha256"]
     if isinstance(as_record(local_transcript).get("source_file_sha256"), str):
         hashes["local_subtitle_input"] = local_transcript["source_file_sha256"]
+    if viewer is not None:
+        hashes["whole_video_response"] = viewer["raw_sha256"]
 
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -1224,6 +1306,7 @@ def build(
                                        or as_record(local_media).get("input_sha256"))
                for step in local_steps]
             + pending_entries
+            + ([viewer_acquisition_entry(viewer)] if viewer is not None else [])
         ),
         "media": media_block(frames, metadata, local_media, measurements, captions),
         "transcript": transcript,
@@ -1246,6 +1329,8 @@ def build(
     for key in ("public_metrics", "derived", "audio_attribution"):
         if facts.get(key):
             evidence[key] = facts[key]
+    if viewer_block is not None:
+        evidence["viewer_observations"] = viewer_block
     linked = linked_media.bind(linked_bundles, [e for _, e in envelopes], request, analysis_root)
     if linked is not None:
         evidence["images"] = linked
@@ -1272,6 +1357,30 @@ def build(
             elif item["name"] == "caption_hashtag_count":
                 item["value"] = len(HASHTAG.findall(caption))
     return evidence
+
+
+# The media operations that observe the video itself (frame and measurement routes may carry a suffix).
+OBSERVING_OPERATIONS = ("fetch_transcript", "extract_keyframes", "measure_media_signals")
+
+
+def observation_source(evidence: dict[str, Any]) -> str:
+    """Which observation source this evidence came from, read off its acquisition ledger."""
+    steps = evidence.get("acquisition") or []
+    if any(entry.get("step") == "local_extraction" for entry in steps):
+        return "local_frames"
+    # Only what arrived counts: a failed media call before a fallback, or a failed viewing, observed nothing.
+    # Metadata alone is not an observation of the video either: a whole-video run fetches it too.
+    viewer = (evidence.get("viewer_observations") or {}).get("status") == "available"
+    media = any(entry.get("connector_id") == MEDIA_CONNECTOR and entry.get("status") in {"completed", "completed_partial"}
+                and str(entry.get("operation") or "").startswith(OBSERVING_OPERATIONS) for entry in steps)
+    if viewer and media:
+        return "combined"
+    if viewer or media:
+        return "whole_video" if viewer else "server_frames"
+    # Nothing arrived: name what was tried, a viewing only when no media observation was even asked for.
+    asked = any(entry.get("connector_id") == MEDIA_CONNECTOR and str(entry.get("operation") or "").startswith(
+        OBSERVING_OPERATIONS) for entry in steps)
+    return "whole_video" if "viewer_observations" in evidence and not asked else "server_frames"
 
 
 def write_evidence_with_reference_index(output: Path, evidence_bytes: bytes,
@@ -1321,6 +1430,8 @@ def main() -> int:
                         help="the artifact extract_local_frames.py wrote, for a file read on this machine")
     parser.add_argument("--local-transcript", type=Path,
                         help="the artifact read_subtitle_file.py wrote, for a subtitle file the creator supplied")
+    parser.add_argument("--viewer", type=Path,
+                        help="the saved whole-video viewing result (analyze_content_video / get_analysis_run)")
     parser.add_argument("--run-id")
     parser.add_argument("--snapshot-root", type=Path,
                         help="this run's snapshot directory; bind staged frame bytes to canonical IDs")
@@ -1332,7 +1443,7 @@ def main() -> int:
         reference_path = args.reference_index
         if reference_path is not None:
             inputs = [args.request, *args.envelope, args.owner_metrics,
-                      args.local_media, args.local_transcript]
+                      args.local_media, args.local_transcript, args.viewer]
             inputs = [path for path in inputs if path is not None]
             if reference_path.resolve() == args.output.resolve():
                 raise ValueError("the evidence and reference index must use different paths")
@@ -1356,6 +1467,7 @@ def main() -> int:
             local_transcript=load_json(args.local_transcript) if args.local_transcript else None,
             snapshot_root=args.snapshot_root,
             analysis_root=args.snapshot_root.parent / "analysis" if args.snapshot_root else None,
+            viewer=viewer_response.read(args.viewer.read_bytes()) if args.viewer else None,
         )
         evidence_bytes = (json.dumps(evidence, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -1391,7 +1503,13 @@ def main() -> int:
         "transcript_origin": evidence["transcript"].get("origin"),
         "local_steps": sum(1 for entry in evidence["acquisition"] if entry.get("step") == "local_extraction"),
         "content_metadata": evidence["content_metadata"]["status"],
+        **({"viewer_observations": evidence["viewer_observations"]["status"],
+            "viewer_notes": len(evidence["viewer_observations"]["items"])} if "viewer_observations" in evidence else {}),
     }, ensure_ascii=False))
+    # Observation ends when its evidence is built; which source it was follows from what arrived.
+    analysis_dir = args.output.parent
+    acv_timing.set_source(analysis_dir, observation_source(evidence))
+    acv_timing.close_stage(analysis_dir, "observe")
     return 0
 
 

@@ -379,12 +379,13 @@
               "media_probe",
               "model_inference",
               "audio_probe",
-              "image"
+              "image",
+              "viewer_observation"
             ]
           },
           "evidence_refs": {
             "type": "array",
-            "description": "Use this run's evidence identifiers: frame_id for frames, public_metrics.<exact native_name> or owner_metrics.<exact native_name> for metrics, and transcript.cue[i] for cues actually present. Preserve native_name verbatim, including dots; do not index metric arrays. Creator-view cards cite observations.<observation_id>.",
+            "description": "Use this run's evidence identifiers: frame_id for frames, public_metrics.<exact native_name> or owner_metrics.<exact native_name> for metrics, transcript.cue[i] for cues actually present, and the id of a viewer_observations item for a whole-video note. Preserve native_name verbatim, including dots; do not index metric arrays. Creator-view cards cite observations.<observation_id>.",
             "minItems": 1,
             "items": {
               "type": "string"

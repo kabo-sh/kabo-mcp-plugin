@@ -1,7 +1,7 @@
 # Diagnosis runtime
 
-Read this whole before the first diagnosis command in `SKILL.md`. It holds what each command
-depends on. Every step before `finish_diagnosis.py` leaves the diagnosis unfinished; only the
+Read this whole before the first analysis command in `SKILL.md`. It holds what each command
+depends on. For a diagnosis, every step before `finish_diagnosis.py` leaves it unfinished; only the
 final validated report closes it.
 
 ## 1. The request
@@ -14,7 +14,7 @@ an unresolved post ID stays null.
 Use the linked-media helper **only when an input actually declares
 `schema_version: linked-media-evidence.v1`**, directly or inside its `linked_media` field. A normal
 connector envelope (`schema_version: 1.0`) does not qualify, and never call the helper to find out.
-`<chosen-state>` is the ownership state from diagnosis step 1 and `<approved-ceiling>` the approved
+`<chosen-state>` is the ownership state from analysis step 1 and `<approved-ceiling>` the approved
 tool-call budget:
 
 ```sh
@@ -22,7 +22,16 @@ cd '<run directory>' && python3 <skill directory>/scripts/prepare_link_request.p
 ```
 
 Omit `--confirmed-by-user` unless that confirmation exists. Do not manufacture a linked-media
-packet from connector fields. A transcript does not establish the content ID: take it from
+packet from connector fields.
+
+A video the creator attached in Kabo chat (`kabo-file:<id>`) has no packet; the media tool reads the
+stored file. `<platform>` is the one it was posted on or is made for, as the creator says; any
+ownership state may apply:
+
+```sh
+cd '<run directory>' && python3 <skill directory>/scripts/prepare_link_request.py --file-ref 'kabo-file:<id>' --platform <platform> --subject-state <chosen-state> --max-connector-calls <approved-ceiling> --confirmed-by-user --output analysis/video-analysis-request.json
+```
+ A transcript does not establish the content ID: take it from
 metadata already read or from the packet, and keep a missing identity missing, never a guessed
 short-link ID. A summary of the video written by someone else is not a frame set or evidence.
 
@@ -35,6 +44,9 @@ Read the paths in `ContentEvidence`, not the staging filenames. Build the eviden
 
 Per-run flags, on the evidence-building command only:
 
+- `--viewer snapshot/whole-video.json` when the observation printed it: the whole-video result,
+  already reduced to its timestamped notes and transcript. Its notes become `viewer_observations`
+  (cited by their ids) and its transcript fills the transcript only when none was fetched.
 - `--pending <operation>=<job id>` or `--deferred-incomplete <operation>=<job id>` for a deferred
   job without a terminal result (see *When to stop waiting* in `references/evidence-reading.md`).
   Persist only a job's terminal envelope.
@@ -61,16 +73,17 @@ order. Cite their `image_id` with observation `basis: image`, leave `t_start_s` 
 name the slide position in prose. Missing positions and unknown completeness stay missing or
 unknown. Still images have no audio timeline: do not fetch video frames or invent seconds for them.
 
-Use source moments only at recorded precision, not as exact cut boundaries. Pass `subject_state`
-from diagnosis step 1 to `compute_deterministic.py` as `<chosen-state>`: `own_unpublished`,
-`own_published`, `third_party` or public-only `unknown`; it is not read from the request.
+Use source moments only at recorded precision, not as exact cut boundaries. `prepare_analysis.py`
+passes `source.subject_state` from the request to `compute_deterministic.py`: `own_unpublished`,
+`own_published`, `third_party` or public-only `unknown`, as chosen in analysis step 1.
 
 ## 3. The judgment
 
-`--print-judgment-schema` projects the model-authored fields from the final analysis schema. Read
-its complete output and write only this partial judgment, using its shapes and enums. Keep
-`revisions` empty for `third_party` and `unknown`, and cite exact refs from the reference index.
-The composer supplies evidence lineage, completeness and the unchanged `deterministic.json` block.
+The judgment schema in section 7 of `analysis/brief.md` projects the model-authored fields from
+the final analysis schema. Read it whole and write only this partial judgment, using its shapes and
+enums. Keep `revisions` empty for `third_party` and `unknown`, and cite exact refs from the reference
+index. The composer supplies evidence lineage, completeness and the unchanged `deterministic.json`
+block.
 
 After saving `analysis/video_judgment.json`, run `--check-judgment-refs` (a read-only step).
 Advance only on `status: ready`. For `needs_correction`, read the named evidence values, correct

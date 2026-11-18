@@ -153,6 +153,9 @@ def grounding_review(judgment: dict[str, Any], evidence: dict[str, Any]) -> dict
         ref = f"transcript.cue[{index}]"
         if ref in refs:
             sources.append({"ref": ref, "kind": "recorded_speech", "source": copy.deepcopy(cue)})
+    for item in record(evidence.get("viewer_observations")).get("items") or []:
+        if item.get("id") in refs:
+            sources.append({"ref": item["id"], "kind": "viewer_observation", "source": copy.deepcopy(item)})
     for index, observation in enumerate(judgment.get("observations") or []):
         ref = f"observations.{observation['observation_id']}"
         if ref in refs:

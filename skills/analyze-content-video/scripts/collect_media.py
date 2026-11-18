@@ -14,6 +14,10 @@ Run it from the run directory.
   `build_content_evidence.py`, and the one `read_research_data_artifacts` call that brings the
   frames into the run.
 
+`--url` is the original public link, or `kabo-file:<uuid>` for a video the creator attached in Kabo (the media
+tool reads the stored file the same way it reads a link). A file on the creator's own machine never comes here:
+it is read locally and never uploaded.
+
 Prints `status: failed` with the reason when a result cannot be used.
 """
 from __future__ import annotations
@@ -22,6 +26,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -70,6 +75,25 @@ SAVE_RULE = ("Do not save the result. Its download url holds its result id: the 
              "fallback file named under the call (with the host's file-write tool, never as a command-line "
              "argument) and leave `--id` out. Never download anything yourself; call get_research_data_download "
              "only when the resume says the id expired.")
+
+
+# A video the creator attached in Kabo: the same reference form as remake-viral-video's static_host.py FILE_REF_RE.
+FILE_REF_RE = re.compile(r"^kabo-file:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", re.IGNORECASE)
+
+
+def video_source(raw: str) -> str:
+    """The video source as the media tool takes it: a link unchanged, a Kabo file reference in lower case."""
+    text = str(raw).strip()
+    if not text.lower().startswith("kabo-file:"):
+        return text
+    found = FILE_REF_RE.match(text)
+    if not found:
+        raise ValueError("a Kabo file reference is kabo-file:<id>, the id of the attached video exactly as given")
+    return f"kabo-file:{found.group(1).lower()}"
+
+
+def is_file_ref(source: str) -> bool:
+    return bool(FILE_REF_RE.match(str(source)))
 
 
 def say(text: str) -> None:
@@ -285,7 +309,7 @@ def finish(record: dict[str, Any]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--url", required=True, help="the original public video url")
+    parser.add_argument("--url", required=True, help="the original public video url, or kabo-file:<id>")
     parser.add_argument("--operations", required=True,
                         help="comma-separated: " + ", ".join(OPERATIONS) + " (metadata only on "
                         + ", ".join(public_video_sources.media_call_metadata_labels()) + ")")
@@ -296,6 +320,7 @@ def main(argv: list[str] | None = None) -> int:
     bind_run_to_cwd()
     args.operations = [name.strip() for name in args.operations.split(",") if name.strip()]
     try:
+        args.url = video_source(args.url)
         unknown = [name for name in args.operations if name not in OPERATIONS]
         if unknown or not args.operations:
             raise ValueError("--operations takes " + ", ".join(OPERATIONS) + "; got " + ",".join(unknown or ["nothing"]))

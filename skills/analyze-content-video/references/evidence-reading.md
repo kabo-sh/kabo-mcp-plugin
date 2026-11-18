@@ -7,7 +7,7 @@ the first data call of a run.
 
 The request asks for at most 60 frames with `"sampling": "duration_scaled"`: twice a second through
 the opening three seconds, then one a second, spread out evenly once a longer video would exceed the
-cap (`collect_media.py` adds `max_frames`). That plan already samples the opening densely, so never pass
+cap (`observe_video.py` adds `max_frames`). That plan already samples the opening densely, so never pass
 `fps`: it applies only to `evenly_spaced`, is capped at 2, and a higher value is rejected as
 invalid input.
 `sampling_plan` records requested sampling, not verified decoded timestamps or viewing coverage; even `t_seconds` may be a nominal requested point. Without verified actual decode
@@ -94,7 +94,7 @@ address, and YouTube refuses those: it answers `service_unavailable` on every Yo
 that used it lost title, tags, cover and publish date. `youtube_get_video` is the platform answering
 about its own video; it is not a deferred job and carries the same facts plus public counts. Call it
 with `{"parameters": {"video_id": "<resolved-video-id>"}, "delivery": "download"}`. Transcript,
-frames and measurements come from `collect_media.py` with the original video URL, as `SKILL.md`
+frames and measurements come from `observe_video.py` with the original video URL, as `SKILL.md`
 says; it builds the arguments.
 
 On **every other platform** (Instagram, TikTok, Douyin, Xiaohongshu, Kuaishou, Facebook, Bilibili)
@@ -147,10 +147,12 @@ Such a result is also what `static_host.py fetch` and `stage` refuse ("MCP error
 connector evidence"): record it with `--limitation` on the evidence-building command and carry on.
 
 The media jobs (transcript, frames, measurements) are deferred and take minutes. The backend waits
-for them inside `collect_video_media`; `collect_media.py` prints the same call again while any is
+for them inside `collect_video_media`; `observe_video.py` prints the same call again while any is
 still running, for up to about 15 minutes in all (a long video's transcript can take ten), and
-nothing is queued or charged twice. Keep making that call within this turn until
-the script reports `status: collected`: ending the turn to wait throws the jobs away. A job still
+nothing is queued or charged twice. A whole-video viewing has no server-side wait: the script waits
+between its readings itself and stops after about eight minutes. Keep making the printed calls
+within this turn until the script reports `status: observed`: ending the turn to wait throws the
+jobs away. A whole-video viewing still running at the cap is recorded as unfinished, never failed. A job still
 unfinished when the script stops waiting comes back as `--deferred-incomplete <operation>=<job id>`
 for the evidence builder (recorded `deferred_incomplete`), never as `failed`; it carries no media
 evidence and keeps the affected stages unassessed. Say that step was still running; never call it a
