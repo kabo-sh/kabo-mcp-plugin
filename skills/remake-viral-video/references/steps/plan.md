@@ -42,7 +42,7 @@ Before the first paid step of any video made like a reference:
 3. Keep the reference's form and take only the words and topic from the creator's script: the
    same kinds of subject in the same shot sizes (a reference that opens on a person's face opens
    on a person's face -- an invented one, or the person the script is about -- not on an object
-   the line mentions), about as many different pictures as it has shots (within a third; never
+   the line mentions; a line said on camera is framed at least `medium close-up`), about as many different pictures as it has shots (within a third; never
    one picture held under many lines), the same pace of cuts, the same caption kind, music when
    it has music. Characters, props or a setting the creator describes replace the reference's.
 4. Every `still` / `animate` prompt carries the card's prompt words plus the medium, light and
@@ -96,7 +96,9 @@ is in its `on_screen_cast`, and the picture never redescribes a character's look
 `on_screen_cast`.) The style card describes the picture only. Caption and title styling goes in
 `form.captions`, never in `style.description` (words about captions there were drawn into every
 picture). Captions follow the reference: when it has captions, `form` and each row's
-`captions` give their style (font, size, position, one word or a phrase at a time); `none` only
+`captions` give their style (font, size, position, one word or a phrase at a time), and
+`form.captions` names the mode by its word: `phrase`, `word`, `highlight` or `reveal` (captions
+that grow a word at a time as it is said are `reveal`, never `highlight`); `none` only
 when the reference has none or the creator asked for none. Every line of the script has a picture that
 shows what it says. A storyboard written before the material is broken down is not the plan.
 Each shot is its own picture; a shot whose reference moves (a person or thing acting, a camera
@@ -173,8 +175,10 @@ Then every `still` with characters gives `params.on_screen_cast` (`[]` when nobo
 `params.location` and `params.camera`, `params.positions` when more than one character is seen,
 and `params.props` when they are seen. `camera` is the shot size (`close-up`, `medium close-up`,
 `medium`, `medium wide`, `wide`) or the label of one of the place's pictures; a size frames the
-picture even when the place has only its wide picture. Keep the reference's shot sizes: a talking
-line is at least a medium close-up so the mouth is readable. In a batch one value per item (a list, `null` for an item
+picture even when the place has only its wide picture. Keep the reference's shot sizes, except
+for a row whose `how` has `talking`: it is at least a `medium close-up` so the mouth is readable,
+and a two-person exchange is a `medium` two-shot or the speaker alone; `wide` and `medium wide` are
+only for rows where nobody speaks on camera. In a batch one value per item (a list, `null` for an item
 without) or one for all. Leave `inputs.refs` out of shots: Kabo sends at most three pictures (the
 characters' sheets and the place's picture from that camera), and more drew worse. A still of a
 character without a sheet is turned back until the sheet is made. `animate` and `talking` start
