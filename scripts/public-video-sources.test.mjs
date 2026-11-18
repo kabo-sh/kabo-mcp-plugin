@@ -132,6 +132,11 @@ const SAMPLES = {
   "https://www.youtube.com/v/dQw4w9WgXcQ": ["youtube", "video", "dQw4w9WgXcQ"],
   "https://www.tiktok.com/@someone/video/7301234567890123456?lang=en": ["tiktok", "video", "7301234567890123456"],
   "https://vm.tiktok.com/ZMabc/": ["tiktok", "short_link", null],
+  // www.tiktok.com/t/<code>/ is a share link on a page host: short_link_path_patterns, not a video page.
+  "https://www.tiktok.com/t/ZTfCHqHy2/": ["tiktok", "short_link", null],
+  "https://www.tiktok.com/t/ZTfCHqHy2": ["tiktok", "short_link", null],
+  "https://www.tiktok.com/t/ZTfCHqHy2/extra": null,
+  "https://www.tiktok.com/@someone": null,
   // Hosts are compared exactly, never by suffix; https only.
   "https://www.douyin.com.example.net/video/7703997413695219810": null,
   "http://www.douyin.com/video/7703997413695219810": null,
@@ -144,6 +149,15 @@ test("support list: links resolve to platform and id by kabo's rules (exact host
   const result = python(["-c", probe, scripts, JSON.stringify(Object.keys(SAMPLES))]);
   assert.equal(result.code, 0, result.out);
   assert.deepEqual(JSON.parse(result.stdout), SAMPLES);
+});
+
+test("support list: a www.tiktok.com/t/<code>/ share link is a TikTok short link with no guessed id", () => {
+  const url = "https://www.tiktok.com/t/ZTfCHqHy2/";
+  const probe = "import json,sys; sys.path.insert(0, sys.argv[1]); import public_video_sources as s; "
+    + "print(json.dumps([s.match_url(sys.argv[2]), s.content_id_from_url('tiktok', sys.argv[2])]))";
+  const result = python(["-c", probe, scripts, url]);
+  assert.equal(result.code, 0, result.out);
+  assert.deepEqual(JSON.parse(result.stdout), [{ platform: "tiktok", kind: "short_link", id: null }, null]);
 });
 
 const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;

@@ -70,6 +70,9 @@
         "vm.tiktok.com",
         "vt.tiktok.com"
       ],
+      "short_link_path_patterns": [
+        "^/t/[A-Za-z0-9_-]{4,64}/?$"
+      ],
       "url_patterns": [
         "^/@[A-Za-z0-9._]{1,64}/video/([0-9]{1,30})/?$",
         "^/@[A-Za-z0-9._]{1,64}/photo/([0-9]{8,25})/?$"
