@@ -2,8 +2,9 @@ name: Publish the kabo-sh installer to npm
 
 # Publishes installer/ as the npm package `kabo-sh` when a tag `installer-v<version>` is pushed. The tag must
 # match installer/package.json, point at a commit on main, and pass the installer drift test
-# (scripts/installer.test.mjs). Plugin releases (v* tags) never trigger this workflow, and this workflow
-# never touches the plugin release, the ZIP or any marketplace.
+# (scripts/installer.test.mjs) and the installer's own tests (installer/test/). Plugin releases (v* tags)
+# never trigger this workflow, and this workflow never touches the plugin release, the ZIP or any
+# marketplace.
 #
 # Authentication is npm trusted publishing (OIDC): no npm token is stored in this repository. The package's
 # trusted publisher on npmjs.com must name this repository, this workflow file and the `npm-publish`
@@ -34,7 +35,8 @@ jobs:
         with:
           node-version-file: .node-version
           registry-url: https://registry.npmjs.org
-          # This job holds publish credentials and installs nothing; no cache to poison.
+          # This job holds publish credentials. It installs only installer/'s locked dependencies, with
+          # install scripts off, and keeps no cache that could be poisoned.
           package-manager-cache: false
       - name: Check the tag, the version and the source commit
         shell: bash
@@ -61,6 +63,11 @@ jobs:
             }' "$(npm -v)"
       - name: Run the installer drift test
         run: node --test scripts/installer.test.mjs
+      - name: Run the installer's own tests
+        working-directory: installer
+        run: |
+          npm ci --ignore-scripts
+          npm test
       - name: Show the package contents
         working-directory: installer
         run: npm pack --dry-run
