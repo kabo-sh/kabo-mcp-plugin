@@ -158,7 +158,8 @@ Before the shots:
 - **Characters.** One sheet per character: a `still` with `params.sheet_for` set to the name, in
   the project's look: one character sheet on a plain white background, a head-and-shoulders
   close-up on the left and three full-body views of the same person on the right (front,
-  three-quarter, back). Save the handles with
+  three-quarter, back). On Kabo Web the host saves a finished `sheet_for` still as that card's
+  sheet in the plan by itself (the result says so); a sheet made without `sheet_for` is saved with
   `remake_video {request:{action:"plan", job_id, sheets:{<name>: <handle>}}}`; the whole
   storyboard need not be sent again.
 - **Places.** One picture of the place without people, `params.sheet_for`
