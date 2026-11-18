@@ -99,7 +99,10 @@ when the reference has none or the creator asked for none. Every line of the scr
 shows what it says. A storyboard written before the material is broken down is not the plan.
 Each shot is its own picture; a shot whose reference moves (a person or thing acting, a camera
 move) is made to move (`animate`, `refvideo`, `talking`, a code animation), and only a shot over
-a held picture in the reference becomes `still_video`. Then make it row by row -- every row, in
+a held picture in the reference becomes `still_video`. One action per shot: a generated shot
+shows a single action of about 5 s at most. Never ask one shot to move food or an object from one
+container to another (pouring, plating, scooping, handing over); cut from the action to its result
+instead (stir-frying in the pan -> cut -> the finished dish on the plate). Then make it row by row -- every row, in
 batches -- without redesigning the look, the characters or the shot structure, and before
 delivering count the rows made against the rows planned; times may follow the real voice, the
 form does not change. When a row has to change, change the storyboard and save the whole of it
