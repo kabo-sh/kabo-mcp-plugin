@@ -24,6 +24,10 @@ motion where the reference moves, the voices and talking shots it has. Never mer
 rows, hold one picture over many lines or turn moving shots into still pictures; such a cut changes
 what was agreed, so ask first.
 
+**The frame.** When the creator names TikTok, Reels or Shorts (or asks for a vertical video), plan
+every picture and clip at 9:16 from the start (`aspect` on the steps that take it); never deliver
+those as landscape.
+
 **Several videos in one request** (ten styles of one story, five episodes, one per product):
 write every video asked for into each video's storyboard as `series` -- one entry per video in the
 creator's order, with what is particular to it (its style, topic or product) in the creator's words
