@@ -161,3 +161,17 @@ print("{}")`);
   for (const file of ["extract_local_frames.py", "transcribe_local.py"])
     assert.match(await readFile(path.join(scripts, file), "utf8"), /acv_timing\.open_for_artifact\(args\.artifact\)/, file);
 });
+
+// A sibling import run without -B writes __pycache__/*.pyc into the Skill; the .pyc embeds the absolute source
+// path, so a concurrent working-tree package check fails on it. Every script that imports a sibling turns
+// bytecode off first.
+test("scripts that import a sibling module turn bytecode writing off before the import", async () => {
+  const { readdir } = await import("node:fs/promises");
+  for (const name of (await readdir(scripts)).filter((file) => file.endsWith(".py"))) {
+    const text = await readFile(path.join(scripts, name), "utf8");
+    const first = text.search(/sys\.path\.insert\(0|spec_from_file_location\(/);
+    if (first < 0) continue;
+    const off = text.indexOf("sys.dont_write_bytecode = True");
+    assert.ok(off >= 0 && off < first, name);
+  }
+});

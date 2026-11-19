@@ -7,6 +7,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
+sys.dont_write_bytecode = True  # sibling imports must not leave __pycache__ in the Skill
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import public_video_sources  # noqa: E402
 

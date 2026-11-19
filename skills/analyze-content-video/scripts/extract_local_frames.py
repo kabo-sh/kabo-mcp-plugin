@@ -841,6 +841,7 @@ def main() -> int:
     deadline = started_at + args.deadline_s
     if not args.dry_run:
         # Reading the file is this run's observation; the evidence builder ends the stage.
+        sys.dont_write_bytecode = True  # sibling imports must not leave __pycache__ in the Skill
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import acv_timing
         acv_timing.open_for_artifact(args.artifact)
