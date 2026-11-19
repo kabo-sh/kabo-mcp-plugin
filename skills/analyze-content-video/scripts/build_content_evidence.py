@@ -48,7 +48,6 @@ from typing import Any
 
 sys.dont_write_bytecode = True
 
-sys.dont_write_bytecode = True  # sibling imports must not leave __pycache__ in the Skill
 _linked_spec = importlib.util.spec_from_file_location("kabo_linked_media", Path(__file__).with_name("linked_media.py"))
 linked_media = importlib.util.module_from_spec(_linked_spec)
 _linked_spec.loader.exec_module(linked_media)

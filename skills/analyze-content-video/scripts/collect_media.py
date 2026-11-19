@@ -35,7 +35,6 @@ from typing import Any
 
 sys.dont_write_bytecode = True
 SCRIPTS = Path(__file__).resolve().parent
-sys.dont_write_bytecode = True  # sibling imports must not leave __pycache__ in the Skill
 sys.path.insert(0, str(SCRIPTS))
 import static_host  # noqa: E402
 import public_video_sources  # noqa: E402

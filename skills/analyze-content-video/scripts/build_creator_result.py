@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 sys.dont_write_bytecode = True
-sys.dont_write_bytecode = True  # sibling imports must not leave __pycache__ in the Skill
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from creator_measurement_basis import canonical_note, note_language, note_matches
 

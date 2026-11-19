@@ -30,7 +30,6 @@ from typing import Any
 sys.dont_write_bytecode = True
 SCRIPTS = Path(__file__).resolve().parent
 SKILL = SCRIPTS.parent
-sys.dont_write_bytecode = True  # sibling imports must not leave __pycache__ in the Skill
 sys.path.insert(0, str(SCRIPTS))
 import acv_timing  # noqa: E402
 import select_method  # noqa: E402
