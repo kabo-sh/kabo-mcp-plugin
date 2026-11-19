@@ -975,7 +975,10 @@ def detect_cuts(media: Path, duration_s: float, deadline: float) -> tuple[list[f
     if note:
         step["note"] = note
     cuts = sorted({round(float(hit), 3) for hit in re.findall(r"lavfi\.scd\.time:\s*([\d.]+)", log)})
-    record = {"status": "failed" if status == "failed" else "detected", "cuts": len(cuts), "threshold": SHOT_THRESHOLD}
+    record = {"status": "failed" if status == "failed" else "detected", "cuts": len(cuts), "threshold": SHOT_THRESHOLD,
+              # The cut times themselves, at full frame rate: the audio measurement lines cuts up with onsets
+              # (measure_audio_local.py), which the 0.1s grid of `media.signals` is too coarse for.
+              "cuts_at_s": cuts}
     if status == "completed_partial" and reached is not None:
         record["status"] = "partial"
         record["read_until_s"] = round(min(duration_s, reached), 3)

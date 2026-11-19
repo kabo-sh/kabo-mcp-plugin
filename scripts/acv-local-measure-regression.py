@@ -406,6 +406,12 @@ class EndToEndTest(unittest.TestCase):
         plan = document["frames"]["sampling_plan"]
         self.assertEqual((True, "detected", 2), (plan["include_shot_starts"], plan["shot_detection"]["status"],
                                                  plan["shot_start_frames"]))
+        # The cut list itself is kept, at full frame rate, for the audio measurement to line up with onsets.
+        cuts = plan["shot_detection"]["cuts_at_s"]
+        self.assertEqual(plan["shot_detection"]["cuts"], len(cuts))
+        self.assertEqual(sorted(cuts), cuts)
+        self.assertAlmostEqual(4.0, cuts[0], delta=0.1)
+        self.assertAlmostEqual(7.0, cuts[1], delta=0.1)
         sheets = document["frames"]["contact_sheets"]
         self.assertEqual(-(-len(items) // 9), len(sheets))
         tiles = [tile for sheet in sheets for tile in sheet["tiles"]]

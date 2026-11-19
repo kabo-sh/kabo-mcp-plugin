@@ -1150,7 +1150,12 @@
                 "status": { "enum": ["detected", "partial", "failed", "not_requested"] },
                 "cuts": { "type": "integer" },
                 "threshold": { "type": "number" },
-                "read_until_s": { "type": "number" }
+                "read_until_s": { "type": "number" },
+                "cuts_at_s": {
+                  "type": "array",
+                  "items": { "type": "number" },
+                  "description": "The detected cut times in seconds, sorted, read at the file's full frame rate on this machine. Absent from the connector's plan and from artifacts written before it was recorded."
+                }
               }
             },
             "shot_start_frames": { "type": "integer" },
