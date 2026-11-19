@@ -177,6 +177,10 @@ class DeadlineTest(unittest.TestCase):
         artifact = folder / "analysis" / "local-media.json"
 
         def run(name, args, timeout):
+            if args[-1] == "-":
+                # A decode to the null muxer (the shot-start pass) writes no file: none is faked here, or the
+                # mock would leave a file named "-" in the working directory.
+                return subprocess.CompletedProcess(args, 0, "", "")
             target = Path(args[-1])
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(b"jpeg")
