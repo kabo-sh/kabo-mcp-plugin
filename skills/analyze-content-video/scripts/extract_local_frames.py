@@ -18,6 +18,8 @@ body every second between them and spread out evenly over the frame cap (120, th
 0.05s after each cut the connector's detector finds, the default dense window (the first 50 seconds
 every 0.5s, which the keyframes request always sends) and any dense windows the method cards ask for --
 in the connector's budget order (opening, closing, shot starts, dense windows, body) with its 0.25s dedupe.
+The windows take at most half of what the first three leave unless the body outside them needs less, and
+the body runs only over the time no window covers.
 Each frame records which of those it is (`source`). Timestamps match to the millisecond where the
 cuts match; the cuts themselves come from this machine's ffmpeg, so a borderline cut can differ.
 
@@ -381,6 +383,22 @@ def method_frames(artifact: Path) -> dict:
     return plan
 
 
+def uncovered_stretches(from_ms: int, until_ms: int, windows: list[dict]) -> list[tuple[int, int]]:
+    """The stretches of [from_ms, until_ms) no window covers, in whole milliseconds; a window covers [start, end)."""
+    covered = sorted((_ms(window["start_s"]), _ms(window["end_s"])) for window in windows)
+    stretches: list[tuple[int, int]] = []
+    at = from_ms
+    for start, end in covered:
+        if start > at:
+            stretches.append((at, min(start, until_ms)))
+        at = max(at, end)
+        if at >= until_ms:
+            break
+    if at < until_ms:
+        stretches.append((at, until_ms))
+    return [(since, until) for since, until in stretches if until > since]
+
+
 def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
                 hook_multiplier: int, budget: int, *, cuts: list[float] | None = None,
                 dense_windows: list[dict] | tuple = (), shot_detection: dict | None = None) -> dict:
@@ -420,8 +438,8 @@ def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
     left = budget - len(fixed)
 
     shot_frames: list[float] = []
-    if shots_requested and duration_s > HOOK_DENSE_S:
-        for cut in cuts:
+    if shots_requested:
+        for cut in sorted({round(cut, 3) for cut in cuts}):  # repeated cuts count once, as the connector counts them
             at = round(cut + SHOT_START_OFFSET_S, 3)
             if not (cut > 0 and at < duration_s):
                 continue
@@ -435,15 +453,27 @@ def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
     left -= len(shot_frames)
 
     dense_frames: list[float] = []
+    extras = shots_requested or bool(dense_windows)
+    body_from_ms = _ms(HOOK_DENSE_S)
+    body_to_ms = _ms(closing_start) if closing_start is not None else body_from_ms
+    dense_sparser = False
+    laid: list[dict] = []
     if dense_windows:
-        # The connector's arithmetic: clipped to the duration; over budget every window's interval is multiplied by
-        # the same whole factor until they fit (or each is down to its first frame), then the windows are taken in
+        # The connector's arithmetic: clipped to the duration; together the windows take at most half of what the
+        # opening, the closing and the shot starts left, unless the body outside them needs less than the other half
+        # at one frame a second (cap = max(half, left - that need)). Over the cap every window's interval is multiplied
+        # by the same whole factor until they fit (or each is down to its first frame), then the windows are taken in
         # order, each whole or not at all.
         clipped = []
         for window in list(dense_windows)[:MAX_DENSE_WINDOWS]:
             start, end = round(min(window["start_s"], duration_s), 3), round(min(window["end_s"], duration_s), 3)
             clipped.append({"start_s": start, "end_s": end, "requested": window["interval_s"],
                             "clipped": window["end_s"] > duration_s, "usable": end > start})
+        body_need = 0 if closing_start is None else sum(
+            (until - since) // 1000
+            for since, until in uncovered_stretches(body_from_ms, body_to_ms,
+                                                    [window for window in clipped if window["usable"]]))
+        cap = max(max(0, left) // 2, left - body_need)
 
         def lay(factor: int) -> list[dict]:
             accepted: list[float] = []
@@ -468,20 +498,22 @@ def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
         requested = lay(1)
         requested_kept = sum(len(entry["kept"]) for entry in requested)
         placed = requested
-        if requested_kept > max(0, left):
+        if requested_kept > cap:
             max_factor = max([1] + [math.ceil((window["end_s"] - window["start_s"]) / window["requested"]) + 1
                                     for window in clipped if window["usable"]])
             factor = 2
             placed = lay(factor)
-            while sum(len(entry["kept"]) for entry in placed) > max(0, left) and factor < max_factor:
+            while sum(len(entry["kept"]) for entry in placed) > cap and factor < max_factor:
                 factor += 1
                 placed = lay(factor)
-        room = max(0, left)
+        room = cap
         for window, entry in zip(clipped, placed):
             fits = 0 < len(entry["kept"]) <= room
             if fits:
                 room -= len(entry["kept"])
                 dense_frames += entry["kept"]
+                laid.append(window)
+                dense_sparser = dense_sparser or entry["interval_s"] > base_interval_s
             window_records.append({
                 "start_s": window["start_s"], "end_s": window["end_s"], "requested_interval_s": window["requested"],
                 "interval_s": entry["interval_s"] if fits else window["requested"],
@@ -495,20 +527,38 @@ def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
     body: list[float] = []
     body_interval_s = 0.0
     body_grid = 0
-    if span > 0 and left > 0:
-        body_interval_s = max(base_interval_s, span / left)
-        body_grid = min(left, int(math.floor(span / body_interval_s + 1e-9)))
+    if not extras:
+        # The standard plan, unchanged: one body grid between the opening and the closing.
+        if span > 0 and left > 0:
+            body_interval_s = max(base_interval_s, span / left)
+            body_grid = min(left, int(math.floor(span / body_interval_s + 1e-9)))
+            body = [round(HOOK_DENSE_S + index * body_interval_s, 3) for index in range(body_grid)]
+        body_degraded = duration_s > HOOK_DENSE_S and (body_interval_s > DEGRADED_ABOVE_S or not closing
+                                                         or (span > 0 and not body))
+    else:
+        # With extras, as the connector does it: the body only over the time no laid window covers (the opening and
+        # closing bands excluded), one grid per uncovered stretch, every stretch at one interval of
+        # max(1s, ceil(uncovered ms / frames left)); so no body slot is spent inside a window.
+        stretches = [] if closing_start is None else uncovered_stretches(body_from_ms, body_to_ms, laid)
+        uncovered = sum(until - since for since, until in stretches)
+        interval_ms = max(_ms(base_interval_s), math.ceil(uncovered / left)) if uncovered > 0 and left > 0 else None
         extra = shot_frames + dense_frames
-        for index in range(body_grid):
-            at = round(HOOK_DENSE_S + index * body_interval_s, 3)
-            if extra and _near(at, extra, DEDUPE_S):
-                dropped_duplicate["body"] += 1
-                continue
-            body.append(at)
-    # As the connector counts it: a body grid that dense frames took over whole (a video inside the default
-    # window) is covered, not thinned.
-    body_degraded = duration_s > HOOK_DENSE_S and (body_interval_s > DEGRADED_ABOVE_S or not closing
-                                                     or (span > 0 and not body_grid))
+        if interval_ms is not None:
+            body_interval_s = interval_ms / 1000
+            for since, until in stretches:
+                frames = math.floor((until - since) / interval_ms)
+                body_grid += frames
+                for index in range(frames):
+                    at = round(since / 1000 + index * body_interval_s, 3)
+                    if extra and _near(at, extra, DEDUPE_S):
+                        dropped_duplicate["body"] += 1
+                        continue
+                    body.append(at)
+        # Degraded only where the video outside the windows is sampled more sparsely than one frame a second (or a
+        # window itself was thinned past it, or the closing band is missing): never for a video the windows cover.
+        body_degraded = duration_s > HOOK_DENSE_S and (
+            (interval_ms is not None and interval_ms > _ms(DEGRADED_ABOVE_S)) or not closing
+            or (any(until - since >= 1000 for since, until in stretches) and not body_grid) or dense_sparser)
 
     kinds = ([(at, "hook") for at in hook] + [(at, "closing") for at in closing]
              + [(at, "shot_start") for at in shot_frames] + [(at, "dense_window") for at in dense_frames]
@@ -524,7 +574,10 @@ def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
             + (f"; {len(shot_frames)} frame(s) just after a cut" if shots_requested else "")
             + (f"; {len(dense_frames)} frame(s) in dense windows" if dense_windows else "")
             + ". Sampled on this machine.")
-    if body_degraded:
+    if body_degraded and dense_sparser and body_interval_s <= DEGRADED_ABOVE_S:
+        note += (f" A dense window was thinned to fit a budget of {budget} frames and sampled more sparsely than "
+                 "one frame a second, so a cut shorter than its interval may fall between frames.")
+    elif body_degraded:
         note += (f" The body was thinned to fit a budget of {budget} frames, so a cut shorter than "
                  f"{round(body_interval_s, 3):g}s may fall between frames.")
 
@@ -1245,7 +1298,7 @@ def main() -> int:
     if artifact is None:
         content_id = media.stem
         cuts, detection = None, None
-        if not args.no_shot_starts and not args.signals_only and duration > HOOK_DENSE_S:
+        if not args.no_shot_starts and not args.signals_only:
             if args.dry_run:
                 cuts, detection = [], {"status": "not_requested", "cuts": 0, "threshold": SHOT_THRESHOLD}
             else:

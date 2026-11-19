@@ -23,7 +23,7 @@ comments: when the creator asks how the video performed, ask once for its publis
    `cd '<run directory>' && python3 <skill directory>/scripts/extract_local_frames.py --media <absolute path> --out-dir analysis/frames
    --artifact analysis/local-media.json --hook-window-s <3 for a Short, 15–30 for long-form>`
    (sound is measured in step 5, not here). It samples by the connector's plan
-   (120 frames at most: the first 50 seconds every 0.5s, a frame just after each cut, and the dense
+   (120 frames at most: the first 50 seconds densest, a frame just after each cut, and the dense
    windows the method cards put in `analysis/method.json`) and writes the same frame shape, so
    everything in *Frame sampling* in `references/evidence-reading.md` applies unchanged — `frames.origin`
    and each frame's `source` included. It also writes **contact sheets**: four frames to an image, two

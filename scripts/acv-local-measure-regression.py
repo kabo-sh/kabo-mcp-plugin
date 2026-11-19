@@ -314,56 +314,64 @@ class SamplingRuleTest(unittest.TestCase):
         return self.plan(duration, budget=budget, cuts=list(cuts),
                          dense_windows=self.module.select_method.with_default_window([]))
 
-    def test_by_default_the_first_50_seconds_are_sampled_every_half_second(self) -> None:
-        def grid(until):
-            return [index * 0.5 for index in range(int(until * 2))]
+    def test_the_default_window_and_the_body_split_the_budget(self) -> None:
+        """Both ends, by default: the first 50s every 0.5s while the windows may take the budget the body outside them
+        does not need, at most half of it otherwise (stretched by a whole factor to fit); the body only over time no
+        window covers, so no slot is spent inside a window; degraded only where that time is sparser than 1s."""
+        def grid(until, step=0.5):
+            return [index * step for index in range(int(until / step))]
 
-        # 20s: the window is clipped to the video, every frame sits on the 0.5s grid, and the body is covered, not thin.
+        def body(plan):
+            return [at for at, kind in zip(plan["_timestamps"], plan["_kinds"]) if kind == "body"]
+
+        # 20s and 50s: the window covers the whole video, every frame sits on the 0.5s grid, nothing is degraded.
         short = self.default_plan(20.0)
         self.assertEqual(grid(20.0), short["_timestamps"])
         self.assertEqual((40, False, 0), (short["frames"], short["body_degraded"], short["body_frames"]))
         self.assertEqual([{"start_s": 0.0, "end_s": 20.0, "requested_interval_s": 0.5, "interval_s": 0.5, "frames": 30,
                            "clipped": True, "ignored": None}], short["dense_windows"])
-        # 50s: the whole video every 0.5s; the body grid (every 2.25s for its 20 frames) keeps the points that sit
-        # exactly 0.25s from a window frame, as the connector's strict comparison does.
         whole = self.default_plan(50.0)
-        self.assertTrue(set(grid(50.0)) <= set(whole["_timestamps"]))
-        self.assertEqual({"hook": 6, "closing": 4, "dense_window": 90, "body": 10},
-                         {kind: whole["_kinds"].count(kind) for kind in ("hook", "closing", "dense_window", "body")})
-        # 90s: the first 50s every 0.5s; after that the standard plan with what the budget leaves -- the body
-        # spread evenly over the span, its points inside the window skipped, and the closing band.
+        self.assertEqual(grid(50.0), whole["_timestamps"])
+        self.assertEqual((100, False, 0), (whole["frames"], whole["body_degraded"], whole["body_frames"]))
+        # 90s: the body after 50s needs 38 of the 110 frames left, so the window gets 72 at most; 94 do not fit, so it
+        # is stretched to 1s (47). The body then runs every 1s from 50s to the closing band, and nothing is degraded.
         mid = self.default_plan(90.0)
-        self.assertTrue(set(grid(50.0)) <= set(mid["_timestamps"]))
-        after = [(at, kind) for at, kind in zip(mid["_timestamps"], mid["_kinds"]) if at >= 50.0]
-        self.assertEqual({"body", "closing"}, {kind for _, kind in after})
-        self.assertEqual([88.0, 88.5, 89.0, 89.5], [at for at, kind in after if kind == "closing"])
-        self.assertEqual((112, 5.312, True), (mid["frames"], mid["body_interval_s"], mid["body_degraded"]))
-        # 10 minutes: the same 50s, then a thin body; never past the cap.
+        self.assertEqual((1.0, 47), (mid["dense_windows"][0]["interval_s"], mid["dense_window_frames"]))
+        self.assertEqual([float(second) for second in range(50, 88)], body(mid))
+        self.assertEqual((95, 1.0, False), (mid["frames"], mid["body_interval_s"], mid["body_degraded"]))
+        # 10 minutes: the window keeps half (47 at 1s), the other half spreads over 50s..598s, which is degraded.
         long = self.default_plan(600.0)
-        self.assertTrue(set(grid(50.0)) <= set(long["_timestamps"]))
-        self.assertEqual((118, 6, 94), (long["frames"], long["hook_frames"], long["dense_window_frames"]))
-        self.assertLessEqual(long["frames"], 120)
-        self.assertEqual(14, sum(1 for at, kind in zip(long["_timestamps"], long["_kinds"]) if kind == "body" and at > 50))
+        self.assertEqual((119, 47, 62, 8.699, True), (long["frames"], long["dense_window_frames"], long["body_frames"],
+                                                     long["body_interval_s"], long["body_degraded"]))
+        self.assertEqual(50.0, body(long)[0])
+        self.assertTrue(all(at >= 50.0 for at in body(long)), "no body slot inside the window")
 
-    def test_shot_starts_come_before_the_default_window_which_thins_by_a_whole_factor(self) -> None:
+    def test_shot_starts_come_before_the_windows_which_thin_by_a_whole_factor(self) -> None:
         cuts = [50.0 + index * 0.6 for index in range(60)]
         plan = self.default_plan(90.0, cuts=cuts)
         self.assertEqual(60, plan["shot_start_frames"])
         window = plan["dense_windows"][0]
-        self.assertEqual((0.5, 1.0, 47, None), (window["requested_interval_s"], window["interval_s"], window["frames"],
+        # 50 frames left after the cuts; the body outside the window needs 38, so the window gets half (25): 2s.
+        self.assertEqual((0.5, 2.0, 23, None), (window["requested_interval_s"], window["interval_s"], window["frames"],
                                                 window["ignored"]))
-        self.assertEqual(118, plan["frames"])
+        self.assertEqual((98, True), (plan["frames"], plan["body_degraded"]))
 
     def test_windows_are_taken_in_order_each_whole_or_not_at_all(self) -> None:
         # The connector's rule: after the common stretch, a window that still does not fit is ignored whole and a
         # later one that fits is still laid.
         first = {"start_s": 10.0, "end_s": 12.0, "interval_s": 0.5}
         second = {"start_s": 20.0, "end_s": 20.5, "interval_s": 0.5}
-        plan = self.plan(30.0, budget=11, cuts=[], dense_windows=[first, second])
+        plan = self.plan(30.0, budget=12, cuts=[], dense_windows=[first, second])
         self.assertEqual([1, 0], [window["frames"] for window in plan["dense_windows"]])
         self.assertEqual([None, "budget"], [window["ignored"] for window in plan["dense_windows"]])
         outside = self.plan(30.0, cuts=[], dense_windows=[{"start_s": 40.0, "end_s": 45.0, "interval_s": 0.5}])
         self.assertEqual("outside_duration", outside["dense_windows"][0]["ignored"])
+
+    def test_the_body_skips_the_windows_and_runs_one_grid_per_uncovered_stretch(self) -> None:
+        plan = self.plan(60.0, cuts=[], dense_windows=[{"start_s": 20.0, "end_s": 22.0, "interval_s": 0.25}])
+        self.assertEqual([float(second) for second in range(3, 20)] + [float(second) for second in range(22, 58)],
+                         [at for at, kind in zip(plan["_timestamps"], plan["_kinds"]) if kind == "body"])
+        self.assertEqual((0, False), (plan["dropped_as_duplicate"]["body"], plan["body_degraded"]))
 
     def test_dense_window_text_and_its_limits(self) -> None:
         self.assertEqual({"start_s": 0.0, "end_s": 5.0, "interval_s": 0.25}, self.module.parse_dense_window("0:5:0.25"))

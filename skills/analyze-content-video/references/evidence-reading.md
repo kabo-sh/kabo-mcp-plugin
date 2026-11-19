@@ -10,8 +10,10 @@ the first 50 seconds (a dense window every request carries) and through the clos
 after that, the body spread out evenly once a longer video would exceed the cap. It also asks for a
 frame just after each detected cut (`include_shot_starts`) and for the dense windows the selected
 method cards name (`dense_windows`, from `analysis/method.json`, sent before the default one, three at
-most); when the cap runs short the opening, the closing, shot starts and the dense windows come before
-the body, so past 50 seconds a long video is sampled more thinly. `observe_video.py` adds all of these, so never write them yourself and
+most). The opening, the closing and shot starts come first; the windows then take at most half of
+what is left unless the rest of the video needs less, and are thinned by a whole factor to fit (on a
+video past about a minute the first 50 seconds are sampled every second, not every half second); the
+body fills only the time outside the windows. `observe_video.py` adds all of these, so never write them yourself and
 never pass `fps`: it applies only to `evenly_spaced`, is capped at 2, and a higher value is rejected
 as invalid input. Each frame's `source` says why it is there (`hook`, `closing`, `body`, `shot_start`,
 `dense_window`); a server that does not take the cut and window options yet returns the standard

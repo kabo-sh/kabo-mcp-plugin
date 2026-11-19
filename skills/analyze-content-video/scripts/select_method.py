@@ -39,10 +39,10 @@ MAX_TOPICS = 2
 MAX_DENSE_WINDOWS = 3
 MIN_DENSE_INTERVAL_S = 0.2
 # The first 50 seconds every 0.5s, on every video and on both ends: the keyframes request always sends this window
-# (collect_media.py) and the local sampler always lays it (extract_local_frames.py). After 50s the standard plan
-# applies (the body every second, thinned evenly over the 120-frame budget, the closing band, shot starts), and the
-# budget order stays opening, closing, shot starts, dense windows, body. In a blind review of 14 videos, frames
-# every 0.5s beat the 1s body 9-5 and 10-4.
+# (collect_media.py) and the local sampler always lays it (extract_local_frames.py). The budget order stays opening,
+# closing, shot starts, dense windows, body; the windows take at most half of what the first three leave (more when
+# the body outside them needs less) and are thinned by a whole factor to fit, and the body runs only outside them.
+# In a blind review of 14 videos, frames every 0.5s beat the 1s body 9-5 and 10-4.
 DEFAULT_DENSE_WINDOW = {"start_s": 0.0, "end_s": 50.0, "interval_s": 0.5}
 
 
