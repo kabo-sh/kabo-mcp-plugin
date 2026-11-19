@@ -38,6 +38,7 @@ SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 import static_host  # noqa: E402
 import public_video_sources  # noqa: E402
+import select_method  # noqa: E402
 import viewer_response  # noqa: E402
 
 TOOL = "collect_video_media"
@@ -68,8 +69,9 @@ OPERATIONS = {
 # The same value as the frame-count cap in static_host.job-call.
 MAX_FRAMES = static_host.FRAME_CAPS["public_video_extract_keyframes"]
 # The keyframes request's two optional additions to the duration_scaled plan, both still inside max_frames: a frame
-# just after each detected cut (on by default), and up to three denser windows a method card asks for
-# (analysis/method.json `frames`, written by select_method.py). A server that does not know them yet ignores them
+# just after each detected cut (on by default), and up to three denser windows: the first 50 seconds every 0.5s on
+# every video (select_method.DEFAULT_DENSE_WINDOW) after any a method card asks for (analysis/method.json `frames`,
+# written by select_method.py). A server that does not know them yet ignores them
 # and takes its standard plan. One that refuses them gets the same call once more without them: inside this call
 # that is the keyframes item failing with `validation_error` (the other items still run); a whole-call MCP -32602
 # is handled the same way.
@@ -162,10 +164,9 @@ def frame_options() -> dict[str, Any]:
         except ValueError:
             method = {}
         plan = method.get("frames") if isinstance(method, dict) and isinstance(method.get("frames"), dict) else {}
-    options: dict[str, Any] = {"include_shot_starts": plan.get("include_shot_starts") is not False}
-    windows = dense_windows(plan.get("dense_windows"))
-    if windows:
-        options["dense_windows"] = windows
+    # The default window (the first 50s every 0.5s) always goes, after the cards' windows; three at most.
+    options: dict[str, Any] = {"include_shot_starts": plan.get("include_shot_starts") is not False,
+                               "dense_windows": select_method.with_default_window(dense_windows(plan.get("dense_windows")))}
     current["frame_options"] = options
     save_state(current)
     return options

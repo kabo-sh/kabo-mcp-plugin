@@ -15,7 +15,8 @@ the model chose after reading the library's index.md; with none the analysis is 
 `needs_evidence` kinds are not all present in that evidence is skipped and recorded; without it no card is
 skipped. A card may carry a frame hint (`frames`: `include_shot_starts`, `dense_windows`); the selection merges
 the hints of the cards it keeps into `frames` in method.json, which the keyframes request takes as it is (shot
-starts on unless a card turns them off; at most three dense windows, in card order). Unknown or non-topic focus ids, more than two, or a base card the evidence cannot support, exit 2 with a
+starts on unless a card turns them off; at most three dense windows, in card order); the keyframes request and the
+local sampler then add the default window, the first 50 seconds every 0.5s (`with_default_window`). Unknown or non-topic focus ids, more than two, or a base card the evidence cannot support, exit 2 with a
 message.
 """
 from __future__ import annotations
@@ -37,6 +38,27 @@ MAX_TOPICS = 2
 # The keyframes request's limits on dense windows (collect_media.py sends them as they are).
 MAX_DENSE_WINDOWS = 3
 MIN_DENSE_INTERVAL_S = 0.2
+# The first 50 seconds every 0.5s, on every video and on both ends: the keyframes request always sends this window
+# (collect_media.py) and the local sampler always lays it (extract_local_frames.py). After 50s the standard plan
+# applies (the body every second, thinned evenly over the 120-frame budget, the closing band, shot starts), and the
+# budget order stays opening, closing, shot starts, dense windows, body. In a blind review of 14 videos, frames
+# every 0.5s beat the 1s body 9-5 and 10-4.
+DEFAULT_DENSE_WINDOW = {"start_s": 0.0, "end_s": 50.0, "interval_s": 0.5}
+
+
+def with_default_window(windows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The dense windows a keyframes request carries: the cards' windows first, in card order, then the default.
+
+    A card window the default already covers (inside its span, at its spacing or sparser) is left out, and so is a
+    repeated one; past the three-window limit the later card windows go, never the default."""
+    default = DEFAULT_DENSE_WINDOW
+    kept: list[dict[str, Any]] = []
+    for window in windows:
+        covered = (window["start_s"] >= default["start_s"] and window["end_s"] <= default["end_s"]
+                   and window["interval_s"] >= default["interval_s"])
+        if not covered and window not in kept:
+            kept.append(window)
+    return kept[:MAX_DENSE_WINDOWS - 1] + [dict(default)]
 
 
 def valid_window(window: Any) -> bool:

@@ -6,10 +6,12 @@ the first data call of a run.
 ## Frame sampling
 
 The request asks for at most 120 frames with `"sampling": "duration_scaled"`: twice a second through
-the opening three seconds and the closing two, one a second between them, the body spread out evenly
-once a longer video would exceed the cap. It also asks for a frame just after each detected cut
-(`include_shot_starts`) and for the dense windows the selected method cards name (`dense_windows`,
-from `analysis/method.json`); `observe_video.py` adds all of these, so never write them yourself and
+the first 50 seconds (a dense window every request carries) and through the closing two, one a second
+after that, the body spread out evenly once a longer video would exceed the cap. It also asks for a
+frame just after each detected cut (`include_shot_starts`) and for the dense windows the selected
+method cards name (`dense_windows`, from `analysis/method.json`, sent before the default one, three at
+most); when the cap runs short the opening, the closing, shot starts and the dense windows come before
+the body, so past 50 seconds a long video is sampled more thinly. `observe_video.py` adds all of these, so never write them yourself and
 never pass `fps`: it applies only to `evenly_spaced`, is capped at 2, and a higher value is rejected
 as invalid input. Each frame's `source` says why it is there (`hook`, `closing`, `body`, `shot_start`,
 `dense_window`); a server that does not take the cut and window options yet returns the standard

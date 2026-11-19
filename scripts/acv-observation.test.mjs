@@ -1423,28 +1423,47 @@ print(json.dumps(viewer_response.read(b"MCP error -32603: subscription_required:
 });
 
 // Frame sampling, one rule on both ends: the keyframes request asks for the contract's 120 frames, a frame just
-// after each cut, and the dense windows the selected method cards name (analysis/method.json `frames`).
+// after each cut, the dense windows the selected method cards name (analysis/method.json `frames`), and the default
+// window, the first 50 seconds every 0.5s.
+const DEFAULT_WINDOW = { start_s: 0, end_s: 50, interval_s: 0.5 };
 const keyframesOf = (call) => call.arguments.requests.find((request) => request.operation === "extract_keyframes").parameters;
 const pinnedKeyframes = JSON.parse(readFileSync(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools
   .find((tool) => tool.name === "public_video_extract_keyframes");
 
-test("keyframes request: the contract's max_frames, shot starts by default, and the opening card's dense window", async (t) => {
+test("keyframes request: the contract's max_frames, shot starts and the default window by default, and the opening card's dense window", async (t) => {
   assert.equal(pinnedKeyframes.inputSchema.properties.parameters.properties.max_frames.maximum, 120);
   const plain = await newRun(t);
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], plain);
   assert.deepEqual(keyframesOf(callLines(first.out)[0]),
-    { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true });
+    { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true, dense_windows: [DEFAULT_WINDOW] });
 
   const run = await newRun(t);
   const method = await selectFirst(run, "opening,editing-pacing");
   assert.deepEqual(method.frames, { include_shot_starts: true, dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }] });
   const out = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run).out;
   const call = callLines(out)[0];
+  // The card's window first, then the default one.
   assert.deepEqual(keyframesOf(call), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true,
-    dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }] });
+    dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW] });
   // The options are fixed at the first hand-over, so a repeated call while jobs run sends the same arguments.
   assert.deepEqual((await readJson(path.join(run, "collect-media.json"))).frame_options,
-    { include_shot_starts: true, dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }] });
+    { include_shot_starts: true, dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW] });
+
+  // Merged with the cards' windows, the request never carries more than three: a card window the default already
+  // covers is left out, a repeat is dropped, and past the limit the later card windows go, never the default.
+  const merge = (windows) => JSON.parse(spawnSync("python3", ["-I", "-B", "-c", `
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import select_method
+print(json.dumps(select_method.with_default_window(json.loads(sys.argv[2]))))
+`, path.join(skill, "scripts"), JSON.stringify(windows)], { encoding: "utf8" }).stdout);
+  const late = { start_s: 60, end_s: 70, interval_s: 0.5 }, later = { start_s: 80, end_s: 90, interval_s: 0.25 };
+  const opening = { start_s: 0, end_s: 5, interval_s: 0.25 }, covered = { start_s: 10, end_s: 20, interval_s: 1 };
+  assert.deepEqual(merge([]), [DEFAULT_WINDOW]);
+  assert.deepEqual(merge([covered]), [DEFAULT_WINDOW]);
+  assert.deepEqual(merge([opening, opening]), [opening, DEFAULT_WINDOW]);
+  assert.deepEqual(merge([opening, covered, late, later]), [opening, late, DEFAULT_WINDOW]);
+  assert.deepEqual(merge([{ start_s: 40, end_s: 60, interval_s: 0.5 }]), [{ start_s: 40, end_s: 60, interval_s: 0.5 }, DEFAULT_WINDOW]);
 
   // A transcript export takes no frames, and a card hint outside the request's limits is refused by the library.
   const exportRun = await newRun(t);

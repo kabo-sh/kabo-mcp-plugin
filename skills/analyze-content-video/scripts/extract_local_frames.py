@@ -15,8 +15,9 @@ the step ran locally.
 
 **The plan is the connector's plan.** The opening three seconds and the closing two every 0.5s, the
 body every second between them and spread out evenly over the frame cap (120, the server's), a frame
-0.05s after each cut the connector's detector finds, and any dense windows asked for -- in the
-connector's budget order (opening, closing, shot starts, dense windows, body) with its 0.25s dedupe.
+0.05s after each cut the connector's detector finds, the default dense window (the first 50 seconds
+every 0.5s, which the keyframes request always sends) and any dense windows the method cards ask for --
+in the connector's budget order (opening, closing, shot starts, dense windows, body) with its 0.25s dedupe.
 Each frame records which of those it is (`source`). Timestamps match to the millisecond where the
 cuts match; the cuts themselves come from this machine's ffmpeg, so a borderline cut can differ.
 
@@ -41,9 +42,10 @@ and the frame count and total bytes are capped. The id in the artifact is unchan
                                     [--measure-loudness] [--measure-signals] [--dry-run]
                                     [--deadline-s 40]
 
-The frames are also laid out as contact sheets (`sheet-NN.jpg` beside them, nine frames to a sheet in
-time order, each tile captioned with its second where ffmpeg can draw text; `frames.contact_sheets`
-lists every tile's frame and second either way), so many frames are scanned in a few image reads.
+The frames are also laid out as contact sheets (`sheet-NN.jpg` beside them, four frames to a sheet, two
+by two in time order, each tile at the frame's own width up to 640px and captioned with its second
+where ffmpeg can draw text; `frames.contact_sheets` lists every tile's frame and second either way),
+so the frames are read a quarter as many times with their detail kept.
     python3 extract_local_frames.py --media FILE --artifact FILE --signals-only [--deadline-s 40]
 
 `--measure-signals` measures where the file cuts, where its audio drops below the speech floor and
@@ -77,6 +79,9 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # sibling imports must not leave __pycache__ in the Skill
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import select_method  # noqa: E402  (the default dense window, shared with the keyframes request)
 
 # Every executable this package is allowed to start. Kept identical to the survey script's set and
 # enforced the same way: these two read and decode media, and nothing else here needs a subprocess.
@@ -101,9 +106,11 @@ FRAME_SCALE_FILTER = (f"scale='if(gte(iw,ih),min({FRAME_LONG_EDGE_PX},iw),-2)'"
 
 # The frame cap is the server's (120), so a local file is sampled like a link. A sandboxed host that
 # collects every file the step wrote refuses the whole step past a file count or a total size (one host
-# allowed 128 files and 16 MiB for the run directory, the run's other files counted too): there, pass a
-# smaller --max-frames (90 leaves room for the contact sheets). The byte cap stops writing before 16 MiB
-# either way; the plan thins the body the same honest way it does for --budget.
+# allowed 128 files and 16 MiB for the run directory, the run's other files counted too). At the cap the
+# step writes 150 files, 120 frames and 30 contact sheets of four: there, pass a smaller --max-frames (80
+# frames and 20 sheets leave the run's other files room). The byte cap counts the frames and the sheets
+# together and stops writing before 16 MiB either way; the plan thins the body the same honest way it
+# does for --budget, and a sheet past the cap is not written (its frames are still there to open).
 DEFAULT_MAX_FRAMES = 120
 DEFAULT_MAX_TOTAL_BYTES = 12 * 1024 * 1024
 
@@ -428,69 +435,80 @@ def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
     left -= len(shot_frames)
 
     dense_frames: list[float] = []
-    if dense_windows and duration_s > HOOK_DENSE_S:
+    if dense_windows:
+        # The connector's arithmetic: clipped to the duration; over budget every window's interval is multiplied by
+        # the same whole factor until they fit (or each is down to its first frame), then the windows are taken in
+        # order, each whole or not at all.
         clipped = []
         for window in list(dense_windows)[:MAX_DENSE_WINDOWS]:
-            start, end = min(window["start_s"], duration_s), min(window["end_s"], duration_s)
-            clipped.append((window, start, end, start != window["start_s"] or end != window["end_s"]))
+            start, end = round(min(window["start_s"], duration_s), 3), round(min(window["end_s"], duration_s), 3)
+            clipped.append({"start_s": start, "end_s": end, "requested": window["interval_s"],
+                            "clipped": window["end_s"] > duration_s, "usable": end > start})
 
-        def lay(windows: list, factor: int) -> tuple[list[list[float]], int]:
-            placed: list[list[float]] = []
-            taken: list[float] = []
-            duplicates = 0
-            for window, start, end, _ in windows:
-                interval = window["interval_s"] * factor
-                grid = [start] if end <= start else [start + step * interval
-                                                     for step in range(int(math.ceil((end - start) / interval - 1e-9)))]
+        def lay(factor: int) -> list[dict]:
+            accepted: list[float] = []
+            placed = []
+            for window in clipped:
+                if not window["usable"]:
+                    placed.append({"interval_s": window["requested"], "skip": 0, "kept": []})
+                    continue
+                interval = round(window["requested"] * factor, 3)
+                count = max(1, math.ceil(_ms(window["end_s"] - window["start_s"]) / _ms(interval)))
                 within = min(DEDUPE_S, interval / 2)
-                frames = []
-                for at in (round(value, 3) for value in grid):
-                    if at >= duration_s or _near(at, fixed + shot_frames, within) or _near(at, taken, within):
-                        duplicates += 1
-                        continue
-                    frames.append(at)
-                    taken.append(at)
-                placed.append(frames)
-            return placed, duplicates
+                kept, skip = [], 0
+                for at in (round(window["start_s"] + step * interval, 3) for step in range(count)):
+                    if _near(at, fixed + shot_frames, within) or _near(at, accepted, within):
+                        skip += 1
+                    else:
+                        kept.append(at)
+                        accepted.append(at)
+                placed.append({"interval_s": interval, "skip": skip, "kept": kept})
+            return placed
 
-        usable = [index for index, entry in enumerate(clipped) if entry[1] < duration_s]
-        factor = 1
-        while True:
-            placed, duplicates = lay([clipped[index] for index in usable], factor)
-            if sum(len(frames) for frames in placed) <= max(0, left) or all(len(frames) <= 1 for frames in placed):
-                break
-            factor += 1
-        while usable and sum(len(frames) for frames in placed) > max(0, left):
-            # Still too many at one frame a window: the later windows go whole.
-            dropped_budget["dense_window"] += len(placed[-1])
-            usable = usable[:-1]
-            placed, duplicates = lay([clipped[index] for index in usable], factor)
-        dropped_duplicate["dense_window"] = duplicates
-        for index, (window, start, end, was_clipped) in enumerate(clipped):
-            frames = placed[usable.index(index)] if index in usable else []
-            record = {"start_s": round(start, 3), "end_s": round(end, 3), "requested_interval_s": window["interval_s"],
-                      "interval_s": round(window["interval_s"] * factor, 3), "frames": len(frames),
-                      "clipped": was_clipped}
-            if index not in usable:
-                record["ignored"] = "budget" if start < duration_s else "out_of_range"
-            window_records.append(record)
-            dense_frames += frames
+        requested = lay(1)
+        requested_kept = sum(len(entry["kept"]) for entry in requested)
+        placed = requested
+        if requested_kept > max(0, left):
+            max_factor = max([1] + [math.ceil((window["end_s"] - window["start_s"]) / window["requested"]) + 1
+                                    for window in clipped if window["usable"]])
+            factor = 2
+            placed = lay(factor)
+            while sum(len(entry["kept"]) for entry in placed) > max(0, left) and factor < max_factor:
+                factor += 1
+                placed = lay(factor)
+        room = max(0, left)
+        for window, entry in zip(clipped, placed):
+            fits = 0 < len(entry["kept"]) <= room
+            if fits:
+                room -= len(entry["kept"])
+                dense_frames += entry["kept"]
+            window_records.append({
+                "start_s": window["start_s"], "end_s": window["end_s"], "requested_interval_s": window["requested"],
+                "interval_s": entry["interval_s"] if fits else window["requested"],
+                "frames": len(entry["kept"]) if fits else 0, "clipped": window["clipped"],
+                "ignored": None if fits else ("outside_duration" if not window["usable"]
+                                              else "duplicate" if not entry["kept"] else "budget")})
+        dropped_budget["dense_window"] = max(0, requested_kept - len(dense_frames))
+        dropped_duplicate["dense_window"] = sum(entry["skip"] for entry in requested)
     left -= len(dense_frames)
 
     body: list[float] = []
     body_interval_s = 0.0
+    body_grid = 0
     if span > 0 and left > 0:
         body_interval_s = max(base_interval_s, span / left)
-        count = min(left, int(math.floor(span / body_interval_s + 1e-9)))
+        body_grid = min(left, int(math.floor(span / body_interval_s + 1e-9)))
         extra = shot_frames + dense_frames
-        for index in range(count):
+        for index in range(body_grid):
             at = round(HOOK_DENSE_S + index * body_interval_s, 3)
             if extra and _near(at, extra, DEDUPE_S):
                 dropped_duplicate["body"] += 1
                 continue
             body.append(at)
+    # As the connector counts it: a body grid that dense frames took over whole (a video inside the default
+    # window) is covered, not thinned.
     body_degraded = duration_s > HOOK_DENSE_S and (body_interval_s > DEGRADED_ABOVE_S or not closing
-                                                     or (span > 0 and not body))
+                                                     or (span > 0 and not body_grid))
 
     kinds = ([(at, "hook") for at in hook] + [(at, "closing") for at in closing]
              + [(at, "shot_start") for at in shot_frames] + [(at, "dense_window") for at in dense_frames]
@@ -985,28 +1003,36 @@ def detect_cuts(media: Path, duration_s: float, deadline: float) -> tuple[list[f
     return cuts, record, step
 
 
-# Contact sheets: frames in time order, nine to a sheet (three by three), each tile captioned with its second
-# where this ffmpeg can draw text. One image read then shows nine frames; a single frame is opened only where a
-# detail needs it.
-SHEET_COLUMNS = 3
-SHEET_ROWS = 3
-SHEET_TILE_WIDTH_PX = 320
+# Contact sheets: frames in time order, four to a sheet (two by two), each tile at the frame's own width capped at
+# 640px (so a sheet is at most 1280px wide) with its aspect ratio kept, captioned with its second where this ffmpeg
+# can draw text. A three-by-three sheet shrank each frame to a ninth and lost on-screen text, small objects and the
+# exact moment: in a blind review frames read one at a time beat it 12 to 2. Two by two keeps near-full detail and
+# still halves the reads to the frames themselves; a single frame is opened where a detail stays unclear.
+SHEET_COLUMNS = 2
+SHEET_ROWS = 2
+SHEET_TILE_MAX_WIDTH_PX = 640
 SHEET_TIMEOUT_S = 30
 
 
-def contact_sheets(items: list[dict], out_dir: Path, width: int | None, height: int | None, quality: int,
-                   deadline: float) -> tuple[list[dict], dict | None]:
-    """Write the sheets for the written frames; the sheet list (path set by the caller) and a ledger step."""
+def contact_sheets(items: list[dict], out_dir: Path, quality: int, deadline: float,
+                   byte_room: int | None = None) -> tuple[list[dict], dict | None]:
+    """Write the sheets for the written frames; the sheet list (path set by the caller) and a ledger step.
+
+    A sheet carries about the bytes of its four frames, so the sheets share the step's byte cap with the frames
+    (`byte_room` is what the frames left): a sheet that would pass it is not kept, and the frames after it are
+    read one at a time.
+
+    Tiles are scaled in the filter graph from the written frames (`min(640, iw)` wide, even height), not from the
+    probed size, so a file whose stream size and displayed size differ (a rotated phone clip) is not stretched."""
     if not items:
         return [], None
-    tile_w = SHEET_TILE_WIDTH_PX
-    tile_h = max(2, int(round(tile_w * (height or 9) / (width or 16) / 2)) * 2)
     per_sheet = SHEET_COLUMNS * SHEET_ROWS
     sheets: list[dict] = []
     captioned = True
     status, note = "completed", ""
     started = now()
     sample_args: list[str] = []
+    used = 0
     for number, first in enumerate(range(0, len(items), per_sheet), start=1):
         group = items[first:first + per_sheet]
         left = deadline - time.monotonic()
@@ -1022,15 +1048,17 @@ def contact_sheets(items: list[dict], out_dir: Path, width: int | None, height: 
             chains = []
             for position, item in enumerate(group):
                 inputs += ["-i", str(out_dir / item["_file"])]
-                chain = f"[{position}:v]scale={tile_w}:{tile_h}"
+                chain = f"[{position}:v]scale='min({SHEET_TILE_MAX_WIDTH_PX},iw)':-2"
                 if draw:
-                    chain += (f",drawtext=text='{item['t_seconds']:.2f}s':x=6:y=6:fontsize=20:fontcolor=white"
-                              ":box=1:boxcolor=black@0.6:boxborderw=4")
+                    chain += (f",drawtext=text='{item['t_seconds']:.2f}s':x=8:y=8:fontsize=28:fontcolor=white"
+                              ":box=1:boxcolor=black@0.6:boxborderw=6")
                 chains.append(chain + f"[t{position}]")
             if len(group) == 1:
-                graph = chains[0].replace("[t0]", f",pad={tile_w * SHEET_COLUMNS}:{tile_h}:0:0:black[out]")
+                graph = chains[0].replace("[t0]", f",pad=iw*{SHEET_COLUMNS}:ih:0:0:black[out]")
             else:
-                layout = "|".join(f"{(position % SHEET_COLUMNS) * tile_w}_{(position // SHEET_COLUMNS) * tile_h}"
+                # Every tile of one video has the same size, so the first tile's width and height place the rest.
+                layout = "|".join(("0" if position % SHEET_COLUMNS == 0 else "w0") + "_"
+                                  + ("0" if position // SHEET_COLUMNS == 0 else "h0")
                                   for position in range(len(group)))
                 graph = (";".join(chains) + ";" + "".join(f"[t{position}]" for position in range(len(group)))
                          + f"xstack=inputs={len(group)}:layout={layout}:fill=black[out]")
@@ -1055,8 +1083,14 @@ def contact_sheets(items: list[dict], out_dir: Path, width: int | None, height: 
             status = "completed_partial" if sheets else "failed"
             note = note or "ffmpeg wrote no contact sheet"
             break
+        used += target.stat().st_size
+        if byte_room is not None and used > byte_room:
+            target.unlink(missing_ok=True)
+            status, note = "completed_partial" if sheets else "failed", BYTE_BUDGET_REASON
+            break
         sheets.append({"_file": target.name, "path": None, "captioned": draw, "columns": SHEET_COLUMNS,
-                       "from_s": group[0]["t_seconds"], "to_s": group[-1]["t_seconds"], "tiles": tiles})
+                       "rows": SHEET_ROWS, "from_s": group[0]["t_seconds"], "to_s": group[-1]["t_seconds"],
+                       "tiles": tiles})
     step = {"step": "local_extraction", "operation": "contact_sheets", "tool": "ffmpeg",
             "tool_version": tool_version("ffmpeg"),
             "invocation_sha256": invocation_digest([Path(part).name if "/" in part else part
@@ -1123,7 +1157,7 @@ def main() -> int:
     parser.add_argument("--max-frames", type=int, default=DEFAULT_MAX_FRAMES,
                         help="Cap on frames written; the body is thinned to fit, the hook never is.")
     parser.add_argument("--max-total-bytes", type=int, default=DEFAULT_MAX_TOTAL_BYTES,
-                        help="Stop writing frames once this many bytes are on disk.")
+                        help="Stop writing frames, and then contact sheets, once this many bytes are on disk.")
     parser.add_argument("--jpeg-quality", type=int, default=3)
     parser.add_argument("--measure-loudness", action="store_true")
     parser.add_argument("--measure-signals", action="store_true",
@@ -1153,6 +1187,8 @@ def main() -> int:
     if not args.dense_window:
         # The method cards' windows (select_method.py), the same ones a link's keyframes request carries.
         windows = hint["dense_windows"]
+    # And the default window, the first 50s every 0.5s, merged in exactly as the keyframes request merges it.
+    windows = select_method.with_default_window(windows)
     if hint["include_shot_starts"] is False:
         args.no_shot_starts = True
     deadline = started_at + args.deadline_s
@@ -1240,8 +1276,9 @@ def main() -> int:
             plan.pop("_kinds")
             steps.append(extract_step)
             if not args.no_contact_sheets:
-                sheets, sheet_step = contact_sheets(items, args.out_dir, facts.get("width"), facts.get("height"),
-                                                    args.jpeg_quality, deadline)
+                frame_bytes = sum((args.out_dir / item["_file"]).stat().st_size for item in items)
+                sheets, sheet_step = contact_sheets(items, args.out_dir, args.jpeg_quality, deadline,
+                                                    args.max_total_bytes - frame_bytes)
                 if sheet_step:
                     steps.append(sheet_step)
             frames_status = "available" if items else "unavailable"
@@ -1336,10 +1373,15 @@ def main() -> int:
         "frames_status": frames["status"],
         "frame_sources": {kind: sum(1 for item in frames["items"] if item.get("source") == kind)
                           for kind in BUDGET_PRIORITY},
-        # Open these first: nine frames a read, in time order; open a single frame only for a detail.
+        # Read every sheet (they are the frames, four a read, in time order); open a single frame where a
+        # detail (small text, a number, a face) is unclear.
         "contact_sheets": [{"path": sheet["path"], "from_s": sheet["from_s"], "to_s": sheet["to_s"],
                             "captioned": sheet["captioned"]} for sheet in frames.get("contact_sheets") or []],
     }
+    on_sheets = sum(len(sheet.get("tiles") or []) for sheet in frames.get("contact_sheets") or [])
+    if frames.get("contact_sheets") and on_sheets < len(frames["items"]):
+        # The byte cap or the deadline stopped the sheets early: these frames are on no sheet; open them one by one.
+        summary["frames_not_on_a_sheet"] = len(frames["items"]) - on_sheets
     if "signals" in artifact["media"]:
         signals = artifact["media"]["signals"]
         summary["signals"] = {
