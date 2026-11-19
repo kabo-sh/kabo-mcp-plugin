@@ -1197,6 +1197,15 @@ def add_signals(artifact: dict, signals: dict, steps: list, notes: list) -> None
     artifact["generated_at"] = now()
 
 
+def run_relative(artifact: Path, path: str) -> str:
+    """A path the artifact stores relative to its own folder, printed relative to the run folder (the working
+    directory) as every other path the Skill prints is; the artifact keeps its own form."""
+    try:
+        return str((artifact.expanduser().resolve().parent / path).relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return path
+
+
 def main() -> int:
     started_at = time.monotonic()
     parser = argparse.ArgumentParser(description="Sample frames from a video on this machine.")
@@ -1429,7 +1438,7 @@ def main() -> int:
                           for kind in BUDGET_PRIORITY},
         # Read every sheet (they are the frames, four a read, in time order); open a single frame where a
         # detail (small text, a number, a face) is unclear.
-        "contact_sheets": [{"path": sheet["path"], "from_s": sheet["from_s"], "to_s": sheet["to_s"],
+        "contact_sheets": [{"path": run_relative(args.artifact, sheet["path"]), "from_s": sheet["from_s"], "to_s": sheet["to_s"],
                             "captioned": sheet["captioned"]} for sheet in frames.get("contact_sheets") or []],
     }
     on_sheets = sum(len(sheet.get("tiles") or []) for sheet in frames.get("contact_sheets") or [])

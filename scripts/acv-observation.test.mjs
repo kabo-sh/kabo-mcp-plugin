@@ -408,6 +408,25 @@ async function localRun(t) {
 }
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
 
+test("extract_local_frames prints contact-sheet paths from the run folder; the artifact keeps them from analysis/", { skip: !hasFfmpeg }, async (t) => {
+  const run = await newRun(t);
+  const video = path.join(run, "analysis", "clip.mp4");
+  const made = spawnSync("ffmpeg", ["-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=duration=3:size=160x284:rate=10",
+    video], { encoding: "utf8" });
+  assert.equal(made.status, 0, made.stderr);
+  const result = spawnSync("python3", ["-B", path.join(scripts, "extract_local_frames.py"), "--media", video, "--out-dir", "analysis/frames",
+    "--artifact", "analysis/local-media.json", "--hook-window-s", "3"], { cwd: run, encoding: "utf8", env });
+  assert.equal(result.status, 0, result.stderr);
+  const printed = JSON.parse(result.stdout).contact_sheets;
+  const stored = (await readJson(path.join(run, "analysis/local-media.json"))).frames.contact_sheets;
+  assert.ok(printed.length > 0 && printed.length === stored.length, result.stdout);
+  for (const [index, sheet] of printed.entries()) {
+    assert.match(sheet.path, /^analysis\/frames\/sheet-\d+\.jpg$/);
+    assert.ok(existsSync(path.join(run, sheet.path)), sheet.path);
+    assert.equal(stored[index].path, sheet.path.slice("analysis/".length));
+  }
+});
+
 test("local_frames: the creator's file becomes valid evidence; a whole-video result is refused beside it", { skip: !hasFfmpeg }, async (t) => {
   const run = await localRun(t);
   await writeFile(path.join(run, "host-results/viewer.json"), JSON.stringify(viewerFixture));
