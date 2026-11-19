@@ -66,12 +66,16 @@ text, the medium and look, the layout, the voices and sound, the captions -- wha
 apart from what you infer. Then write the storyboard from it and save both (host mechanics below).
 A video takes many turns and the later ones see only the saved plan, not this turn's notes.
 
-The storyboard is one JSON object: at the top `form` (medium, look, settings, shot count and pace,
+The storyboard is one JSON object (its exact field shapes are in `params.md`): at the top `form` (medium, look, settings, shot count and pace,
 captions, voice, music and sound), `total_s`, and, when the video has recurring characters,
 `characters`: one entry per character, `{name, look}` -- a short name used for them everywhere in
 the storyboard, and the fixed look every picture of them follows (build, face, hair, clothes,
 colours, props). `sheet` is filled in during production ("The same people in every shot" below);
 a plan handed to Kabo's producer to make leaves it out.
+When the reference plays in clear segments (an opening hook, a setup, the turns, the payoff, a
+call to action), add `skeleton` at the top: each segment with its job, its share of the length and
+its shots, every shot in exactly one segment, in order (fields in `params.md`). Leave the sound
+levels (`audio_plan`) out: the defaults duck the music under the voice.
 `total_s` follows the reference when there is one. Without one (the creator's request and
 material only) and with no length asked for, plan the length the format needs, not the fewest
 seconds the material fills: a product or brand promo runs about 20-30 s, an explainer or a story as

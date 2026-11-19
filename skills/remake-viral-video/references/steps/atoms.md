@@ -4,6 +4,10 @@ Plan first (`plan.md`). Choose a step by what the storyboard row needs -- a pict
 made to move, a line that is spoken is spoken, words that must read are laid out -- never by which
 step is quicker or cheaper.
 
+**Exact parameter shapes** -- which fields each step takes, their types, lists or objects, and
+ranges -- are in `params.md` in this folder, generated from the host's own schema. Write every
+request and the storyboard by it; where a sentence here reads differently, `params.md` is right.
+
 ## Files are handles
 
 Steps never take paths or links, only the handles the job lists in its status (`handles`):
