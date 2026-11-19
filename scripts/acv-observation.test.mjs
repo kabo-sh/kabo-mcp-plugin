@@ -907,12 +907,13 @@ test("duration gate: YouTube reads the duration from its own metadata envelope o
   const promise = await readJson(path.join(measured.run, "analysis/promise_payoff.json"));
   assert.deepEqual([promise.hook_window_s, promise.hook_window_basis, promise.promise.status], [3, "video_length", "located"]);
 
-  // Neither: after one round for the metadata the viewing is refused and server frames take over.
+  // Neither: the viewing is refused at once and server frames take over. No round is handed over just to wait for
+  // the metadata (KS9).
   const bare = await begin();
   await writeFile(bare.file, mcp(composite(bare.call.arguments)));
-  const waiting = shell(resumeOf(bare.first.out));
-  assert.match(waiting.out, /starts only once the video's duration is known/);
-  const fell = shell(waiting.out.split("\n").find((line) => line.includes("then run this one command")).split("then run this one command: ")[1]);
+  const fell = shell(resumeOf(bare.first.out));
+  assert.doesNotMatch(fell.out, /starts only once the video's duration is known/);
+  assert.match(fell.out, /whole_video returned no usable evidence \(duration_unknown\)/);
   assert.match(fell.out, /trying server_frames/);
   assert.deepEqual(callLines(fell.out).map((call) => call.tool), ["collect_video_media"]);
   // The measurement was already asked for under this run key: only the rest is asked now.

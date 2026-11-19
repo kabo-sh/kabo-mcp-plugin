@@ -213,11 +213,10 @@ def media_namespace(current: dict[str, Any]) -> SimpleNamespace:
 def hand_over_calls(current: dict[str, Any], *, start_viewer: bool, poll_viewer: bool, media: bool,
                     note: str = "") -> None:
     """Print the calls still needed this round, the file for each, and the one resume command."""
-    # KS9: this is a bounded wait on ONE whole-video job (one start, then get_analysis_run readings of the same
-    # analysis id until it is terminal or VIEWER_BUDGET_S is spent), the same pattern as collect_media.py's
-    # hand_over_media for collect_video_media; it is not a multi-round fetch orchestration, so it is not listed in
-    # fetch-orchestration.test.mjs HANDOVER_SITES. Each reading waits inside the tool (wait_s), so a viewing of a
-    # few minutes normally takes the start and one or two readings.
+    # KS9: each call site is counted in fetch-orchestration.test.mjs HANDOVER_SITES, which says what each one is:
+    # the observation request (or its single fallback), the bounded wait on the same jobs (each reading waits
+    # inside the tool, wait_s), and the viewing started after the media call reported the duration, the one
+    # pre-round still waiting to move into the backend tool.
     calls = []
     if start_viewer:
         file = slot(START_TOOL)
@@ -302,8 +301,6 @@ def begin(current: dict[str, Any], note: str = "") -> int:
             start_viewer = True
         elif verdict == "wait":
             current["viewer_deferred"] = True
-            if not start_media and not in_flight:
-                return duration_round(current, note)
         else:
             refuse_viewer(current, code)
     save_state(current)
@@ -447,12 +444,8 @@ def viewer_gate(current: dict[str, Any], *, media_in_flight: bool) -> tuple[str,
         return ("start", "") if duration <= limit_s else ("refuse", "too_long")
     if media_in_flight:
         return "wait", ""
-    if (public_video_sources.source(current.get("platform")) or {}).get("metadata_route") == "youtube_get_video" \
-            and not current.get("duration_waited"):
-        # The platform's metadata comes from its own tool (YouTube: youtube_get_video), which the model calls
-        # beside this script: give it one round to be persisted. Every other source (a media-call platform, a
-        # link on no listed platform, a kabo-file) reads its duration from this run's media call.
-        return "wait", ""
+    # No round is handed over just to learn the duration: what the media call measured, what --duration-s gave and
+    # a YouTube metadata envelope already persisted are all there is (KS9).
     return "refuse", "duration_unknown"
 
 
@@ -484,18 +477,6 @@ def activate_viewer(current: dict[str, Any]) -> None:
     current["viewer_deferred"] = False
     current["viewer"] = {"active": True, "key": viewer_key(), "analysis_id": None, "status": None,
                          "polls": 0, "started_at": now().isoformat(), "read_at": None, "done": False}
-
-
-def duration_round(current: dict[str, Any], note: str) -> int:
-    """A YouTube viewing waits one round for the youtube_get_video envelope; nothing else is handed over."""
-    current["duration_waited"] = True
-    save_state(current)
-    if note:
-        say(note)
-    say("The whole-video viewing starts only once the video's duration is known. Make the youtube_get_video call "
-        "the Skill lists (if not made yet), fetch and persist its result, then run this one command: "
-        + resume_command(current))
-    return 0
 
 
 def media_pending(current: dict[str, Any]) -> int:
@@ -748,8 +729,6 @@ def resume(args: argparse.Namespace) -> int:
         if verdict == "start":
             activate_viewer(current)
             start_viewer = True
-        elif verdict == "wait" and not media_waiting:
-            return duration_round(current, "")
         elif verdict == "refuse":
             refuse_viewer(current, code)
         save_state(current)
