@@ -221,6 +221,80 @@ class DeadlineTest(unittest.TestCase):
         self.assertIn("--out-dir is required", result.stderr)
 
 
+class SamplingRuleTest(unittest.TestCase):
+    """The local plan is the connector's duration_scaled_v1 plan: the same frames for the same duration, cuts and
+    windows, in the same budget order."""
+
+    def setUp(self) -> None:
+        self.module = load()
+
+    def plan(self, duration, budget=120, **options):
+        return self.module.plan_frames(duration, 3.0, 1.0, 2, budget, **options)
+
+    def test_the_default_plan_matches_the_server(self) -> None:
+        plan = self.plan(30.0)
+        times, kinds = plan["_timestamps"], plan["_kinds"]
+        self.assertEqual([0.0, 0.5, 1.0, 1.5, 2.0, 2.5], [at for at, kind in zip(times, kinds) if kind == "hook"])
+        self.assertEqual([28.0, 28.5, 29.0, 29.5], [at for at, kind in zip(times, kinds) if kind == "closing"])
+        self.assertEqual([float(second) for second in range(3, 28)],
+                         [at for at, kind in zip(times, kinds) if kind == "body"])
+        self.assertEqual((35, 28.0, False), (plan["frames"], plan["closing_frame_s"], plan["body_degraded"]))
+        self.assertNotIn("include_shot_starts", plan, "no options asked for: the standard plan, unchanged")
+        short = self.plan(2.0)
+        self.assertEqual([0.0, 0.5, 1.0, 1.5], short["_timestamps"])
+        self.assertEqual({"hook"}, set(short["_kinds"]))
+        long = self.plan(600.0)
+        self.assertEqual(120, long["frames"])
+        self.assertTrue(long["body_degraded"])
+        self.assertEqual(6, long["hook_frames"])
+
+    def test_shot_starts_sit_just_after_a_cut_and_dedupe_against_higher_priority_frames(self) -> None:
+        plan = self.plan(30.0, cuts=[0.3, 10.0, 10.1, 15.5, 29.9])
+        pairs = list(zip(plan["_timestamps"], plan["_kinds"]))
+        shots = [at for at, kind in pairs if kind == "shot_start"]
+        # 0.35 is within 0.25s of the hook frame at 0.5 and 10.15 within 0.25s of the shot at 10.05: both dropped.
+        # 29.95 is 0.45s from the closing frame at 29.5, so it stays.
+        self.assertEqual([10.05, 15.55, 29.95], shots)
+        self.assertEqual(2, plan["dropped_as_duplicate"]["shot_start"])
+        body = [at for at, kind in pairs if kind == "body"]
+        self.assertNotIn(10.0, body, "a body point within 0.25s of a shot start is skipped")
+        self.assertIn(16.0, body, "0.45s from the shot start at 15.55 is far enough")
+        self.assertEqual("detected", plan["shot_detection"]["status"])
+        self.assertEqual(["hook", "closing", "shot_start", "dense_window", "body"], plan["budget_priority"])
+
+    def test_dense_windows_keep_their_density_and_thin_by_a_whole_factor_over_budget(self) -> None:
+        window = {"start_s": 0.0, "end_s": 5.0, "interval_s": 0.25}
+        plan = self.plan(30.0, cuts=[], dense_windows=[window])
+        dense = [at for at, kind in zip(plan["_timestamps"], plan["_kinds"]) if kind == "dense_window"]
+        self.assertIn(0.25, dense)
+        self.assertNotIn(0.5, dense, "the hook frame at 0.5 keeps its place")
+        self.assertEqual(plan["dense_window_frames"], len(dense))
+        tight = self.plan(30.0, budget=20, cuts=[], dense_windows=[window])
+        # Six hook and four closing frames leave ten: 0.25s does not fit, 0.5s does (its points on the hook are
+        # duplicates), and the body point at 3.0 beside the dense frame there is skipped without its slot coming back.
+        self.assertEqual(0.5, tight["dense_windows"][0]["interval_s"])
+        self.assertEqual([3.0, 3.5, 4.0, 4.5],
+                         [at for at, kind in zip(tight["_timestamps"], tight["_kinds"]) if kind == "dense_window"])
+        self.assertEqual(19, tight["frames"])
+
+    def test_over_budget_the_order_is_opening_closing_shot_starts_dense_windows_body(self) -> None:
+        cuts = [3.0 + index * 0.5 for index in range(400)]
+        plan = self.plan(300.0, cuts=cuts, dense_windows=[{"start_s": 100.0, "end_s": 110.0, "interval_s": 0.5}])
+        counts = {kind: plan["_kinds"].count(kind) for kind in self.module.BUDGET_PRIORITY}
+        self.assertEqual({"hook": 6, "closing": 4, "shot_start": 110, "dense_window": 0, "body": 0}, counts)
+        self.assertGreater(plan["dropped_for_budget"]["shot_start"], 0)
+        self.assertEqual("budget", plan["dense_windows"][0]["ignored"])
+        self.assertTrue(plan["body_degraded"])
+        order = self.module.extraction_order(plan["_kinds"])
+        self.assertEqual(["hook"] * 6 + ["closing"] * 4, [plan["_kinds"][index] for index in order[:10]])
+
+    def test_dense_window_text_and_its_limits(self) -> None:
+        self.assertEqual({"start_s": 0.0, "end_s": 5.0, "interval_s": 0.25}, self.module.parse_dense_window("0:5:0.25"))
+        for bad in ("0:5", "5:1:0.5", "0:5:0.1", "-1:5:0.5"):
+            with self.assertRaises(ValueError):
+                self.module.parse_dense_window(bad)
+
+
 @unittest.skipUnless(HAS_FFMPEG, "ffmpeg/ffprobe not installed")
 class EndToEndTest(unittest.TestCase):
     @classmethod
@@ -296,6 +370,62 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual(2, result.returncode)
         self.assertIn("different file", result.stderr)
         self.assertEqual(before, artifact.read_bytes())
+
+    def test_shot_starts_dense_windows_and_contact_sheets_on_a_cut_video(self) -> None:
+        media = self.dir / "three shots.mp4"
+        subprocess.run(
+            ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+             "-f", "lavfi", "-i", "testsrc=size=160x120:duration=4:rate=10",
+             "-f", "lavfi", "-i", "color=c=red:size=160x120:duration=3:rate=10",
+             "-f", "lavfi", "-i", "smptebars=size=160x120:duration=5:rate=10",
+             "-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]",
+             "-map", "[v]", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(media)],
+            check=True, capture_output=True, timeout=300)
+        run = self.dir / "cuts"
+        (run / "analysis").mkdir(parents=True)
+        # The method cards' frame plan beside the artifact is read when no --dense-window is given.
+        (run / "analysis" / "method.json").write_text(json.dumps({"frames": {
+            "include_shot_starts": True, "dense_windows": [{"start_s": 0, "end_s": 2, "interval_s": 0.25}]}}))
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--media", str(media), "--out-dir", str(run / "analysis" / "frames"),
+             "--artifact", str(run / "analysis" / "local-media.json")],
+            capture_output=True, text=True, timeout=600)
+        self.assertEqual(0, result.returncode, result.stderr)
+        document = json.loads((run / "analysis" / "local-media.json").read_text(encoding="utf-8"))
+        items = document["frames"]["items"]
+        shots = [item["t_seconds"] for item in items if item["source"] == "shot_start"]
+        self.assertEqual(2, len(shots), items)
+        self.assertAlmostEqual(4.05, shots[0], delta=0.15)
+        self.assertAlmostEqual(7.05, shots[1], delta=0.15)
+        self.assertEqual(4, sum(1 for item in items if item["source"] == "dense_window"))
+        self.assertEqual(sorted(item["t_seconds"] for item in items), [item["t_seconds"] for item in items])
+        plan = document["frames"]["sampling_plan"]
+        self.assertEqual((True, "detected", 2), (plan["include_shot_starts"], plan["shot_detection"]["status"],
+                                                 plan["shot_start_frames"]))
+        sheets = document["frames"]["contact_sheets"]
+        self.assertEqual(-(-len(items) // 9), len(sheets))
+        tiles = [tile for sheet in sheets for tile in sheet["tiles"]]
+        self.assertEqual([item["frame_id"] for item in items], [tile["frame_id"] for tile in tiles])
+        self.assertEqual({(0, 0), (2, 2)}, {(tile["row"], tile["col"]) for tile in sheets[0]["tiles"]} & {(0, 0), (2, 2)})
+        for sheet in sheets:
+            self.assertTrue((run / "analysis" / sheet["path"]).is_file())
+            self.assertRegex(Path(sheet["path"]).name, r"^sheet-\d{2}\.jpg$")
+        summary = json.loads(result.stdout)
+        self.assertEqual(len(sheets), len(summary["contact_sheets"]))
+        self.assertEqual(2, summary["frame_sources"]["shot_start"])
+        self.assertIn("detect_shot_starts", [step["operation"] for step in document["steps"]])
+
+        # --dense-window overrides the method's windows, and --no-shot-starts turns the cut frames off.
+        plain = subprocess.run(
+            [sys.executable, str(SCRIPT), "--media", str(media), "--out-dir", str(run / "plain"),
+             "--artifact", str(run / "analysis" / "plain.json"), "--no-shot-starts", "--dense-window", "8:9:0.5",
+             "--no-contact-sheets"],
+            capture_output=True, text=True, timeout=600)
+        self.assertEqual(0, plain.returncode, plain.stderr)
+        again = json.loads((run / "analysis" / "plain.json").read_text(encoding="utf-8"))
+        self.assertEqual({"hook", "closing", "body", "dense_window"}, {item["source"] for item in again["frames"]["items"]})
+        self.assertEqual([], again["frames"]["contact_sheets"])
+        self.assertEqual(8.0, again["frames"]["sampling_plan"]["dense_windows"][0]["start_s"])
 
     def test_ffmpeg_progress_reports_how_far_a_pass_read(self) -> None:
         result = subprocess.run(

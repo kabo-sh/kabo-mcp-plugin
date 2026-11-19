@@ -22,9 +22,16 @@ comments: when the creator asks how the video performed, ask once for its publis
 2. **Read the file.**
    `cd '<run directory>' && python3 <skill directory>/scripts/extract_local_frames.py --media <absolute path> --out-dir analysis/frames
    --artifact analysis/local-media.json --hook-window-s <3 for a Short, 15–30 for long-form>`,
-   adding `--measure-loudness` when the question is about sound. It writes the same frame shape the
-   connector writes, so everything in *Frame sampling* in `references/evidence-reading.md` applies unchanged — `frames.origin`
-   included. **Locally sampled frames are real pixels and are read exactly like any other frame:
+   adding `--measure-loudness` when the question is about sound. It samples by the connector's plan
+   (120 frames at most, a frame just after each cut, and the dense windows the method cards put in
+   `analysis/method.json`) and writes the same frame shape, so
+   everything in *Frame sampling* in `references/evidence-reading.md` applies unchanged — `frames.origin`
+   and each frame's `source` included. It also writes **contact sheets**: nine frames to an image, in
+   time order, listed under `contact_sheets` in its summary with the seconds they span (each tile is
+   captioned with its second where this machine's ffmpeg can draw text; otherwise
+   `frames.contact_sheets[].tiles` in the artifact maps each tile to its frame and second). Open the
+   sheets first to see the whole video in a few reads, then open single frames from `frames.items[].path`
+   only where a claim needs detail; cite the frame, never the sheet. **Locally sampled frames are real pixels and are read exactly like any other frame:
    open them, quote what is on them, cite them the same way.** Nothing in the analysis branches on
    where a frame came from; the ledger records that, and the ledger is not the report.
 3. **Measure, in a command of its own**, whenever the question touches pacing, cuts, pauses or the
