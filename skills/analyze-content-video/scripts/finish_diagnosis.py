@@ -10,6 +10,8 @@ host run or retry a failed step. The host's normal final wrapper owns that one t
 `--check` runs the same steps on scratch copies and writes nothing in the run: it prints every
 violation the creator view has against the delivery gates (field, limit and value), so the one
 correction of `analysis/creator_view.json` happens before the final step instead of ending the run.
+Its exit code carries the verdict, so `--check && finish` never finishes an uncorrected view: 0 is
+`ready`, 3 is `needs_correction` (correct the view; not a failure) and 1 is a failed step.
 The final step renders the report beside its final name and moves it into place only after every
 gate passed, so a failed finish leaves no `report/VIDEO_DIAGNOSIS.md` behind.
 """
@@ -28,6 +30,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import acv_timing  # noqa: E402
 
 REPORT = "VIDEO_DIAGNOSIS.md"
+# --check exit codes: ready, a failed step, and a view that needs its one correction.
+READY, FAILED, NEEDS_CORRECTION = 0, 1, 3
 # Failures in these steps come from the authored creator_view, which may be corrected once after --check; the first two steps fail on the judgment itself.
 VIEW_STEPS = {"build_creator_result.py", "render_video_report.py", "validate_creator_shape.py",
               "validate_creator_report.py"}
@@ -73,12 +77,12 @@ def check(run: Path) -> int:
                                      ensure_ascii=False, indent=1))
                     print("Correct analysis/creator_view.json once for every violation above, then run this check "
                           "once more. Advance to the final step only on status ready.")
-                    return 0
+                    return NEEDS_CORRECTION
                 print(json.dumps({"status": "failed", "step": step, "errors": found}, ensure_ascii=False, indent=1))
-                return 1
+                return FAILED
     print(json.dumps({"status": "ready"}))
     print("Run the final step now: the same command without --check.")
-    return 0
+    return READY
 
 
 def finish(run: Path) -> int:
@@ -114,7 +118,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--check", action="store_true",
-                        help="run every gate on scratch copies and print each violation; write nothing")
+                        help="run every gate on scratch copies and print each violation; write nothing. "
+                             "Exit 0 is ready, 3 is needs_correction (correct the view, not a failure), "
+                             "1 is a failed step")
     args = parser.parse_args()
     run = args.run_dir.resolve()
     if not (run / "analysis").is_dir():

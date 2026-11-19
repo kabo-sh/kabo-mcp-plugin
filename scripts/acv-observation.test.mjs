@@ -189,7 +189,10 @@ test("server_frames: one media call, persisted envelopes, valid evidence with no
   assert.match(out, /"source": "server_frames"/);
   assert.match(out, /^read: /m);
   await writeRequest(run);
-  const built = build(run, flagsOf(out));
+  // The hint alone carries every flag the builder requires besides where to write: --request included.
+  assert.match(flagsOf(out), /^--request analysis\/video-analysis-request\.json /);
+  const built = shell(`cd '${run}' && python3 -B '${path.join(scripts, "build_content_evidence.py")}' ${flagsOf(out)} `
+    + "--snapshot-root snapshot --output analysis/content_evidence.json --reference-index analysis/content_evidence.references.json");
   assert.equal(built.code, 0, built.out);
   const evidence = await readJson(path.join(run, "analysis/content_evidence.json"));
   assertValidEvidence(evidence);
@@ -1233,7 +1236,8 @@ test("finish_diagnosis --check lists every view violation and writes nothing; a 
 
   await writeFile(path.join(run, "analysis/creator_view.json"), JSON.stringify(creatorView({ long: true, decision: "recut" })));
   const checked = python("finish_diagnosis.py", ["--run-dir", run, "--check"], run);
-  assert.equal(checked.code, 0, checked.out);
+  // needs_correction exits 3, so `--check && finish` never finishes an uncorrected view.
+  assert.equal(checked.code, 3, checked.out);
   const verdict = JSON.parse(checked.out.slice(0, checked.out.lastIndexOf("}") + 1));
   assert.equal(verdict.status, "needs_correction");
   assert.ok(verdict.violations.some((line) => /why_for_you runs \d+ columns against a 480 limit/.test(line)), checked.out);
@@ -1249,7 +1253,10 @@ test("finish_diagnosis --check lists every view violation and writes nothing; a 
   assert.deepEqual((await readdir(path.join(run, "report"))).filter((name) => !name.startsWith("transcript")), []);
 
   await writeFile(path.join(run, "analysis/creator_view.json"), JSON.stringify(creatorView()));
-  assert.match(python("finish_diagnosis.py", ["--run-dir", run, "--check"], run).out, /"status": "ready"/);
+  const ready = python("finish_diagnosis.py", ["--run-dir", run, "--check"], run);
+  assert.equal(ready.code, 0, ready.out);
+  assert.match(ready.out, /"status": "ready"/);
+  assert.match(python("finish_diagnosis.py", ["--help"], run).out, /3 is\s+needs_correction/);
   const finished = python("finish_diagnosis.py", ["--run-dir", run], run);
   assert.equal(finished.code, 0, finished.out);
   const report = await readFile(path.join(run, "report/VIDEO_DIAGNOSIS.md"), "utf8");

@@ -117,7 +117,7 @@ def view_contract(analysis: dict[str, Any], subject: str | None = None) -> dict[
         },
         "display_column_limits": columns,
         "width_rule": "Count each full-width or wide Unicode character as two display columns, all others as one; count the complete field including line breaks. Stay well under each limit: one column over fails the report.",
-        "check": "After writing analysis/creator_view.json, run finish_diagnosis.py --check: it prints every violation with its field and limit. Correct the view once, check once more, then run the final step.",
+        "check": "After writing analysis/creator_view.json, run finish_diagnosis.py --check: it prints every violation with its field and limit and exits 3 on needs_correction, 0 on ready. Correct the view once, check once more, then run the final step.",
         "scope": "Judgment or completed analysis supplies observation IDs only. Read references/diagnosis-report.md whole for evidence-grounded content, localization and hooks.",
     }
 

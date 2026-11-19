@@ -610,7 +610,8 @@ def settle(current: dict[str, Any]) -> int:
         moved = fall_back(current, "whole_video", code)
         if moved is not None:
             return moved
-    flags = []
+    # The builder requires the run's request; the hint names it so the passed flags are a complete set.
+    flags = ["--request analysis/video-analysis-request.json"]
     if media is not None:
         flags += [f"--envelope {path}" for path in media["envelopes"]]
         flags += [f"--deferred-incomplete {item}" for item in media["pending"]]

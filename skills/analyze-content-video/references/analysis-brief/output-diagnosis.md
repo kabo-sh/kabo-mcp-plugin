@@ -25,7 +25,8 @@ copies, writes nothing and prints each violation with its field and limit:
 cd '<run directory>' && python3 <skill directory>/scripts/finish_diagnosis.py --run-dir '<run directory>' --check
 ```
 
-On `needs_correction`, correct `analysis/creator_view.json` once for every violation listed (the
+It exits 0 on `ready` and 3 on `needs_correction`, which is the correction signal, not a
+failure. On `needs_correction`, correct `analysis/creator_view.json` once for every violation listed (the
 view's one correction; the judgment stays as saved) and run the check once more. Advance only on
 `status: ready`; if it is still not ready, stop and report the gap. Then finish with the final
 step; its deliverable is `report/VIDEO_DIAGNOSIS.md`, delivered as *Delivery* in `SKILL.md` says:

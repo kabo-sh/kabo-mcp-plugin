@@ -51,7 +51,8 @@ complete: do not probe scripts with `--help` or read their source. Quote paths a
 than `rg`. Write each JSON file you author at its absolute run path, then run the next command. A
 failed script or validator step ends the run: report it; never reserve a second run, repeat
 completed retrieval or rewrite a judgment to get past a validator. A check that answers
-`needs_correction` is not a failure: the brief allows its one correction.
+`needs_correction` is not a failure (`finish_diagnosis.py --check` exits 3 for it): the brief
+allows its one correction.
 
 **Declare the run.** Right after the run directory is reserved, call the Kabo tool `start_skill_run` once with `skill_id` `analyze-content-video` and `run_id` set to the last path segment of the run directory. It records the run once, so never call it again for the same run. If it fails with `credits_exhausted`, tell the user their credits are used up, give them the link in the error, and stop. If the tool is not available, continue without it.
 

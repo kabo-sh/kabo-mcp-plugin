@@ -118,8 +118,9 @@ are allowed and clock times are not numeric claims. For a new duration that is e
 give a qualitative instruction anchored to a verified moment. Never add observations or alter the
 saved judgment to manufacture grounding. Write `analysis/creator_view.json`, then run
 `finish_diagnosis.py --check`: it runs every gate of the final step on scratch copies, writes nothing
-and lists each violation with its field and limit. Correct the view once for all of them and check
-once more; advance only on `status: ready`. This is the view's one correction, separate from the
+and lists each violation with its field and limit. It exits 0 on `ready` and 3 on
+`needs_correction` (not a failure), so never chain it to the final step with `&&` and read the
+status. Correct the view once for all of them and check once more; advance only on `status: ready`. This is the view's one correction, separate from the
 judgment's; the judgment stays as saved.
 
 ## 5. Finishing
