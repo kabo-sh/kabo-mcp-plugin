@@ -1,7 +1,7 @@
 # Step parameters (generated -- do not edit)
 
 Generated from the Web host's own schema (`contracts/web-remake-tool.v1.json`, kabo-agent-service
-`scripts/remake-skill-schema.ts` at e7d9413d7d6f3bbd18e80037b8bda7c62e4a1f0e) by `scripts/remake-params-gen.mjs`.
+`scripts/remake-skill-schema.ts` at 92437fcc1746078c2957d6953e71d3ac309851e3) by `scripts/remake-params-gen.mjs`.
 These are the exact shapes the host accepts; where any other file in this Skill reads
 differently, this file is right. A field not listed under a step is refused on that step.
 `?` / (optional) = may be left out; `a | b` = one of; `[x, ...] (2-8 items)` = a list;
@@ -17,6 +17,7 @@ differently, this file is right. A field not listed under a step is refused on t
 - `audio_plan` (optional): {voice?: {gain_db?: number -40..6}; music?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; sfx?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; ambience?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; voice_over_music_db?: number 3..20}
 - `environments` (optional): a list (at most 12), each entry below
 - `props` (optional): a list (at most 12), each entry below
+- `series` (optional): [{n: integer 0..999 | text (<= 20); brief: text (<= 2000); job_id?: text (<= 64)}, ...] (1-30 items)
 
 Each row of `shots`:
 

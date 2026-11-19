@@ -22,8 +22,8 @@ gives as a file on this machine is sent first with `local-files.md` and passed a
 are public JPEG or PNG. It returns the `job_id`; `fetching_inputs` means the files are still being
 fetched: say so in one line and call again with the same arguments after `retry_after_s` seconds.
 Use only material the user gave in this conversation; never reuse one video for two roles. A voice
-the creator has not recorded is asked for as `steps/project.md` says ("No voice to clone"), before
-the project starts.
+the creator has not recorded is a preset you choose by the role, as `steps/project.md` says ("No
+voice to clone"); never stop to ask about it.
 
 ## 2. Look before you plan
 

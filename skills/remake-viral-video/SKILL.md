@@ -4,7 +4,7 @@ description: "Have Kabo make a finished MP4: remake a reference video with the c
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
 metadata:
-  version: "1.0.8"
+  version: "1.0.9"
   platform_agnostic: "true"
 allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
@@ -77,8 +77,8 @@ that, not by how the request is worded ("remake" included):
    steps, taking the reference's look, characters, pacing and sound as the model and their script
    or lines as the words, and follow its workflow stage by stage: a voice over pictures,
    `references/workflows/narration.md`; characters who speak their lines,
-   `references/workflows/character-drama.md`. Needing a voice they have not recorded: ask once for a recording or a preset voice, as
-   `references/steps/project.md` ("No voice to clone") says, and wait.
+   `references/workflows/character-drama.md`. Needing a voice they have not recorded: choose a preset voice by the role yourself and go on,
+   as `references/steps/project.md` ("No voice to clone") says; never stop to ask about the voice.
 
 | Keep | Change | Step | Redraws the face |
 |---|---|---|---|

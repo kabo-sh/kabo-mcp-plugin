@@ -24,6 +24,12 @@ motion where the reference moves, the voices and talking shots it has. Never mer
 rows, hold one picture over many lines or turn moving shots into still pictures; such a cut changes
 what was agreed, so ask first.
 
+**Several videos in one request** (ten styles of one story, five episodes, one per product):
+write every video asked for into each video's storyboard as `series` -- one entry per video in the
+creator's order, with what is particular to it (its style, topic or product) in the creator's words
+and its `job_id` once its project exists -- and keep it there whenever you save the storyboard
+again. Later turns read the list from the plan; never ask the creator to send it again.
+
 Every request carries a new idempotency key (a UUID). Repeat the same key only to retry the same
 request after an unknown outcome.
 
