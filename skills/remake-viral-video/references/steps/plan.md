@@ -198,6 +198,16 @@ characters' sheets and the place's picture from that camera), and more drew wors
 character without a sheet is turned back until the sheet is made. `animate` and `talking` start
 from those stills and keep the look; `animate` must not add a character the still does not show.
 
+## Shots that continue one another
+
+When a shot carries on from the one before (the same moment, the same things in it), write on its
+row `start` (the first frame: the pose, where each prop is and its state -- spilled, knocked over,
+open) and `end` (the state in the last frame), and put the small details that tend to vanish
+(an accessory, a bow, a collar) in `keep`. Where time jumps or the place changes, write
+`continues: false`. Make every shot's still before any `animate`. Write motion prompts with the end
+state said positively ("holds the mug upright", never "not tipping it"): the video model acts out a
+verb even when it is negated.
+
 ## Make the rows by shot number
 
 Store the storyboard (`plan`) before any step that says `shot`. The saved storyboard is also kept in
