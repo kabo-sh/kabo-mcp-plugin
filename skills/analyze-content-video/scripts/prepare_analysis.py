@@ -218,8 +218,13 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
     lines += [f"### Frames ({frames.get('status')}, origin {frames.get('origin') or 'none'}, {len(items)})", ""]
     plan = frames.get("sampling_plan") or {}
     if plan.get("hook_window_s") is not None:
-        lines.append(f"Planned sampling (not decoded spacing): hook window {plan.get('hook_window_s')}s, body interval "
-                     f"{plan.get('body_interval_s')}s{', body degraded' if plan.get('body_degraded') else ''}.")
+        body = plan.get("body_interval_s")
+        windows = [w for w in plan.get("dense_windows") or [] if isinstance(w, dict)]
+        spans = ", ".join(f"{w.get('start_s')}–{w.get('end_s')}s every {w.get('interval_s')}s" for w in windows)
+        lines.append(f"Planned sampling (not decoded spacing): hook window {plan.get('hook_window_s')}s, "
+                     + (f"body interval {body}s" if body else "no body grid (dense windows cover the video)")
+                     + (f", dense windows {spans}" if spans else "")
+                     + f"{', body degraded' if plan.get('body_degraded') else ''}.")
     lines += [f"- `{item['frame_id']}` {seconds(item.get('t_seconds'))}" + (f" `{item['path']}`" if item.get("path") else "")
               for item in items]
     if items:
