@@ -195,7 +195,8 @@ Diagnosis, content read and craft teardown run the same steps. Read
    ```
 
    Exit 2 names a card id problem: correct `--focus` once. The cards decide what the observation
-   needs: the `sound` card adds a whole-video viewing, which hears the audio, where one is possible.
+   needs: the `sound` card adds a whole-video viewing, which hears the audio, where one is possible
+   (a local file is measured instead: `references/local-file.md`).
 4. **Observe.** One command chooses the observation source from
    `references/observation-order.json` and the cards (server keyframes, a whole-video viewing, or
    both) and falls back by itself when one fails:

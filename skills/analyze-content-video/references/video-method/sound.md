@@ -17,9 +17,24 @@ Judge sound only from what was heard or measured for this video:
   It says which track was used, never how it sounds or how it sits in the mix.
 - **Transcript origin**: words with `transcript.origin` `speech_recognition` on a video using an
   existing track, or where no one is seen speaking, may be lyrics.
+- **Measured on this machine** (a local file): `media.audio`. Its `findings` are measurements that
+  cleared a threshold -- level against the feed target, true peak, a weak opening, level jumps,
+  silences, wordless stretches, a bed under the voice or none, ducking, a pulse and its tempo, cuts
+  on onsets. Its `listen_check` is what no measure settles. See *A local file's sound* in
+  `references/local-file.md`.
 
 A transcript is heard words only. With neither a measure nor a heard note, say the music and mix
 were not analysed and stop there; the words may still be used as words.
+
+## Measurement first, inference second
+
+Say the measured fact, then what it implies: "integrated -27.9 LUFS, so the platform will lift it
+about 14 LU and the room tone with it", not "the audio is too quiet". A measure that did not clear
+its threshold supports no claim, however suggestive the number.
+
+**Listen-check, never findings.** Genre, mood and fit; which track it is, whether it is trending or
+licensed; voice timbre; how good a sound effect is. No measure here can settle them: when the
+creator needs them, list them as things to listen for, separate from the findings.
 
 ## Six questions
 
@@ -87,8 +102,9 @@ were not analysed and stop there; the words may still be used as words.
   speech, and is cited as that.
 - **Lyrics**, quoted or paraphrased, anywhere in the answer. Sung words are not the video's
   message.
-- **That cuts do or do not land on the beat**, unless a beat measurement exists for this video. Cut
-  times are not beat times.
+- **That cuts do or do not land on the beat**, unless a beat measurement exists for this video
+  (`media.audio` finding `cuts_on_sound`). Cut times are not beat times, and no finding is not "off
+  the beat".
 - **An exact second where the energy changes**, from listening notes alone.
 - **That a sound is trending** or helped distribution.
 

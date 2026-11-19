@@ -21,8 +21,8 @@ comments: when the creator asks how the video performed, ask once for its publis
    through to the builder with `--limitation`.
 2. **Read the file.**
    `cd '<run directory>' && python3 <skill directory>/scripts/extract_local_frames.py --media <absolute path> --out-dir analysis/frames
-   --artifact analysis/local-media.json --hook-window-s <3 for a Short, 15–30 for long-form>`,
-   adding `--measure-loudness` when the question is about sound. It samples by the connector's plan
+   --artifact analysis/local-media.json --hook-window-s <3 for a Short, 15–30 for long-form>`
+   (sound is measured in step 5, not here). It samples by the connector's plan
    (120 frames at most, a frame just after each cut, and the dense windows the method cards put in
    `analysis/method.json`) and writes the same frame shape, so
    everything in *Frame sampling* in `references/evidence-reading.md` applies unchanged — `frames.origin`
@@ -43,8 +43,33 @@ comments: when the creator asks how the video performed, ask once for its publis
    measurement that runs out or fails on its own leaves the frames already written untouched.
 4. **Get the words** — see the three tiers under *Getting the words* below. A local file is read
    here only: it is never uploaded, and no Kabo tool sees it.
-5. **Then build**, with `--local-media analysis/local-media.json` and, where there is one,
+5. **Measure the sound** — always for a diagnosis, and for any question that touches sound, music,
+   voice or pacing: `cd '<run directory>' && python3 <skill directory>/scripts/measure_audio_local.py --media <the same absolute path>
+   --artifact analysis/local-media.json`. Run it after steps 2 and 4: it adds `media.audio` to the
+   artifact step 2 wrote (a later frame command replaces that artifact, so measure again after one),
+   reads the cuts that step found, and reads `analysis/local-transcript.json` to tell speech from
+   other sound. Nobody listens to a local file whole, so this is the sound evidence: loudness over
+   time, silences, where words are and what sits under them, a pulse, whether cuts land on onsets.
+   See *A local file's sound* below for how to use it.
+6. **Then build**, with `--local-media analysis/local-media.json` and, where there is one,
    `--local-transcript analysis/local-transcript.json`.
+
+### A local file's sound
+
+`media.audio.findings` are the only sound claims a local file supports, and each one already
+cleared the threshold printed beside it. **State the measurement first, the inference second**:
+"the first 2 s are 9 dB quieter than the rest, so the opening leans on the picture", never the
+inference alone. A measure with no finding stays a number: do not round it into a claim.
+
+`media.audio.listen_check` is a separate list for the creator, never findings: what the music is
+and whether it fits, which track it is, whether it is trending or licensed, how the voice sounds,
+whether an effect is any good, and anything the measurement flagged as ambiguous (words that may
+be sung, a stretch with no recognised words that moves like speech). Hand these over as questions
+to listen for, in one short list after the findings.
+
+Without numpy, onsets, pulse, cut alignment, stereo width and the syllable-rate test are in
+`skipped`; without a transcript the map has no speech in it. Both are unmeasured, not absent. When
+`measured_until_s` is present, the sound past that second was not read.
 
 ### When the file is long or heavy
 
@@ -54,7 +79,7 @@ A large or high-resolution file can need longer than that, and the output says w
 
 - **Frames** — the opening and the closing frame are written first, so running out of time thins
   the body; the summary counts the skipped frames and a limitation gives the widest gap left.
-- **Measurement** — it reads the file from the start and stops at the deadline. `measured_until_s`
+- **Measurement** (the signals in step 3 and the sound in step 5) — each reads the file from the start and stops at the deadline. `measured_until_s`
   in its summary names the second it reached, and a limitation in the artifact says the rest was not
   read. Pass that on: past that second, cuts and pauses are **unmeasured, not absent**. Place a
   change there between the two frames that bracket it, as you would with no measurement at all.
