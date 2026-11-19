@@ -1,6 +1,6 @@
 {
  "source": "kabo-agent-service",
- "commit": "7c7c99cab3e17ca0c5e2fc437615f4f05e55a90c",
+ "commit": "e7d9413d7d6f3bbd18e80037b8bda7c62e4a1f0e",
  "atom": {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
@@ -684,23 +684,27 @@
        "on_screen_cast": {
         "anyOf": [
          {
-          "maxItems": 0,
-          "type": "array",
-          "items": {
-           "type": "string",
-           "minLength": 1,
-           "maxLength": 60
-          }
-         },
-         {
-          "minItems": 1,
-          "maxItems": 4,
-          "type": "array",
-          "items": {
-           "type": "string",
-           "minLength": 1,
-           "maxLength": 60
-          }
+          "anyOf": [
+           {
+            "maxItems": 0,
+            "type": "array",
+            "items": {
+             "type": "string",
+             "minLength": 1,
+             "maxLength": 60
+            }
+           },
+           {
+            "minItems": 1,
+            "maxItems": 4,
+            "type": "array",
+            "items": {
+             "type": "string",
+             "minLength": 1,
+             "maxLength": 60
+            }
+           }
+          ]
          },
          {
           "minItems": 2,
@@ -711,8 +715,7 @@
             {
              "anyOf": [
               {
-               "minItems": 1,
-               "maxItems": 4,
+               "maxItems": 0,
                "type": "array",
                "items": {
                 "type": "string",
@@ -721,7 +724,8 @@
                }
               },
               {
-               "maxItems": 0,
+               "minItems": 1,
+               "maxItems": 4,
                "type": "array",
                "items": {
                 "type": "string",
@@ -768,14 +772,27 @@
        "props": {
         "anyOf": [
          {
-          "minItems": 1,
-          "maxItems": 4,
-          "type": "array",
-          "items": {
-           "type": "string",
-           "minLength": 1,
-           "maxLength": 60
-          }
+          "anyOf": [
+           {
+            "maxItems": 0,
+            "type": "array",
+            "items": {
+             "type": "string",
+             "minLength": 1,
+             "maxLength": 60
+            }
+           },
+           {
+            "minItems": 1,
+            "maxItems": 4,
+            "type": "array",
+            "items": {
+             "type": "string",
+             "minLength": 1,
+             "maxLength": 60
+            }
+           }
+          ]
          },
          {
           "minItems": 2,
@@ -784,14 +801,27 @@
           "items": {
            "anyOf": [
             {
-             "minItems": 1,
-             "maxItems": 4,
-             "type": "array",
-             "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 60
-             }
+             "anyOf": [
+              {
+               "maxItems": 0,
+               "type": "array",
+               "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+               }
+              },
+              {
+               "minItems": 1,
+               "maxItems": 4,
+               "type": "array",
+               "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+               }
+              }
+             ]
             },
             {
              "type": "null"
@@ -984,14 +1014,27 @@
        "on_screen_cast": {
         "anyOf": [
          {
-          "minItems": 1,
-          "maxItems": 4,
-          "type": "array",
-          "items": {
-           "type": "string",
-           "minLength": 1,
-           "maxLength": 60
-          }
+          "anyOf": [
+           {
+            "maxItems": 0,
+            "type": "array",
+            "items": {
+             "type": "string",
+             "minLength": 1,
+             "maxLength": 60
+            }
+           },
+           {
+            "minItems": 1,
+            "maxItems": 4,
+            "type": "array",
+            "items": {
+             "type": "string",
+             "minLength": 1,
+             "maxLength": 60
+            }
+           }
+          ]
          },
          {
           "minItems": 2,
@@ -1000,14 +1043,27 @@
           "items": {
            "anyOf": [
             {
-             "minItems": 1,
-             "maxItems": 4,
-             "type": "array",
-             "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 60
-             }
+             "anyOf": [
+              {
+               "maxItems": 0,
+               "type": "array",
+               "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+               }
+              },
+              {
+               "minItems": 1,
+               "maxItems": 4,
+               "type": "array",
+               "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+               }
+              }
+             ]
             },
             {
              "type": "null"
@@ -1046,14 +1102,27 @@
        "props": {
         "anyOf": [
          {
-          "minItems": 1,
-          "maxItems": 4,
-          "type": "array",
-          "items": {
-           "type": "string",
-           "minLength": 1,
-           "maxLength": 60
-          }
+          "anyOf": [
+           {
+            "maxItems": 0,
+            "type": "array",
+            "items": {
+             "type": "string",
+             "minLength": 1,
+             "maxLength": 60
+            }
+           },
+           {
+            "minItems": 1,
+            "maxItems": 4,
+            "type": "array",
+            "items": {
+             "type": "string",
+             "minLength": 1,
+             "maxLength": 60
+            }
+           }
+          ]
          },
          {
           "minItems": 2,
@@ -1062,14 +1131,27 @@
           "items": {
            "anyOf": [
             {
-             "minItems": 1,
-             "maxItems": 4,
-             "type": "array",
-             "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 60
-             }
+             "anyOf": [
+              {
+               "maxItems": 0,
+               "type": "array",
+               "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+               }
+              },
+              {
+               "minItems": 1,
+               "maxItems": 4,
+               "type": "array",
+               "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+               }
+              }
+             ]
             },
             {
              "type": "null"
