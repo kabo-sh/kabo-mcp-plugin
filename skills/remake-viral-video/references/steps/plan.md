@@ -169,6 +169,14 @@ angle agrees). When the plan is saved, Kabo keeps these as the project's cards; 
 only names them and Kabo adds their sheets and looks to the picture. Write only the names in
 prompts: a look copied into a prompt drifts.
 
+A character who changes clothes or look between scenes gets one card per look ("Tomas (street)",
+"Tomas (florist)"), each with its own sheet, and each row names the look's card: one card that
+describes several looks makes a clip switch outfits mid-shot. A prop a still names that has no
+picture yet is drawn once as a plain product picture on a plain background and kept as its card
+first (Kabo does this by itself). A product with brand marks (a logo, an engraving): those exact
+marks are allowed in the picture and close shots get enlarged crops of them as references; never
+write "no text" or "no logo" for a branded product.
+
 Before the shots:
 
 - **Characters.** One sheet per character: a `still` with `params.sheet_for` set to the name, in
