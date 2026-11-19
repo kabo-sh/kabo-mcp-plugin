@@ -13,7 +13,8 @@ the one line that installs both, for the creator to run. probe_media_tools.py re
 
 **The output is the transcript artifact read_subtitle_file.py writes** (`local-transcript.v1`), with origin
 `speech_recognition`: the words are what a machine heard, quotable as heard, never as the creator's exact
-wording. Each cue keeps its end and its word timings beside the start the evidence builder reads.
+wording. Each cue keeps its end, its word timings and the recogniser's own confidence (`avg_logprob`,
+`no_speech_prob`) beside the start the evidence builder reads.
 
 **It stops itself before the host does.** Some hosts end a command after about a minute and keep nothing it
 wrote, so recognition stops at `--deadline-s` (40 seconds after the command started, by default) and writes
@@ -128,6 +129,12 @@ def cue_from_segment(segment, offset_s: float) -> dict | None:
              for word in getattr(segment, "words", None) or [] if str(getattr(word, "word", "")).strip()]
     if words:
         cue["words"] = words
+    # How sure the recogniser was, per cue: measure_audio_local.py averages these to say how clearly the voice
+    # came through, and a low value over music is a hint that the "words" were sung or invented.
+    for name in ("avg_logprob", "no_speech_prob"):
+        value = getattr(segment, name, None)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            cue[name] = round(float(value), 3)
     return cue
 
 

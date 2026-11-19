@@ -115,16 +115,19 @@ sys.path.insert(0, sys.argv[1])
 import transcribe_local as t
 word = types.SimpleNamespace
 segment = types.SimpleNamespace(start=1.2344, end=2.5, text="  Hi you ", words=[word(start=1.2344, end=1.6, word=" Hi"), word(start=1.7, end=2.5, word=" you"), word(start=2.5, end=2.5, word=" ")])
-print(json.dumps([t.cue_from_segment(segment, 0.0), t.cue_from_segment(segment, 12.5), t.cue_from_segment(types.SimpleNamespace(start=0, end=1, text=" ", words=[]), 0.0)]))
+sure = types.SimpleNamespace(start=0, end=1, text="Sure", words=[], avg_logprob=-0.23456, no_speech_prob=0.0412)
+print(json.dumps([t.cue_from_segment(segment, 0.0), t.cue_from_segment(segment, 12.5), t.cue_from_segment(types.SimpleNamespace(start=0, end=1, text=" ", words=[]), 0.0), t.cue_from_segment(sure, 0.0)]))
 `;
   const result = run(["-c", code, scripts]);
   assert.equal(result.code, 0, result.stderr);
-  const [plain, shifted, empty] = JSON.parse(result.stdout);
+  const [plain, shifted, empty, sure] = JSON.parse(result.stdout);
   assert.deepEqual(plain, { start_s: 1.234, end_s: 2.5, text: "Hi you",
     words: [{ start_s: 1.234, end_s: 1.6, text: "Hi" }, { start_s: 1.7, end_s: 2.5, text: "you" }] });
   assert.equal(shifted.start_s, 13.734);
   assert.equal(shifted.words[1].end_s, 15);
   assert.equal(empty, null);
+  // The recogniser's confidence is kept per cue when the segment carries it, for the audio measurement.
+  assert.deepEqual(sure, { start_s: 0, end_s: 1, text: "Sure", avg_logprob: -0.235, no_speech_prob: 0.041 });
 });
 
 test("transcript artifact: the subtitle reader's shape with origin speech_recognition, and the builder reads it", { skip: !hasFfmpeg }, async (t) => {
