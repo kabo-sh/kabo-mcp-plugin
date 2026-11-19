@@ -92,7 +92,7 @@ def view_contract(analysis: dict[str, Any], subject: str | None = None) -> dict[
         "creator_view": {
             "required": [key for key in VIEW_REQUIRED if key != "data_note"],
             "derived_read_only": {"data_note": f"The builder derives one sampling line from evidence and card citations, in the creator's language for zh, en, {', '.join(sorted(LOCALES))} and in English otherwise. Omit this field; it never records how many pixels were viewed.",
-                                  "listen_note": "For a local file whose sound was measured but heard by no whole-video viewing, the builder adds one line asking the creator to listen to the music, track, voice and effects. Omit this field and do not repeat it in a card."},
+                                  "listen_note": "For a local file whose sound was measured but heard by no whole-video viewing, the builder adds one line asking the creator to listen for what the measurement found: the music's fit and track when other sound plays, sung or spoken when words play over music, the voice when speech was heard, the effects when there are cuts or onsets. Omit this field and do not repeat it in a card."},
             "strings": [key for key in VIEW_REQUIRED if key not in ("cards", "next_actions", "data_note")],
             "language": "The creator's language as a BCP 47 tag such as zh-CN or en: the language of the creator's own messages in this conversation, never the video's language. A bare link carries none of their words: use their earlier messages, and en when there are none. "
                         f"The primary subtag picks the report's own labels and data_note: zh, en, {', '.join(sorted(LOCALES))} render in that language; any other renders them in English.",

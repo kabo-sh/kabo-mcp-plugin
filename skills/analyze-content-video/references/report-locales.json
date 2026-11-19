@@ -1,11 +1,33 @@
 {
- "_comment": "Report strings by BCP 47 primary language subtag, read by scripts/report_locale.py. `labels` and `note` cover the languages the renderer and the data_note localize beyond zh and en (those two stay in code); `listen_note` covers every language with one. A language not listed renders in English.",
+ "_comment": "Report strings by BCP 47 primary language subtag, read by scripts/report_locale.py. `labels` and `note` cover the languages the renderer and the data_note localize beyond zh and en (those two stay in code); `listen` covers every language: the listen line's frame, with `{items}` replaced by the phrases for the items that apply, joined by `sep` and, before the last, `last_sep`. A language not listed renders in English.",
  "languages": {
   "zh": {
-   "listen_note": "声音只做了测量，没有人耳听：曲风和情绪是否贴合、是哪首歌、人声音色和音效请你自己听一下。"
+   "listen": {
+    "line": "声音只做了测量，没有人耳听：{items}，请你自己听一下。",
+    "sep": "、",
+    "last_sep": "、",
+    "items": {
+     "music_fit": "曲风和情绪是否贴合",
+     "track_identity": "是哪首歌",
+     "sung_or_spoken": "歌词是唱的还是说的",
+     "voice_timbre": "人声音色",
+     "sfx_quality": "音效好不好"
+    }
+   }
   },
   "en": {
-   "listen_note": "The sound was measured, not listened to: listen for yourself to whether the music's genre and mood fit, which track it is, and how the voice and sound effects come across."
+   "listen": {
+    "line": "The sound was measured, not listened to: listen for yourself to check {items}.",
+    "sep": ", ",
+    "last_sep": " and ",
+    "items": {
+     "music_fit": "whether the music's genre and mood fit",
+     "track_identity": "which track it is",
+     "sung_or_spoken": "whether the words are sung or spoken",
+     "voice_timbre": "how the voice comes across",
+     "sfx_quality": "how the sound effects come across"
+    }
+   }
   },
   "es": {
    "labels": {
@@ -57,7 +79,18 @@
     "end": ".",
     "image": "Publicación de imágenes: {available}/{returned} posiciones devueltas disponibles; total {total}; completitud {completeness}; analíticas de la cuenta {owner}."
    },
-   "listen_note": "El sonido solo se midió, nadie lo escuchó: escucha tú si el género y el ambiente de la música encajan, qué canción es y cómo suenan la voz y los efectos."
+   "listen": {
+    "line": "El sonido solo se midió, nadie lo escuchó: escucha tú {items}.",
+    "sep": ", ",
+    "last_sep": " y ",
+    "items": {
+     "music_fit": "si el género y el ambiente de la música encajan",
+     "track_identity": "qué canción es",
+     "sung_or_spoken": "si las palabras se cantan o se dicen",
+     "voice_timbre": "cómo suena la voz",
+     "sfx_quality": "cómo suenan los efectos"
+    }
+   }
   },
   "pt": {
    "labels": {
@@ -109,7 +142,18 @@
     "end": ".",
     "image": "Post de imagens: {available}/{returned} posições retornadas disponíveis; total {total}; completude {completeness}; métricas da conta {owner}."
    },
-   "listen_note": "O som só foi medido, ninguém o ouviu: ouça você mesmo se o gênero e o clima da música combinam, qual é a faixa e como soam a voz e os efeitos sonoros."
+   "listen": {
+    "line": "O som só foi medido, ninguém o ouviu: ouça você mesmo {items}.",
+    "sep": ", ",
+    "last_sep": " e ",
+    "items": {
+     "music_fit": "se o gênero e o clima da música combinam",
+     "track_identity": "qual é a faixa",
+     "sung_or_spoken": "se as palavras são cantadas ou faladas",
+     "voice_timbre": "como soa a voz",
+     "sfx_quality": "como soam os efeitos sonoros"
+    }
+   }
   },
   "de": {
    "labels": {
@@ -161,7 +205,18 @@
     "end": ".",
     "image": "Bildbeitrag: {available}/{returned} gelieferte Positionen verfügbar; Gesamtzahl {total}; Vollständigkeit {completeness}; Kontostatistiken {owner}."
    },
-   "listen_note": "Der Ton wurde nur gemessen, nicht angehört: Hör selbst, ob Genre und Stimmung der Musik passen, welcher Song es ist und wie Stimme und Soundeffekte klingen."
+   "listen": {
+    "line": "Der Ton wurde nur gemessen, nicht angehört: Hör selbst, {items}.",
+    "sep": ", ",
+    "last_sep": " und ",
+    "items": {
+     "music_fit": "ob Genre und Stimmung der Musik passen",
+     "track_identity": "welcher Song es ist",
+     "sung_or_spoken": "ob die Worte gesungen oder gesprochen sind",
+     "voice_timbre": "wie die Stimme klingt",
+     "sfx_quality": "wie die Soundeffekte klingen"
+    }
+   }
   },
   "fr": {
    "labels": {
@@ -213,7 +268,18 @@
     "end": ".",
     "image": "Publication d'images : {available}/{returned} positions renvoyées disponibles ; total {total} ; complétude {completeness} ; statistiques du compte {owner}."
    },
-   "listen_note": "Le son a seulement été mesuré, personne ne l'a écouté : écoute toi-même si le genre et l'ambiance de la musique collent, quel morceau c'est, et comment sonnent la voix et les effets sonores."
+   "listen": {
+    "line": "Le son a seulement été mesuré, personne ne l'a écouté : écoute toi-même {items}.",
+    "sep": ", ",
+    "last_sep": " et ",
+    "items": {
+     "music_fit": "si le genre et l'ambiance de la musique collent",
+     "track_identity": "quel morceau c'est",
+     "sung_or_spoken": "si les paroles sont chantées ou parlées",
+     "voice_timbre": "comment sonne la voix",
+     "sfx_quality": "comment sonnent les effets sonores"
+    }
+   }
   },
   "ja": {
    "labels": {
@@ -265,7 +331,18 @@
     "end": "。",
     "image": "画像投稿：返された {returned} 枚中 {available} 枚が利用可、総数 {total}、完全性 {completeness}、アナリティクス：{owner}。"
    },
-   "listen_note": "音は測定しただけで、人の耳では聞いていません。曲のジャンルや雰囲気が合っているか、何の曲か、声の質感や効果音はご自身で聞いて確かめてください。"
+   "listen": {
+    "line": "音は測定しただけで、人の耳では聞いていません。次の点はご自身で聞いて確かめてください：{items}。",
+    "sep": "、",
+    "last_sep": "、",
+    "items": {
+     "music_fit": "曲のジャンルや雰囲気が合っているか",
+     "track_identity": "何の曲か",
+     "sung_or_spoken": "歌詞が歌われているのか話されているのか",
+     "voice_timbre": "声の質感",
+     "sfx_quality": "効果音の出来"
+    }
+   }
   },
   "ko": {
    "labels": {
@@ -317,7 +394,18 @@
     "end": ".",
     "image": "이미지 게시물: 반환된 위치 {returned}개 중 {available}개 사용 가능; 총수 {total}; 완전성 {completeness}; 계정 분석 데이터 {owner}."
    },
-   "listen_note": "소리는 측정만 했고 사람이 직접 듣지는 않았습니다. 음악 장르와 분위기가 맞는지, 어떤 곡인지, 목소리 톤과 효과음은 직접 들어 보세요."
+   "listen": {
+    "line": "소리는 측정만 했고 사람이 직접 듣지는 않았습니다. 다음은 직접 들어 보세요: {items}.",
+    "sep": ", ",
+    "last_sep": ", ",
+    "items": {
+     "music_fit": "음악 장르와 분위기가 맞는지",
+     "track_identity": "어떤 곡인지",
+     "sung_or_spoken": "가사를 노래하는지 말하는지",
+     "voice_timbre": "목소리 톤",
+     "sfx_quality": "효과음의 완성도"
+    }
+   }
   },
   "id": {
    "labels": {
@@ -369,7 +457,18 @@
     "end": ".",
     "image": "Postingan gambar: {available}/{returned} posisi yang dikembalikan tersedia; total {total}; kelengkapan {completeness}; data analitik akun {owner}."
    },
-   "listen_note": "Suara hanya diukur, tidak didengarkan: dengarkan sendiri apakah genre dan suasana musiknya cocok, lagu apa itu, serta bagaimana warna suara dan efek suaranya."
+   "listen": {
+    "line": "Suara hanya diukur, tidak didengarkan: dengarkan sendiri {items}.",
+    "sep": ", ",
+    "last_sep": " serta ",
+    "items": {
+     "music_fit": "apakah genre dan suasana musiknya cocok",
+     "track_identity": "lagu apa itu",
+     "sung_or_spoken": "apakah kata-katanya dinyanyikan atau diucapkan",
+     "voice_timbre": "bagaimana warna suaranya",
+     "sfx_quality": "bagaimana efek suaranya"
+    }
+   }
   }
  }
 }

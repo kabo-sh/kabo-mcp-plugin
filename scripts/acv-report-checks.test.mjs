@@ -313,7 +313,8 @@ from build_creator_result import build
 from render_video_report import render
 from validate_creator_shape import check
 ${LOCALE_EVIDENCE}
-audio = {"status": "available", "findings": [], "listen_check": [{"id": "genre_mood_fit", "ask": "What the music is."}]}
+audio = {"status": "available", "findings": [], "listen_check": [{"id": "genre_mood_fit", "ask": "What the music is."}],
+         "voice": {"speech_s": 30.0, "reading": "bed under the voice"}, "onsets": {"count": 40}}
 def built(tag, sound, viewer=None, authored=None):
     ev = dict(evidence, media={"audio": sound} if sound is not None else {})
     if viewer:
@@ -341,7 +342,7 @@ out["gate tampered"] = gate(tampered, ev)
 old = dict(result, creator_view={k: v for k, v in result["creator_view"].items() if k != "listen_note"})
 out["gate older result"] = gate(old, ev)
 print(json.dumps(out, ensure_ascii=False))`);
-  assert.equal(out["zh-CN"].line, "声音只做了测量，没有人耳听：曲风和情绪是否贴合、是哪首歌、人声音色和音效请你自己听一下。");
+  assert.equal(out["zh-CN"].line, "声音只做了测量，没有人耳听：曲风和情绪是否贴合、是哪首歌、歌词是唱的还是说的、人声音色、音效好不好，请你自己听一下。");
   assert.match(out.en.line, /^The sound was measured, not listened to:/);
   assert.match(out.es.line, /^El sonido solo se midió/);
   assert.match(out.ja.line, /^音は測定しただけで/);
@@ -361,4 +362,70 @@ print(json.dumps(out, ensure_ascii=False))`);
   assert.deepEqual(out["gate derived"], []);
   assert.equal(out["gate tampered"].length, 1);
   assert.deepEqual(out["gate older result"], []);
+});
+
+// The listen line names only what the measurement found: no voice on a video without speech, no music without
+// other sound, sung or spoken only for words over music, effects only with cuts or onsets; with nothing, no line.
+test("listen line: names only the items the sound measurement supports, in every locale, and is omitted when none apply", () => {
+  const out = probe(`
+from report_locale import listen_items, listen_note, _CATALOG
+from validate_creator_shape import check
+check_ask = [{"id": "genre_mood_fit", "ask": "What the music is."}]
+cases = {
+    "music only, lyrics heard": {"voice": {"speech_s": 25.0, "reading": "words may be sung"},
+                                 "segments": [{"start_s": 0, "end_s": 3, "label": "non_speech_signal"}],
+                                 "onsets": {"count": 90}, "cut_alignment": {"cuts": 12}},
+    "music only, no words": {"voice": {"speech_s": 0.0, "reading": None},
+                             "segments": [{"start_s": 0, "end_s": 30, "label": "non_speech_signal"}],
+                             "listen_check": [{"id": "wordless_sound", "ask": "x"}], "onsets": {"count": 50}},
+    "talking head, silent room": {"voice": {"speech_s": 40.0, "reading": "no bed under the voice"},
+                                  "segments": [{"start_s": 0, "end_s": 40, "label": "speech"},
+                                               {"start_s": 40, "end_s": 40.1, "label": "non_speech_signal"}]},
+    "voice over a bed, with cuts": {"voice": {"speech_s": 40.0, "reading": "bed under the voice"},
+                                    "cut_alignment": {"cuts": 8}},
+    "short speech, no reading": {"voice": {"speech_s": 3.0, "reading": None}},
+    "unclear words": {"voice": {"speech_s": 4.0, "reading": None},
+                      "listen_check": [{"id": "unclear_words", "ask": "x"}]},
+    "nothing": {"voice": {"speech_s": 0.0}, "onsets": {"count": 0}},
+}
+out = {"items": {}, "lines": {}, "gate": {}}
+for name, sound in cases.items():
+    audio = dict(sound, status="available", findings=[], listen_check=check_ask + sound.get("listen_check", []))
+    out["items"][name] = listen_items(audio)
+    ev = {"media": {"audio": audio}}
+    out["lines"][name] = {code: listen_note(ev, code) for code in _CATALOG}
+full = {"voice": {"speech_s": 40.0, "reading": "bed under the voice"}, "onsets": {"count": 3}}
+out["full"] = {code: listen_note({"media": {"audio": dict(full, listen_check=check_ask)}}, code) for code in _CATALOG}
+out["phrases"] = {code: entry["listen"] for code, entry in _CATALOG.items()}
+print(json.dumps(out, ensure_ascii=False))`);
+  assert.deepEqual(out.items["music only, lyrics heard"], ["music_fit", "track_identity", "sung_or_spoken", "sfx_quality"]);
+  assert.deepEqual(out.items["music only, no words"], ["music_fit", "track_identity", "sfx_quality"]);
+  assert.deepEqual(out.items["talking head, silent room"], ["voice_timbre"], "a 0.1 s sliver is not a music bed");
+  assert.deepEqual(out.items["voice over a bed, with cuts"], ["music_fit", "track_identity", "sung_or_spoken", "voice_timbre", "sfx_quality"]);
+  assert.deepEqual(out.items["short speech, no reading"], ["voice_timbre"]);
+  assert.deepEqual(out.items["unclear words"], ["sung_or_spoken", "music_fit", "track_identity"].sort((a, b) =>
+    ["music_fit", "track_identity", "sung_or_spoken"].indexOf(a) - ["music_fit", "track_identity", "sung_or_spoken"].indexOf(b)));
+  assert.deepEqual(out.items.nothing, []);
+  const codes = Object.keys(out.phrases);
+  assert.deepEqual(codes.sort(), ["de", "en", "es", "fr", "id", "ja", "ko", "pt", "zh"]);
+  for (const code of codes) {
+    const { items } = out.phrases[code];
+    assert.equal(out.lines.nothing[code], null, code);
+    const music = out.lines["music only, lyrics heard"][code];
+    assert.ok(!music.includes(items.voice_timbre), `${code}: ${music}`);
+    assert.ok(music.includes(items.sung_or_spoken) && music.includes(items.music_fit), `${code}: ${music}`);
+    const wordless = out.lines["music only, no words"][code];
+    assert.ok(!wordless.includes(items.voice_timbre) && !wordless.includes(items.sung_or_spoken), `${code}: ${wordless}`);
+    const talk = out.lines["talking head, silent room"][code];
+    assert.ok(talk.includes(items.voice_timbre), `${code}: ${talk}`);
+    for (const other of ["music_fit", "track_identity", "sung_or_spoken", "sfx_quality"]) {
+      assert.ok(!talk.includes(items[other]), `${code}: ${talk}`);
+    }
+    for (const item of Object.values(items)) assert.ok(out.full[code].includes(item), `${code}: ${out.full[code]}`);
+    assert.ok(!out.full[code].includes("{items}"), code);
+  }
+  assert.equal(out.lines["talking head, silent room"].en,
+    "The sound was measured, not listened to: listen for yourself to check how the voice comes across.");
+  assert.equal(out.lines["music only, no words"].en,
+    "The sound was measured, not listened to: listen for yourself to check whether the music's genre and mood fit, which track it is and how the sound effects come across.");
 });
