@@ -70,7 +70,9 @@ MAX_FRAMES = static_host.FRAME_CAPS["public_video_extract_keyframes"]
 # The keyframes request's two optional additions to the duration_scaled plan, both still inside max_frames: a frame
 # just after each detected cut (on by default), and up to three denser windows a method card asks for
 # (analysis/method.json `frames`, written by select_method.py). A server that does not know them yet ignores them
-# and takes its standard plan; one that refuses them (MCP -32602) gets the same call once more without them.
+# and takes its standard plan. One that refuses them gets the same call once more without them: inside this call
+# that is the keyframes item failing with `validation_error` (the other items still run); a whole-call MCP -32602
+# is handled the same way.
 FRAME_OPTION_KEYS = ("include_shot_starts", "dense_windows")
 MAX_DENSE_WINDOWS = 3
 MIN_DENSE_INTERVAL_S = 0.2
@@ -177,6 +179,25 @@ def refuse_frame_options(tool: str) -> None:
         f"{tool} did not accept include_shot_starts / dense_windows on this server; repeated without them, so the "
         "frames follow the standard plan")
     save_state(current)
+
+
+def options_refused_in(record: dict[str, Any]) -> bool:
+    """Whether this terminal result's keyframes item failed on its arguments while the frame options were sent."""
+    current = state()
+    if current.get("frame_options_refused") or not any((current.get("frame_options") or {}).get(key)
+                                                        for key in FRAME_OPTION_KEYS):
+        return False
+    for call in record.get("calls") or []:
+        if not str(call.get("group", "")).endswith("/extract_keyframes") or not Path(call.get("path", "")).is_file():
+            continue
+        try:
+            body = json.loads(Path(call["path"]).read_text())
+        except ValueError:
+            return False
+        error = body.get("error") if isinstance(body.get("error"), dict) else {}
+        code = body.get("error_code") or error.get("code") or error.get("error_code")
+        return body.get("status") == "failed" and code == "validation_error"
+    return False
 
 
 def frame_options_note(envelope: dict[str, Any]) -> str | None:
@@ -444,6 +465,12 @@ def main(argv: list[str] | None = None) -> int:
         if pending and waited < WAIT_BUDGET_S and current["rounds"] < MAX_ROUNDS:
             hand_over_media(args, note=f"{pending} media job(s) are still running ({round(waited / 60)} of up to "
                                        f"{WAIT_BUDGET_S // 60} min waited); keep waiting.")
+            return 0
+        if options_refused_in(latest):
+            refuse_frame_options(TOOL)
+            args.frame_options = {}
+            hand_over_media(args, note="This server refused include_shot_starts / dense_windows for the frames: "
+                                       "repeating the same call without them (the finished jobs are not run again).")
             return 0
         finish(latest)
         return 0

@@ -730,7 +730,14 @@ def resume(args: argparse.Namespace) -> int:
         pending = media_pending(current)
         media_waiting = bool(pending and collect_media.waited_s(media_state) < collect_media.WAIT_BUDGET_S
                              and int(media_state.get("rounds") or 0) < collect_media.MAX_ROUNDS)
-        if not media_waiting:
+        if not media_waiting and collect_media.options_refused_in(static_host.composite_records(MEDIA_TOOL)[-1]):
+            # The keyframes item failed on the frame options (validation_error) while the other items ran: the same
+            # call once more without them.
+            collect_media.refuse_frame_options(MEDIA_TOOL)
+            current.setdefault("fallback_notes", []).append(
+                f"{MEDIA_TOOL} did not accept include_shot_starts / dense_windows on this server; repeated without them")
+            media_refused = media_waiting = True
+        elif not media_waiting:
             current["media"]["done"] = True
     start_viewer = False
     retry = viewer.pop("legacy_retry", None)

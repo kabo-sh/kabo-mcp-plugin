@@ -1455,7 +1455,7 @@ test("keyframes request: the contract's max_frames, shot starts by default, and 
 const FRAME_OPTIONS_REJECTED = JSON.stringify({ isError: true, content: [{ type: "text",
   text: "MCP error -32602: Input validation error: Invalid arguments for tool collect_video_media: Unrecognized key: \"include_shot_starts\"" }] });
 
-test("a server refusing the frame options (-32602): the media call is repeated once without them, and the run says so", async (t) => {
+test("a server refusing the frame options (keyframes item validation_error, or -32602): the media call is repeated once without them, and the run says so", async (t) => {
   const run = await newRun(t);
   await selectFirst(run, "opening");
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run);
@@ -1481,6 +1481,31 @@ test("a server refusing the frame options (-32602): the media call is repeated o
   assert.equal(repeated.code, 0, repeated.out);
   assert.match(repeated.out, /did not accept include_shot_starts \/ dense_windows/);
   assert.deepEqual(keyframesOf(callLines(repeated.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
+  // Inside collect_video_media a bad option fails only the keyframes item (validation_error) while the other items
+  // run: that too repeats the call once without the options, and the newer keyframes result is the one used.
+  const itemRun = await newRun(t);
+  const opened = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], itemRun);
+  const firstCall = callLines(opened.out)[0];
+  const itemFailed = composite(firstCall.arguments);
+  for (const entry of itemFailed.calls) if (entry.result.operation === "extract_keyframes")
+    Object.assign(entry.result, { status: "failed", error_code: "validation_error", data: undefined });
+  await writeFile(slotFiles(opened.out)[0], mcp(itemFailed));
+  const repeatedItem = shell(resumeOf(opened.out));
+  assert.equal(repeatedItem.code, 0, repeatedItem.out);
+  assert.deepEqual(keyframesOf(callLines(repeatedItem.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
+  const { out: itemOut } = await driveFrom(itemRun, repeatedItem.out);
+  assert.match(itemOut, /Fallback: collect_video_media did not accept include_shot_starts/);
+  assert.match(itemOut, /^read: /m);
+  const aloneItem = await newRun(t);
+  const handedItem = python("collect_media.py", ["--url", TIKTOK, "--operations", "transcript,keyframes"], aloneItem);
+  const aloneFailed = composite(callLines(handedItem.out)[0].arguments);
+  for (const entry of aloneFailed.calls) if (entry.result.operation === "extract_keyframes")
+    Object.assign(entry.result, { status: "failed", error_code: "validation_error", data: undefined });
+  await writeFile(slotFiles(handedItem.out)[0], mcp(aloneFailed));
+  const aloneAgain = shell(resumeOf(handedItem.out));
+  assert.equal(aloneAgain.code, 0, aloneAgain.out);
+  assert.match(aloneAgain.out, /refused include_shot_starts \/ dense_windows for the frames/);
+  assert.deepEqual(keyframesOf(callLines(aloneAgain.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
   // Any other failure is never taken for a refusal of the options.
   const failedRun = await newRun(t);
   const other = python("collect_media.py", ["--url", TIKTOK, "--operations", "keyframes"], failedRun);
