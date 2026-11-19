@@ -4,7 +4,7 @@ description: "Have Kabo make a finished MP4: remake a reference video with the c
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
 metadata:
-  version: "1.0.6"
+  version: "1.0.7"
   platform_agnostic: "true"
 allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
@@ -72,8 +72,9 @@ that, not by how the request is worded ("remake" included):
    nothing of their own to give (no clip, photo or recording; nobody on camera and a preset voice)
    or the reference is a dialogue between characters, a song or a silent piece: then build it from
    steps, taking the reference's look, characters, pacing and sound as the model and their script
-   or lines as the words (characters that act or talk: `still` then `animate`; one `tts` call per
-   voice). Needing a voice they have not recorded: ask once for a recording or a preset voice, as
+   or lines as the words, and follow its workflow stage by stage: a voice over pictures,
+   `references/workflows/narration.md`; characters who speak their lines,
+   `references/workflows/character-drama.md`. Needing a voice they have not recorded: ask once for a recording or a preset voice, as
    `references/steps/project.md` ("No voice to clone") says, and wait.
 
 | Keep | Change | Step | Redraws the face |
@@ -148,7 +149,8 @@ script read over pictures with nobody on camera is built from steps instead (`tt
 words, pictures from their material or `still` / `animate`, `mux`, `captions`, `music`, deliver)
 -- and so is a script the creator wants made in a reference's form when they have no footage of
 their own: plan it from the reference as `references/steps/plan.md` ("Plan first, then make it") says, with their words as the lines, never
-the script or narration whole remake.
+the script or narration whole remake. Such a video, read over pictures or acted by characters,
+follows the matching workflow in `references/workflows/`.
 
 ## 1. Collect the inputs (whole remake only)
 
