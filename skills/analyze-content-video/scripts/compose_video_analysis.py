@@ -461,9 +461,11 @@ def main() -> int:
         judgment = load(args.judgment)
         issues = judgment_reference_issues(judgment, evidence)
         result = {"status": "needs_correction" if issues else "ready",
-                  "artifact": str(args.judgment), "issues": issues, "legal_source_refs": refs}
+                  "artifact": str(args.judgment), "issues": issues}
         if not issues:
             result["grounding_review"] = grounding_review(judgment, evidence)
+        # The long list of legal refs goes last, so it never hides the issues or the review above it.
+        result["legal_source_refs"] = refs
         print(json.dumps(result, ensure_ascii=False))
         return 0
     if args.reference_index is not None:

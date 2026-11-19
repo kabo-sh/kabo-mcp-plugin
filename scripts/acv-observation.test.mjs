@@ -537,6 +537,9 @@ test("a judgment may cite a whole-video note id, and the validator resolves it",
   const result = JSON.parse(checked.out);
   assert.equal(result.status, "ready", checked.out);
   assert.deepEqual(result.grounding_review.referenced_sources.map((row) => row.kind), ["viewer_observation"]);
+  // The long legal-ref list comes last, so the issues and the review are read first.
+  assert.deepEqual(Object.keys(result), ["status", "artifact", "issues", "grounding_review", "legal_source_refs"]);
+  assert.ok(checked.out.indexOf('"grounding_review"') < checked.out.indexOf('"legal_source_refs"'));
 });
 
 test("SKILL.md declares the whole-video tools and their permission, and makes a bare link a diagnosis", async () => {
