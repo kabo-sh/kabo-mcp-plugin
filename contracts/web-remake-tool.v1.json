@@ -1,6 +1,6 @@
 {
  "source": "kabo-agent-service",
- "commit": "b3b5b481638979bd64f931f49ce6c4c9dd500bf6",
+ "commit": "7c7c99cab3e17ca0c5e2fc437615f4f05e55a90c",
  "atom": {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
@@ -5050,6 +5050,150 @@
      ],
      "additionalProperties": {}
     }
+   },
+   "skeleton": {
+    "minItems": 1,
+    "maxItems": 20,
+    "type": "array",
+    "items": {
+     "type": "object",
+     "properties": {
+      "name": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 80
+      },
+      "role": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 40
+      },
+      "share": {
+       "type": "number",
+       "exclusiveMinimum": 0,
+       "maximum": 1
+      },
+      "seconds": {
+       "type": "number",
+       "exclusiveMinimum": 0,
+       "maximum": 600
+      },
+      "shots": {
+       "minItems": 1,
+       "type": "array",
+       "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 9007199254740991
+       }
+      }
+     },
+     "required": [
+      "name",
+      "shots"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "audio_plan": {
+    "type": "object",
+    "properties": {
+     "voice": {
+      "type": "object",
+      "properties": {
+       "gain_db": {
+        "type": "number",
+        "minimum": -40,
+        "maximum": 6
+       }
+      },
+      "additionalProperties": false
+     },
+     "music": {
+      "type": "object",
+      "properties": {
+       "gain_db": {
+        "type": "number",
+        "minimum": -40,
+        "maximum": 6
+       },
+       "duck_db": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 30
+       },
+       "attack_s": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+       },
+       "release_s": {
+        "type": "number",
+        "minimum": 0.05,
+        "maximum": 2
+       }
+      },
+      "additionalProperties": false
+     },
+     "sfx": {
+      "type": "object",
+      "properties": {
+       "gain_db": {
+        "type": "number",
+        "minimum": -40,
+        "maximum": 6
+       },
+       "duck_db": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 30
+       },
+       "attack_s": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+       },
+       "release_s": {
+        "type": "number",
+        "minimum": 0.05,
+        "maximum": 2
+       }
+      },
+      "additionalProperties": false
+     },
+     "ambience": {
+      "type": "object",
+      "properties": {
+       "gain_db": {
+        "type": "number",
+        "minimum": -40,
+        "maximum": 6
+       },
+       "duck_db": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 30
+       },
+       "attack_s": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+       },
+       "release_s": {
+        "type": "number",
+        "minimum": 0.05,
+        "maximum": 2
+       }
+      },
+      "additionalProperties": false
+     },
+     "voice_over_music_db": {
+      "type": "number",
+      "minimum": 3,
+      "maximum": 20
+     }
+    },
+    "additionalProperties": false
    },
    "environments": {
     "maxItems": 12,

@@ -1,7 +1,7 @@
 # Step parameters (generated -- do not edit)
 
 Generated from the Web host's own schema (`contracts/web-remake-tool.v1.json`, kabo-agent-service
-`scripts/remake-skill-schema.ts` at b3b5b481638979bd64f931f49ce6c4c9dd500bf6) by `scripts/remake-params-gen.mjs`.
+`scripts/remake-skill-schema.ts` at 7c7c99cab3e17ca0c5e2fc437615f4f05e55a90c) by `scripts/remake-params-gen.mjs`.
 These are the exact shapes the host accepts; where any other file in this Skill reads
 differently, this file is right. A field not listed under a step is refused on that step.
 `?` / (optional) = may be left out; `a | b` = one of; `[x, ...] (2-8 items)` = a list;
@@ -13,6 +13,8 @@ differently, this file is right. A field not listed under a step is refused on t
 - `total_s`: number 0..600
 - `shots`: a list (at most 120), each entry below
 - `characters` (optional): a list (at most 12), each entry below
+- `skeleton` (optional): [{name: text (<= 80); role?: text (<= 40); share?: number 0..1; seconds?: number 0..600; shots: [integer >= 1, ...] (1-n items)}, ...] (1-20 items)
+- `audio_plan` (optional): {voice?: {gain_db?: number -40..6}; music?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; sfx?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; ambience?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; voice_over_music_db?: number 3..20}
 - `environments` (optional): a list (at most 12), each entry below
 - `props` (optional): a list (at most 12), each entry below
 
