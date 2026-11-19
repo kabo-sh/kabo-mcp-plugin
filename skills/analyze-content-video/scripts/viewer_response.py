@@ -188,6 +188,32 @@ def input_rejected(raw: bytes) -> bool:
     return False
 
 
+# How the service says it cannot read a source (a platform or file it does not take): a failure whose code names
+# it, or an input refusal that names only `source_url`. Either ends the viewing as a gap, never the run.
+UNSUPPORTED = re.compile(r"unsupported|not supported|does not support", re.IGNORECASE)
+
+
+def source_refused(raw: bytes) -> bool:
+    """Whether the saved result refuses the source itself: an input refusal about `source_url` and none of the
+    newer inputs (an older server refusing `delivery` / `wait_s` is a different answer), or a failure saying the
+    source is unsupported."""
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    if input_rejected(raw):
+        return "source_url" in text and not re.search(r"\bdelivery\b|\bwait_s\b", text)
+    reading = read(raw)
+    error = reading["error"] or {}
+    return reading["run"] is None and bool(UNSUPPORTED.search(f"{error.get('code', '')} {error.get('message', '')}"))
+
+
+def failure_unsupported(failure: Any) -> bool:
+    """Whether a run's own failure says the source is not supported."""
+    return isinstance(failure, dict) and bool(UNSUPPORTED.search(f"{failure.get('code', '')} "
+                                                                  f"{failure.get('message', '')}"))
+
+
 def download_offer(raw: bytes) -> dict[str, Any] | None:
     """{"download", "id", "status"} when the saved result carries a download in place of its result and transcript;
     None for every other save, which `read` handles."""

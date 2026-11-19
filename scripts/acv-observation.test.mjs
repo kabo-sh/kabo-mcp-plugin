@@ -121,7 +121,7 @@ const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
 // media call's number in this run); `afterRound` runs after each round's results are saved, before the resume.
 const OBSERVED = /"status": "(?:observed|nothing_observed)"/;
 async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed = false, mode = "diagnosis", duration,
-  emptyTranscript, afterRound, frameTimes, args = [], cues, url = TIKTOK } = {}) {
+  emptyTranscript, afterRound, frameTimes, args = [], cues, url = TIKTOK, measuredDuration } = {}) {
   const run = await newRun(t);
   let out = python("observe_video.py", ["--url", url, "--mode", mode, ...(source ? ["--observe-source", source] : []), ...args], run).out;
   const steps = [...viewerSteps];
@@ -135,7 +135,7 @@ async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed =
       if (call.tool === "collect_video_media") {
         const failed = typeof mediaFailed === "function" ? mediaFailed(mediaCalls) : mediaFailed;
         mediaCalls += 1;
-        await writeFile(files[index], mcp(composite(call.arguments, { failed, duration, emptyTranscript, frameTimes, cues })));
+        await writeFile(files[index], mcp(composite(call.arguments, { failed, duration, emptyTranscript, frameTimes, cues, measuredDuration })));
       } else await writeFile(files[index], typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
     }
     if (afterRound) await afterRound(run, round);
@@ -151,11 +151,14 @@ const operationsOf = (call) => call.arguments.requests.map((request) => request.
 test("observation-order.json is the agreed table, and the next source follows it", async () => {
   assert.deepEqual(await readJson(path.join(skill, "references/observation-order.json")), {
     schema_version: "observation-order/v2", default: ["server_frames"], fallback: { server_frames: ["whole_video"], whole_video: ["server_frames"] },
-    add_when_cards: { sound: ["whole_video"] }, whole_video_max_ms: 600000, whole_video_platforms: ["youtube", "instagram", "tiktok"] });
+    add_when_cards: { sound: ["whole_video"] }, whole_video_max_ms: 600000 });
   const pick = (...args) => { const r = python("observation_order.py", args, root); return { code: r.code, ...JSON.parse(r.out) }; };
   assert.equal(pick("--platform", "tiktok").source, "server_frames");
   assert.equal(pick("--platform", "tiktok", "--failed", "server_frames").source, "whole_video");
-  assert.equal(pick("--platform", "douyin", "--failed", "server_frames").source, null);
+  // No platform list: the viewing is offered for any link (and a kabo-file, which has no platform); the tool answers.
+  assert.equal(pick("--platform", "douyin", "--failed", "server_frames").source, "whole_video");
+  assert.equal(pick("--platform", "bilibili", "--failed", "server_frames").source, "whole_video");
+  assert.equal(pick("--failed", "server_frames").source, "whole_video");
   assert.equal(pick("--platform", "youtube", "--duration-s", "900", "--failed", "server_frames").source, null);
   assert.equal(pick("--platform", "tiktok", "--failed", "server_frames", "--failure-code", "source_unavailable").source, null);
   assert.equal(pick("--platform", "tiktok", "--failed", "whole_video").source, "server_frames");
@@ -173,9 +176,7 @@ test("observation-order.json is the agreed table, and the next source follows it
   assert.equal(sound.source, "combined");
   assert.match(sound.reason, /the sound card adds whole_video/);
   assert.equal(pick("--platform", "tiktok", "--cards", "diagnosis-default,opening").source, "server_frames");
-  const douyin = pick("--platform", "douyin", "--cards", "sound");
-  assert.equal(douyin.source, "server_frames");
-  assert.match(douyin.reason, /the sound card would add whole_video, but whole-video viewing does not cover douyin/);
+  assert.equal(pick("--platform", "douyin", "--cards", "sound").source, "combined");
   assert.equal(pick("--platform", "youtube", "--duration-s", "900", "--cards", "sound").source, "server_frames");
   assert.equal(pick("--platform", "tiktok", "--cards", "sound", "--mode", "transcript_export").source, "server_frames");
   // A viewing that already failed is never added back, and a forced source stays forced.
@@ -612,7 +613,8 @@ async function driveFrom(run, out, { viewerSteps = [viewerFixture] } = {}) {
     assert.ok(calls.length, out);
     for (const [index, call] of calls.entries()) {
       handed.push(call);
-      await writeFile(files[index], call.tool === "collect_video_media" ? mcp(composite(call.arguments)) : mcp(steps.shift()));
+      await writeFile(files[index], call.tool === "collect_video_media" ? mcp(composite(call.arguments))
+        : typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
     }
     const resumed = shell(resumeOf(out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
     assert.equal(resumed.code, 0, resumed.out);
@@ -764,20 +766,25 @@ test("whole_video download: an expired link asks for a new one, and the re-readi
   assert.equal(callLines(out).filter((call) => call.tool === "get_analysis_run").length, 0);
 });
 
-test("a video attached in Kabo (kabo-file:<id>) goes to the media tool as its url; it gets no whole-video viewing", async (t) => {
+test("a video attached in Kabo (kabo-file:<id>) goes to the media tool as its url; the sound card adds a whole-video viewing as for any link", async (t) => {
   const run = await newRun(t);
   const id = "0f8fad5b-d9cb-469f-a165-70867728950e";
   await selectFirst(run, "sound");
   const first = python("observe_video.py", ["--url", `KABO-FILE:${id.toUpperCase()}`, "--mode", "diagnosis"], run);
   assert.equal(first.code, 0, first.out);
-  assert.match(first.out, /Observation source: server_frames/);
+  assert.match(first.out, /Observation source: combined/);
   const calls = callLines(first.out);
+  // The duration is not known yet: the media call measures the stored file first (no YouTube-style metadata round).
   assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media"]);
   assert.deepEqual(operationsOf(calls[0]), ["fetch_transcript", "extract_keyframes", "measure_media_signals"]);
   for (const request of calls[0].arguments.requests) assert.equal(request.parameters.url, `kabo-file:${id}`);
   await writeFile(slotFiles(first.out)[0], mcp(composite(calls[0].arguments)));
-  const done = shell(resumeOf(first.out));
-  assert.match(done.out, /"status": "observed"/);
+  const started = shell(resumeOf(first.out));
+  assert.deepEqual(callLines(started.out).map((call) => call.tool), ["analyze_content_video"], started.out);
+  assert.equal(callLines(started.out)[0].arguments.source_url, `kabo-file:${id}`);
+  const { out: doneOut } = await driveFrom(run, started.out);
+  const done = { out: doneOut };
+  assert.match(done.out, /"source": "combined"/);
   const made = python("prepare_link_request.py", ["--file-ref", `kabo-file:${id}`, "--platform", "tiktok", "--subject-state", "own_unpublished",
     "--max-connector-calls", "10", "--confirmed-by-user", "--output", path.join(run, "analysis/video-analysis-request.json")], run);
   assert.equal(made.code, 0, made.out);
@@ -1405,4 +1412,162 @@ print(json.dumps(viewer_response.read(b"MCP error -32603: subscription_required:
 `;
   const read = JSON.parse(spawnSync("python3", ["-I", "-B", "-c", probe, scripts], { encoding: "utf8" }).stdout);
   assert.equal(read.code, "subscription_required");
+});
+
+// Frame sampling, one rule on both ends: the keyframes request asks for the contract's 120 frames, a frame just
+// after each cut, and the dense windows the selected method cards name (analysis/method.json `frames`).
+const keyframesOf = (call) => call.arguments.requests.find((request) => request.operation === "extract_keyframes").parameters;
+const pinnedKeyframes = JSON.parse(readFileSync(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools
+  .find((tool) => tool.name === "public_video_extract_keyframes");
+
+test("keyframes request: the contract's max_frames, shot starts by default, and the opening card's dense window", async (t) => {
+  assert.equal(pinnedKeyframes.inputSchema.properties.parameters.properties.max_frames.maximum, 120);
+  const plain = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], plain);
+  assert.deepEqual(keyframesOf(callLines(first.out)[0]),
+    { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true });
+
+  const run = await newRun(t);
+  const method = await selectFirst(run, "opening,editing-pacing");
+  assert.deepEqual(method.frames, { include_shot_starts: true, dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }] });
+  const out = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run).out;
+  const call = callLines(out)[0];
+  assert.deepEqual(keyframesOf(call), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true,
+    dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }] });
+  // The options are fixed at the first hand-over, so a repeated call while jobs run sends the same arguments.
+  assert.deepEqual((await readJson(path.join(run, "collect-media.json"))).frame_options,
+    { include_shot_starts: true, dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }] });
+
+  // A transcript export takes no frames, and a card hint outside the request's limits is refused by the library.
+  const exportRun = await newRun(t);
+  assert.deepEqual((await selectFirst(exportRun, null, "transcript_export")).frames, { include_shot_starts: false, dense_windows: [] });
+  const library = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-library-"));
+  t.after(() => rm(library, { recursive: true, force: true }));
+  const index = JSON.parse(readFileSync(path.join(skill, "references/video-method/index.json"), "utf8"));
+  for (const card of index.cards) await writeFile(path.join(library, card.file), readFileSync(path.join(skill, "references/video-method", card.file)));
+  index.cards.find((card) => card.id === "opening").frames = { dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.1 }] };
+  await writeFile(path.join(library, "index.json"), JSON.stringify(index));
+  const refused = python("select_method.py", ["--mode", "diagnosis", "--focus", "opening", "--out", "m.json", "--library", library], exportRun);
+  assert.equal(refused.code, 1);
+  assert.match(refused.out, /frame hint/);
+});
+
+const FRAME_OPTIONS_REJECTED = JSON.stringify({ isError: true, content: [{ type: "text",
+  text: "MCP error -32602: Input validation error: Invalid arguments for tool collect_video_media: Unrecognized key: \"include_shot_starts\"" }] });
+
+test("a server refusing the frame options (-32602): the media call is repeated once without them, and the run says so", async (t) => {
+  const run = await newRun(t);
+  await selectFirst(run, "opening");
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run);
+  const [call] = callLines(first.out);
+  assert.equal(keyframesOf(call).include_shot_starts, true);
+  await writeFile(slotFiles(first.out)[0], FRAME_OPTIONS_REJECTED);
+  const retried = shell(resumeOf(first.out));
+  assert.equal(retried.code, 0, retried.out);
+  const [again] = callLines(retried.out);
+  assert.equal(again.tool, "collect_video_media");
+  assert.deepEqual(keyframesOf(again), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
+  assert.equal(again.arguments.run_key, call.arguments.run_key);
+  assert.equal((await readJson(path.join(run, "collect-media.json"))).frame_options_refused, true);
+  const { out } = await driveFrom(run, retried.out);
+  assert.match(out, /Fallback: collect_video_media did not accept include_shot_starts \/ dense_windows on this server; repeated without them/);
+  assert.match(out, /Frames: This server refused the shot-start and dense-window frame options/);
+
+  // collect_media.py on its own retries the same way.
+  const alone = await newRun(t);
+  const handed = python("collect_media.py", ["--url", TIKTOK, "--operations", "keyframes"], alone);
+  await writeFile(slotFiles(handed.out)[0], FRAME_OPTIONS_REJECTED);
+  const repeated = shell(resumeOf(handed.out));
+  assert.equal(repeated.code, 0, repeated.out);
+  assert.match(repeated.out, /did not accept include_shot_starts \/ dense_windows/);
+  assert.deepEqual(keyframesOf(callLines(repeated.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
+  // Any other failure is never taken for a refusal of the options.
+  const failedRun = await newRun(t);
+  const other = python("collect_media.py", ["--url", TIKTOK, "--operations", "keyframes"], failedRun);
+  await writeFile(slotFiles(other.out)[0], JSON.stringify({ isError: true, content: [{ type: "text", text: "quota_exceeded: used up" }] }));
+  const failed = shell(resumeOf(other.out));
+  assert.doesNotMatch(failed.out, /did not accept include_shot_starts/);
+});
+
+// The frames a newer server returns carry `source` and the plan names its options; an older one ignores them.
+function withShotStarts(value) {
+  for (const call of value.calls) {
+    if (call.result.operation !== "extract_keyframes") continue;
+    call.result.data.frames = call.result.data.frames.map((frame, index) => ({ ...frame, source: index === 3 ? "shot_start" : "hook" }));
+    call.result.data.sampling_plan = { base_interval_s: 1, hook_window_s: 3, hook_frames: 3, frames: 5, budget: 120, body_degraded: false,
+      include_shot_starts: true, shot_detection: { status: "detected", cuts: 1, threshold: 0.15 }, shot_start_frames: 1, dense_window_frames: 0,
+      dense_windows: [], dropped_for_budget: { shot_start: 0, dense_window: 0 }, dropped_as_duplicate: { shot_start: 0, dense_window: 0, body: 0 },
+      dedupe_s: 0.25, budget_priority: ["hook", "closing", "shot_start", "dense_window", "body"], frame_sources: [] };
+  }
+  return value;
+}
+
+test("frame options: applied ones reach the evidence (frame source, plan); a server that ignored them is named, not hidden", async (t) => {
+  const { run, out } = await observe(t, null);
+  assert.match(out, /Frames: This server took its standard frame plan/);
+  await writeRequest(run);
+  assert.equal(build(run, flagsOf(out)).code, 0);
+  const plainEvidence = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assert.equal(plainEvidence.frames.items.some((item) => "source" in item), false);
+
+  const applied = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], applied);
+  await writeFile(slotFiles(first.out)[0], mcp(withShotStarts(composite(callLines(first.out)[0].arguments))));
+  const done = shell(resumeOf(first.out));
+  assert.match(done.out, /"status": "observed"/);
+  assert.doesNotMatch(done.out, /standard frame plan/);
+  await writeRequest(applied);
+  const built = build(applied, flagsOf(done.out));
+  assert.equal(built.code, 0, built.out);
+  const evidence = await readJson(path.join(applied, "analysis/content_evidence.json"));
+  assertValidEvidence(evidence);
+  assert.equal(evidence.frames.items[3].source, "shot_start");
+  assert.equal(evidence.frames.sampling_plan.include_shot_starts, true);
+  assert.equal(evidence.frames.sampling_plan.shot_detection.status, "detected");
+  assert.equal("frame_sources" in evidence.frames.sampling_plan, false);
+});
+
+// Whole-video fallback for every source: the platform list is gone; the tool's own answer decides.
+const DOUYIN = "https://www.douyin.com/video/7300000000000000002";
+const BILIBILI = "https://www.bilibili.com/video/BV1xx411c7mD";
+
+test("whole-video fallback: a Douyin or Bilibili link whose server frames brought nothing gets the viewing", async (t) => {
+  for (const url of [DOUYIN, BILIBILI]) {
+    const { out, handed } = await observe(t, null, { mediaFailed: true, url });
+    assert.match(out, /"source": "whole_video"/, url);
+    assert.match(out, /Fallback: server_frames failed \(media_unavailable\); falling back to whole_video/);
+    const viewing = handed.filter((call) => call.tool === "analyze_content_video");
+    assert.equal(viewing.length, 1, url);
+    assert.equal(viewing[0].arguments.source_url, url);
+  }
+});
+
+test("whole-video fallback: a kabo-file whose frames and words came back empty is viewed once its measured duration is known", async (t) => {
+  const id = "0f8fad5b-d9cb-469f-a165-70867728950e";
+  const { out, handed } = await observe(t, null, { url: `kabo-file:${id}`, frameTimes: [], emptyTranscript: true,
+    measuredDuration: 20 });
+  assert.match(out, /falling back to whole_video/);
+  const viewing = handed.filter((call) => call.tool === "analyze_content_video");
+  assert.equal(viewing.length, 1);
+  assert.equal(viewing[0].arguments.source_url, `kabo-file:${id}`);
+});
+
+test("whole-video viewing the tool cannot read (unsupported) is a gap: the run carries on with frames and says so", async (t) => {
+  const answers = [
+    JSON.stringify({ isError: true, content: [{ type: "text",
+      text: "MCP error -32602: Input validation error: Invalid arguments for tool analyze_content_video: [{\"path\":[\"source_url\"],\"message\":\"Unsupported URL\"}]" }] }),
+    mcp({ ...viewerFixture, status: "failed", result: null, transcript: null, failure: { code: "unsupported_platform", message: "This platform is not supported." } }),
+  ];
+  for (const answer of answers) {
+    const run = await newRun(t);
+    await selectFirst(run, "sound");
+    const first = python("observe_video.py", ["--url", DOUYIN, "--mode", "diagnosis"], run);
+    assert.match(first.out, /Observation source: combined/);
+    const { out, handed } = await driveFrom(run, first.out, { viewerSteps: [answer] });
+    // One viewing call: an unsupported source is never taken for an older server and repeated.
+    assert.equal(handed.filter((call) => call.tool === "analyze_content_video").length, 1);
+    assert.match(out, /"status": "observed"/);
+    assert.match(flagsOf(out), /--limitation 'The whole-video viewing cannot read this source/);
+    assert.match(out, /^read: /m);
+  }
 });

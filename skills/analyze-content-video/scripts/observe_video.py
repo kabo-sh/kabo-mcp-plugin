@@ -16,8 +16,8 @@ already failed, the method cards selected: the `sound` card adds a whole-video v
   is read as it is.
 - `combined`: both. The whole-video call goes first so it runs while the media jobs run.
 
-A fallback that needs media operations no earlier media call asked for (a failed viewing on Instagram or TikTok
-had only the metadata-only call) starts one more media call for exactly those operations, under the same run key;
+A fallback that needs media operations no earlier media call asked for (a failed viewing had only the metadata
+or measurement call) starts one more media call for exactly those operations, under the same run key;
 each source is judged on the media results that carry its operations. The mode bends the order the way
 observation_order.py says: a transcript export never starts a viewing, a craft teardown never views without frames.
 The paid viewing starts only once the video's duration is known to be within the whole-video limit: from
@@ -28,7 +28,9 @@ in the rounds the media call already takes; when the duration stays unknown or i
 starts, a limitation says why, and the other source carries on (or, with nothing left, the run ends with that gap).
 
 `--url` is the public link, or `kabo-file:<uuid>` for a video the creator attached in Kabo (frames, transcript and
-measurements from the stored file; no whole-video viewing).
+measurements from the stored file). The whole-video viewing is offered for any of them: the tool itself answers
+for a source it cannot read, and that answer ends the viewing as a gap (the other source carries on), never the
+run.
 
 First run prints the calls and one resume command. `--placed [--id=<id>]` reads what was saved: while a job is
 still running it prints the remaining calls again (a whole-video poll only after `POLL_INTERVAL_S` since the
@@ -203,8 +205,9 @@ def viewer_arguments(current: dict[str, Any], *, start: bool) -> dict[str, Any]:
 
 
 def media_namespace(current: dict[str, Any]) -> SimpleNamespace:
-    return SimpleNamespace(url=current["url"], operations=current["media"]["operations"],
-                           max_frames=collect_media.MAX_FRAMES)
+    operations = current["media"]["operations"]
+    return SimpleNamespace(url=current["url"], operations=operations, max_frames=collect_media.MAX_FRAMES,
+                           frame_options=collect_media.frame_options() if "keyframes" in operations else {})
 
 
 def hand_over_calls(current: dict[str, Any], *, start_viewer: bool, poll_viewer: bool, media: bool,
@@ -342,7 +345,8 @@ def read_viewer(current: dict[str, Any], file: Path, tool: str) -> None:
                          "then run the same resume command again")
     raw = file.read_bytes()
     viewer = current["viewer"]
-    if not current.get("legacy_viewer_args") and viewer_response.input_rejected(raw):
+    unsupported = viewer_response.source_refused(raw)
+    if not current.get("legacy_viewer_args") and viewer_response.input_rejected(raw) and not unsupported:
         # The server refused the newer inputs (wait_s / delivery) before anything ran: nothing was started or
         # charged. Send the same call once more with the original arguments, and keep them for the rest of the run.
         current["legacy_viewer_args"] = True
@@ -371,6 +375,9 @@ def read_viewer(current: dict[str, Any], file: Path, tool: str) -> None:
                        "error": {"code": "download_failed", "message": str(problem)[:300], "retryable": False}}
     if reading is None:
         reading = viewer_response.read(raw)
+    if unsupported and reading["run"] is None:
+        # The tool cannot read this source: an answer that ends the viewing, kept as the gap it is.
+        reading["error"] = {**(reading["error"] or {}), "code": "unsupported_source", "retryable": False}
     viewer.pop("redeliver", None)
     run = reading["run"]
     if run is None:
@@ -378,6 +385,8 @@ def read_viewer(current: dict[str, Any], file: Path, tool: str) -> None:
     else:
         viewer.update(analysis_id=run["id"], status=run["status"],
                       done=run["status"] in viewer_response.TERMINAL)
+        if run["status"] == "failed" and viewer_response.failure_unsupported(run.get("failure")):
+            viewer["error"] = {"code": "unsupported_source", "retryable": False}
     # The persisted copy holds observations and the transcript only; scores, verdicts and advice stay behind in
     # host-results/, the tool's own answer, which nothing downstream reads.
     persisted = {"schema_version": viewer_response.PERSISTED, "tool": tool, "source_url": current["url"],
@@ -438,10 +447,11 @@ def viewer_gate(current: dict[str, Any], *, media_in_flight: bool) -> tuple[str,
         return ("start", "") if duration <= limit_s else ("refuse", "too_long")
     if media_in_flight:
         return "wait", ""
-    if (public_video_sources.source(current.get("platform")) or {}).get("metadata_route") != "media_call" \
+    if (public_video_sources.source(current.get("platform")) or {}).get("metadata_route") == "youtube_get_video" \
             and not current.get("duration_waited"):
         # The platform's metadata comes from its own tool (YouTube: youtube_get_video), which the model calls
-        # beside this script: give it one round to be persisted.
+        # beside this script: give it one round to be persisted. Every other source (a media-call platform, a
+        # link on no listed platform, a kabo-file) reads its duration from this run's media call.
         return "wait", ""
     return "refuse", "duration_unknown"
 
@@ -511,7 +521,7 @@ def finish_media(mode: str) -> dict[str, Any]:
     media_state = collect_media.state()
     placed = media_state.setdefault("placed", {})
     envelopes, pending, usable, gone, duration = [], [], False, False, None
-    read = None
+    read, frames_note = None, None
     for operation, call in calls.items():
         body = json.loads(Path(call["path"]).read_text())
         if operation not in placed:
@@ -535,6 +545,7 @@ def finish_media(mode: str) -> dict[str, Any]:
                     duration = float(value)
                     break
         if operation == "extract_keyframes":
+            frames_note = collect_media.frame_options_note(body)
             refs = [item.get("object_ref") for item in data.get("frames") or []
                     if isinstance(item, dict) and item.get("object_ref")]
             job_id = body.get("job_id") or (jobs.get(call["group"]) or {}).get("job_id")
@@ -550,7 +561,7 @@ def finish_media(mode: str) -> dict[str, Any]:
         if operation not in placed and job.get("job_id") and job.get("status") in static_host.PENDING:
             pending.append(f"{operation}={job['job_id']}")
     return {"envelopes": envelopes, "pending": pending, "usable": usable, "source_unavailable": gone, "read": read,
-            "duration_s": duration}
+            "duration_s": duration, "frames_note": frames_note}
 
 
 def observed_anything(current: dict[str, Any], media: dict[str, Any] | None) -> bool:
@@ -602,6 +613,10 @@ def settle(current: dict[str, Any]) -> int:
         save_state(current)
     viewer = current["viewer"]
     viewer_ok = viewer.get("active") and viewer.get("status") == "completed"
+    if viewer.get("active") and (viewer.get("error") or {}).get("code") == "unsupported_source":
+        current.setdefault("limitations", []).append(
+            "The whole-video viewing cannot read this source (the tool answered that it does not support it), so "
+            "nothing here was heard or seen whole; the analysis rests on the frames, transcript and measurements.")
     if current["source"] == "server_frames" and media is not None and not media["usable"]:
         code = "source_unavailable" if media["source_unavailable"] else "media_unavailable"
         moved = fall_back(current, "server_frames", code)
@@ -609,6 +624,7 @@ def settle(current: dict[str, Any]) -> int:
             return moved
     if current["source"] == "whole_video" and not viewer_ok:
         code = ((viewer.get("error") or {}).get("code") if viewer.get("status") == "error"
+                or (viewer.get("error") or {}).get("code") == "unsupported_source"
                 else ("still_running" if viewer.get("status") in viewer_response.PENDING else viewer.get("status")))
         moved = fall_back(current, "whole_video", code)
         if moved is not None:
@@ -636,6 +652,8 @@ def settle(current: dict[str, Any]) -> int:
                     "media_pending": media["pending"] if media else []}, ensure_ascii=False))
     for line in dict.fromkeys(current.get("fallback_notes") or []):
         say("Fallback: " + line)
+    if media and media.get("frames_note"):
+        say("Frames: " + media["frames_note"])
     if nothing:
         say("Every observation source came back empty: no frames, no transcript words and no whole-video notes. "
             "There is nothing to analyse, so do not build a report or describe the video's content. Follow "
@@ -684,11 +702,17 @@ def resume(args: argparse.Namespace) -> int:
     for entry in awaiting:
         if entry["tool"] in {START_TOOL, POLL_TOOL}:
             read_viewer(current, Path(entry["file"]), entry["tool"])
+    media_refused = False
     if any(entry["tool"] == MEDIA_TOOL for entry in awaiting):
-        collect_media.take_saved(args.result_id)
-        media_state = collect_media.state()
-        media_state["rounds"] = int(media_state.get("rounds") or 0) + 1
-        collect_media.save_state(media_state)
+        # True when the server refused the frame options before any job ran: the same call goes again without them.
+        media_refused = collect_media.take_saved(args.result_id)
+        if media_refused:
+            current.setdefault("fallback_notes", []).append(
+                f"{MEDIA_TOOL} did not accept include_shot_starts / dense_windows on this server; repeated without them")
+        else:
+            media_state = collect_media.state()
+            media_state["rounds"] = int(media_state.get("rounds") or 0) + 1
+            collect_media.save_state(media_state)
     handed_at = current.get("handed_at")
     current["awaiting"] = []
     save_state(current)
@@ -700,8 +724,8 @@ def resume(args: argparse.Namespace) -> int:
                           and (viewer.get("redeliver")
                                or (seconds_since(viewer.get("started_at")) < VIEWER_BUDGET_S
                                    and int(viewer.get("polls") or 0) < MAX_POLLS)))
-    media_waiting = False
-    if current["media"].get("active") and not current["media"].get("done"):
+    media_waiting = media_refused
+    if current["media"].get("active") and not current["media"].get("done") and not media_refused:
         media_state = collect_media.state()
         pending = media_pending(current)
         media_waiting = bool(pending and collect_media.waited_s(media_state) < collect_media.WAIT_BUDGET_S
@@ -744,7 +768,9 @@ def resume(args: argparse.Namespace) -> int:
                          if viewer.get("redeliver") else
                          "reading the whole-video analysis again with its original arguments" if retry else
                          f"the whole-video analysis is {viewer.get('status') or 'starting'}")
-        if media_waiting:
+        if media_refused:
+            parts.append("the media call is made again without the frame options this server refused")
+        elif media_waiting:
             parts.append(f"{media_pending(current)} media job(s) are still running")
         hand_over_calls(current, start_viewer=False, poll_viewer=viewer_waiting and bool(viewer.get("analysis_id")),
                         media=media_waiting, note="Still running: " + "; ".join(parts) + ". Keep waiting.")

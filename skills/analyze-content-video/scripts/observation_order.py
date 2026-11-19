@@ -3,8 +3,9 @@
 
 The order is data, not code: `default` lists the sources a run starts with, `fallback` what to try after a
 source fails, `add_when_cards` what a selected method card adds to the chosen source (the `sound` card adds the
-whole-video viewing, which hears the audio: server frames plus a viewing is `combined`), and the whole-video
-limits say where that source is available at all. This module reads the table plus the facts of this run
+whole-video viewing, which hears the audio: server frames plus a viewing is `combined`), and `whole_video_max_ms`
+caps the length a viewing takes. The viewing is offered for any link and any `kabo-file:<id>`: whether it can
+read that source is the tool's own answer, and an unsupported answer ends that source like any other failure. This module reads the table plus the facts of this run
 (platform, duration when known, what already failed, the analysis mode, the method cards selected before the
 fetch) and nothing else. It never looks at which host runs it.
 
@@ -69,16 +70,15 @@ def load_order(path: Path | None = None) -> dict[str, Any]:
                                           for key, value in added.items()):
         raise ValueError("observation order: add_when_cards maps a method card id to a list of "
                          + " / ".join(ADDABLE))
-    platforms = document.get("whole_video_platforms")
-    if not isinstance(platforms, list) or not all(isinstance(item, str) for item in platforms):
-        raise ValueError("observation order: whole_video_platforms must list platform ids")
+    if "whole_video_platforms" in document:
+        # The viewing is not limited by platform here: the tool answers for the sources it cannot read.
+        raise ValueError("observation order: whole_video_platforms is no longer part of the table")
     return document
 
 
 def whole_video_available(order: dict[str, Any], platform: str | None, duration_s: float | None) -> tuple[bool, str]:
-    if platform not in order["whole_video_platforms"]:
-        return False, f"whole-video viewing does not cover {platform or 'this platform'}"
-    # An unknown duration does not block: the service fails an over-long video, and the fallback takes over then.
+    # Any platform, and a file attached in Kabo: the tool's own answer says which sources it cannot read. An
+    # unknown duration does not block: the service fails an over-long video, and the fallback takes over then.
     if duration_s is not None and duration_s * 1000 > order["whole_video_max_ms"]:
         return False, f"the video runs {duration_s:g}s, past the whole-video limit of {order['whole_video_max_ms'] // 1000}s"
     return True, "available"
