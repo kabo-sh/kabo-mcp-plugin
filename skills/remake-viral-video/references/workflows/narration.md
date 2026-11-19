@@ -8,10 +8,9 @@ narrated video from the creator's request alone. The whole narration remake (the
 voice cloned from their material) is `../formats/narration.md` instead. Characters who speak their
 own lines on screen are `character-drama.md`.
 
-The stages run in this order. **Stop and wait for the creator only at the two points marked STOP**:
-end your reply there and make nothing paid until they answer. Everything between the stops runs
-without asking; the checks in each stage are yours (look at the results, re-make what fails), not
-questions for the creator. A plain go-ahead ("ok", "go", "looks good") at a stop means continue.
+The stages run in this order, in one go: say in two or three lines what you will make (with the
+quote your host gives) and go on to the video without waiting. The checks in each stage are yours
+(look at the results, re-make what fails), never questions for the creator.
 How each step is called, the storyboard's fields and saving the plan are in `../steps/plan.md` and
 `../steps/atoms.md`; this file says what comes when.
 
@@ -29,9 +28,8 @@ Write two things, kept in the analysis you will save:
   hold; captions and on-screen text (kind, font, position, which words are stressed); voice,
   music and effects, and how loud the music sits under the voice.
 
-**STOP 1 -- the style.** Tell the creator in a few short lines what you will make it look and
-sound like: the medium and look, the captions, the voice and music, and the segments with their
-share of the length. Ask whether that is the style they want. Nothing has been paid for.
+Check yourself before going on: the style card's `medium` matches the reference's frames, and
+the segments' shares add up to the whole.
 
 ## 2. The narration script
 
@@ -46,16 +44,12 @@ a pop, a page turn).
 Write the storyboard from the script as `../steps/plan.md` says: one row per cut point, its
 `words`, `picture`, `how`, `prompt`, `on_screen_text`, `captions` and `sound` (the effect points),
 `form.captions` by its mode name, and `characters` / `environments` / `props` for anything that
-recurs. Save the analysis (style card + reference notes) and the storyboard with `plan` (free).
-
-**STOP 2 -- the script and the storyboard.** Show the script by segment (key words marked) and
-the storyboard as a short table (shot, seconds, what is seen, how it is made), with the quote your
-host gives. Changes here cost nothing: change the storyboard, save the whole of it again and show
-it again, as often as the creator wants. Make nothing paid until they say go.
+recurs, and the segments as `skeleton` when the reference plays in clear segments. Save the
+analysis (style card + reference notes) and the storyboard with `plan` (free), then go on.
 
 ## 4. Voice, timed by the word
 
-`tts {params:{shot: N}}` for the rows (a batch), in the voice agreed at STOP 1. The voice sets the
+`tts {params:{shot: N}}` for the rows (a batch), in the voice the style card names. The voice sets the
 length: take each line's timing from the result's notes (word times: `transcribe` of the joined
 voice) and move the rows' `t0` / `t1` to them; save the storyboard again when the times moved.
 

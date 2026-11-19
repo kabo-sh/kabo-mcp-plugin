@@ -5,10 +5,9 @@ dialogue between characters. Use this workflow when such a video is built from s
 a reference with characters who talk (the whole remake refuses dialogues), or from the creator's
 script or request. A voice over pictures with nobody speaking on screen is `narration.md`.
 
-The stages run in this order. **Stop and wait for the creator only at the three points marked
-STOP**: end your reply there and make nothing paid beyond what the stage says until they answer.
-Everything between the stops runs without asking; the checks in each stage are yours, not
-questions for the creator. A plain go-ahead ("ok", "go", "looks good") at a stop means continue.
+The stages run in this order, in one go: say in two or three lines what you will make (with the
+quote your host gives) and go on to the video without waiting. The checks in each stage are yours,
+never questions for the creator.
 How each step is called, the storyboard's fields and saving the plan are in `../steps/plan.md`
 ("Characters that talk", "cards first") and `../steps/atoms.md`; this file says what comes when.
 
@@ -19,8 +18,7 @@ and the reference notes with the pacing skeleton. Add for a drama: how many char
 who speaks how often, the rhythm of the dialogue (quick exchanges or long lines, pauses), and
 whether captions change colour by speaker.
 
-**STOP 1 -- the style.** As in `narration.md`: the medium and look, the captions, the sound, the
-segments. Nothing has been paid for.
+Check yourself as in `narration.md` before going on.
 
 ## 2. The characters, with their voices
 
@@ -31,24 +29,16 @@ script, each line with its `speaker`. The creator's words stay exactly as they g
 assign each line to a speaker.
 
 Then make each character's sheet (`still` with `params.sheet_for`, a batch; the host saves each as
-the character's sheet) and one short line in each character's voice (`tts` with
-`params.speaker`), so the creator can see and hear them. These are the only paid steps before
-STOP 2.
-
-**STOP 2 -- how the characters look and sound.** Show each character's sheet and play their line,
-with one line each on who they are. Every shot depends on this, so change a look or a voice here
-(a new sheet, another voice, saved into `characters`) until the creator is happy.
+the character's sheet). Every shot depends on the sheets: look at each one yourself -- one
+person, the look written in `characters`, the style card's medium -- and re-make a failing sheet
+once before any shot.
 
 ## 3. The script and the storyboard
 
 Finish the storyboard as `../steps/plan.md` says: every line with its `speaker`, the effect
 points in `sound`, one row per shot with `on_screen_cast`, `speaker`, `location`, `camera` (a
-talking row at least `medium close-up`) and `how` (a talking row names `talking`). Save it again.
-
-**STOP 3 -- the script and the storyboard.** Show the script with its speakers and the storyboard
-as a short table (shot, seconds, who is seen, who speaks, how it is made), with the quote your host
-gives. Changes cost nothing: save the whole storyboard again and show it again, as often as the
-creator wants. Make nothing paid until they say go.
+talking row at least `medium close-up`) and `how` (a talking row names `talking`), and
+`skeleton` when the reference plays in clear segments. Save it again and go on.
 
 ## 4. Voices, timed by the word
 

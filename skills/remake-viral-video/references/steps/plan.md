@@ -15,9 +15,7 @@ takes is in `atoms.md`, code animation in `motion-graphics.md`, the project itse
 
 Before the first paid step of an edit or a project, tell the creator in two or three lines what
 you will make and in which order, with what `SKILL.md` says your host adds before paying. Then go
-ahead -- except in a video that follows a workflow in `../workflows/` (a narrated video or a
-character drama built from steps): it stops for the creator where that workflow says, and only
-there. What to make follows the storyboard, never the cost. Choose photos, moments, frames and words yourself from the material here (look at each
+ahead. What to make follows the storyboard, never the cost. Choose photos, moments, frames and words yourself from the material here (look at each
 step's preview before using its result; if it is not clear, try another moment) and say what you
 chose; ask only what only the creator can decide or knows.
 
