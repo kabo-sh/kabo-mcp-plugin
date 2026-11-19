@@ -429,3 +429,38 @@ print(json.dumps(out, ensure_ascii=False))`);
   assert.equal(out.lines["music only, no words"].en,
     "The sound was measured, not listened to: listen for yourself to check whether the music's genre and mood fit, which track it is and how the sound effects come across.");
 });
+
+// A view step that fails on something no view edit can fix (the data note cannot be derived from the evidence,
+// the measurement basis disagrees) is a failed step, not the run's one view correction.
+test("finish_diagnosis --check: a derivation failure is a failed step; a view violation still needs correction", () => {
+  const out = probe(`
+import contextlib, io, subprocess, tempfile
+from pathlib import Path
+import finish_diagnosis as fd
+def run_with(message):
+    def fake(command, **kwargs):
+        step = Path(command[2]).name
+        if step == "build_creator_result.py":
+            return subprocess.CompletedProcess(command, 1, "", message + "\\n")
+        return subprocess.CompletedProcess(command, 0, "", "")
+    fd.subprocess.run = fake
+    buffer = io.StringIO()
+    with tempfile.TemporaryDirectory() as run, contextlib.redirect_stdout(buffer):
+        code = fd.check(Path(run))
+    text = buffer.getvalue()
+    return [code, json.loads(text[: text.rindex("}") + 1])]
+print(json.dumps({
+    "derive": run_with("cannot derive data_note: dense window interval is unknown or invalid"),
+    "basis": run_with("creator_view.data_note disagrees with the recorded measurement basis"),
+    "unknown observation": run_with("cannot derive data_note: unknown observation obs_9"),
+    "view": run_with("ERROR: creator_view.headline runs 90 columns against a 60 limit"),
+}))`);
+  assert.deepEqual(out.derive, [1, { status: "failed", step: "build_creator_result.py",
+    errors: ["cannot derive data_note: dense window interval is unknown or invalid"] }]);
+  assert.equal(out.basis[0], 1);
+  assert.equal(out.basis[1].status, "failed");
+  assert.equal(out["unknown observation"][0], 3, "a card citing a missing observation is the view's to fix");
+  assert.equal(out["unknown observation"][1].status, "needs_correction");
+  assert.deepEqual(out.view, [3, { status: "needs_correction", step: "build_creator_result.py",
+    violations: ["creator_view.headline runs 90 columns against a 60 limit"] }]);
+});

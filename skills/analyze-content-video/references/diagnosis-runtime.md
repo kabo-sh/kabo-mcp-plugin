@@ -121,7 +121,9 @@ saved judgment to manufacture grounding. Write `analysis/creator_view.json`, the
 and lists each violation with its field and limit. It exits 0 on `ready` and 3 on
 `needs_correction` (not a failure), so never chain it to the final step with `&&` and read the
 status. Correct the view once for all of them and check once more; advance only on `status: ready`. This is the view's one correction, separate from the
-judgment's; the judgment stays as saved.
+judgment's; the judgment stays as saved. A failure no view edit can fix (a derived line that
+cannot be derived from the evidence, a disagreeing measurement basis) is `failed` with exit 1: report
+it as a failed step and do not spend the correction on it.
 
 ## 5. Finishing
 

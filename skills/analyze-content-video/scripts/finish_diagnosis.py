@@ -36,6 +36,21 @@ READY, FAILED, NEEDS_CORRECTION = 0, 1, 3
 VIEW_STEPS = {"build_creator_result.py", "render_video_report.py", "validate_creator_shape.py",
               "validate_creator_report.py"}
 
+# A failure in a view step that no edit of creator_view.json can fix: the derived lines cannot be derived from the
+# evidence, the recorded measurement basis disagrees, or the analysis and evidence files themselves are broken.
+# Such a failure is a failed step, so it does not spend the run's one view correction.
+NOT_VIEW_FIXABLE = ("cannot derive data_note", "disagrees with the recorded measurement basis",
+                    "analysis.observations", "analysis has duplicate observation_id", "content_evidence.json",
+                    "video-analysis-request.json")
+# ...except a card citing an observation the analysis does not hold, which the view fixes by citing a real one.
+VIEW_FIXABLE = ("unknown observation",)
+
+
+def view_can_fix(found: list[str]) -> bool:
+    """False when any message is one that correcting the creator view cannot clear."""
+    return not any(any(mark in message for mark in NOT_VIEW_FIXABLE)
+                   and not any(mark in message for mark in VIEW_FIXABLE) for message in found)
+
 
 def commands(run: Path, analysis_out: Path, result_out: Path, report_out: Path) -> list[list[str]]:
     scripts = Path(__file__).resolve().parent
@@ -72,7 +87,7 @@ def check(run: Path) -> int:
             done = subprocess.run(command, cwd=run, capture_output=True, text=True)
             if done.returncode:
                 found = violations(done.stdout + "\n" + done.stderr)
-                if step in VIEW_STEPS:
+                if step in VIEW_STEPS and view_can_fix(found):
                     print(json.dumps({"status": "needs_correction", "step": step, "violations": found},
                                      ensure_ascii=False, indent=1))
                     print("Correct analysis/creator_view.json once for every violation above, then run this check "
