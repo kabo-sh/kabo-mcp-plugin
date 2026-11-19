@@ -79,6 +79,14 @@ that, not by how the request is worded ("remake" included):
    `references/workflows/narration.md`; characters who speak their lines,
    `references/workflows/character-drama.md`. Needing a voice they have not recorded: choose a preset voice by the role yourself and go on,
    as `references/steps/project.md` ("No voice to clone") says; never stop to ask about the voice.
+7. **Read what you were given before you plan.** Run `transcribe` on every clip the creator sent
+   that has sound before deciding which clip is which language, speaker or role -- never by upload
+   order or file name. If it differs from what they described, say in a line what you heard and
+   make what they asked for: a missing language version gets its own voice and captions, not their
+   clips cut together again. A screenshot or screen capture sent as an example is a reference to
+   draw from, never a shot. When the creator will not appear, no shot has a person in it (hands,
+   product, places, illustration), and every picture prompt says "no person". More in
+   `references/steps/plan.md` ("Read what you were given first").
 
 | Keep | Change | Step | Redraws the face |
 |---|---|---|---|
