@@ -23,6 +23,10 @@ import re
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # sibling imports must not leave __pycache__ in the Skill
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import report_locale  # noqa: E402
+
 
 # `0.000–4.017s` is how the analysis carries a position, and the millisecond is load-bearing there:
 # the shape gate resolves a card's timestamp against the observation that licenses it. It is not
@@ -164,9 +168,9 @@ def prose_timecodes(text: str, positions: set | None = None) -> str:
 # The card titles, findings and actions arrive already written in the creator's language because
 # the analysis wrote them there; these labels are this renderer's own. The host relays the
 # finished report unchanged, so an English-only table left "What to change" and "Say this" inside
-# otherwise Chinese reports. A zh view gets the Chinese labels; every other language gets English,
-# and for a language other than zh or en the host localizes headings and labels as SKILL.md says.
-# `colon` follows the label: Chinese prose takes the full-width mark.
+# otherwise Chinese reports. A zh view gets the Chinese labels, a language listed in
+# references/report-locales.json gets its own, and every other language gets English, which the host localizes
+# as SKILL.md says. `colon` follows the label: Chinese and Japanese prose take the full-width mark.
 STRINGS = {
     "zh": {"why": "现在的效果", "action": "要改什么", "reuse": "怎么复用", "avoid": "怎么避开", "fix": "怎么修正",
            "yours": "你的下一条怎么做", "say": "这样说",
@@ -177,6 +181,7 @@ STRINGS = {
            "say": "Say this", "at": "Where", "on_screen": "On screen", "shot": "Shot",
            "next": "Next", "colon": ": "},
 }
+STRINGS.update({language: report_locale.labels(language) for language in sorted(report_locale.LOCALES)})
 # Each card's action label, by position and by whose video it is. Own video: reuse what works, fix what holds it
 # back, then the change to make. Someone else's: reuse the mechanism, avoid what copying would bring along, then
 # what to do in the creator's own next video. No two cards of one report share a label.
@@ -203,8 +208,9 @@ def strip_label(action: str) -> str:
 
 
 def lang_of(view: dict) -> str:
-    """`zh`, `zh-CN`, `zh-Hant` read as Chinese; anything else, or nothing, as English."""
-    return "zh" if str(view.get("language") or "").strip().lower().startswith("zh") else "en"
+    """`zh`, `zh-CN`, `zh-Hant` read as Chinese; a listed language by its primary subtag (`pt-BR` as `pt`);
+    anything else, or nothing, as English."""
+    return report_locale.report_language(view)
 
 
 def render_hook(hook: dict, words: dict) -> list[str]:
@@ -251,6 +257,11 @@ def render(result: dict) -> str:
     if view.get("data_note"):
         out.append("")
         out.append(f"*{view['data_note'].strip()}*")
+    # Derived by the builder from the evidence: the sound was measured, and what only an ear can judge is the
+    # creator's to hear. It sits with the measurement basis because it says how far the sound reading goes.
+    if view.get("listen_note"):
+        out.append("")
+        out.append(f"*{view['listen_note'].strip()}*")
 
     for card_index, card in enumerate(view.get("cards") or []):
         out.append("")

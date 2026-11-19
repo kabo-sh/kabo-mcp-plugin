@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -174,4 +174,149 @@ test("scripts that import a sibling module turn bytecode writing off before the 
     const off = text.indexOf("sys.dont_write_bytecode = True");
     assert.ok(off >= 0 && off < first, name);
   }
+});
+
+// Creators write in many languages. A view in a language listed in references/report-locales.json renders the
+// report's own labels and its data_note in that language, by the tag's primary subtag; any other renders in English.
+const LOCALIZED = {
+  es: { tag: "es-MX", action: "Qué cambiar", next: "Siguientes pasos", source: "Video de YouTube", unknown: "desconocido" },
+  pt: { tag: "pt-BR", action: "O que mudar", next: "Próximos passos", source: "Vídeo do YouTube", unknown: "desconhecido" },
+  de: { tag: "de", action: "Was du ändern solltest", next: "Nächste Schritte", source: "YouTube-Video", unknown: "unbekannt" },
+  fr: { tag: "fr-FR", action: "Ce qu'il faut changer", next: "Prochaines étapes", source: "Vidéo YouTube", unknown: "inconnu" },
+  ja: { tag: "ja-JP", action: "変えること", next: "次にやること", source: "YouTubeの動画", unknown: "不明" },
+  ko: { tag: "ko", action: "바꿀 점", next: "다음 단계", source: "YouTube 영상", unknown: "알 수 없음" },
+  id: { tag: "id-ID", action: "Yang perlu diubah", next: "Langkah berikutnya", source: "Video YouTube", unknown: "tidak diketahui" },
+};
+const LOCALE_EVIDENCE = `
+evidence = {"content_ref": {"platform": "youtube"}, "owner_metrics": {"status": "unavailable"},
+            "transcript": {"status": "available", "origin": "platform_captions",
+                           "cues": [{"start_s": i, "text": "line"} for i in range(108)]},
+            "frames": {"status": "available", "origin": "extracted_frames", "sampling_plan": {"frames": 14},
+                       "items": [{"frame_id": f"f{i}", "t_seconds": i} for i in range(14)]}}
+analysis = {"observations": [{"observation_id": "o1", "evidence_refs": ["f0", "f1"]}]}
+def view(language):
+    card = {"title": "T", "why_for_you": "a\\nb\\nc", "action": "do it", "evidence_refs": ["observations.o1"]}
+    hook = {"purpose": "p", "visual_direction": "close-up", "on_screen_text": "words", "spoken_line": "line"}
+    return {"language": language, "headline": "H", "summary": "S",
+            "cards": [dict(card), dict(card), dict(card, hooks=[hook])], "next_actions": ["go"]}
+`;
+
+test("report labels and data_note: es, pt, de, fr, ja, ko and id render in their own language; an unlisted one in English", () => {
+  const tags = Object.values(LOCALIZED).map((entry) => entry.tag).concat(["vi", "en"]);
+  const out = probe(`
+from creator_measurement_basis import canonical_note, note_matches
+from render_video_report import render
+from build_creator_result import build
+from report_locale import LOCALES
+${LOCALE_EVIDENCE}
+images = {"media_type": "image_carousel", "returned_count": 5, "expected_count": None, "completeness": "unknown",
+          "items": [{"status": "available"}] * 4 + [{"status": "unavailable"}]}
+english = canonical_note(evidence, analysis, view("en"))
+out = {"locales": sorted(LOCALES), "english": english}
+for tag in ${JSON.stringify(tags)}:
+    v = view(tag)
+    note = canonical_note(evidence, analysis, v)
+    v["data_note"] = note
+    image = build({"creator_view": view(tag)}, analysis, {"images": images, "owner_metrics": {"status": "unavailable"}},
+                  {"source": {"acquisition": "public_url"}})["creator_view"]["data_note"]
+    out[tag] = {"note": note, "image": image,
+                "own": render({"creator_view": v, "details": {"subject_state": "own_published"}}),
+                "theirs": render({"creator_view": v, "details": {"subject_state": "third_party"}}),
+                "matches": note_matches(note, evidence, analysis, v),
+                "older English line": note_matches(english, evidence, analysis, v),
+                "pre-1.0.32 English line": note_matches(english[:-1] + "; viewing unverified.", evidence, analysis, v),
+                "edited": note_matches(note.replace("14", "15"), evidence, analysis, v),
+                "another language": note_matches(canonical_note(evidence, analysis, view("de" if tag != "de" else "fr")), evidence, analysis, v)}
+print(json.dumps(out, ensure_ascii=False))`);
+  assert.deepEqual(out.locales, ["de", "es", "fr", "id", "ja", "ko", "pt"]);
+  const labels = (text) => [...text.matchAll(/\*\*([^*]+)\*\*(?: : |: |：)/g)].map((match) => match[1]);
+  const catalog = JSON.parse(readFileSync(path.join(root, "skills/analyze-content-video/references/report-locales.json"), "utf8")).languages;
+  for (const [code, expected] of Object.entries(LOCALIZED)) {
+    const got = out[expected.tag];
+    const words = catalog[code].labels;
+    assert.deepEqual(labels(got.own), [words.reuse, words.fix, words.shot, words.on_screen, words.say, words.action], code);
+    assert.deepEqual(labels(got.theirs), [words.reuse, words.avoid, words.shot, words.on_screen, words.say, words.yours], code);
+    assert.ok(got.own.includes(`**${expected.action}**`), code);
+    assert.ok(got.own.includes(`## ${expected.next}`), code);
+    assert.doesNotMatch(got.own + got.theirs, /What to change|How to reuse it|How to avoid it|Say this|On screen|## Next/, code);
+    // The data_note: same facts and numbers, in the creator's language, accepted by the measurement-basis check.
+    assert.ok(got.note.startsWith(expected.source), `${code}: ${got.note}`);
+    for (const figure of ["14", "2", "108"]) assert.ok(got.note.includes(figure), `${code}: ${figure} in ${got.note}`);
+    assert.notEqual(got.note, out.english, code);
+    assert.ok(got.own.includes(`*${got.note}*`), code);
+    assert.equal(got.matches, true, code);
+    assert.equal(got["older English line"], true, code);
+    assert.equal(got["pre-1.0.32 English line"], true, code);
+    assert.equal(got.edited, false, code);
+    assert.equal(got["another language"], false, code);
+    assert.ok(got.image.includes("4") && got.image.includes("5"), `${code}: ${got.image}`);
+    assert.ok(got.image.includes(expected.unknown), `${code}: ${got.image}`);
+    assert.doesNotMatch(got.image, /Image post|owner metrics/, code);
+  }
+  // A language with no catalog entry, and English itself, keep the English wording.
+  assert.equal(out.vi.note, out.english);
+  assert.equal(out.en.note, out.english);
+  assert.equal(out.vi.own, out.en.own);
+  assert.match(out.vi.own, /\*\*What to change\*\*: do it/);
+  assert.match(out.vi.image, /^Image post: 4\/5 returned positions available/);
+  assert.equal(out.vi["another language"], false);
+});
+
+// A local file's sound is measured, never heard: what only an ear can judge is the creator's to listen to. The
+// builder derives one line for it from the evidence; the renderer prints it under the data note; the shape gate
+// accepts it only as derived.
+test("listen line: derived from a local sound measurement nobody heard, localized, rendered under the data note, never authored", () => {
+  const out = probe(`
+from build_creator_result import build
+from render_video_report import render
+from validate_creator_shape import check
+${LOCALE_EVIDENCE}
+audio = {"status": "available", "findings": [], "listen_check": [{"id": "genre_mood_fit", "ask": "What the music is."}]}
+def built(tag, sound, viewer=None, authored=None):
+    ev = dict(evidence, media={"audio": sound} if sound is not None else {})
+    if viewer:
+        ev["viewer_observations"] = {"status": viewer}
+    v = view(tag)
+    if authored:
+        v["listen_note"] = authored
+    return build({"creator_view": v}, analysis, ev, {"source": {"acquisition": "local_file"}}), ev
+out = {}
+for tag in ("zh-CN", "en", "es", "ja", "vi"):
+    result, ev = built(tag, audio)
+    out[tag] = {"line": result["creator_view"].get("listen_note"), "report": render(result)}
+out["viewer heard it"] = "listen_note" in built("en", audio, viewer="available")[0]["creator_view"]
+out["viewer failed"] = "listen_note" in built("en", audio, viewer="unavailable")[0]["creator_view"]
+out["nothing to listen for"] = "listen_note" in built("en", dict(audio, listen_check=[]))[0]["creator_view"]
+out["no measurement"] = "listen_note" in built("en", None)[0]["creator_view"]
+out["authored, replaced"] = built("en", audio, authored="Sounds great.")[0]["creator_view"]["listen_note"]
+out["authored, dropped"] = "listen_note" in built("en", None, authored="Sounds great.")[0]["creator_view"]
+def gate(result, ev):
+    return [e for e in check(result, {"subject_state": "own_published", "observations": analysis["observations"]}, ev) if "listen_note" in e]
+result, ev = built("en", audio)
+out["gate derived"] = gate(result, ev)
+tampered = dict(result, creator_view=dict(result["creator_view"], listen_note="The music fits."))
+out["gate tampered"] = gate(tampered, ev)
+old = dict(result, creator_view={k: v for k, v in result["creator_view"].items() if k != "listen_note"})
+out["gate older result"] = gate(old, ev)
+print(json.dumps(out, ensure_ascii=False))`);
+  assert.equal(out["zh-CN"].line, "声音只做了测量，没有人耳听：曲风和情绪是否贴合、是哪首歌、人声音色和音效请你自己听一下。");
+  assert.match(out.en.line, /^The sound was measured, not listened to:/);
+  assert.match(out.es.line, /^El sonido solo se midió/);
+  assert.match(out.ja.line, /^音は測定しただけで/);
+  assert.equal(out.vi.line, out.en.line);
+  for (const tag of ["zh-CN", "en", "es", "ja"]) {
+    const lines = out[tag].report.split("\n");
+    const note = lines.findIndex((line) => line.startsWith("*") && line.endsWith("*") && !line.startsWith("**"));
+    assert.ok(note > 0, out[tag].report);
+    assert.equal(lines[note + 2], `*${out[tag].line}*`, out[tag].report);
+  }
+  assert.equal(out["viewer heard it"], false);
+  assert.equal(out["viewer failed"], true);
+  assert.equal(out["nothing to listen for"], false);
+  assert.equal(out["no measurement"], false);
+  assert.equal(out["authored, replaced"], out.en.line);
+  assert.equal(out["authored, dropped"], false);
+  assert.deepEqual(out["gate derived"], []);
+  assert.equal(out["gate tampered"].length, 1);
+  assert.deepEqual(out["gate older result"], []);
 });

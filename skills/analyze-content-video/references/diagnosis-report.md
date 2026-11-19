@@ -86,15 +86,15 @@ read quickly because each part is one or two sentences; the reason to cap a fiel
 that the sequence is what carries the analysis, and dropping a card would drop a reading.
 
 `data_note` is read-only and derived by `build_creator_result.py`, not authored by the model.
-It is one measurement line within 240 columns — Chinese when `language` starts with `zh`, English
-otherwise: recorded extraction, canonical frame references cited by these cards, transcript
+It is one measurement line within 240 columns, in the view's language (see below): recorded extraction, canonical frame references cited by these cards, transcript
 provenance and owner-metric availability. Requested
 `sampling_plan` intervals and possibly nominal `t_seconds` do not establish actual decoded spacing
 or viewing. Without verified decode records, describe intervals only as planned/requested
 limitations beside the relevant finding. The line states only countable facts; it says nothing
-about viewing, so never add that the frames were not looked at when you opened and cited them. For a
-language other than Chinese or English, the host
-translates the complete line for delivery without changing its quantities or uncertainty.
+about viewing, so never add that the frames were not looked at when you opened and cited them. The
+builder writes it in Chinese, English, Spanish, Portuguese, German, French, Japanese, Korean or
+Indonesian by the view's `language`; for any other language, the host translates the complete line
+for delivery without changing its quantities or uncertainty.
 Put claim-specific uncertainty once beside the claim it weakens, not in this measurement line.
 
 ## What a change instruction contains

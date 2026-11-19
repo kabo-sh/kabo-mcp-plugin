@@ -40,7 +40,8 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from creator_measurement_basis import note_matches
+from creator_measurement_basis import note_language, note_matches
+from report_locale import listen_note
 
 
 # Strengths, then what holds it back, then what to do — the benchmarked three-card shape, three
@@ -436,6 +437,12 @@ def check(result: dict, analysis: dict, evidence: dict, computed: list | None = 
         except ValueError as error:
             errors.append(str(error))
 
+    # The listen line is derived from the evidence like data_note: present only as the builder writes it. A result
+    # from before it existed carries none, and replays.
+    if "listen_note" in view and view.get("listen_note") != listen_note(evidence, note_language(view)):
+        errors.append("creator_view.listen_note is derived from the evidence's sound measurement; omit it and let "
+                      "the builder write it")
+
     # The one line saying how far to trust the report must not repeat the report.
     note = view.get("data_note") or ""
     if len(normalise(note)) >= 12:
@@ -547,6 +554,7 @@ def check(result: dict, analysis: dict, evidence: dict, computed: list | None = 
         # Its exact canonical value was checked above; do not add derived counts to the
         # source-number pool available to unrelated model-authored claims.
         authored_view.pop("data_note", None)
+    authored_view.pop("listen_note", None)
     errors.extend(figure_errors(authored_view, source_values(analysis, evidence, *(computed or []))))
     return errors
 

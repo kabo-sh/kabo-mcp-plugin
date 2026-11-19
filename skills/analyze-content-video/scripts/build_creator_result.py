@@ -24,7 +24,8 @@ from typing import Any
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from creator_measurement_basis import canonical_note, note_language, note_matches
+from creator_measurement_basis import canonical_note, image_note, note_language, note_matches
+from report_locale import LOCALES, listen_note
 
 SCHEMA_VERSION = "creator-task-result.v2-final"
 TASK = "analyze_content_video"
@@ -90,9 +91,11 @@ def view_contract(analysis: dict[str, Any], subject: str | None = None) -> dict[
             "creator_view": "object described below"},
         "creator_view": {
             "required": [key for key in VIEW_REQUIRED if key != "data_note"],
-            "derived_read_only": {"data_note": "The builder derives one sampling line from evidence and card citations, in Chinese when language starts with zh and in English otherwise. Omit this field; it never records how many pixels were viewed."},
+            "derived_read_only": {"data_note": f"The builder derives one sampling line from evidence and card citations, in the creator's language for zh, en, {', '.join(sorted(LOCALES))} and in English otherwise. Omit this field; it never records how many pixels were viewed.",
+                                  "listen_note": "For a local file whose sound was measured but heard by no whole-video viewing, the builder adds one line asking the creator to listen to the music, track, voice and effects. Omit this field and do not repeat it in a card."},
             "strings": [key for key in VIEW_REQUIRED if key not in ("cards", "next_actions", "data_note")],
-            "language": "The creator's language as a BCP 47 tag such as zh-CN or en: the language of the creator's own messages in this conversation, never the video's language. A bare link carries none of their words: use their earlier messages, and en when there are none. A zh tag renders the report's own labels and data_note in Chinese; any other tag renders them in English.",
+            "language": "The creator's language as a BCP 47 tag such as zh-CN or en: the language of the creator's own messages in this conversation, never the video's language. A bare link carries none of their words: use their earlier messages, and en when there are none. "
+                        f"The primary subtag picks the report's own labels and data_note: zh, en, {', '.join(sorted(LOCALES))} render in that language; any other renders them in English.",
             "cards": {
                 "count": CARD_COUNT, "roles_in_order": list(CARD_ROLES),
                 "required": list(CARD_REQUIRED),
@@ -236,6 +239,9 @@ def build(view_document: dict[str, Any], analysis: dict[str, Any], evidence: dic
                 f"总数{'未知' if total == 'unknown' else f' {total}'}；完整度{completeness}；"
                 f"后台数据{owner_zh}。"
             )
+        elif note_language(view) != "en":
+            view["data_note"] = image_note(available, images["returned_count"], total, images["completeness"], owner,
+                                           note_language(view))
         else:
             view["data_note"] = (
                 f"Image post: {available}/{images['returned_count']} returned positions available; "
@@ -248,6 +254,11 @@ def build(view_document: dict[str, Any], analysis: dict[str, Any], evidence: dic
             view["data_note"] = canonical_note(evidence, analysis, view)
         except ValueError as error:
             raise SystemExit(str(error)) from error
+    # Derived like data_note, never authored: the sound was measured and nobody heard it.
+    view.pop("listen_note", None)
+    heard = listen_note(evidence, note_language(view))
+    if heard:
+        view["listen_note"] = heard
     # Named here rather than left to the shape gate three steps later: the gate is correct but it
     # runs after the document has been rendered, so a missing key costs a render and a round trip.
     missing = [key for key in VIEW_REQUIRED if not view.get(key)]

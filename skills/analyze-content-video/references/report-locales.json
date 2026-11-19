@@ -1,0 +1,375 @@
+{
+ "_comment": "Report strings by BCP 47 primary language subtag, read by scripts/report_locale.py. `labels` and `note` cover the languages the renderer and the data_note localize beyond zh and en (those two stay in code); `listen_note` covers every language with one. A language not listed renders in English.",
+ "languages": {
+  "zh": {
+   "listen_note": "声音只做了测量，没有人耳听：曲风和情绪是否贴合、是哪首歌、人声音色和音效请你自己听一下。"
+  },
+  "en": {
+   "listen_note": "The sound was measured, not listened to: listen for yourself to whether the music's genre and mood fit, which track it is, and how the voice and sound effects come across."
+  },
+  "es": {
+   "labels": {
+    "why": "Qué logra ahora",
+    "action": "Qué cambiar",
+    "reuse": "Cómo reutilizarlo",
+    "avoid": "Cómo evitarlo",
+    "fix": "Cómo corregirlo",
+    "yours": "Qué hacer en tu video",
+    "say": "Di esto",
+    "at": "Dónde",
+    "on_screen": "En pantalla",
+    "shot": "Plano",
+    "next": "Siguientes pasos",
+    "colon": ": "
+   },
+   "note": {
+    "source_platform": "Video de {platform}",
+    "source_local": "Archivo de video local",
+    "frames_extracted": "{n} fotogramas extraídos",
+    "frames_requested": " de {m} solicitados",
+    "frames": {
+     "descriptions": "descripciones visuales, sin ver los píxeles",
+     "unavailable": "fotogramas no disponibles",
+     "not_attempted": "sin muestreo de fotogramas"
+    },
+    "cited": "{n} fotogramas citados",
+    "transcript": {
+     "platform captions": "subtítulos de la plataforma",
+     "external transcript": "transcripción externa",
+     "machine transcript (wording unverified)": "transcripción automática (texto sin verificar)",
+     "creator-supplied transcript (not checked against audio)": "transcripción del creador (sin cotejar con el audio)",
+     "no speech detected": "no se detectó voz",
+     "no audio track": "sin pista de audio",
+     "platform captions unavailable": "subtítulos de la plataforma no disponibles",
+     "transcript unavailable": "transcripción no disponible",
+     "transcript not retrieved": "transcripción no obtenida"
+    },
+    "cues_one": " (1 línea)",
+    "cues_other": " ({n} líneas)",
+    "owner": "analíticas de la cuenta {status}",
+    "owner_status": {
+     "available": "disponibles",
+     "partial": "parciales",
+     "unavailable": "no disponibles"
+    },
+    "unknown": "desconocido",
+    "separator": "; ",
+    "end": ".",
+    "image": "Publicación de imágenes: {available}/{returned} posiciones devueltas disponibles; total {total}; completitud {completeness}; analíticas de la cuenta {owner}."
+   },
+   "listen_note": "El sonido solo se midió, nadie lo escuchó: escucha tú si el género y el ambiente de la música encajan, qué canción es y cómo suenan la voz y los efectos."
+  },
+  "pt": {
+   "labels": {
+    "why": "O que faz agora",
+    "action": "O que mudar",
+    "reuse": "Como reaproveitar",
+    "avoid": "Como evitar",
+    "fix": "Como corrigir",
+    "yours": "O que fazer no seu vídeo",
+    "say": "Diga isto",
+    "at": "Onde",
+    "on_screen": "Na tela",
+    "shot": "Plano",
+    "next": "Próximos passos",
+    "colon": ": "
+   },
+   "note": {
+    "source_platform": "Vídeo do {platform}",
+    "source_local": "Arquivo de vídeo local",
+    "frames_extracted": "{n} quadros extraídos",
+    "frames_requested": " de {m} solicitados",
+    "frames": {
+     "descriptions": "descrições visuais, sem ver os pixels",
+     "unavailable": "quadros indisponíveis",
+     "not_attempted": "quadros não amostrados"
+    },
+    "cited": "{n} quadros citados",
+    "transcript": {
+     "platform captions": "legendas da plataforma",
+     "external transcript": "transcrição externa",
+     "machine transcript (wording unverified)": "transcrição automática (texto não verificado)",
+     "creator-supplied transcript (not checked against audio)": "transcrição do criador (não conferida com o áudio)",
+     "no speech detected": "nenhuma fala detectada",
+     "no audio track": "sem faixa de áudio",
+     "platform captions unavailable": "legendas da plataforma indisponíveis",
+     "transcript unavailable": "transcrição indisponível",
+     "transcript not retrieved": "transcrição não obtida"
+    },
+    "cues_one": " (1 linha)",
+    "cues_other": " ({n} linhas)",
+    "owner": "métricas da conta {status}",
+    "owner_status": {
+     "available": "disponíveis",
+     "partial": "parciais",
+     "unavailable": "indisponíveis"
+    },
+    "unknown": "desconhecido",
+    "separator": "; ",
+    "end": ".",
+    "image": "Post de imagens: {available}/{returned} posições retornadas disponíveis; total {total}; completude {completeness}; métricas da conta {owner}."
+   },
+   "listen_note": "O som só foi medido, ninguém o ouviu: ouça você mesmo se o gênero e o clima da música combinam, qual é a faixa e como soam a voz e os efeitos sonoros."
+  },
+  "de": {
+   "labels": {
+    "why": "Was es jetzt bewirkt",
+    "action": "Was du ändern solltest",
+    "reuse": "So nutzt du es wieder",
+    "avoid": "So vermeidest du es",
+    "fix": "So behebst du es",
+    "yours": "Was du in deinem Video machst",
+    "say": "Sag das",
+    "at": "Wo",
+    "on_screen": "Texteinblendung",
+    "shot": "Einstellung",
+    "next": "Nächste Schritte",
+    "colon": ": "
+   },
+   "note": {
+    "source_platform": "{platform}-Video",
+    "source_local": "Lokale Videodatei",
+    "frames_extracted": "{n} extrahierte Frames",
+    "frames_requested": " von {m} angefragten",
+    "frames": {
+     "descriptions": "Bildbeschreibungen, Pixel nicht geprüft",
+     "unavailable": "Frames nicht verfügbar",
+     "not_attempted": "keine Frames entnommen"
+    },
+    "cited": "{n} zitierte Frames",
+    "transcript": {
+     "platform captions": "Plattform-Untertitel",
+     "external transcript": "externes Transkript",
+     "machine transcript (wording unverified)": "maschinelles Transkript (Wortlaut ungeprüft)",
+     "creator-supplied transcript (not checked against audio)": "Transkript vom Creator (nicht mit dem Ton abgeglichen)",
+     "no speech detected": "keine Sprache erkannt",
+     "no audio track": "keine Tonspur",
+     "platform captions unavailable": "Plattform-Untertitel nicht verfügbar",
+     "transcript unavailable": "Transkript nicht verfügbar",
+     "transcript not retrieved": "Transkript nicht abgerufen"
+    },
+    "cues_one": " (1 Zeile)",
+    "cues_other": " ({n} Zeilen)",
+    "owner": "Kontostatistiken {status}",
+    "owner_status": {
+     "available": "verfügbar",
+     "partial": "teilweise verfügbar",
+     "unavailable": "nicht verfügbar"
+    },
+    "unknown": "unbekannt",
+    "separator": "; ",
+    "end": ".",
+    "image": "Bildbeitrag: {available}/{returned} gelieferte Positionen verfügbar; Gesamtzahl {total}; Vollständigkeit {completeness}; Kontostatistiken {owner}."
+   },
+   "listen_note": "Der Ton wurde nur gemessen, nicht angehört: Hör selbst, ob Genre und Stimmung der Musik passen, welcher Song es ist und wie Stimme und Soundeffekte klingen."
+  },
+  "fr": {
+   "labels": {
+    "why": "Ce que ça fait maintenant",
+    "action": "Ce qu'il faut changer",
+    "reuse": "Comment le réutiliser",
+    "avoid": "Comment l'éviter",
+    "fix": "Comment le corriger",
+    "yours": "Quoi faire dans ta vidéo",
+    "say": "Dis ceci",
+    "at": "Où",
+    "on_screen": "À l'écran",
+    "shot": "Plan",
+    "next": "Prochaines étapes",
+    "colon": " : "
+   },
+   "note": {
+    "source_platform": "Vidéo {platform}",
+    "source_local": "Fichier vidéo local",
+    "frames_extracted": "{n} images extraites",
+    "frames_requested": " sur {m} demandées",
+    "frames": {
+     "descriptions": "descriptions visuelles, pixels non vus",
+     "unavailable": "images indisponibles",
+     "not_attempted": "aucune image échantillonnée"
+    },
+    "cited": "{n} images citées",
+    "transcript": {
+     "platform captions": "sous-titres de la plateforme",
+     "external transcript": "transcription externe",
+     "machine transcript (wording unverified)": "transcription automatique (formulation non vérifiée)",
+     "creator-supplied transcript (not checked against audio)": "transcription du créateur (non vérifiée sur l'audio)",
+     "no speech detected": "aucune parole détectée",
+     "no audio track": "pas de piste audio",
+     "platform captions unavailable": "sous-titres de la plateforme indisponibles",
+     "transcript unavailable": "transcription indisponible",
+     "transcript not retrieved": "transcription non récupérée"
+    },
+    "cues_one": " (1 ligne)",
+    "cues_other": " ({n} lignes)",
+    "owner": "statistiques du compte {status}",
+    "owner_status": {
+     "available": "disponibles",
+     "partial": "partielles",
+     "unavailable": "indisponibles"
+    },
+    "unknown": "inconnu",
+    "separator": " ; ",
+    "end": ".",
+    "image": "Publication d'images : {available}/{returned} positions renvoyées disponibles ; total {total} ; complétude {completeness} ; statistiques du compte {owner}."
+   },
+   "listen_note": "Le son a seulement été mesuré, personne ne l'a écouté : écoute toi-même si le genre et l'ambiance de la musique collent, quel morceau c'est, et comment sonnent la voix et les effets sonores."
+  },
+  "ja": {
+   "labels": {
+    "why": "今の効果",
+    "action": "変えること",
+    "reuse": "活かし方",
+    "avoid": "避け方",
+    "fix": "直し方",
+    "yours": "自分の動画でやること",
+    "say": "こう言う",
+    "at": "位置",
+    "on_screen": "画面テキスト",
+    "shot": "ショット",
+    "next": "次にやること",
+    "colon": "："
+   },
+   "note": {
+    "source_platform": "{platform}の動画",
+    "source_local": "ローカルの動画ファイル",
+    "frames_extracted": "抽出フレーム {n} 枚",
+    "frames_requested": "（要求 {m} 枚）",
+    "frames": {
+     "descriptions": "画面は文章の描写で、ピクセルは直接確認していない",
+     "unavailable": "フレームは利用不可",
+     "not_attempted": "フレーム未抽出"
+    },
+    "cited": "レポートで引用 {n} 枚",
+    "transcript": {
+     "platform captions": "プラットフォームの字幕",
+     "external transcript": "外部の文字起こし",
+     "machine transcript (wording unverified)": "自動文字起こし（文言は未確認）",
+     "creator-supplied transcript (not checked against audio)": "クリエイター提供の原稿（音声と未照合）",
+     "no speech detected": "発話は検出されず",
+     "no audio track": "音声トラックなし",
+     "platform captions unavailable": "プラットフォームの字幕は利用不可",
+     "transcript unavailable": "文字起こしは利用不可",
+     "transcript not retrieved": "文字起こし未取得"
+    },
+    "cues_one": "（1 件）",
+    "cues_other": "（{n} 件）",
+    "owner": "アナリティクス：{status}",
+    "owner_status": {
+     "available": "利用可",
+     "partial": "一部利用可",
+     "unavailable": "利用不可"
+    },
+    "unknown": "不明",
+    "separator": "、",
+    "end": "。",
+    "image": "画像投稿：返された {returned} 枚中 {available} 枚が利用可、総数 {total}、完全性 {completeness}、アナリティクス：{owner}。"
+   },
+   "listen_note": "音は測定しただけで、人の耳では聞いていません。曲のジャンルや雰囲気が合っているか、何の曲か、声の質感や効果音はご自身で聞いて確かめてください。"
+  },
+  "ko": {
+   "labels": {
+    "why": "지금의 효과",
+    "action": "바꿀 점",
+    "reuse": "다시 활용하는 법",
+    "avoid": "피하는 법",
+    "fix": "고치는 법",
+    "yours": "내 영상에서 할 일",
+    "say": "이렇게 말하기",
+    "at": "위치",
+    "on_screen": "화면 자막",
+    "shot": "샷",
+    "next": "다음 단계",
+    "colon": ": "
+   },
+   "note": {
+    "source_platform": "{platform} 영상",
+    "source_local": "로컬 영상 파일",
+    "frames_extracted": "추출 프레임 {n}개",
+    "frames_requested": " (요청 {m}개)",
+    "frames": {
+     "descriptions": "화면은 텍스트 묘사이며 픽셀은 직접 확인하지 않음",
+     "unavailable": "프레임 사용 불가",
+     "not_attempted": "프레임 미추출"
+    },
+    "cited": "리포트 인용 프레임 {n}개",
+    "transcript": {
+     "platform captions": "플랫폼 자막",
+     "external transcript": "외부 전사본",
+     "machine transcript (wording unverified)": "자동 전사본(문구 미확인)",
+     "creator-supplied transcript (not checked against audio)": "크리에이터 제공 원고(오디오와 대조 안 함)",
+     "no speech detected": "음성 미감지",
+     "no audio track": "오디오 트랙 없음",
+     "platform captions unavailable": "플랫폼 자막 사용 불가",
+     "transcript unavailable": "전사본 사용 불가",
+     "transcript not retrieved": "전사본 미수집"
+    },
+    "cues_one": " (1줄)",
+    "cues_other": " ({n}줄)",
+    "owner": "계정 분석 데이터 {status}",
+    "owner_status": {
+     "available": "있음",
+     "partial": "일부 있음",
+     "unavailable": "없음"
+    },
+    "unknown": "알 수 없음",
+    "separator": "; ",
+    "end": ".",
+    "image": "이미지 게시물: 반환된 위치 {returned}개 중 {available}개 사용 가능; 총수 {total}; 완전성 {completeness}; 계정 분석 데이터 {owner}."
+   },
+   "listen_note": "소리는 측정만 했고 사람이 직접 듣지는 않았습니다. 음악 장르와 분위기가 맞는지, 어떤 곡인지, 목소리 톤과 효과음은 직접 들어 보세요."
+  },
+  "id": {
+   "labels": {
+    "why": "Efeknya sekarang",
+    "action": "Yang perlu diubah",
+    "reuse": "Cara memakainya lagi",
+    "avoid": "Cara menghindarinya",
+    "fix": "Cara memperbaikinya",
+    "yours": "Yang dilakukan di videomu",
+    "say": "Ucapkan ini",
+    "at": "Posisi",
+    "on_screen": "Teks di layar",
+    "shot": "Shot",
+    "next": "Langkah berikutnya",
+    "colon": ": "
+   },
+   "note": {
+    "source_platform": "Video {platform}",
+    "source_local": "File video lokal",
+    "frames_extracted": "{n} frame diekstrak",
+    "frames_requested": " dari {m} yang diminta",
+    "frames": {
+     "descriptions": "deskripsi visual, piksel tidak diperiksa",
+     "unavailable": "frame tidak tersedia",
+     "not_attempted": "frame tidak diambil"
+    },
+    "cited": "{n} frame dikutip",
+    "transcript": {
+     "platform captions": "subtitle platform",
+     "external transcript": "transkrip eksternal",
+     "machine transcript (wording unverified)": "transkrip mesin (kata-kata belum diverifikasi)",
+     "creator-supplied transcript (not checked against audio)": "transkrip dari kreator (belum dicek dengan audio)",
+     "no speech detected": "tidak ada ucapan terdeteksi",
+     "no audio track": "tidak ada trek audio",
+     "platform captions unavailable": "subtitle platform tidak tersedia",
+     "transcript unavailable": "transkrip tidak tersedia",
+     "transcript not retrieved": "transkrip tidak diambil"
+    },
+    "cues_one": " (1 baris)",
+    "cues_other": " ({n} baris)",
+    "owner": "data analitik akun {status}",
+    "owner_status": {
+     "available": "tersedia",
+     "partial": "tersedia sebagian",
+     "unavailable": "tidak tersedia"
+    },
+    "unknown": "tidak diketahui",
+    "separator": "; ",
+    "end": ".",
+    "image": "Postingan gambar: {available}/{returned} posisi yang dikembalikan tersedia; total {total}; kelengkapan {completeness}; data analitik akun {owner}."
+   },
+   "listen_note": "Suara hanya diukur, tidak didengarkan: dengarkan sendiri apakah genre dan suasana musiknya cocok, lagu apa itu, serta bagaimana warna suara dan efek suaranya."
+  }
+ }
+}

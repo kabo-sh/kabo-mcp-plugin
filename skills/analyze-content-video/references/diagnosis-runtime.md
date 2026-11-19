@@ -112,7 +112,7 @@ or in the same call as the check it depends on.
 
 `--print-view-contract` prints the author fields, the current canonical observation references and
 the display-column limits. Read it completely, then read `references/diagnosis-report.md` whole for
-what the fields should say. Omit the read-only `data_note`. Every figure in the view, including
+what the fields should say. Omit the read-only `data_note` and `listen_note`. Every figure in the view, including
 next-edit timings, must trace to the composed analysis or evidence; rounding and magnitude notation
 are allowed and clock times are not numeric claims. For a new duration that is editorial advice,
 give a qualitative instruction anchored to a verified moment. Never add observations or alter the

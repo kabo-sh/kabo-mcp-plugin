@@ -13,10 +13,12 @@ positions. The schemas, deterministic computation, renderers and validators ship
 `references/` and `scripts/`.
 
 **Delivery.** A diagnosis ends with `finish_diagnosis.py`, which prints the validated
-`report/VIDEO_DIAGNOSIS.md`. Relay it once, complete. A Chinese or English report already comes
-out in the creator's language: relay it unchanged, with at most one short sentence of your own
-before it. The italic line under the summary is the report's measurement basis, which the creator
-needs to judge how far to trust it: keep it, it is not a run diagnostic. Only for another language, localize every heading, label, unit and conclusion while
+`report/VIDEO_DIAGNOSIS.md`. Relay it once, complete. A report in Chinese, English, Spanish,
+Portuguese, German, French, Japanese, Korean or Indonesian already comes out in the creator's
+language: relay it unchanged, with at most one short sentence of your own before it. The italic
+line under the summary is the report's measurement basis, which the creator needs to judge how far
+to trust it, and a second one, for a local file whose sound was measured but not heard, asks them to
+listen: keep both, they are not run diagnostics. Only for another language, localize every heading, label, unit and conclusion while
 keeping structure, numbers, facts and limitations; a quoted post or video title stays in its
 original wording. Never summarize, retype numbers, append a
 second paraphrased report or narrate artifact writing, validation, file paths, call counts, credits

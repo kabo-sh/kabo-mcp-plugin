@@ -65,7 +65,8 @@ inference alone. A measure with no finding stays a number: do not round it into 
 and whether it fits, which track it is, whether it is trending or licensed, how the voice sounds,
 whether an effect is any good, and anything the measurement flagged as ambiguous (words that may
 be sung, a stretch with no recognised words that moves like speech). Hand these over as questions
-to listen for, in one short list after the findings.
+to listen for, in one short list after the findings. A diagnosis report already carries one line,
+written by the result builder, that asks the creator to listen: do not write another into the view.
 
 Without numpy, onsets, pulse, cut alignment, stereo width and the syllable-rate test are in
 `skipped`; without a transcript the map has no speech in it. Both are unmeasured, not absent. When
