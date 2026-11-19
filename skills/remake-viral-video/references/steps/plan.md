@@ -48,7 +48,7 @@ Before the first paid step of any video made like a reference:
    close-up, a statue, an object, a scene, a chart, a character), shot size, motion, any text
    on it; plus the sound (voice, music, effects) and captions.
 2. Write its style (step 0 of `motion-graphics.md`: `medium`, `look`, `cast`, `avoid` ...) and
-   pick the style card whose `medium` matches in `../motion-catalog.md`.
+   pick the motion style whose `medium` matches in `../motion-catalog.md`.
 3. Keep the reference's form and take only the words and topic from the creator's script: the
    same kinds of subject in the same shot sizes (a reference that opens on a person's face opens
    on a person's face -- an invented one, or the person the script is about -- not on an object
@@ -76,8 +76,8 @@ text, the medium and look, the layout, the voices and sound, the captions -- wha
 apart from what you infer. Then write the storyboard from it and save both (host mechanics below).
 A video takes many turns and the later ones see only the saved plan, not this turn's notes.
 
-The storyboard is one JSON object (its exact field shapes are in `params.md`): at the top `form` (medium, look, settings, shot count and pace,
-captions, voice, music and sound), `total_s`, and, when the video has recurring characters,
+The storyboard is one JSON object (its exact field shapes are in `params.md`): at the top `form` (settings, shot count and pace,
+captions, voice, music and sound), `style` (the look, in one place: "The look: one style card" below), `total_s`, `target_s`, and, when the video has recurring characters,
 `characters`: one entry per character, `{name, look}` -- a short name used for them everywhere in
 the storyboard, and the fixed look every picture of them follows (build, face, hair, clothes,
 colours, props). `sheet` is filled in during production ("The same people in every shot" below);
@@ -106,7 +106,7 @@ and framing; it names the characters, place and props and never copies their loo
 `transition`. A row whose words are said on camera by its speaker is a talking shot: its `how`
 names `talking` (or `lipsync` on a moving clip), never `animate` alone. Every character in a shot's picture
 is in its `on_screen_cast`, and the picture never redescribes a character's look differently from
-`characters`. (A style card's `cast` in `form` says what kind of figures appear at all; it is not
+`characters`. (The style card's `cast` says what kind of figures appear at all; it is not
 `on_screen_cast`.) The style card describes the picture only. Caption and title styling goes in
 `form.captions`, never in `style.description` (words about captions there were drawn into every
 picture). Captions follow the reference: when it has captions, `form` and each row's
@@ -154,9 +154,50 @@ the creator wrote it). Then choose the steps yourself, row by row, from the tabl
   row's `transition`, `mux`, `music` (`duck` under speech), `sfx`, then `captions` as the row or
   `form` says.
 
-Write the prompt yourself from `picture`, `form` (medium, look, `avoid`), the `look` of each
+Write the prompt yourself from `picture`, `form` (`avoid`), the `look` of each
 character in the row's `on_screen_cast`, and the style
 card, as step 4 above says, and save it into the row when you save the storyboard again.
+
+## Length, actions and who does them
+
+**Length.** Set `target_s` on the storyboard to the length the video must have -- the user's stated
+length (a range: its middle), else the reference's length -- and make the shots' `t0`/`t1` add up
+to it. A spoken row is at least as long as its words take to say (~2.5 words/s narration, ~3
+words/s brisk dialogue). If the save notes say the rows miss the target, fix the rows, not the
+target. For narration and voice-over, give every shot its own line (`tts` + `mux` with
+`params.shot`) and join with `concat` `params.shots: "all"`; never lay one voice track over the
+whole cut -- the join then fits each shot to its share, a pause after its line.
+
+**One action per shot.** A row's `motion` is ONE action by ONE subject (or several subjects acting
+at the same time). Never "X, then Y", "first ... then ...", "near the end ..." in one row -- split it
+into consecutive shots, each with `start` (its first frame) and `end` (its last frame, = the next
+row's `start`). Steps that change an object's state (cut, cooked, poured, plated) each get their
+own shot.
+
+**Who does it.** Give each row `actor` (the character card's exact name) -- or
+`actions: [{"actor": "<card name>", "does": "<one action>"}]` when two characters move at the same
+time. Write the action with the card name, not a pronoun that could mean another character
+("RightFox touches RightFox's own cheek", not "touches its face").
+
+**Props.** One card per object whose look or state matters across shots (each ingredient, the
+plate, the pan); don't lump a kit into one card. Say the object's state in `start`/`end`.
+
+**Speaking shots.** When someone on screen speaks, `camera` is medium or closer, and the
+`picture`/`prompt` text must not name a wider size ("Wide shot", "full body") -- describe the
+speaker from the waist or chest up.
+
+## The look: one style card
+
+Put the look in ONE place: a top-level `style` object on the storyboard (`description`,
+`keywords`, `avoid`, `palette`, `fonts`, `motion`, `refs`). `form.medium` and `form.look` are for
+people; the runner does not read them. Each row's `prompt` and each sheet prompt say only what is
+in the picture, what happens and how it is framed -- no look words (photoreal, 3D, anime,
+watercolor ...). To keep the reference's look, put reference frames in `style.refs` (e.g.
+`input/style_ref_01.png`).
+
+Changing only the style: a new `style` (give the whole card) -> redraw the sheets and places the
+reply names with `sheet_for` -> `still` by `shot` -> `animate` / `talking` by `shot` -> `concat`
+`shots: "all"` and the finishing steps. The voice, the storyboard and the card descriptions stay.
 
 ## The same people and places in every shot: cards first
 

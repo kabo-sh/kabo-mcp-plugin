@@ -59,9 +59,9 @@ that, not by how the request is worded ("remake" included):
    montage, a live-video HUD callout overlay, a re-edit of their own video, or a silent or
    out-of-scope reference that the whole remake refuses): build it from steps (project, steps,
    deliver); never ask for their face. For a code-animated video (an explainer, a chart, product
-   photos, an illustrated story), write a shot list first and pick one style card and the
+   photos, an illustrated story), write a shot list first and pick one motion style and the
    components from `references/motion-catalog.md`; with a reference to make it like, first write
-   its style in two layers (`references/steps/motion-graphics.md`, step 0), choose the card by its
+   its style in two layers (`references/steps/motion-graphics.md`, step 0), choose the motion style by its
    `medium`, carry the medium and `avoid` into every `still` prompt, and re-make once a shot whose
    medium, look, cast, dimension, layout or elements differ from the reference frame; one
    `motion_graphics` call per shot (a component when one fits, else an exemplar page by name --
