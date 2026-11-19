@@ -747,6 +747,30 @@ def post_facts(post: dict[str, Any] | None) -> dict[str, Any]:
     return facts
 
 
+# measure_audio_local.py's block, as the evidence carries it: everything but its notes (already limitations) and
+# the per-second loudness series (it stays in the local artifact, as a connector's series stays in its envelope).
+LOCAL_AUDIO_KEYS = {
+    "schema_version", "status", "measured", "unavailable", "skipped", "duration_s", "measured_until_s",
+    "speech_source", "loudness", "segments", "voice", "clarity", "pulse", "onsets", "stereo", "cut_alignment",
+    "findings", "listen_check", "thresholds",
+}
+AUDIO_SEGMENT_KEYS = {"start_s", "end_s", "duration_s", "label", "modulation"}
+AUDIO_FINDING_KEYS = {"id", "measure", "claim", "confidence", "value", "threshold", "at_s", "end_s"}
+
+
+def local_audio_block(audio: Any) -> dict[str, Any] | None:
+    if not isinstance(audio, dict) or audio.get("schema_version") != "local-audio.v1":
+        return None
+    block = {key: value for key, value in audio.items() if key in LOCAL_AUDIO_KEYS}
+    if isinstance(block.get("loudness"), dict):
+        block["loudness"] = {key: value for key, value in block["loudness"].items() if key != "series_1s"}
+    block["segments"] = [{key: value for key, value in as_record(item).items() if key in AUDIO_SEGMENT_KEYS}
+                         for item in block.get("segments") or []]
+    block["findings"] = [{key: value for key, value in as_record(item).items() if key in AUDIO_FINDING_KEYS}
+                         for item in block.get("findings") or []]
+    return block
+
+
 def media_block(frames: dict[str, Any] | None, metadata: dict[str, Any] | None,
                 local: dict[str, Any] | None = None,
                 measurements: dict[str, Any] | None = None,
@@ -775,6 +799,9 @@ def media_block(frames: dict[str, Any] | None, metadata: dict[str, Any] | None,
         probed = probed_block({"status": "completed", "data": signals}) if isinstance(signals, dict) else None
         if probed:
             local_block["probed"] = probed
+        audio = local_audio_block(facts.get("audio"))
+        if audio:
+            local_block["audio"] = audio
         return local_block
     observed = as_record(frames.get("data")).get("duration_s") if usable(frames) else None
     declared = as_record(as_record(metadata.get("data")).get("video")).get("duration_seconds") if usable(metadata) else None

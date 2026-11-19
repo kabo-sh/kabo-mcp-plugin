@@ -308,13 +308,39 @@ def sound_lines(evidence: dict[str, Any]) -> list[str]:
     measured = [name for name in ("loudness", "silence") if probed.get(name)]
     notes = [item for item in ((evidence.get("viewer_observations") or {}).get("items") or [])
              if isinstance(item, dict) and SOUND_ASPECT.search(str(item.get("aspect") or ""))]
-    if measured or notes:
+    audio = media.get("audio") if isinstance(media.get("audio"), dict) else None
+    if audio and audio.get("status") in ("completed", "completed_partial"):
+        lines += audio_lines(audio)
+    if measured or notes or audio:
         lines.append("- Music and mix evidence: " + ", ".join(
-            [f"`media.probed.{name}`" for name in measured] + [f"whole-video sound note `{item['id']}`" for item in notes]))
+            [f"`media.probed.{name}`" for name in measured] + (["`media.audio`"] if audio else [])
+            + [f"whole-video sound note `{item['id']}`" for item in notes]))
     else:
         lines.append("- Music and mix: neither measured nor heard in a whole-video note, so they were not analysed; "
                      "any transcript is heard words only.")
     lines.append("")
+    return lines
+
+
+def audio_lines(audio: dict[str, Any]) -> list[str]:
+    """The local sound measurement: its findings (each a measurement that cleared its threshold) and the questions
+    only listening can answer. State the measurement, then the inference; a listen-check is never a finding."""
+    lines = [f"- Local sound measurement (`media.audio`, {audio.get('status')}): "
+             + ", ".join(audio.get("measured") or [])
+             + (f"; not measured: {', '.join(item.get('measure', '') for item in audio.get('skipped') or [])}"
+                if audio.get("skipped") else "")
+             + (f"; stopped early at {json.dumps(audio['measured_until_s'])}" if audio.get("measured_until_s") else "")]
+    findings = [item for item in audio.get("findings") or [] if isinstance(item, dict)]
+    if findings:
+        lines.append("  Findings (measured, threshold cleared; cite `media.audio.findings[i]`):")
+        lines += [f"  - `media.audio.findings[{index}]` [{item.get('confidence')}] {one_line(item.get('claim'))}"
+                  for index, item in enumerate(findings)]
+    else:
+        lines.append("  No sound measure cleared its threshold: say nothing about the sound beyond the numbers.")
+    checks = [item for item in audio.get("listen_check") or [] if isinstance(item, dict)]
+    if checks:
+        lines.append("  Listen-check, for the creator to hear; never a finding: "
+                     + " | ".join(one_line(item.get("ask")) for item in checks))
     return lines
 
 
