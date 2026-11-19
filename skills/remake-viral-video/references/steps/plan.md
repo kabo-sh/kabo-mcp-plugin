@@ -37,6 +37,28 @@ again. Later turns read the list from the plan; never ask the creator to send it
 Every request carries a new idempotency key (a UUID). Repeat the same key only to retry the same
 request after an unknown outcome.
 
+## Read what you were given first
+
+- **Listen before you assign.** Run `transcribe` on every clip the creator sent that has sound
+  before deciding which clip is which language, speaker or role; never infer language or role from
+  upload order or file names. If the clips do not match what the creator described (e.g. "three
+  languages" but two clips are English), say in one line what you heard and make what the creator
+  asked for: a missing language version gets its own voice and captions in that language, not the
+  uploaded clips cut together again.
+- **Screenshots are references, not shots.** A screenshot, phone capture, chat or post capture
+  (status bar, app chrome, black bars) the creator sent as an example shows the idea, the look or
+  the words: draw new pictures from it, never open on it or cut it in as it is. Show such a capture
+  as a shot only when the creator asks to show that screen. Screens of the creator's own app or
+  product are the product itself: show them where the plan shows the product.
+- **"Not on camera" holds for the whole video.** When the creator says they will not appear (no
+  face, voice only, a preset voice), plan every shot without a person: hands, product, places or
+  illustration -- no upper body, partial face or stand-in person -- and say so in every picture
+  step's prompt.
+- **The real interface or product.** When the video shows the real app, website or product (a
+  demo, a walkthrough), use the screen recordings or photos the creator gave. If there are none,
+  make illustrative cards for those screens, say in your plan message that a screen recording
+  would replace them, and go on; do not stop to wait for one.
+
 ## Break the reference down first, then keep its form
 
 Before the first paid step of any video made like a reference:
