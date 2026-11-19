@@ -68,7 +68,7 @@ text, the medium and look, the layout, the voices and sound, the captions -- wha
 apart from what you infer. Then write the storyboard from it and save both (host mechanics below).
 A video takes many turns and the later ones see only the saved plan, not this turn's notes.
 
-The storyboard is one JSON object: at the top `form` (medium, look, settings, shot count and pace,
+The storyboard is one JSON object (its exact field shapes are in `params.md`): at the top `form` (medium, look, settings, shot count and pace,
 captions, voice, music and sound), `total_s`, and, when the video has recurring characters,
 `characters`: one entry per character, `{name, look}` -- a short name used for them everywhere in
 the storyboard, and the fixed look every picture of them follows (build, face, hair, clothes,
