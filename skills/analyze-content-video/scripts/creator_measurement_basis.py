@@ -65,8 +65,18 @@ def measurement_basis(evidence: dict, analysis: dict, view: dict) -> dict:
             number(dense, "dense sampling window")
             number(interval, "dense sampling interval", positive=True)
         body = plan.get("body_interval_s")
-        if body is not None or plan.get("body_degraded") is True:
+        # A plan with no body grid (body_frames 0) has no body interval: its frames come from the opening, the
+        # closing, shot starts and dense windows, as when the default window covers a video of 50s or less. The
+        # connector writes null there; local plans before this one wrote 0.0. Each laid window's interval is checked
+        # instead.
+        no_body = (plan.get("body_frames") == 0 and not isinstance(plan.get("body_frames"), bool)
+                   and (body is None or (body == 0 and not isinstance(body, bool))))
+        if (body is not None or plan.get("body_degraded") is True) and not no_body:
             number(body, "reduced sampling interval", positive=True)
+        for window in plan.get("dense_windows") or []:
+            window = record(window)
+            if window.get("ignored") is None and window.get("frames"):
+                number(window.get("interval_s"), "dense window interval", positive=True)
         # The plan and t_seconds may both be nominal extraction requests. Neither
         # confirms actual decoded timestamps, so no spacing enters measured facts.
     elif status == "available" and frames.get("origin") == "model_observation":

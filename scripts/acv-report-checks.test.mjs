@@ -262,6 +262,48 @@ print(json.dumps(out, ensure_ascii=False))`);
   assert.equal(out.vi["another language"], false);
 });
 
+// A video the dense windows cover whole has no body grid: the plan's body interval is null (0.0 in local plans
+// written before that), and the data_note still derives. The shape is the 13s local run that failed with "reduced
+// sampling interval is unknown or invalid"; the server shape is the connector's plan with extras.
+test("data_note: a plan whose frames all come from the opening, closing, shot starts and windows derives without a body interval", () => {
+  const out = probe(`
+from creator_measurement_basis import canonical_note, note_matches
+from extract_local_frames import plan_frames
+import select_method
+${LOCALE_EVIDENCE}
+local_run = {"base_interval_s": 1.0, "hook_window_s": 3.0, "hook_dense_window_s": 3.0, "hook_interval_s": 0.5,
+             "hook_frames": 6, "body_interval_s": 0.0, "body_frames": 0, "closing_frame_s": 11.1, "budget": 120,
+             "frames": 14, "body_degraded": False, "include_shot_starts": True, "shot_start_frames": 8,
+             "dense_window_frames": 10,
+             "dense_windows": [{"start_s": 0.0, "end_s": 13.1, "requested_interval_s": 0.5, "interval_s": 0.5,
+                                "frames": 10, "clipped": True, "ignored": None}]}
+local = dict(evidence, content_ref={}, media={"duration_source": "local_probe"},
+             frames=dict(evidence["frames"], sampling_plan=local_run))
+server = dict(evidence, frames=dict(evidence["frames"], sampling_plan=dict(
+    local_run, body_interval_s=None, closing_frame_s=None, body_degraded=True)))
+fresh = plan_frames(13.1, 3.0, 1.0, 2, 120, cuts=[], dense_windows=select_method.with_default_window([]))
+def derive(item):
+    try:
+        note = canonical_note(item, analysis, view("en"))
+        return [note, note_matches(note, item, analysis, view("en"))]
+    except ValueError as error:
+        return [str(error), None]
+broken = dict(evidence, frames=dict(evidence["frames"], sampling_plan=dict(local_run, body_frames=3)))
+stretched = dict(evidence, frames=dict(evidence["frames"], sampling_plan=dict(local_run, dense_windows=[
+    dict(local_run["dense_windows"][0], interval_s=0)])))
+print(json.dumps({"local": derive(local), "server": derive(server), "fresh": [fresh["body_interval_s"], fresh["body_frames"]],
+                  "zh": canonical_note(local, analysis, view("zh")), "broken": derive(broken),
+                  "window": derive(stretched)}, ensure_ascii=False))`);
+  assert.deepEqual(out.local, ["Local video file; 14 extracted frames; 2 cited frame refs; platform captions (108 cues); owner metrics unavailable.", true]);
+  assert.equal(out.server[1], true, out.server[0]);
+  assert.match(out.server[0], /^YouTube video; 14 extracted frames;/);
+  assert.match(out.zh, /^本地视频文件；抽取 14 帧/);
+  assert.deepEqual(out.fresh, [null, 0], "a fresh local plan with no body grid writes null, as the connector does");
+  // A body grid with no interval, or a laid window with none, is still refused.
+  assert.deepEqual(out.broken, ["cannot derive data_note: reduced sampling interval is unknown or invalid", null]);
+  assert.deepEqual(out.window, ["cannot derive data_note: dense window interval is unknown or invalid", null]);
+});
+
 // A local file's sound is measured, never heard: what only an ear can judge is the creator's to listen to. The
 // builder derives one line for it from the evidence; the renderer prints it under the data note; the shape gate
 // accepts it only as derived.
