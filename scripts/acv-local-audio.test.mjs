@@ -280,4 +280,17 @@ print("\n".join(prepare_analysis.sound_lines(json.load(open(sys.argv[2])))))
   assert.match(brief.stdout, /`media\.audio\.findings\[0\]`/);
   assert.match(brief.stdout, /Listen-check, for the creator to hear; never a finding/);
   assert.match(brief.stdout, /`media\.audio`/);
+  // What the brief tells the judge to cite must be a legal reference, or the report check refuses it.
+  const handles = run(["-c", String.raw`
+import json, sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, sys.argv[1])
+from validate_video_analysis import evidence_handles
+print(json.dumps(sorted(h for h in evidence_handles(json.load(open(sys.argv[2]))) if h.startswith("media.audio"))))
+`, scripts, path.join(runDir, "analysis/content_evidence.json")]);
+  assert.equal(handles.code, 0, handles.stderr);
+  const refs = JSON.parse(handles.stdout);
+  for (let index = 0; index < audio.findings.length; index += 1) assert.ok(refs.includes(`media.audio.findings[${index}]`), refs.join(","));
+  assert.ok(refs.includes("media.audio.loudness"));
+  assert.ok(!refs.some((ref) => /listen_check|thresholds/.test(ref)));
 });

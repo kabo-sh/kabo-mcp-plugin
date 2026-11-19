@@ -104,6 +104,13 @@ def evidence_handles(evidence: dict, analysis: dict | None = None) -> set[str]:
                 for i in range(len(((probed.get("shots") or {}).get("shots")) or []))}
     handles |= {f"media.probed.brightness.per_shot[{i}]"
                 for i in range(len(((probed.get("brightness") or {}).get("per_shot")) or []))}
+    # Local sound measurement: each reported finding is citable by index, and so is each measured block,
+    # exactly as a probed signal is. Only what reached the evidence resolves.
+    audio = (evidence.get("media") or {}).get("audio")
+    if isinstance(audio, dict):
+        handles |= {f"media.audio.findings[{i}]" for i in range(len(audio.get("findings") or []))}
+        handles |= {f"media.audio.{name}" for name, value in audio.items()
+                    if name not in ("findings", "listen_check", "thresholds") and isinstance(value, dict)}
     for index, entry in enumerate(evidence.get("acquisition") or []):
         handles |= {f"acquisition[{index}]"}
         handles |= {f"acquisition[{index}].{field}" for field in entry}
