@@ -313,7 +313,8 @@ from build_creator_result import build
 from render_video_report import render
 from validate_creator_shape import check
 ${LOCALE_EVIDENCE}
-audio = {"status": "available", "findings": [], "listen_check": [{"id": "genre_mood_fit", "ask": "What the music is."}],
+audio = {"status": "available", "findings": [], "listen_check": [{"id": "genre_mood_fit", "ask": "What the music is."},
+                                                                  {"id": "accents_on_cuts", "ask": "x"}],
          "voice": {"speech_s": 30.0, "reading": "bed under the voice"}, "onsets": {"count": 40}}
 def built(tag, sound, viewer=None, authored=None):
     ev = dict(evidence, media={"audio": sound} if sound is not None else {})
@@ -365,7 +366,8 @@ print(json.dumps(out, ensure_ascii=False))`);
 });
 
 // The listen line names only what the measurement found: no voice on a video without speech, no music without
-// other sound, sung or spoken only for words over music, effects only with cuts or onsets; with nothing, no line.
+// a bed or lasting other sound, sung or spoken only for words over music, effects only with accents measured on the
+// cuts; with nothing, no line.
 test("listen line: names only the items the sound measurement supports, in every locale, and is omitted when none apply", () => {
   const out = probe(`
 from report_locale import listen_items, listen_note, _CATALOG
@@ -381,8 +383,11 @@ cases = {
     "talking head, silent room": {"voice": {"speech_s": 40.0, "reading": "no bed under the voice"},
                                   "segments": [{"start_s": 0, "end_s": 40, "label": "speech"},
                                                {"start_s": 40, "end_s": 40.1, "label": "non_speech_signal"}]},
-    "voice over a bed, with cuts": {"voice": {"speech_s": 40.0, "reading": "bed under the voice"},
-                                    "cut_alignment": {"cuts": 8}},
+    "voice over a bed, accents on cuts": {"voice": {"speech_s": 40.0, "reading": "bed under the voice"},
+                                          "cut_alignment": {"cuts": 8}, "listen_check": [{"id": "accents_on_cuts", "ask": "x"}]},
+    "talking head, a short sting": {"voice": {"speech_s": 50.0, "reading": "no bed under the voice"}, "duration_s": 60,
+                                    "segments": [{"start_s": 55, "end_s": 58, "label": "non_speech_signal"}],
+                                    "onsets": {"count": 40}, "cut_alignment": {"cuts": 9}},
     "short speech, no reading": {"voice": {"speech_s": 3.0, "reading": None}},
     "unclear words": {"voice": {"speech_s": 4.0, "reading": None},
                       "listen_check": [{"id": "unclear_words", "ask": "x"}]},
@@ -395,13 +400,14 @@ for name, sound in cases.items():
     ev = {"media": {"audio": audio}}
     out["lines"][name] = {code: listen_note(ev, code) for code in _CATALOG}
 full = {"voice": {"speech_s": 40.0, "reading": "bed under the voice"}, "onsets": {"count": 3}}
-out["full"] = {code: listen_note({"media": {"audio": dict(full, listen_check=check_ask)}}, code) for code in _CATALOG}
+out["full"] = {code: listen_note({"media": {"audio": dict(full, listen_check=check_ask + [{"id": "accents_on_cuts", "ask": "x"}])}}, code) for code in _CATALOG}
 out["phrases"] = {code: entry["listen"] for code, entry in _CATALOG.items()}
 print(json.dumps(out, ensure_ascii=False))`);
-  assert.deepEqual(out.items["music only, lyrics heard"], ["music_fit", "track_identity", "sung_or_spoken", "sfx_quality"]);
-  assert.deepEqual(out.items["music only, no words"], ["music_fit", "track_identity", "sfx_quality"]);
+  assert.deepEqual(out.items["music only, lyrics heard"], ["music_fit", "track_identity", "sung_or_spoken"], "onsets and cuts alone do not ask about effects");
+  assert.deepEqual(out.items["music only, no words"], ["music_fit", "track_identity"]);
   assert.deepEqual(out.items["talking head, silent room"], ["voice_timbre"], "a 0.1 s sliver is not a music bed");
-  assert.deepEqual(out.items["voice over a bed, with cuts"], ["music_fit", "track_identity", "sung_or_spoken", "voice_timbre", "sfx_quality"]);
+  assert.deepEqual(out.items["voice over a bed, accents on cuts"], ["music_fit", "track_identity", "sung_or_spoken", "voice_timbre", "sfx_quality"]);
+  assert.deepEqual(out.items["talking head, a short sting"], ["voice_timbre"], "3 s of other sound in 60 s is not a music bed");
   assert.deepEqual(out.items["short speech, no reading"], ["voice_timbre"]);
   assert.deepEqual(out.items["unclear words"], ["sung_or_spoken", "music_fit", "track_identity"].sort((a, b) =>
     ["music_fit", "track_identity", "sung_or_spoken"].indexOf(a) - ["music_fit", "track_identity", "sung_or_spoken"].indexOf(b)));
@@ -427,7 +433,7 @@ print(json.dumps(out, ensure_ascii=False))`);
   assert.equal(out.lines["talking head, silent room"].en,
     "The sound was measured, not listened to: listen for yourself to check how the voice comes across.");
   assert.equal(out.lines["music only, no words"].en,
-    "The sound was measured, not listened to: listen for yourself to check whether the music's genre and mood fit, which track it is and how the sound effects come across.");
+    "The sound was measured, not listened to: listen for yourself to check whether the music's genre and mood fit and which track it is.");
 });
 
 // A view step that fails on something no view edit can fix (the data note cannot be derived from the evidence,

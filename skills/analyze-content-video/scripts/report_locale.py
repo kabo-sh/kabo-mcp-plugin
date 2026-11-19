@@ -41,15 +41,16 @@ def note_words(language: str) -> dict:
 # What the line may ask the creator to listen for, in the order it names them.
 LISTEN_ITEMS = ("music_fit", "track_identity", "sung_or_spoken", "voice_timbre", "sfx_quality")
 # A stretch of other sound shorter than this is a sliver between words, not a music bed.
-MIN_SIGNAL_S = 1.0
+MIN_SIGNAL_S = 3.0  # a short pause with room tone is not a music bed
+MIN_SIGNAL_SHARE = 0.15
 
 
 def listen_items(audio: Any) -> list[str]:
     """The ear-only questions this measurement leaves open, read from its own readings.
 
     The voice's timbre only when speech was recognised and not read as sung; sung or spoken only when words were
-    heard over music; the music's fit and which track it is only when other sound than speech, or a bed under the
-    voice, is present; the effects only when there are cuts or sound onsets."""
+    heard over music; the music's fit and which track it is only when a bed under the voice, or other sound than
+    speech for at least 3 s and 15% of the video, is present; the effects only when accents were measured on the cuts."""
     audio = record(audio)
     voice = record(audio.get("voice"))
     checks = {item.get("id") for item in audio.get("listen_check") or [] if isinstance(item, dict)}
@@ -69,12 +70,15 @@ def listen_items(audio: Any) -> list[str]:
     speech_s = float(speech_s) if isinstance(speech_s, (int, float)) else seconds("speech")
     sung = voice.get("reading") == "words may be sung" or bool(checks & {"sung_or_spoken", "unclear_words"})
     over_music = speech_s > 0 and (sung or voice.get("reading") == "bed under the voice")
-    music = (over_music or seconds("non_speech_signal") >= MIN_SIGNAL_S
-             or bool(checks & {"wordless_sound", "bed_identity"}))
-    onsets = record(audio.get("onsets")).get("count")
-    cuts = record(audio.get("cut_alignment")).get("cuts")
-    effects = ((isinstance(onsets, (int, float)) and onsets > 0) or (isinstance(cuts, (int, float)) and cuts > 0)
-               or "accents_on_cuts" in checks)
+    try:
+        duration = float(audio.get("duration_s") or 0)
+    except (TypeError, ValueError):
+        duration = 0.0
+    other = seconds("non_speech_signal")
+    music = (over_music or bool(checks & {"wordless_sound", "bed_identity"})
+             or (other >= MIN_SIGNAL_S and other >= MIN_SIGNAL_SHARE * duration))
+    # Onsets and cuts exist in almost every edit; ask about effects only when accents were measured on the cuts.
+    effects = "accents_on_cuts" in checks
     applies = {"music_fit": music, "track_identity": music, "sung_or_spoken": over_music,
                "voice_timbre": speech_s > 0 and not sung, "sfx_quality": effects}
     return [item for item in LISTEN_ITEMS if applies[item]]
