@@ -13,7 +13,9 @@ The mode's base card is always included (transcript_export has none). `--focus` 
 the model chose after reading the library's index.md; with none the analysis is the default one
 (`default_only`, which follows the request, not the cards that survived). With `--evidence`, a card whose
 `needs_evidence` kinds are not all present in that evidence is skipped and recorded; without it no card is
-skipped. Unknown or non-topic focus ids, more than two, or a base card the evidence cannot support, exit 2 with a
+skipped. A card may carry a frame hint (`frames`: `include_shot_starts`, `dense_windows`); the selection merges
+the hints of the cards it keeps into `frames` in method.json, which the keyframes request takes as it is (shot
+starts on unless a card turns them off; at most three dense windows, in card order). Unknown or non-topic focus ids, more than two, or a base card the evidence cannot support, exit 2 with a
 message.
 """
 from __future__ import annotations
@@ -32,6 +34,19 @@ SCHEMA_VERSION = "method-selection/v1"
 MODES = ("diagnosis", "content_read", "craft_teardown", "transcript_export")
 EVIDENCE_KINDS = ("frames", "transcript", "measure", "viewer_observations", "metadata")
 MAX_TOPICS = 2
+# The keyframes request's limits on dense windows (collect_media.py sends them as they are).
+MAX_DENSE_WINDOWS = 3
+MIN_DENSE_INTERVAL_S = 0.2
+
+
+def valid_window(window: Any) -> bool:
+    if not isinstance(window, dict) or set(window) != {"start_s", "end_s", "interval_s"}:
+        return False
+    values = [window[key] for key in ("start_s", "end_s", "interval_s")]
+    if not all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in values):
+        return False
+    start, end, interval = values
+    return start >= 0 and end > start and interval >= MIN_DENSE_INTERVAL_S
 
 
 class SelectionError(ValueError):
@@ -55,6 +70,16 @@ def load_index(library: Path) -> dict[str, Any]:
         unknown = [kind for kind in card.get("needs_evidence") or [] if kind not in EVIDENCE_KINDS]
         if unknown:
             raise ValueError(f"method card {card['id']} needs unknown evidence kinds: {', '.join(unknown)}")
+        hint = card.get("frames")
+        if hint is not None and not (
+                isinstance(hint, dict) and set(hint) <= {"include_shot_starts", "dense_windows"}
+                and isinstance(hint.get("include_shot_starts", True), bool)
+                and isinstance(hint.get("dense_windows", []), list)
+                and len(hint.get("dense_windows", [])) <= MAX_DENSE_WINDOWS
+                and all(valid_window(window) for window in hint.get("dense_windows", []))):
+            raise ValueError(f"method card {card['id']} has a frame hint that is not include_shot_starts (true or "
+                             f"false) and up to {MAX_DENSE_WINDOWS} dense_windows of start_s, end_s and interval_s "
+                             f"(at least {MIN_DENSE_INTERVAL_S}s)")
     return index
 
 
@@ -95,6 +120,20 @@ def requested_focus(method: dict[str, Any]) -> list[str]:
                    if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"] not in kept]
 
 
+def frame_plan(cards: list[dict[str, Any]]) -> dict[str, Any]:
+    """The kept cards' frame hints, merged: shot starts on unless a card turns them off, dense windows in card order."""
+    windows: list[dict[str, Any]] = []
+    shots = True
+    for card in cards:
+        hint = card.get("frames") or {}
+        if hint.get("include_shot_starts") is False:
+            shots = False
+        for window in hint.get("dense_windows") or []:
+            if window not in windows:
+                windows.append(window)
+    return {"include_shot_starts": shots, "dense_windows": windows[:MAX_DENSE_WINDOWS]}
+
+
 def select(index: dict[str, Any], mode: str, focus: list[str], evidence: dict[str, Any] | None) -> dict[str, Any]:
     """The selection; `evidence` None is the selection made before the fetch, which skips nothing."""
     if mode not in MODES:
@@ -113,7 +152,7 @@ def select(index: dict[str, Any], mode: str, focus: list[str], evidence: dict[st
     if mode == "transcript_export" and focus:
         raise SelectionError("a transcript export reads no method cards; pass no --focus")
     have = set(EVIDENCE_KINDS) if evidence is None else present_kinds(evidence)
-    chosen, skipped = [], []
+    chosen, skipped, kept = [], [], []
     base = [card for card in index["cards"] if mode in (card.get("base_for") or [])]
     if mode != "transcript_export" and len(base) != 1:
         raise ValueError(f"the method library names {len(base)} base cards for {mode}; it must name exactly one")
@@ -126,11 +165,15 @@ def select(index: dict[str, Any], mode: str, focus: list[str], evidence: dict[st
             skipped.append({"id": card["id"], "reason": f"evidence_missing:{missing[0]}"})
             continue
         chosen.append({"id": card["id"], "version": card.get("version"), "role": role})
+        kept.append(card)
     return {"schema_version": SCHEMA_VERSION, "library_version": index.get("library_version"), "mode": mode,
             # What was asked for, not what survived: a requested topic card skipped for missing evidence is
             # still a focused request, and the brief says it was skipped.
             "cards": chosen, "default_only": not focus,
-            "skipped": skipped}
+            "skipped": skipped,
+            # What the keyframes request adds to its plan; a transcript export takes no frames.
+            "frames": frame_plan(kept) if mode != "transcript_export" else {"include_shot_starts": False,
+                                                                            "dense_windows": []}}
 
 
 def card_text(library: Path, index: dict[str, Any], card_id: str) -> str:

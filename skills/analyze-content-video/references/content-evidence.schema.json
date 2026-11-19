@@ -1080,6 +1080,10 @@
                   "null"
                 ],
                 "description": "Where the frame file is, as a host artifact URI or a path under the run workspace. Required whenever the frames were extracted in this run. Without it the evidence records that a frame exists and not where to look at it, so any consumer that did not do the extraction — a replay, an App drill-down, a re-analysis under a better prompt — can only reuse the descriptions already written into observations. That is the same shape as the transcript defect: a hash identifies a fetch, it cannot be read."
+              },
+              "source": {
+                "enum": ["hook", "body", "closing", "shot_start", "dense_window"],
+                "description": "Why the plan holds this frame: the opening or closing window, the body grid, just after a detected cut, or a dense window a method card asked for. Absent where the plan did not say (a server that took its standard plan)."
               }
             }
           }
@@ -1136,8 +1140,26 @@
             },
             "closing_frame_s": {
               "type": "number",
-              "description": "The last second, sampled explicitly. A 1 fps walk from the opening leaves a remainder at the end, and the call to action lives there."
-            }
+              "description": "Where the closing window starts (the last two seconds, sampled at the opening's spacing). A 1 fps walk from the opening leaves a remainder at the end, and the call to action lives there."
+            },
+            "include_shot_starts": { "type": "boolean" },
+            "shot_detection": {
+              "type": "object",
+              "description": "How the cuts behind the shot-start frames were found. A failed or partial detection means frames at cuts are missing there, not that there were no cuts.",
+              "properties": {
+                "status": { "enum": ["detected", "partial", "failed", "not_requested"] },
+                "cuts": { "type": "integer" },
+                "threshold": { "type": "number" },
+                "read_until_s": { "type": "number" }
+              }
+            },
+            "shot_start_frames": { "type": "integer" },
+            "dense_window_frames": { "type": "integer" },
+            "dense_windows": { "type": "array", "items": { "type": "object" } },
+            "dropped_for_budget": { "type": "object", "additionalProperties": { "type": "integer" } },
+            "dropped_as_duplicate": { "type": "object", "additionalProperties": { "type": "integer" } },
+            "dedupe_s": { "type": "number" },
+            "budget_priority": { "type": "array", "items": { "type": "string" } }
           }
         },
         "origin": {

@@ -139,7 +139,12 @@ ZONED = re.compile(r"(Z|[+-]\d{2}:?\d{2})$")
 SAMPLING_PLAN_KEYS = {
     "base_interval_s", "hook_window_s", "hook_dense_window_s", "hook_interval_s", "hook_frames",
     "body_interval_s", "body_frames", "budget", "frames", "body_degraded", "note", "closing_frame_s",
+    # Present only when shot starts or dense windows were asked for (and the server applied them).
+    "include_shot_starts", "shot_detection", "shot_start_frames", "dense_window_frames", "dense_windows",
+    "dropped_for_budget", "dropped_as_duplicate", "dedupe_s", "budget_priority",
 }
+# Why a frame is in the plan: the same names on the server and on this machine.
+FRAME_SOURCES = {"hook", "body", "closing", "shot_start", "dense_window"}
 # media.encoding closes to additional properties, so the writer filters to exactly its key set
 # rather than passing a probe response through and discovering the mismatch at validation.
 ENCODING_KEYS = {
@@ -1062,6 +1067,7 @@ def frames_block(frames: dict[str, Any] | None, local: dict[str, Any] | None = N
                 "sha256": frame.get("sha256"),
                 "retained_outside_git": True,
                 "path": frame.get("path"),
+                **({"source": frame["source"]} if frame.get("source") in FRAME_SOURCES else {}),
             })
         plan = block.get("sampling_plan")
         plan = {key: value for key, value in plan.items() if key in SAMPLING_PLAN_KEYS} if isinstance(plan, dict) else None
@@ -1094,6 +1100,7 @@ def frames_block(frames: dict[str, Any] | None, local: dict[str, Any] | None = N
             "sha256": frame.get("sha256"),
             "retained_outside_git": True,
             "path": frame.get("object_ref"),
+            **({"source": frame["source"]} if frame.get("source") in FRAME_SOURCES else {}),
         })
     plan = data.get("sampling_plan")
     plan = {key: value for key, value in plan.items() if key in SAMPLING_PLAN_KEYS} if isinstance(plan, dict) else None

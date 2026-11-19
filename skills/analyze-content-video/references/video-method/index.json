@@ -1,6 +1,6 @@
 {
   "schema_version": "video-method-index/v1",
-  "library_version": "1.0.0",
+  "library_version": "1.1.0",
   "cards": [
     {
       "id": "diagnosis-default",
@@ -45,7 +45,10 @@
       },
       "needs_evidence": [
         "frames"
-      ]
+      ],
+      "frames": {
+        "include_shot_starts": true
+      }
     },
     {
       "id": "opening",
@@ -73,7 +76,16 @@
           "开场"
         ]
       },
-      "needs_evidence": []
+      "needs_evidence": [],
+      "frames": {
+        "dense_windows": [
+          {
+            "start_s": 0,
+            "end_s": 5,
+            "interval_s": 0.25
+          }
+        ]
+      }
     },
     {
       "id": "narrative-structure",
@@ -136,7 +148,10 @@
       },
       "needs_evidence": [
         "measure"
-      ]
+      ],
+      "frames": {
+        "include_shot_starts": true
+      }
     },
     {
       "id": "sound",

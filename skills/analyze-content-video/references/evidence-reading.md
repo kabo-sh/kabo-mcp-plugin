@@ -5,11 +5,16 @@ the first data call of a run.
 
 ## Frame sampling
 
-The request asks for at most 60 frames with `"sampling": "duration_scaled"`: twice a second through
-the opening three seconds, then one a second, spread out evenly once a longer video would exceed the
-cap (`observe_video.py` adds `max_frames`). That plan already samples the opening densely, so never pass
-`fps`: it applies only to `evenly_spaced`, is capped at 2, and a higher value is rejected as
-invalid input.
+The request asks for at most 120 frames with `"sampling": "duration_scaled"`: twice a second through
+the opening three seconds and the closing two, one a second between them, the body spread out evenly
+once a longer video would exceed the cap. It also asks for a frame just after each detected cut
+(`include_shot_starts`) and for the dense windows the selected method cards name (`dense_windows`,
+from `analysis/method.json`); `observe_video.py` adds all of these, so never write them yourself and
+never pass `fps`: it applies only to `evenly_spaced`, is capped at 2, and a higher value is rejected
+as invalid input. Each frame's `source` says why it is there (`hook`, `closing`, `body`, `shot_start`,
+`dense_window`); a server that does not take the cut and window options yet returns the standard
+plan, the frames carry no `source`, and the script says so: then no frame sits at a cut on purpose.
+Read the frames 15 to a call, as the script prints the reads.
 `sampling_plan` records requested sampling, not verified decoded timestamps or viewing coverage; even `t_seconds` may be a nominal requested point. Without verified actual decode
 records, never state a planned interval as actual spacing in judgment or creator cards. Describe it
 only as a planned/requested sampling limitation. Judge the hook over `frames.sampling_plan.hook_window_s`

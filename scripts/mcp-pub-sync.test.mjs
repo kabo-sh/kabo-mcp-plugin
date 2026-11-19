@@ -246,24 +246,24 @@ test("job-call: the same run, tool, arguments and attempt number yield the same 
   }
 });
 
-test("job-call: frame-extraction requests of ACV and deep get max_frames 60 added, an explicit smaller value is kept, and more than 60 is rejected", async (t) => {
+test("job-call: frame-extraction requests get the Skill's max_frames cap added (ACV 120, the contract's maximum; deep 60), an explicit smaller value is kept, and more is rejected", async (t) => {
   const url = "https://www.youtube.com/watch?v=abc";
-  for (const skill of ["analyze-content-video", "review-creator-account-deep"]) {
+  for (const [skill, cap] of [["analyze-content-video", 120], ["review-creator-account-deep", 60]]) {
     const run = await newRun(t, skill);
     const host = path.join(scripts(skill), "static_host.py");
     const call = (tool, parameters) => attempt([host, "job-call", "--tool", tool, "--parameters", parameters], { cwd: run, run });
     for (const tool of ["public_video_extract_keyframes", "public_video_extract_keyframes_hosted_media", "public_video_extract_keyframes_hosted_stream"]) {
       const capped = call(tool, JSON.stringify({ url }));
       assert.equal(capped.exit, 0, capped.stderr);
-      assert.deepEqual(JSON.parse(capped.stdout).arguments.parameters, { url, max_frames: 60 });
+      assert.deepEqual(JSON.parse(capped.stdout).arguments.parameters, { url, max_frames: cap });
     }
     assert.equal(JSON.parse(call("public_video_extract_keyframes", JSON.stringify({ url, max_frames: 30 })).stdout).arguments.parameters.max_frames, 30);
     // The frame-count cap belongs to frame extraction only; the arguments of other media calls are unchanged.
     assert.deepEqual(JSON.parse(call("public_video_fetch_transcript", JSON.stringify({ url })).stdout).arguments.parameters, { url });
-    for (const frames of [120, 0, "60", true]) {
+    for (const frames of [cap + 1, 0, "60", true]) {
       const refused = call("public_video_extract_keyframes", JSON.stringify({ url, max_frames: frames }));
       assert.equal(refused.exit, 1);
-      assert.match(refused.stderr, /max_frames must be an integer from 1 to 60/);
+      assert.match(refused.stderr, new RegExp(`max_frames must be an integer from 1 to ${cap}`));
     }
   }
   // The planned arguments of deep must pass job-call: a planned value over the cap would make every frame
