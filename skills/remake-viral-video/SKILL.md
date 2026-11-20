@@ -91,7 +91,8 @@ that, not by how the request is worded ("remake" included):
 8. **End on the outcome.** When the story ends on a result (the dish plated, the box opened, the
    thing finished), the last shot is that result alone: its still already shows it (the food on
    the plate), and the step before it is its own shot. A clip asked to do "plate it, then smile"
-   often stops halfway, and the video then ends without its payoff.
+   often stops halfway, and the video then ends without its payoff. Everything the creator asked
+   to see goes in `storyboard.asked` (short phrases), each with its own shot.
 
 | Keep | Change | Step | Redraws the face |
 |---|---|---|---|

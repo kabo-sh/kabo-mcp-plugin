@@ -61,6 +61,12 @@ request after an unknown outcome.
   make illustrative cards for those screens, say in your plan message that a screen recording
   would replace them, and go on; do not stop to wait for one.
 
+- **The project receipt says what each upload holds.** It lists what each uploaded clip says (its
+  language and first words, "no speech heard" when silent) and marks uploads that are screen
+  captures (status bar, clock, battery). Plan languages, speakers and versions from that, never
+  from the upload order or file names; a capture it marks is a reference for the idea, the look or
+  the text -- animate one as a shot only when the creator asked to show that screen.
+
 ## Break the reference down first, then keep its form
 
 Before the first paid step of any video made like a reference:
@@ -191,6 +197,17 @@ words/s brisk dialogue). If the save notes say the rows miss the target, fix the
 target. For narration and voice-over, give every shot its own line (`tts` + `mux` with
 `params.shot`) and join with `concat` `params.shots: "all"`; never lay one voice track over the
 whole cut -- the join then fits each shot to its share, a pause after its line.
+
+**What the creator asked to see.** Put what the creator explicitly asked to see in
+`storyboard.asked` as short phrases ("cutting the noodles", "plating the ramen"); every item gets
+its own shot. A save that leaves one out comes back with a note naming it.
+
+**Opening and narration.** Open on a moving shot. Narration states each fact once and never asks
+a question the video has already answered (listing the costs, then asking "how much did it cost?").
+
+**A revision** keeps the last version's length and what worked in it. "Make it fun / livelier /
+better" means new shots, new sound or new pacing, not only new on-screen text; the delivery receipt
+says when a version is much shorter than the last or only changed text.
 
 **One action per shot.** A row's `motion` is ONE action by ONE subject (or several subjects acting
 at the same time). Never "X, then Y", "first ... then ...", "near the end ..." in one row -- split it
