@@ -30,8 +30,9 @@ incomplete.
   video was produced. These jobs ran paid steps and count toward the daily limit; do not say
   otherwise. Do not resubmit on your own; offer to start a new remake if the creator wants one.
 - Refused because of the limit: when the daily limit is reached, say no new remake was started,
-  nothing was charged and they can start another tomorrow. When another remake is still running,
-  say one remake runs at a time and look at that job if this conversation has its `job_id`.
+  nothing was charged and they can start another tomorrow. When the account already has 3
+  remakes running, say up to 3 run at the same time and this one waits for one of them to finish;
+  look at those jobs if this conversation has their `job_id`.
 - Any other failure: relay its reason and the reported spend; do not guess whether it was charged.
 - A status call that fails: try once more; if it still fails, say the job is preserved and can be
   checked later with its job id. Never start a replacement job for an unknown outcome.

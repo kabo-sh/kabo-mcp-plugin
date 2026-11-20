@@ -28,9 +28,10 @@ line edit takes. Look at these before asking the creator for material.
 
 ## Sending steps
 
-- **One step at a time, but one step can be a batch.** An account runs one video step at a time.
-  Send one step, read its result (read the status until it is done), then send the next; never
-  send several steps together -- the extra ones are refused (`in_flight`), which is not a limit.
+- **One step at a time, but one step can be a batch.** A video (one job) runs one step at a
+  time; up to 3 videos of an account can each run a step at once. In one job, send one step, read
+  its result (read the status until it is done), then send the next; never send several steps of
+  the same job together -- the extra ones are refused (`in_flight`), which is not a limit.
   Pictures for the same video go in one batch step instead: one `still` with `prompts` (2-8) or
   one `animate` with `images` (2-8) makes them all at the same time, each into its own new handle
   (`last_step.handles`, in order), which is much faster than one step per picture. If some items
