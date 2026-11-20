@@ -63,8 +63,8 @@ those by hand.
    ```
 
 3. The tag runs `.github/workflows/installer-publish.yml`. It checks that the tag matches
-   `installer/package.json` and points at a commit on main, runs the drift test and publishes with
-   `npm publish`. If the `npm-publish` environment requires a reviewer, approve the run in GitHub Actions.
+   `installer/package.json` and points at a commit on main, runs the drift test and the installer's own
+   tests, and publishes with `npm publish`. If the `npm-publish` environment requires a reviewer, approve the run in GitHub Actions.
 4. Check the result with `npm view kabo-sh version` and `npx kabo-sh@<version> install --dry-run`.
 
 Installer tags (`installer-v*`) are separate from plugin release tags (`v*`) and do not create a GitHub
