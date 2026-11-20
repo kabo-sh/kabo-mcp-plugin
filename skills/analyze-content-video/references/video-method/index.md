@@ -27,6 +27,8 @@ evidence that makes it stronger.
   emotion" adds `emotion` and `opening`.
 - A question about one aspect inside a craft teardown ("how was the colour done?") adds that topic
   card to `craft-shot-description`.
+- "What song is this?" is a find-the-song request, not the `sound` card: no card, and
+  `--ask identify_track` instead (it never starts a whole-video viewing).
 - Transcript export loads no card.
 - A skipped card is recorded; answer that aspect from the base card and say which evidence was
   missing.

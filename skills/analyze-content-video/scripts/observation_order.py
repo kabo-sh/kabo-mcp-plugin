@@ -9,14 +9,16 @@ read that source is the tool's own answer, and an unsupported answer ends that s
 (platform, duration when known, what already failed, the analysis mode, the method cards selected before the
 fetch) and nothing else. It never looks at which host runs it.
 
-Two modes bend the table, the same way on every host:
+Two modes and one kind of question bend the table, the same way on every host:
 - `transcript_export` never uses the paid whole-video viewing, not even as a fallback: its answer is the media
   call's transcript, and a finished transcript with no words (music only) is that answer, not a failure.
+- A find-the-song request (`--ask identify_track`, recorded by select_method.py) never starts a viewing either:
+  a track is named only from metadata, on-screen text and speech, never by ear.
 - `craft_teardown` reads frames (its base method card needs them), so a viewing never stands alone there:
   `whole_video` becomes `combined` (or `server_frames` where the viewing is unavailable).
 
     python3 observation_order.py --platform tiktok [--duration-s 42] [--failed server_frames] [--mode MODE]
-        [--cards sound,opening] [--observe-source ID]
+        [--cards sound,opening] [--ask identify_track] [--observe-source ID]
 
 prints {"source": "<id>" | null, "reason": "..."}.
 """
@@ -37,9 +39,32 @@ SOURCES = ("server_frames", "whole_video", "local_frames", "combined")
 # Sources a public link can use. local_frames belongs to a file on the creator's machine only: a link is never
 # downloaded locally.
 PUBLIC_SOURCES = ("server_frames", "whole_video", "combined")
-# When the server could not fetch the video itself (deleted, region-limited), another, paid path cannot fetch it
-# either: no fallback after that.
-NO_FALLBACK_AFTER = {"source_unavailable"}
+# When the server could not fetch the video itself (deleted, private, region-limited), another, paid path cannot
+# fetch it either: no fallback after that.
+SOURCE_UNAVAILABLE = "source_unavailable"
+NO_FALLBACK_AFTER = {SOURCE_UNAVAILABLE}
+# The one evidence marker for that case (a limitation line, whichever script records it) and the one statement the
+# creator gets, the same on every path: the observation, the evidence builder and the brief all use these two.
+SOURCE_UNAVAILABLE_MARK = ("source_unavailable: the video itself could not be fetched (it may be deleted, private "
+                           "or limited to some regions), so nothing in it was seen or heard.")
+SOURCE_UNAVAILABLE_REPLY = ("This video can't be opened: it may have been deleted, made private or limited to some "
+                            "regions. Send another public link or the video file and I'll analyse that instead.")
+# The one total observation deadline, counted from the first fetch and the same on every host. Kabo Web ends a turn
+# at 500 seconds: a throttled download once held the fetch step for 477 seconds and the turn died with no reply.
+# 240 seconds leaves the rest of the turn for the evidence, the analysis and the reply.
+OBSERVE_DEADLINE_S = 240
+# A source started after the first one (a fallback, or a viewing waiting for the duration) starts only while this
+# much of the deadline is left: a viewing of a video up to ten minutes normally finishes in one to two minutes, the
+# frames and transcript of a media call in about one.
+MIN_LEFT_S = {"whole_video": 120, "combined": 120, "server_frames": 60}
+# The line recorded when the deadline stops the observation, and the limitation it leaves in the evidence.
+DEADLINE_MARK = "Observation deadline reached"
+DEADLINE_TEXT = (DEADLINE_MARK + " ({deadline}s): {what} did not arrive in time, so the analysis uses only what had "
+                 "arrived.")
+# Requests that never start a whole-video viewing, whatever the mode and cards.
+NO_VIEWER_ASKS = {"identify_track"}
+ASKS = ("identify_track",)
+ASK_NAMES = {"identify_track": "find-the-song request"}
 VIEWER_SOURCES = ("whole_video", "combined")
 # What each source is made of; a set of parts maps back to exactly one source name.
 PARTS = {"server_frames": ("server_frames",), "whole_video": ("whole_video",),
@@ -92,9 +117,19 @@ def available(order: dict[str, Any], source: str, platform: str | None, duration
     return False, f"{source} is not a source for a public link"
 
 
-def for_mode(source: str, mode: str | None) -> list[str]:
+def viewer_barred(mode: str | None, ask: str | None) -> bool:
+    """Whether this run never starts a whole-video viewing: a transcript export, or a find-the-song request."""
+    return mode in NO_VIEWER_MODES or ask in NO_VIEWER_ASKS
+
+
+def barred_by(mode: str | None, ask: str | None) -> str:
+    """What bars the viewing, in words: the request kind when there is one, the mode otherwise."""
+    return ASK_NAMES.get(ask or "", mode or "")
+
+
+def for_mode(source: str, mode: str | None, ask: str | None = None) -> list[str]:
     """What one table entry stands for in this mode: the entry itself, or what replaces it."""
-    if mode in NO_VIEWER_MODES and source in VIEWER_SOURCES:
+    if viewer_barred(mode, ask) and source in VIEWER_SOURCES:
         return []
     if mode in FRAMES_MODES and source == "whole_video":
         return ["combined", "server_frames"]
@@ -102,7 +137,8 @@ def for_mode(source: str, mode: str | None) -> list[str]:
 
 
 def with_cards(order: dict[str, Any], source: str, reason: str, *, cards: list[str] | tuple[str, ...],
-               platform: str | None, duration_s: float | None, tried: list[str], mode: str | None) -> tuple[str, str]:
+               platform: str | None, duration_s: float | None, tried: list[str], mode: str | None,
+               ask: str | None = None) -> tuple[str, str]:
     """`source` plus whatever the selected method cards add to it (`add_when_cards`), where that is available."""
     parts = set(PARTS[source])
     notes = []
@@ -110,8 +146,8 @@ def with_cards(order: dict[str, Any], source: str, reason: str, *, cards: list[s
         for extra in order["add_when_cards"].get(card, []):
             if extra in parts or extra in tried:
                 continue
-            if extra == "whole_video" and mode in NO_VIEWER_MODES:
-                notes.append(f"the {card} card would add whole_video, but a {mode} never starts a viewing")
+            if extra == "whole_video" and viewer_barred(mode, ask):
+                notes.append(f"the {card} card would add whole_video, but a {barred_by(mode, ask)} never starts a viewing")
                 continue
             ok, why = available(order, extra, platform, duration_s)
             if not ok:
@@ -126,13 +162,15 @@ def with_cards(order: dict[str, Any], source: str, reason: str, *, cards: list[s
 def choose(order: dict[str, Any], *, platform: str | None, duration_s: float | None = None,
            failed: list[str] | tuple[str, ...] = (), failure_code: str | None = None,
            force: str | None = None, local_file: bool = False, mode: str | None = None,
-           cards: list[str] | tuple[str, ...] = ()) -> tuple[str | None, str]:
+           cards: list[str] | tuple[str, ...] = (), ask: str | None = None) -> tuple[str | None, str]:
     """The next source to use, or None when nothing is left, with the reason."""
+    if ask is not None and ask not in ASKS:
+        raise ValueError(f"--ask takes one of {', '.join(ASKS)}; got {ask!r}")
     if force is not None:
         if force not in SOURCES:
             raise ValueError(f"--observe-source takes one of {', '.join(SOURCES)}; got {force!r}")
-        if mode in NO_VIEWER_MODES and force in VIEWER_SOURCES:
-            return "server_frames", f"forced {force}, but a {mode} never starts a whole-video viewing"
+        if viewer_barred(mode, ask) and force in VIEWER_SOURCES:
+            return "server_frames", f"forced {force}, but a {barred_by(mode, ask)} never starts a whole-video viewing"
         if mode in FRAMES_MODES and force == "whole_video":
             return "combined", f"forced whole_video, but a {mode} needs frames beside the viewing"
         return force, "forced by --observe-source"
@@ -148,9 +186,9 @@ def choose(order: dict[str, Any], *, platform: str | None, duration_s: float | N
     reasons = []
     expanded = []
     for entry in candidates:
-        replaced = for_mode(entry, mode)
+        replaced = for_mode(entry, mode, ask)
         if not replaced:
-            reasons.append(f"a {mode} never starts a whole-video viewing")
+            reasons.append(f"a {barred_by(mode, ask)} never starts a whole-video viewing")
         expanded += [source for source in replaced if source not in expanded]
     for source in expanded:
         # combined contains server_frames and whole_video; once either failed it is not chosen again.
@@ -160,7 +198,7 @@ def choose(order: dict[str, Any], *, platform: str | None, duration_s: float | N
         ok, why = available(order, source, platform, duration_s)
         if ok:
             return with_cards(order, source, "default order" if not tried else f"fallback after {tried[-1]} failed",
-                              cards=cards, platform=platform, duration_s=duration_s, tried=tried, mode=mode)
+                              cards=cards, platform=platform, duration_s=duration_s, tried=tried, mode=mode, ask=ask)
         reasons.append(why)
     return None, "; ".join(reasons) or "no source left in the observation order"
 
@@ -173,6 +211,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--failure-code")
     parser.add_argument("--mode")
     parser.add_argument("--cards", default="", help="the method card ids select_method.py chose, comma-separated")
+    parser.add_argument("--ask", choices=ASKS, help="the kind of request select_method.py recorded, if any")
     parser.add_argument("--observe-source", help="test only: force one source")
     parser.add_argument("--local-file", action="store_true")
     parser.add_argument("--order", type=Path, help="test only: another observation-order table")
@@ -180,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         source, reason = choose(load_order(args.order), platform=args.platform, duration_s=args.duration_s,
                                 failed=args.failed, failure_code=args.failure_code, force=args.observe_source,
-                                local_file=args.local_file, mode=args.mode,
+                                local_file=args.local_file, mode=args.mode, ask=args.ask,
                                 cards=[item.strip() for item in args.cards.split(",") if item.strip()])
     except (ValueError, OSError, json.JSONDecodeError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}))

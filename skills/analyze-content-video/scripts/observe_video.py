@@ -23,7 +23,7 @@ observation_order.py says: a transcript export never starts a viewing, a craft t
 The paid viewing starts only once the video's duration is known to be within the whole-video limit: from
 `--duration-s`, the media results (metadata, frames, measurement or transcript, in a call already being made or the
 viewing's own media call, which measures the file while the duration is unknown) or the YouTube metadata envelope
-the run persisted. A run where every source came back empty prints `nothing_observed` and no build arguments. Until then it waits
+the run persisted. A run where every source came back empty prints `source_unavailable` and no build arguments. Until then it waits
 in the rounds the media call already takes; when the duration stays unknown or is over the limit, no viewing
 starts, a limitation says why, and the other source carries on (or, with nothing left, the run ends with that gap).
 
@@ -41,6 +41,13 @@ for build_content_evidence.py and the one frame read.
 
 At most one whole-video analysis is started per run: its idempotency key never changes, so re-sending the
 call after a lost answer replays the same analysis instead of starting a paid second one.
+
+The whole observation has one deadline, `observation_order.OBSERVE_DEADLINE_S` (240 seconds) from the first
+hand-over, the same on every host. At the deadline it stops waiting: a job or viewing still running is recorded as
+not arrived in time (a `--deferred-incomplete` job and one limitation line), a fallback starts only while enough of
+the deadline is left for it to finish (`observation_order.MIN_LEFT_S`), and the run goes on with what arrived.
+The status line says how it ended: `observed`, `timed_out` (nothing to look at arrived in time) or
+`source_unavailable` (the video itself could not be read: a result said so, or every source came back empty).
 """
 from __future__ import annotations
 
@@ -82,8 +89,8 @@ POLL_INTERVAL_S = 40
 # A completed result whose download expired or could not be read is asked for again with get_analysis_run (it only
 # reads; nothing is re-run or charged): with a new link after an expiry, inline otherwise. At most this many times.
 MAX_REDELIVERIES = 2
-# A video of up to ten minutes is normally analysed in one to two minutes; stop waiting well after that.
-VIEWER_BUDGET_S = 8 * 60
+# The whole observation, the viewing included, stops waiting at one deadline (observation_order.OBSERVE_DEADLINE_S);
+# besides it, at most this many readings, for a host that answers at once every time.
 MAX_POLLS = 15
 MODES = ("diagnosis", "content_read", "craft_teardown", "transcript_export")
 MODE_OPERATIONS = {
@@ -180,13 +187,44 @@ def resume_command(current: dict[str, Any]) -> str:
         collect_media.quote(part) for part in argv)
 
 
-def selected_cards() -> list[str]:
-    """The method cards select_method.py chose from the request before the fetch (none when it did not run)."""
+def selected_method() -> tuple[list[str], str | None]:
+    """The method cards select_method.py chose from the request before the fetch, and the kind of request it
+    recorded (`ask`); none when it did not run."""
     chosen = static_host.run_dir() / "analysis" / "method.json"
     if not chosen.is_file():
-        return []
+        return [], None
     method = json.loads(chosen.read_text(encoding="utf-8"))
-    return [str(card["id"]) for card in method.get("cards") or [] if isinstance(card, dict) and card.get("id")]
+    ask = method.get("ask") if method.get("ask") in observation_order.ASKS else None
+    return [str(card["id"]) for card in method.get("cards") or [] if isinstance(card, dict) and card.get("id")], ask
+
+
+def deadline_left(current: dict[str, Any]) -> float:
+    """Seconds left of the observation deadline, counted from the first hand-over (negative once it passed)."""
+    return observation_order.OBSERVE_DEADLINE_S - seconds_since(current.get("started_at"))
+
+
+def time_for(current: dict[str, Any], source: str) -> bool:
+    """Whether enough of the deadline is left to start `source` and still see it finish."""
+    return deadline_left(current) >= observation_order.MIN_LEFT_S.get(source, 0)
+
+
+# What each media operation brings, in the words the limitation line uses.
+OPERATION_WORDS = {"extract_keyframes": "the frames", "fetch_transcript": "the transcript",
+                   "measure_media_signals": "the measurements", "collect_public_metadata": "the post's metadata"}
+
+
+def joined(items: list[str]) -> str:
+    """`a`, `a and b`, `a, b and c`."""
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def record_timeout(current: dict[str, Any], what: list[str]) -> None:
+    """One limitation line naming what had not arrived when the deadline stopped the observation."""
+    late = list(dict.fromkeys([*(current.get("timed_out") or []), *what]))
+    current["timed_out"] = late
+    text = observation_order.DEADLINE_TEXT.format(deadline=observation_order.OBSERVE_DEADLINE_S, what=joined(late))
+    current["limitations"] = [line for line in current.get("limitations") or []
+                              if not line.startswith(observation_order.DEADLINE_MARK)] + [text]
 
 
 def viewer_arguments(current: dict[str, Any], *, start: bool) -> dict[str, Any]:
@@ -257,14 +295,14 @@ def hand_over_calls(current: dict[str, Any], *, start_viewer: bool, poll_viewer:
 def start(args: argparse.Namespace) -> int:
     url = collect_media.video_source(args.url)
     platform = platform_of(url)
-    cards = selected_cards()
+    cards, ask = selected_method()
     order = observation_order.load_order()
     source, reason = observation_order.choose(order, platform=platform, duration_s=args.duration_s,
-                                              force=args.observe_source, mode=args.mode, cards=cards)
+                                              force=args.observe_source, mode=args.mode, cards=cards, ask=ask)
     if source is None or source == "local_frames":
         raise ValueError(f"no observation source for this link: {reason}")
     current = {"url": url, "mode": args.mode, "platform": platform, "duration_s": args.duration_s, "cards": cards,
-               "source": source, "reason": reason, "tried": [], "started_at": now().isoformat(),
+               "ask": ask, "source": source, "reason": reason, "tried": [], "started_at": now().isoformat(),
                "viewer": {"active": False}, "media": {"active": False}}
     save_state(current)
     analysis = static_host.run_dir() / "analysis"
@@ -440,8 +478,13 @@ def viewer_gate(current: dict[str, Any], *, media_in_flight: bool) -> tuple[str,
     """("start" | "wait" | "refuse", code): whether the paid viewing may start now."""
     limit_s = observation_order.load_order()["whole_video_max_ms"] / 1000
     duration = known_duration(current)
+    if duration is not None and duration > limit_s:
+        return "refuse", "too_long"
+    if not time_for(current, "whole_video"):
+        # Started now, it would not finish inside the observation deadline.
+        return "refuse", "deadline"
     if duration is not None:
-        return ("start", "") if duration <= limit_s else ("refuse", "too_long")
+        return "start", ""
     if media_in_flight:
         return "wait", ""
     # No round is handed over just to learn the duration: what the media call measured, what --duration-s gave and
@@ -452,6 +495,7 @@ def viewer_gate(current: dict[str, Any], *, media_in_flight: bool) -> tuple[str,
 GATE_TEXT = {
     "too_long": "the video runs {duration}s, past the whole-video limit of {limit}s",
     "duration_unknown": "the video duration could not be read first, and the viewing takes only videos up to {limit}s",
+    "deadline": "too little of the {deadline}s observation deadline was left for it to finish",
 }
 
 
@@ -460,7 +504,8 @@ def refuse_viewer(current: dict[str, Any], code: str) -> None:
     limit_s = observation_order.load_order()["whole_video_max_ms"] // 1000
     duration = current.get("duration_s")
     text = "Whole-video viewing not started because " + GATE_TEXT[code].format(
-        duration=f"{duration:g}" if isinstance(duration, (int, float)) else "?", limit=limit_s) + "."
+        duration=f"{duration:g}" if isinstance(duration, (int, float)) else "?", limit=limit_s,
+        deadline=observation_order.OBSERVE_DEADLINE_S) + "."
     current["viewer_deferred"] = False
     current.setdefault("limitations", []).append(text)
     if current["source"] == "combined":
@@ -477,6 +522,17 @@ def activate_viewer(current: dict[str, Any]) -> None:
     current["viewer_deferred"] = False
     current["viewer"] = {"active": True, "key": viewer_key(), "analysis_id": None, "status": None,
                          "polls": 0, "started_at": now().isoformat(), "read_at": None, "done": False}
+
+
+def late_operations() -> list[str]:
+    """What the media jobs still running would have brought, in plain words, in request order."""
+    record = (static_host.composite_records(MEDIA_TOOL) or [{}])[-1]
+    late = []
+    for job in (record.get("summary") or {}).get("jobs") or []:
+        if isinstance(job, dict) and job.get("status") in static_host.PENDING:
+            operation = str(job.get("group") or job.get("operation") or "").rsplit("/", 1)[-1]
+            late.append(OPERATION_WORDS.get(operation, operation))
+    return late or ["the media"]
 
 
 def media_pending(current: dict[str, Any]) -> int:
@@ -569,10 +625,17 @@ def fall_back(current: dict[str, Any], failed: str, code: str | None) -> int | N
     order = observation_order.load_order()
     source, reason = observation_order.choose(order, platform=current["platform"], duration_s=current["duration_s"],
                                               failed=current["tried"], failure_code=code, mode=current["mode"],
-                                              cards=current.get("cards") or [])
+                                              cards=current.get("cards") or [], ask=current.get("ask"))
     if source in {"whole_video", "combined"} and current["viewer"].get("active"):
         # Never a second paid whole-video analysis in one run.
         source, reason = None, "a whole-video viewing already ran in this run"
+    elif source is not None and not time_for(current, source):
+        # Started now, the fallback would not finish inside the observation deadline: go on with what arrived.
+        text = ("whole-video viewing was" if source in {"whole_video", "combined"} else "frames and transcript were")
+        current.setdefault("limitations", []).append(
+            f"No fallback {text} started: too little of the {observation_order.OBSERVE_DEADLINE_S}s observation "
+            "deadline was left to finish.")
+        source, reason = None, f"too little of the observation deadline is left for {source}"
     current.setdefault("fallback_notes", []).append(f"{failed} failed ({code or 'no usable evidence'}); "
                                                      + (f"falling back to {source}" if source else reason))
     if source is None:
@@ -606,6 +669,7 @@ def settle(current: dict[str, Any]) -> int:
     if current["source"] == "whole_video" and not viewer_ok:
         code = ((viewer.get("error") or {}).get("code") if viewer.get("status") == "error"
                 or (viewer.get("error") or {}).get("code") == "unsupported_source"
+                else "timed_out" if viewer.get("timed_out")
                 else ("still_running" if viewer.get("status") in viewer_response.PENDING else viewer.get("status")))
         moved = fall_back(current, "whole_video", code)
         if moved is not None:
@@ -629,20 +693,32 @@ def settle(current: dict[str, Any]) -> int:
     current["done"] = True
     save_state(current)
     nothing = not observed_anything(current, media)
-    say(json.dumps({"status": "nothing_observed" if nothing else "observed", "source": current["source"],
-                    "tried": current["tried"], "whole_video": viewer.get("status") if viewer.get("active") else None,
-                    "media_pending": media["pending"] if media else []}, ensure_ascii=False))
+    late = current.get("timed_out") or []
+    # How the observation ended. Nothing observed with no deadline in the way means the video itself could not be
+    # read, whether a result said so (`data.source_unavailable`) or every source just came back empty: one status
+    # and one statement for both, so a deleted or private video ends the same way on every run.
+    gone = bool(media and media["source_unavailable"])
+    status = ("observed" if not nothing
+              else "timed_out" if late and not gone else observation_order.SOURCE_UNAVAILABLE)
+    say(json.dumps({"status": status, "source": current["source"], "tried": current["tried"],
+                    "whole_video": viewer.get("status") if viewer.get("active") else None,
+                    "media_pending": media["pending"] if media else [], "timed_out": late}, ensure_ascii=False))
     for line in dict.fromkeys(current.get("fallback_notes") or []):
         say("Fallback: " + line)
     if media and media.get("frames_note"):
         say("Frames: " + media["frames_note"])
-    if nothing:
-        say("Every observation source came back empty: no frames, no transcript words and no whole-video notes. "
-            "There is nothing to analyse, so do not build a report or describe the video's content. Follow "
-            "*Stops and gaps* in the Skill: tell the creator in one or two sentences that this video could not be "
-            "read (it may be deleted, private or limited to some regions), ask for another public link or the video "
-            "file, and stop.")
+    if status == observation_order.SOURCE_UNAVAILABLE:
+        say("Evidence: " + observation_order.SOURCE_UNAVAILABLE_MARK + " There is nothing to analyse: do not build "
+            "the evidence, a report or an answer about the video's content. Follow *Stops and gaps* in the Skill: "
+            "send the creator this statement, in their language, and nothing more, then stop: "
+            + observation_order.SOURCE_UNAVAILABLE_REPLY)
         return 0
+    if late:
+        say(f"The observation stopped at its {observation_order.OBSERVE_DEADLINE_S}-second deadline: "
+            + joined(late) + " did not arrive in time. Do not wait or call again. Build the evidence and go on "
+            "with what arrived (the post's metadata, a transcript if any); the first lines of the report or answer "
+            "must say plainly that " + joined(late) + " did not arrive in time, never that a step failed."
+            + (" prepare_analysis.py says what to tell the creator if nothing usable arrived." if nothing else ""))
     if viewer.get("active") and not viewer_ok:
         say("The whole-video viewing did not complete, so its notes are unavailable; the evidence builder records "
             "that. Say so beside the claims it weakens, never as a backend failure.")
@@ -700,19 +776,24 @@ def resume(args: argparse.Namespace) -> int:
     save_state(current)
 
     viewer = current["viewer"]
+    in_time = deadline_left(current) > 0
     # A finished result whose download must be asked for again is read again whatever the time: those readings are
-    # bounded by MAX_REDELIVERIES.
+    # bounded by MAX_REDELIVERIES and wait for nothing.
     viewer_waiting = bool(viewer.get("active") and not viewer.get("done")
                           and (viewer.get("redeliver")
-                               or (seconds_since(viewer.get("started_at")) < VIEWER_BUDGET_S
-                                   and int(viewer.get("polls") or 0) < MAX_POLLS)))
+                               or (in_time and int(viewer.get("polls") or 0) < MAX_POLLS)))
+    if viewer.get("active") and not viewer.get("done") and not viewer_waiting and not in_time:
+        viewer["timed_out"] = True
+        record_timeout(current, ["the whole-video viewing"])
     media_waiting = media_refused
     if current["media"].get("active") and not current["media"].get("done") and not media_refused:
         media_state = collect_media.state()
         pending = media_pending(current)
-        media_waiting = bool(pending and collect_media.waited_s(media_state) < collect_media.WAIT_BUDGET_S
-                             and int(media_state.get("rounds") or 0) < collect_media.MAX_ROUNDS)
-        if not media_waiting and collect_media.options_refused_in(static_host.composite_records(MEDIA_TOOL)[-1]):
+        media_waiting = bool(pending and in_time and int(media_state.get("rounds") or 0) < collect_media.MAX_ROUNDS)
+        if pending and not in_time:
+            record_timeout(current, late_operations())
+        if (not media_waiting and in_time
+                and collect_media.options_refused_in(static_host.composite_records(MEDIA_TOOL)[-1])):
             # The keyframes item failed on the frame options (validation_error) while the other items ran: the same
             # call once more without them.
             collect_media.refuse_frame_options(MEDIA_TOOL)
@@ -744,7 +825,7 @@ def resume(args: argparse.Namespace) -> int:
         # Nothing else is running and the tool came back sooner than the interval (it did not wait): wait the rest
         # here rather than spend a model turn on a reading that comes back running.
         remaining = POLL_INTERVAL_S - seconds_since(handed_at)
-        remaining = min(remaining, VIEWER_BUDGET_S - seconds_since(viewer.get("started_at")), args.poll_sleep_s)
+        remaining = min(remaining, deadline_left(current), args.poll_sleep_s)
         if remaining > 0:
             time.sleep(remaining)
     save_state(current)

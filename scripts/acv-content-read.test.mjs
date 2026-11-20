@@ -78,3 +78,19 @@ test("a content read writes no report, and heard words are first checked for lyr
   // and must not be blocked by that sentence.
   assert.match(skill, /A content read has no report: it answers from the evidence/);
 });
+
+test("mode table: find the track is its own row, with no sound card and no whole-video viewing", () => {
+  const table = section("Which question is this");
+  assert.match(table, /\| Which song or track it uses .*\| \*\*Find the track\*\*: a content read with `--ask identify_track` in step 3; no `sound` card, no whole-video viewing \|/);
+  assert.match(skill, /select_method\.py --mode <diagnosis\|content_read\|craft_teardown> \[--focus <id>\[,<id>\]\] \[--ask identify_track\]/);
+  const index = readFileSync(path.join(skillDir, "references/video-method/index.md"), "utf8");
+  assert.match(index, /"What song is this\?" is a find-the-song request, not the `sound` card/);
+});
+
+test("reply hygiene: nothing but the prescribed text reaches the creator, and never an internal name", () => {
+  assert.match(skill, /\*\*Nothing else reaches the creator\.\*\* Before the final answer, write no text to the creator but what\s+this Skill prescribes/);
+  assert.match(skill, /never names a Skill id, script, file or evidence\s+field/);
+  // The next-step line names what would help in plain words, not another Skill's id.
+  assert.doesNotMatch(skill, /`(?:review-creator-account|develop-content-ideas|create-script-and-packaging)`/);
+  assert.match(briefTexts, /\*\*Plain words for the creator\.\*\*/);
+});

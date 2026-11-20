@@ -52,6 +52,7 @@ _linked_spec = importlib.util.spec_from_file_location("kabo_linked_media", Path(
 linked_media = importlib.util.module_from_spec(_linked_spec)
 _linked_spec.loader.exec_module(linked_media)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import observation_order  # noqa: E402
 import public_video_sources  # noqa: E402
 import viewer_response  # noqa: E402
 import acv_timing  # noqa: E402
@@ -1494,6 +1495,10 @@ def build(
     for text in limitations or []:
         if text.strip() and text.strip() not in notes:
             notes.append(text.strip())
+    if (any(as_record(envelope.get("data")).get("source_unavailable") is True for _, envelope in envelopes)
+            and observation_order.SOURCE_UNAVAILABLE_MARK not in notes):
+        # The one marker for a video the backend could not fetch at all, whichever result said so.
+        notes.append(observation_order.SOURCE_UNAVAILABLE_MARK)
 
     hashes: dict[str, str] = {}
     for role, chosen in (("metadata_raw", metadata), ("captions_raw", captions), ("frames_raw", frames)):

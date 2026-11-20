@@ -119,7 +119,7 @@ const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
 // Drive one public-link observation to the end with the given tool answers; returns the run, its final output and
 // every call handed over, in order. `mediaFailed` fails the media call's observing jobs (true, or a function of the
 // media call's number in this run); `afterRound` runs after each round's results are saved, before the resume.
-const OBSERVED = /"status": "(?:observed|nothing_observed)"/;
+const OBSERVED = /"status": "(?:observed|timed_out|source_unavailable)"/;
 async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed = false, mode = "diagnosis", duration,
   emptyTranscript, afterRound, frameTimes, args = [], cues, url = TIKTOK, measuredDuration } = {}) {
   const run = await newRun(t);
@@ -301,15 +301,16 @@ test("fallback: server frames with nothing usable start one whole-video viewing,
   assert.equal((await readJson(path.join(run, "analysis/timing.json"))).observation_source, "whole_video");
 });
 
-// A viewing that fails or runs out of time on TikTok had only the metadata-only media call beside it: the fallback
-// must hand over a media call for the frames, transcript and measurements, and judge them on that call's results.
+// A viewing that fails or runs out of readings on TikTok had only the metadata-only media call beside it: the
+// fallback must hand over a media call for the frames, transcript and measurements, and judge them on that call's
+// results. (Running out of time is the observation deadline, which leaves no time for a fallback: tested below.)
 const backdate = async (run) => {
   const file = path.join(run, "observe-video.json");
   const state = await readJson(file);
   // Once, as soon as the viewing has started (it waits for the duration the metadata call reports).
   if (!state.viewer?.active || state.backdated) return;
   state.backdated = true;
-  state.viewer.started_at = new Date(Date.now() - 9 * 60 * 1000).toISOString();
+  state.viewer.polls = 15;
   await writeFile(file, JSON.stringify(state));
 };
 for (const [name, options, code, failure] of [
@@ -317,7 +318,7 @@ for (const [name, options, code, failure] of [
     "subscription_required", { code: "subscription_required", retryable: false }],
   ["a bare failure body", { viewerSteps: [JSON.stringify({ code: "quota_exceeded", message: "The analysis quota is used up.", retryable: true })] },
     "quota_exceeded", { code: "quota_exceeded", retryable: true }],
-  ["the viewing budget running out", { viewerSteps: [queued], afterRound: backdate }, "still_running", null],
+  ["its readings running out", { viewerSteps: [queued], afterRound: backdate }, "still_running", null],
 ]) {
   test(`fallback: a whole-video viewing ended by ${name} hands over the frames media call`, async (t) => {
     const back = await observe(t, "whole_video", options);
@@ -353,7 +354,7 @@ test("a duration the media call returned keeps an over-long video from starting 
   const { out, handed } = await observe(t, null, { mediaFailed: true, duration: 900 });
   assert.equal(handed.filter((call) => call.tool === "analyze_content_video").length, 0, out);
   // Every source came back empty: the run says so instead of "observed".
-  assert.match(out, /"status": "nothing_observed"/);
+  assert.match(out, /"status": "source_unavailable"/);
   assert.match(out, /Follow \*Stops and gaps\*/);
   assert.match(out, /Fallback: server_frames failed \(media_unavailable\); the video runs 900s, past the whole-video limit of 600s/);
 });
@@ -1330,10 +1331,10 @@ const measureEnvelope = (duration, cuts = [5.03]) => ({ ...mediaEnvelope("measur
   data: { shots: { count: cuts.length + 1, cuts_at_s: cuts }, artifacts: [], duration_s: duration } });
 const transcriptEnvelope = (cues, extra = {}) => ({ ...mediaEnvelope("fetch_transcript", uuid(2), { cues }), ...extra });
 
-test("a gone video: every source empty prints nothing_observed and no build arguments, and a brief from no evidence is refused with the stop rule", async (t) => {
+test("a gone video: every source empty prints source_unavailable and no build arguments, and a brief from no evidence is refused with the stop rule", async (t) => {
   const { out } = await observe(t, null, {
     mediaFailed: true, viewerSteps: [JSON.stringify({ code: "not_found", message: "The video could not be fetched.", retryable: false })] });
-  assert.match(out, /"status": "nothing_observed"/);
+  assert.match(out, /"status": "source_unavailable"/);
   assert.doesNotMatch(out, /"status": "observed"/);
   assert.doesNotMatch(out, /Pass these to build_content_evidence\.py/);
   assert.match(out, /Follow \*Stops and gaps\* in the Skill/);
@@ -1644,4 +1645,190 @@ test("whole-video viewing the tool cannot read (unsupported) is a gap: the run c
     assert.match(flagsOf(out), /--limitation 'The whole-video viewing cannot read this source/);
     assert.match(out, /^read: /m);
   }
+});
+
+// One observation deadline (240 s from the first hand-over, the same on every host): Kabo Web ends a turn at 500 s,
+// and on the pre-release service a throttled Bilibili download held the fetch step for 477 s until the turn died
+// with no reply. The clock is injected by moving the run's recorded start back, so nothing here waits.
+const DEADLINE_S = 240;
+// The whole flags line: flagsOf stops at the first ": ", and a limitation line has one of its own.
+const allFlags = (out) => { const line = out.split("\n").find((item) => item.startsWith("Pass these to build_content_evidence.py")); return line.slice(line.indexOf(": ") + 2); };
+function withPending(args, operations, change = (value) => value) {
+  const value = composite(args);
+  const late = new Set(operations);
+  value.calls = value.calls.filter((call) => !late.has(call.group.split("/")[1]));
+  value.summary.jobs = value.summary.jobs.map((job) => late.has(job.operation) ? { ...job, status: "running" } : job);
+  value.summary.pending = value.coverage.pending = late.size;
+  value.coverage.unfinished = value.summary.jobs.filter((job) => late.has(job.operation)).map((job) => job.group);
+  return change(value);
+}
+async function startedAgo(run, seconds) {
+  const file = path.join(run, "observe-video.json");
+  const state = await readJson(file);
+  state.started_at = new Date(Date.now() - seconds * 1000).toISOString();
+  await writeFile(file, JSON.stringify(state));
+}
+// Drive an observation already started in `run` to its end: `media(args, n)` answers the n-th media call.
+async function driveWith(run, out, { media = (args) => composite(args), viewerSteps = [viewerFixture], afterRound } = {}) {
+  const steps = [...viewerSteps];
+  const handed = [];
+  let mediaCalls = 0;
+  for (let round = 0; round < 10 && !OBSERVED.test(out); round += 1) {
+    const calls = callLines(out), files = slotFiles(out);
+    assert.ok(calls.length, out);
+    for (const [index, call] of calls.entries()) {
+      handed.push(call);
+      if (call.tool === "collect_video_media") await writeFile(files[index], mcp(media(call.arguments, mediaCalls++)));
+      else await writeFile(files[index], typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
+    }
+    if (afterRound) await afterRound(run, round);
+    const resumed = shell(resumeOf(out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
+    assert.equal(resumed.code, 0, resumed.out);
+    out = resumed.out;
+  }
+  assert.match(out, OBSERVED);
+  return { out, handed };
+}
+
+test("observation deadline: frames and transcript still running at 240 s stop the wait, no fallback viewing starts, and the run goes on from the metadata saying they did not arrive in time", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run);
+  const late = ["fetch_transcript", "extract_keyframes"];
+  // Round one is well inside the deadline: the same call is handed over again.
+  const { out, handed } = await driveWith(run, first.out, {
+    media: (args) => withPending(args, late),
+    afterRound: async (dir, round) => { if (round === 1) await startedAgo(dir, DEADLINE_S + 60); } });
+  assert.equal(handed.filter((call) => call.tool === "collect_video_media").length, 2, out);
+  assert.equal(handed.filter((call) => call.tool === "analyze_content_video").length, 0, "no viewing can finish in time");
+  assert.match(out, /"status": "timed_out"/);
+  assert.match(out, /"timed_out": \["the transcript", "the frames"\]/);
+  assert.match(out, /stopped at its 240-second deadline: the transcript and the frames did not arrive in time/);
+  assert.match(out, /must say plainly that/);
+  const flags = allFlags(out);
+  assert.match(flags, /--deferred-incomplete fetch_transcript=/);
+  assert.match(flags, /--deferred-incomplete extract_keyframes=/);
+  assert.match(flags, /--limitation 'Observation deadline reached \(240s\): the transcript and the frames did not arrive in time/);
+  assert.match(flags, /--limitation 'No fallback whole-video viewing was started: too little of the 240s observation deadline was left to finish\.'/);
+  await writeRequest(run);
+  const built = build(run, flags);
+  assert.equal(built.code, 0, built.out);
+  const evidence = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assertValidEvidence(evidence);
+  assert.equal(evidence.content_metadata.status, "available");
+  // The metadata arrived: the analysis goes on from it, and the brief says first what did not arrive.
+  const prepared = await prepare(run, ["--mode", "diagnosis"]);
+  assert.equal(prepared.code, 0, prepared.out);
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.match(brief, /### Did not arrive in time\n\n- Observation deadline reached \(240s\)/);
+  assert.match(brief, /Say this plainly in the first lines of what the creator reads/);
+});
+
+test("observation deadline: with nothing and no metadata in time, the brief is refused with a did-not-arrive statement, not the gone-video one", async (t) => {
+  const run = await newRun(t);
+  await writeRequest(run);
+  const late = "Observation deadline reached (240s): the transcript and the frames did not arrive in time, so the analysis uses only what had arrived.";
+  const built = build(run, `--deferred-incomplete fetch_transcript=${uuid(2)} --deferred-incomplete extract_keyframes=${uuid(3)} --limitation '${late}'`);
+  assert.equal(built.code, 0, built.out);
+  const refused = await prepare(run, ["--mode", "diagnosis"]);
+  assert.equal(refused.code, 2, refused.out);
+  assert.match(refused.out, /did not arrive in time/);
+  assert.doesNotMatch(refused.out, /deleted/);
+});
+
+test("observation deadline: a viewing still running at 240 s is recorded as not arrived in time and no fallback starts", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis", "--duration-s", "30", "--observe-source", "whole_video"], run);
+  const { out, handed } = await driveWith(run, first.out, { viewerSteps: [queued, queued, queued],
+    afterRound: async (dir, round) => { if (round === 1) await startedAgo(dir, DEADLINE_S + 5); } });
+  assert.equal(handed.filter((call) => call.tool === "analyze_content_video").length, 1);
+  // The viewing's media call carried the metadata only; no frames call follows it past the deadline.
+  assert.equal(handed.filter((call) => call.tool === "collect_video_media").length, 1, out);
+  assert.match(out, /"timed_out": \["the whole-video viewing"\]/);
+  assert.match(out, /whole_video failed \(timed_out\)/);
+  assert.match(allFlags(out), /--limitation 'Observation deadline reached \(240s\): the whole-video viewing did not arrive in time/);
+});
+
+test("observation deadline: the same 240 s bound holds in collect_media.py and observe_video.py, from one constant", () => {
+  const probe = spawnSync("python3", ["-I", "-B", "-c", "import sys, json\nsys.path.insert(0, sys.argv[1])\n"
+    + "import collect_media, observation_order, observe_video\n"
+    + "print(json.dumps([observation_order.OBSERVE_DEADLINE_S, collect_media.WAIT_BUDGET_S, hasattr(observe_video, 'VIEWER_BUDGET_S')]))",
+  scripts], { encoding: "utf8", env });
+  assert.equal(probe.status, 0, probe.stderr);
+  assert.deepEqual(JSON.parse(probe.stdout), [DEADLINE_S, DEADLINE_S, false]);
+});
+
+// "What song is this?" is its own request: answered from metadata, on-screen text and speech, never by ear, so it
+// takes no sound card and never starts the paid whole-video viewing, not even as a fallback.
+test("find the track: select_method records the ask, refuses the sound card, and the observation never starts a viewing", async (t) => {
+  const run = await newRun(t);
+  const select = (...args) => python("select_method.py", [...args, "--out", "analysis/method.json"], run);
+  assert.equal(select("--mode", "content_read", "--ask", "identify_track", "--focus", "sound").code, 2);
+  assert.equal(select("--mode", "diagnosis", "--ask", "identify_track").code, 2);
+  const chosen = select("--mode", "content_read", "--ask", "identify_track");
+  assert.equal(chosen.code, 0, chosen.out);
+  const method = await readJson(path.join(run, "analysis/method.json"));
+  assert.equal(method.ask, "identify_track");
+  assert.deepEqual(method.cards.map((card) => card.id), ["diagnosis-default"]);
+  const pick = python("observation_order.py", ["--platform", "tiktok", "--failed", "server_frames", "--ask", "identify_track", "--mode", "content_read"], root);
+  assert.equal(JSON.parse(pick.out).source, null);
+  assert.match(JSON.parse(pick.out).reason, /find-the-song request never starts a whole-video viewing/);
+  // Frames and words fail: the run ends without a viewing.
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "content_read"], run);
+  const ops = callLines(first.out)[0].arguments.requests.map((request) => request.operation);
+  assert.deepEqual(ops, ["collect_public_metadata", "fetch_transcript", "extract_keyframes"]);
+  const { handed } = await driveWith(run, first.out, { media: (args) => composite(args, { failed: true }) });
+  assert.deepEqual(handed.map((call) => call.tool), ["collect_video_media"]);
+});
+
+test("find the track: the brief answers from metadata, on-screen text and speech and says plainly when the track can't be identified", async (t) => {
+  const run = await newRun(t);
+  assert.equal(python("select_method.py", ["--mode", "content_read", "--ask", "identify_track", "--out", "analysis/method.json"], run).code, 0);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "content_read"], run);
+  const { out } = await driveWith(run, first.out);
+  await writeRequest(run);
+  assert.equal(build(run, allFlags(out)).code, 0);
+  const prepared = await prepare(run, ["--mode", "content_read"], "what song is this?");
+  assert.equal(prepared.code, 0, prepared.out);
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.match(brief, /Find the track: which song or sound the video uses/);
+  assert.match(brief, /This is a find-the-song request/);
+  assert.match(brief, /Never name a song, artist or remix from the sound/);
+  assert.match(brief, /the track can't be identified from this\s+video's data/);
+  assert.equal((await readJson(path.join(run, "analysis/method.json"))).ask, "identify_track");
+});
+
+// A deleted or private video ended differently from run to run. Whatever said so (a result's
+// data.source_unavailable, or every source empty), there is one evidence marker and one statement for the creator.
+test("source unavailable: one marker and one statement, from the observation, the evidence and the brief alike", async (t) => {
+  const statement = "This video can't be opened: it may have been deleted, made private or limited to some regions. Send another public link or the video file and I'll analyse that instead.";
+  const marker = "source_unavailable: the video itself could not be fetched (it may be deleted, private or limited to some regions), so nothing in it was seen or heard.";
+  const gone = (args) => {
+    const value = composite(args);
+    for (const call of value.calls) {
+      call.result.status = "completed_partial";
+      call.result.data = { ...call.result.data, source_unavailable: true, cues: [], frames: [], artifacts: [] };
+    }
+    return value;
+  };
+  const flagged = await newRun(t);
+  const flaggedOut = await driveWith(flagged, python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], flagged).out, { media: gone });
+  const empty = await observe(t, null, { mediaFailed: true, viewerSteps: [JSON.stringify({ code: "not_found", message: "gone", retryable: false })] });
+  for (const out of [flaggedOut.out, empty.out]) {
+    assert.match(out, /"status": "source_unavailable"/);
+    assert.ok(out.includes(`Evidence: ${marker}`), out);
+    assert.ok(out.includes(statement), out);
+    assert.doesNotMatch(out, /Pass these to build_content_evidence\.py/);
+  }
+  // No paid viewing after the backend said the video itself is gone.
+  assert.equal(flaggedOut.handed.filter((call) => call.tool === "analyze_content_video").length, 0);
+  // Built anyway: the evidence carries the marker once, and the brief is refused with the same statement.
+  const envelope = (operation, number, data) => ({ ...mediaEnvelope(operation, uuid(number)), status: "completed_partial",
+    data: { ...data, source_unavailable: true, artifacts: [] } });
+  const { run, evidence } = await evidenceFrom(t, { envelopes: [
+    envelope("fetch_transcript", 2, { cues: [], cue_count: 0 }),
+    envelope("extract_keyframes", 3, { frames: [], frame_count: 0, selection: "none" })] });
+  assert.equal(evidence.limitations.filter((text) => text === marker).length, 1, evidence.limitations.join("\n"));
+  const refused = await prepare(run, ["--mode", "diagnosis"]);
+  assert.equal(refused.code, 2, refused.out);
+  assert.ok(JSON.parse(refused.out.split("\n")[0]).error.includes(statement), refused.out);
 });

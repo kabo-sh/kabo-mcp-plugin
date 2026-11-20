@@ -267,10 +267,10 @@ test("transcript-only export: when the request has no content_id, take it from t
   assert.match(await readFile(path.join(run, "report/transcript.txt"), "utf8"), /Here is the one thing you need/);
 });
 
-// Media waits use wall time (about 15 minutes), not 6 rounds: a long video's transcript reasonably takes 5-10
-// minutes. In a dev-box Codex run a 31-minute Bilibili video's transcript finished at 370 seconds, the plugin had
-// stopped at 338 seconds (6 rounds), and the model reported the still-running job as a backend service_unavailable.
-test("collect_media.py: while jobs run it keeps waiting by wall time (past the old 6 rounds), stops only at the cap, and records unfinished jobs as deferred-incomplete, not failed", async (t) => {
+// Media waits use wall time, not a fixed number of rounds, up to the one observation deadline (240 seconds, the same
+// as observe_video.py): Kabo Web ends a turn at 500 seconds. A job still running then is unfinished, not failed: in
+// a dev-box Codex run the model once reported a still-running transcript as a backend service_unavailable.
+test("collect_media.py: while jobs run it keeps waiting by wall time (past the old 6 rounds), stops at the deadline, and records unfinished jobs as deferred-incomplete, not failed", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
@@ -282,13 +282,13 @@ test("collect_media.py: while jobs run it keeps waiting by wall time (past the o
     await save(saveOf(out), composite(args, transcriptPending));
     const resumed = shell(resumeOf(out));
     assert.equal(resumed.code, 0, resumed.out);
-    assert.match(resumed.out, /1 media job\(s\) are still running \(\d+ of up to 15 min waited\); keep waiting\./, `round ${round}`);
+    assert.match(resumed.out, /1 media job\(s\) are still running \(\d+ of up to 240 s waited\); keep waiting\./, `round ${round}`);
     assert.deepEqual(calls(resumed.out)[0].arguments, args);
     assert.doesNotMatch(resumed.out, /"status": "collected"/);
     out = resumed.out;
   }
-  // Wall time used up (the first hand-over was 16 minutes ago) and still running: stop, record the transcript as
-  // unfinished, and say plainly that the backend did not fail.
+  // The deadline passed (the first hand-over was 16 minutes ago) and it is still running: stop, record the
+  // transcript as not arrived in time, and say plainly that the backend did not fail.
   const stateFile = path.join(run, "collect-media.json");
   const saved = JSON.parse(await readFile(stateFile, "utf8"));
   saved.started_at = new Date(Date.now() - 16 * 60 * 1000).toISOString();
@@ -299,7 +299,7 @@ test("collect_media.py: while jobs run it keeps waiting by wall time (past the o
   assert.match(last.out, /"status": "collected"/);
   assert.equal(calls(last.out).length, 0);
   assert.match(last.out, /"pending": \["fetch_transcript=00000000-0000-4000-8000-000000000001"\]/);
-  assert.match(last.out, /1 media job\(s\) were still running when waiting stopped after about 16 min \(fetch_transcript\)\. They are unfinished, not failed/);
+  assert.match(last.out, /1 media job\(s\) were still running when waiting stopped after about 9\d\d s \(fetch_transcript\)\. They did not arrive in time and are unfinished, not failed/);
   assert.match(last.out, /never describe it as a backend failure, service_unavailable or a network problem/);
   const flags = last.out.split("\n").find((line) => line.startsWith("Pass these to build_content_evidence.py")).split(": ")[1];
   assert.match(flags, /--deferred-incomplete fetch_transcript=00000000-0000-4000-8000-000000000001/);

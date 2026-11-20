@@ -2,7 +2,7 @@
 """Pick the method cards for one analysis from the method library.
 
     python3 select_method.py --mode <diagnosis|content_read|craft_teardown|transcript_export> [--focus id1,id2]
-        [--evidence analysis/content_evidence.json] --out analysis/method.json [--library <dir>]
+        [--ask identify_track] [--evidence analysis/content_evidence.json] --out analysis/method.json [--library <dir>]
 
 It runs twice in one analysis. First from the creator's request alone, before anything is fetched (no
 `--evidence`): that selection decides what the observation needs (observe_video.py reads `analysis/method.json`;
@@ -18,6 +18,11 @@ the hints of the cards it keeps into `frames` in method.json, which the keyframe
 starts on unless a card turns them off; at most three dense windows, in card order); the keyframes request and the
 local sampler then add the default window, the first 50 seconds every 0.5s (`with_default_window`). Unknown or non-topic focus ids, more than two, or a base card the evidence cannot support, exit 2 with a
 message.
+
+`--ask identify_track` is a find-the-song request ("what song is this?"): a content read answered from the
+metadata (`audio_attribution`, title, caption, tags), on-screen text and speech only. It takes no topic card (the
+`sound` card would add a paid whole-video viewing, and a track is never named by ear), and observe_video.py starts
+no viewing for it. method.json records it as `ask`.
 """
 from __future__ import annotations
 
@@ -34,6 +39,8 @@ INDEX_SCHEMA = "video-method-index/v1"
 SCHEMA_VERSION = "method-selection/v1"
 MODES = ("diagnosis", "content_read", "craft_teardown", "transcript_export")
 EVIDENCE_KINDS = ("frames", "transcript", "measure", "viewer_observations", "metadata")
+# Kinds of request that change what the method reads (observation_order.ASKS names the same ones).
+ASKS = ("identify_track",)
 MAX_TOPICS = 2
 # The keyframes request's limits on dense windows (collect_media.py sends them as they are).
 MAX_DENSE_WINDOWS = 3
@@ -156,10 +163,18 @@ def frame_plan(cards: list[dict[str, Any]]) -> dict[str, Any]:
     return {"include_shot_starts": shots, "dense_windows": windows[:MAX_DENSE_WINDOWS]}
 
 
-def select(index: dict[str, Any], mode: str, focus: list[str], evidence: dict[str, Any] | None) -> dict[str, Any]:
+def select(index: dict[str, Any], mode: str, focus: list[str], evidence: dict[str, Any] | None,
+           ask: str | None = None) -> dict[str, Any]:
     """The selection; `evidence` None is the selection made before the fetch, which skips nothing."""
     if mode not in MODES:
         raise SelectionError(f"--mode takes one of {', '.join(MODES)}")
+    if ask is not None and ask not in ASKS:
+        raise SelectionError(f"--ask takes one of {', '.join(ASKS)}")
+    if ask == "identify_track" and mode != "content_read":
+        raise SelectionError("a find-the-song request is a content read: run it with --mode content_read")
+    if ask == "identify_track" and focus:
+        raise SelectionError("a find-the-song request reads no topic card (not even sound: the track is named from "
+                             "metadata, on-screen text and speech, never by ear); pass no --focus")
     cards = {card["id"]: card for card in index["cards"]}
     unknown = [item for item in focus if item not in cards]
     if unknown:
@@ -191,7 +206,7 @@ def select(index: dict[str, Any], mode: str, focus: list[str], evidence: dict[st
     return {"schema_version": SCHEMA_VERSION, "library_version": index.get("library_version"), "mode": mode,
             # What was asked for, not what survived: a requested topic card skipped for missing evidence is
             # still a focused request, and the brief says it was skipped.
-            "cards": chosen, "default_only": not focus,
+            "cards": chosen, "default_only": not focus, "ask": ask,
             "skipped": skipped,
             # What the keyframes request adds to its plan; a transcript export takes no frames.
             "frames": frame_plan(kept) if mode != "transcript_export" else {"include_shot_starts": False,
@@ -207,6 +222,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--mode", required=True, choices=MODES)
     parser.add_argument("--focus", help="zero to two topic card ids, comma-separated")
+    parser.add_argument("--ask", choices=ASKS, help="identify_track for a find-the-song request")
     parser.add_argument("--evidence", type=Path, help="the built evidence; leave out before the fetch")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--library", type=Path, default=LIBRARY)
@@ -214,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         index = load_index(args.library)
         evidence = json.loads(args.evidence.read_text(encoding="utf-8")) if args.evidence else None
-        selection = select(index, args.mode, parse_focus(args.focus), evidence)
+        selection = select(index, args.mode, parse_focus(args.focus), evidence, args.ask)
     except SelectionError as error:
         print(json.dumps({"status": "refused", "error": str(error)}, ensure_ascii=False))
         return 2

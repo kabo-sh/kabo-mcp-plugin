@@ -8,8 +8,8 @@ Run it from the run directory.
   queues every job itself and waits for them; nothing is polled job by job.
 - `--placed --id=<id>`: fetches that result. While the backend still reports running jobs
   (`coverage.pending` above 0) it prints the same call again: nothing is queued or charged twice.
-  Once every job is terminal (or about `WAIT_BUDGET_S` after the first hand-over, `MAX_ROUNDS` results at
-  most) it persists each terminal envelope as `snapshot/envelope-NN.json`, prints the `--envelope` /
+  Once every job is terminal (or at the observation deadline, `WAIT_BUDGET_S` after the first hand-over,
+  `MAX_ROUNDS` results at most) it persists each terminal envelope as `snapshot/envelope-NN.json`, prints the `--envelope` /
   `--deferred-incomplete` arguments for
   `build_content_evidence.py`, and the one `read_research_data_artifacts` call that brings the
   frames into the run.
@@ -36,6 +36,7 @@ from typing import Any
 sys.dont_write_bytecode = True
 SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
+import observation_order  # noqa: E402
 import static_host  # noqa: E402
 import public_video_sources  # noqa: E402
 import select_method  # noqa: E402
@@ -45,13 +46,12 @@ TOOL = "collect_video_media"
 CONNECTOR = "public-video-media"
 STATE = Path("collect-media.json")
 # Media waits are measured in wall time, not rounds. One call waits on the backend for at most 45 seconds
-# (within the Codex tool timeout of 60 seconds). The old fixed 6 rounds stopped after about 338 seconds, while a
-# long video's transcript (speech recognition plus platform throttle backoff) reasonably takes 5-10 minutes: a
-# 31-minute Bilibili video's transcript finished at 370 seconds, after the plugin had given up, and the model
-# reported the still-running job as a backend service_unavailable (dev-box Codex run, 2026-11-12). A single
-# backend job's deadline is fetch_transcript's 600 seconds plus queueing, so the wait from the first hand-over
-# is at most about 15 minutes; it ends as soon as every job is terminal.
-WAIT_BUDGET_S = 15 * 60
+# (within the Codex tool timeout of 60 seconds). The wait from the first hand-over is the observation deadline
+# (observation_order.OBSERVE_DEADLINE_S, 240 seconds), the same on every host: Kabo Web ends a turn at 500 seconds,
+# and a 15-minute wait once held a throttled Bilibili download for 477 seconds until the turn died with no reply. A
+# job still running then is recorded as unfinished (`--deferred-incomplete`), never as failed, and the analysis goes
+# on with what arrived; the wait ends as soon as every job is terminal.
+WAIT_BUDGET_S = observation_order.OBSERVE_DEADLINE_S
 # A hard cap besides wall time: a normal round takes about 45-60 seconds, so 15 minutes is about 15-20 rounds;
 # if the host returns immediately every time, this stops the hand-overs from repeating forever.
 MAX_ROUNDS = 40
@@ -391,10 +391,10 @@ def finish(record: dict[str, Any]) -> None:
         # A job still running at the wait cap is unfinished, not failed: the backend reported no error for it. The
         # model used to call it service_unavailable.
         say(f"{len(pending)} media job(s) were still running when waiting stopped after about "
-            f"{round(waited_s(current) / 60)} min ({', '.join(item.split('=', 1)[0] for item in pending)}). They are "
-            "unfinished, not failed: the backend reported no error for them. Pass each as --deferred-incomplete "
-            "(below) and say in the report that this step was still running when the analysis was written; never "
-            "describe it as a backend failure, service_unavailable or a network problem.")
+            f"{round(waited_s(current))} s ({', '.join(item.split('=', 1)[0] for item in pending)}). They did not "
+            "arrive in time and are unfinished, not failed: the backend reported no error for them. Pass each as "
+            "--deferred-incomplete (below) and say plainly in the report that this step did not arrive in time; "
+            "never describe it as a backend failure, service_unavailable or a network problem.")
     flags = " ".join(f"--envelope {path}" for path in envelopes)
     flags += "".join(f" --deferred-incomplete {flag}" for flag in pending)
     say("Pass these to build_content_evidence.py, beside the run's other envelopes: " + flags)
@@ -464,8 +464,8 @@ def main(argv: list[str] | None = None) -> int:
         save_state(current)
         waited = waited_s(current)
         if pending and waited < WAIT_BUDGET_S and current["rounds"] < MAX_ROUNDS:
-            hand_over_media(args, note=f"{pending} media job(s) are still running ({round(waited / 60)} of up to "
-                                       f"{WAIT_BUDGET_S // 60} min waited); keep waiting.")
+            hand_over_media(args, note=f"{pending} media job(s) are still running ({round(waited)} of up to "
+                                       f"{WAIT_BUDGET_S} s waited); keep waiting.")
             return 0
         if options_refused_in(latest):
             refuse_frame_options(TOOL)

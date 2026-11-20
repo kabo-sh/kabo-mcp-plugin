@@ -12,10 +12,15 @@ One post, one editing decision. Videos use timestamps; still-image posts use the
 positions. The schemas, deterministic computation, renderers and validators ship in this Skill's
 `references/` and `scripts/`.
 
+When the host supports one, run this Skill in a foreground sub-agent, because a full diagnosis takes
+many steps, and wait for its final result before replying; never run it in the background and tell
+the user the report will come later. Without a foreground sub-agent, follow the same steps in the
+main thread.
+
 **Delivery.** A diagnosis ends with `finish_diagnosis.py`, which prints the validated
 `report/VIDEO_DIAGNOSIS.md`. Relay it once, complete. A report in Chinese, English, Spanish,
-Portuguese, German, French, Japanese, Korean or Indonesian already comes out in the creator's
-language: relay it unchanged, with at most one short sentence of your own before it. The italic
+Portuguese, German, French, Japanese, Korean, Indonesian, Vietnamese, Arabic or Hindi already comes
+out in the creator's language: relay it unchanged, with at most one short sentence of your own before it. The italic
 line under the summary is the report's measurement basis, which the creator needs to judge how far
 to trust it, and a second one, for a local file whose sound was measured but not heard, asks them to
 listen: keep both, they are not run diagnostics. Only for another language, localize every heading, label, unit and conclusion while
@@ -27,10 +32,10 @@ unvalidated output as a report, and never answer from fetched data or your own k
 the report the final step prints. A content read has no report: it answers from the evidence, as
 step 7 of *Analysis* says.
 
-When the host supports one, run this Skill in a foreground sub-agent, because a full diagnosis takes
-many steps, and wait for its final result before replying; never run it in the background and tell
-the user the report will come later. Without a foreground sub-agent, follow the same steps in the
-main thread.
+**Nothing else reaches the creator.** Before the final answer, write no text to the creator but what
+this Skill prescribes (a stop statement, a question it allows): no notes to yourself, plans or
+progress between tool calls. Creator-facing text never names a Skill id, script, file or evidence
+field (`media.probed.*`, `audio_attribution`): say what it is in plain words.
 
 Before acknowledging a correction, check the actual earlier reply or report; do not adopt quoted
 advice as something you said. Attribute a fact the creator revises to them once, instead of claiming
@@ -154,6 +159,7 @@ Decide before retrieving anything.
 | How it did, and what to change next — why it flopped or took off, retention, the cover, whether to repost | **Diagnosis** |
 | How it was *made* — how that was cut, how to get that look, when a transition earns its place, which steps need no team, what to buy first | **Craft teardown** — read `references/craft-teardown.md` whole |
 | What it is about or says — what it shows, what is said or written in it, what it sells or asks for | **Content read** |
+| Which song or track it uses — "what song is this?" | **Find the track**: a content read with `--ask identify_track` in step 3; no `sound` card, no whole-video viewing |
 | The words themselves as a file — a transcript or subtitle file to edit, translate or quote in full | **Transcript export** (below) |
 
 **A bare link, or "analyze this" with nothing else, is a diagnosis** with the default method: do
@@ -162,11 +168,11 @@ read, not a transcript export: the words alone show nothing on screen, and machi
 be a song's lyrics rather than anyone speaking. The signal is what they asked about, **not whether a
 link is present**. When both are asked, follow the main clause and offer the other once in
 `next_actions`; never produce two reports. Questions about sound are answered inside whichever mode
-applies.
+applies; naming the track is Find the track, answered from metadata, on-screen text and speech only.
 
 **Consent.** A bare link or an explicit request to analyze, read or tear down a video is consent to
 observe it, including one paid whole-video viewing where the observation order calls for it (a
-fallback, or a question about the sound): do not ask again. `observe_video.py` starts at most one whole-video viewing per run and never a second;
+fallback, or a question about the sound, never Find the track): do not ask again. `observe_video.py` starts at most one whole-video viewing per run and never a second;
 never call `analyze_content_video` or `get_analysis_run` except as it prints them. Their raw result on
 screen also carries scores and advice: never use or repeat them; only `analysis/brief.md` informs the
 judgment.
@@ -194,7 +200,7 @@ Diagnosis, content read and craft teardown run the same steps. Read
    choose zero to two topic cards that match what they asked; with no specific ask, choose none:
 
    ```sh
-   cd '<run directory>' && python3 <skill directory>/scripts/select_method.py --mode <diagnosis|content_read|craft_teardown> [--focus <id>[,<id>]] --out analysis/method.json
+   cd '<run directory>' && python3 <skill directory>/scripts/select_method.py --mode <diagnosis|content_read|craft_teardown> [--focus <id>[,<id>]] [--ask identify_track] --out analysis/method.json
    ```
 
    Exit 2 names a card id problem: correct `--focus` once. The cards decide what the observation
@@ -212,7 +218,9 @@ Diagnosis, content read and craft teardown run the same steps. Read
 
    It prints calls and one resume command. Make the calls in the order printed, in one turn, save
    each result as it says, then run the resume command; repeat while it prints calls (jobs still
-   running: it waits between readings itself). The run is not over while it is observing. When it
+   running: it waits between readings itself, up to one 240-second deadline). The run is not over
+   while it is observing. `status: timed_out`, or a non-empty `timed_out` list, means that part did
+   not arrive in time: go on with what arrived and say so plainly, as it prints. When it
    prints `status: observed` it has persisted everything in `snapshot/`, names the arguments for the
    evidence builder and prints the `read_research_data_artifacts` calls (at most 15 frames each)
    that bring the frames in; make them all. When a read shows you the images themselves, they are viewed: do not save or stage them.
@@ -236,7 +244,7 @@ Diagnosis, content read and craft teardown run the same steps. Read
 
    It runs the deterministic steps, checks the chosen cards against the evidence (a card the
    evidence cannot support is skipped, and the brief says so) and writes `analysis/brief.md`. Exit
-   2 means the mode's own method lacks its evidence: say which evidence is missing.
+   2 means the mode's own method lacks its evidence, or nothing arrived to analyse: do what it prints.
 7. **Read `analysis/brief.md` whole, then write what its section 7 asks**: for a diagnosis the
    judgment JSON, its reference check, the creator view, its `--check` and `finish_diagnosis.py`;
    for a content read `analysis/answer.md`, then the answer in the chat; for a craft teardown
@@ -257,15 +265,16 @@ Its deliverables are the `.txt` / `.srt` files it writes. It never invents missi
 
 ## Stops and gaps
 
-- When the backend reports that the source video itself could not be fetched (results carry
-  `data.source_unavailable: true`; it may be deleted or limited to some regions), or
-  `observe_video.py` prints `nothing_observed`, there is nothing to diagnose: tell the creator in one or two sentences that the video can't be fetched and why, ask for
-  another public link or the video file, and stop. Do not build a report or describe its content.
+- When the source video itself could not be fetched (results carry `data.source_unavailable: true`;
+  it may be deleted, private or limited to some regions), `observe_video.py` prints
+  `status: source_unavailable` with one statement, and `prepare_analysis.py` refuses with the same one.
+  Send the creator that statement in their language, nothing more, and stop. Do not build a report or
+  describe its content.
 - If measurements, a long video's words, real video (a photo post) or an edit are out of reach,
   follow *When part of the media is out of reach* in `references/evidence-reading.md`.
 - An unavailable field stays unavailable: name only the missing source, never a blanket "No data was
   retrieved", and never give generic advice in its place.
 
-When the creator's next step is outside this Skill, name the Skill that fits — for example
-`review-creator-account`, `develop-content-ideas` or `create-script-and-packaging` — without
-running it.
+When the creator's next step is outside this Skill, say in plain words what would help (a review of
+their whole account, ideas for the next video, a script and packaging), never a Skill's id, and do
+not run it.

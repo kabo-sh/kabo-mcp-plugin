@@ -32,6 +32,7 @@ SCRIPTS = Path(__file__).resolve().parent
 SKILL = SCRIPTS.parent
 sys.path.insert(0, str(SCRIPTS))
 import acv_timing  # noqa: E402
+import observation_order  # noqa: E402
 import select_method  # noqa: E402
 import transcript_checks  # noqa: E402
 
@@ -60,6 +61,10 @@ MODE_TEXT = {
 }
 OUTPUT_SECTION = {"diagnosis": "output-diagnosis", "content_read": "output-content-read",
                   "craft_teardown": "output-craft-teardown"}
+# A kind of request that adds its own instruction to section 7 (select_method.py records it as `ask`).
+ASK_SECTION = {"identify_track": "output-identify-track"}
+ASK_TEXT = {"identify_track": "Find the track: which song or sound the video uses, named only from the metadata, "
+                              "on-screen text and speech. No sound card and no whole-video viewing."}
 NEXT = {
     "diagnosis": "write analysis/video_judgment.json as its section 7 says",
     "content_read": "answer the creator in the chat as its section 7 says",
@@ -75,10 +80,15 @@ SOUND_ASPECT = re.compile(r"audio|sound|music|voice|vocal|speech|narrat|song|\bm
 NEAR_CUT_S = 2.0
 REASON_TEXT = {"sound_marker_only": "sound marker only", "generic_line": "generic line, likely invented over music",
                "past_end": "starts after the video ends"}
-STOP_TEXT = ("Nothing was observed: no frames, no transcript words, no whole-video notes and no images arrived. "
-             "Follow *Stops and gaps* in the Skill: tell the creator the video could not be read (it may be deleted, "
-             "private or limited to some regions), ask for another public link or the video file, and stop. Do not "
-             "write a judgment, a report or an answer about the video's content.")
+STOP_TEXT = ("Nothing was observed: no frames, no transcript words, no whole-video notes and no images arrived ("
+             + observation_order.SOURCE_UNAVAILABLE_MARK + ") Follow *Stops and gaps* in the Skill: send the creator "
+             "this statement, in their language, and nothing more, then stop: "
+             + observation_order.SOURCE_UNAVAILABLE_REPLY + " Do not write a judgment, a report or an answer about "
+             "the video's content.")
+LATE_STOP_TEXT = ("Nothing to look at and no post metadata arrived before the observation deadline. Tell the creator "
+                  "plainly, in their language, that the video's frames and words did not arrive in time (the "
+                  "platform was slow to deliver it), offer to try again later or to analyse the video file, and stop. "
+                  "Do not call it a failure and do not describe the video's content.")
 
 
 def load(path: Path) -> Any:
@@ -141,8 +151,25 @@ def deterministic(run: Path, mode: str, evidence: dict[str, Any], request: dict[
     return lines
 
 
+def late_lines(evidence: dict[str, Any]) -> list[str]:
+    """The limitation lines the observation deadline left: what did not arrive in time."""
+    return [str(text) for text in evidence.get("limitations") or []
+            if str(text).startswith(observation_order.DEADLINE_MARK)]
+
+
+def gone(evidence: dict[str, Any]) -> bool:
+    """Whether the evidence carries the one marker for a video the backend could not fetch at all."""
+    return observation_order.SOURCE_UNAVAILABLE_MARK in (evidence.get("limitations") or [])
+
+
 def observed_nothing(evidence: dict[str, Any]) -> bool:
-    """True when no source brought anything to analyse: no frames, no transcript words, no notes, no images."""
+    """True when no source brought anything to analyse: no frames, no transcript words, no notes, no images.
+
+    When the observation deadline stopped the fetch, the post's own metadata (title, caption, public counts) is
+    something to analyse: the run goes on from it and says plainly what did not arrive in time."""
+    if (late_lines(evidence) and not gone(evidence)
+            and (evidence.get("content_metadata") or {}).get("status") == "available"):
+        return False
     if (evidence.get("frames") or {}).get("status") == "available":
         return False
     transcript = evidence.get("transcript") or {}
@@ -197,6 +224,12 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
     lines = [f"Observation source: {source or 'unknown'}. Evidence `{evidence.get('evidence_id')}`. The complete "
              "list of legal references is `analysis/content_evidence.references.json`; the values are in "
              "`analysis/content_evidence.json`.", ""]
+    late = late_lines(evidence)
+    if late:
+        lines += ["### Did not arrive in time", ""] + [f"- {one_line(text)}" for text in late] + [
+            "- Say this plainly in the first lines of what the creator reads (the summary, or the answer's opening): "
+            "what did not arrive in time, in everyday words. It is not a failure and not a missing feature of the "
+            "video; never describe what did not arrive.", ""]
     for skipped in method.get("skipped") or []:
         lines.append(f"Method card `{skipped['id']}` was skipped: {skipped['reason']}.")
     if method.get("skipped"):
@@ -399,8 +432,10 @@ def method_section(method: dict[str, Any], library: Path, index: dict[str, Any])
     return lines
 
 
-def output_section(mode: str) -> list[str]:
+def output_section(mode: str, ask: str | None = None) -> list[str]:
     lines = [nested(brief_text(OUTPUT_SECTION[mode])), ""]
+    if ask in ASK_SECTION:
+        lines += [nested(brief_text(ASK_SECTION[ask])), ""]
     if mode == "diagnosis":
         done = subprocess.run([sys.executable, "-B", str(SCRIPTS / "compose_video_analysis.py"),
                                "--print-judgment-schema"], capture_output=True, text=True)
@@ -418,17 +453,19 @@ def output_section(mode: str) -> list[str]:
 def brief(question: str, mode: str, focus: list[str], method: dict[str, Any], library: Path,
           index: dict[str, Any], evidence_lines: list[str], deterministic_lines: list[str],
           subject_state: str = "unknown") -> str:
+    ask = method.get("ask")
     sections = [
         ("1. Creator question", [question.strip() or "(no words beyond the link: a default analysis)", ""]),
         ("2. Mode", [MODE_TEXT[mode], "", "Focus: " + (", ".join(f"`{item}`" for item in focus) if focus
-                                                    else "none (default analysis)"), ""]),
+                                                    else "none (default analysis)"), ""]
+         + ([ASK_TEXT[ask], ""] if ask in ASK_TEXT else [])),
         ("3. Evidence index", [f"Whose video: `{subject_state}` (from `analysis/video-analysis-request.json`; "
                                "`unknown` and `third_party` get no source revisions and no owner metrics).", "",
                                *evidence_lines]),
         ("4. Deterministic results", deterministic_lines),
         ("5. Method", method_section(method, library, index)),
         ("6. Judgment rules", [nested(brief_text("judgment-rules")), ""]),
-        ("7. Output contract", output_section(mode)),
+        ("7. Output contract", output_section(mode, ask)),
     ]
     out = ["# Analysis brief", "", "Read this whole before writing anything. It is the only analysis "
            "instruction for this run.", ""]
@@ -456,13 +493,16 @@ def main(argv: list[str] | None = None) -> int:
         index = select_method.load_index(args.library)
         focus = select_method.parse_focus(args.focus)
         chosen = analysis / "method.json"
-        if args.focus is None and chosen.is_file():
+        earlier = load(chosen) if chosen.is_file() else {}
+        if args.focus is None and earlier:
             # The cards chosen from the request before the fetch; this run checks them against the evidence.
-            focus = select_method.requested_focus(load(chosen))
+            focus = select_method.requested_focus(earlier)
         if observed_nothing(evidence):
-            print(json.dumps({"status": "refused", "error": STOP_TEXT}, ensure_ascii=False))
+            stop = LATE_STOP_TEXT if late_lines(evidence) and not gone(evidence) else STOP_TEXT
+            print(json.dumps({"status": "refused", "error": stop}, ensure_ascii=False))
             return 2
-        method = select_method.select(index, args.mode, focus, evidence)
+        ask = earlier.get("ask") if earlier.get("ask") in select_method.ASKS else None
+        method = select_method.select(index, args.mode, focus, evidence, ask)
     except select_method.SelectionError as error:
         print(json.dumps({"status": "refused", "error": str(error)}, ensure_ascii=False))
         return 2
