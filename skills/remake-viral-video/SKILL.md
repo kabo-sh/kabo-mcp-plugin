@@ -88,6 +88,10 @@ that, not by how the request is worded ("remake" included):
    draw from, never a shot. When the creator will not appear, no shot has a person in it (hands,
    product, places, illustration), and every picture prompt says "no person". More in
    `references/steps/plan.md` ("Read what you were given first").
+8. **End on the outcome.** When the story ends on a result (the dish plated, the box opened, the
+   thing finished), the last shot is that result alone: its still already shows it (the food on
+   the plate), and the step before it is its own shot. A clip asked to do "plate it, then smile"
+   often stops halfway, and the video then ends without its payoff.
 
 | Keep | Change | Step | Redraws the face |
 |---|---|---|---|
