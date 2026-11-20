@@ -195,6 +195,10 @@ at the same time). Never "X, then Y", "first ... then ...", "near the end ..." i
 into consecutive shots, each with `start` (its first frame) and `end` (its last frame, = the next
 row's `start`). Steps that change an object's state (cut, cooked, poured, plated) each get their
 own shot.
+The story's last step is in the cut: when the creator's beats or the reference end on an outcome
+(the dish plated and served, the box opened, the finished result), that outcome gets its own
+last shot whose still already shows it (the food on the plate, the result in hand), so the cut
+ends on it even when the clip's motion falls short.
 
 **Who does it.** Give each row `actor` (the character card's exact name) -- or
 `actions: [{"actor": "<card name>", "does": "<one action>"}]` when two characters move at the same

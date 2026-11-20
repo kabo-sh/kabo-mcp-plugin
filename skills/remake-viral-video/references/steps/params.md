@@ -1,7 +1,7 @@
 # Step parameters (generated -- do not edit)
 
 Generated from the Web host's own schema (`contracts/web-remake-tool.v1.json`, kabo-agent-service
-`scripts/remake-skill-schema.ts` at 92437fcc1746078c2957d6953e71d3ac309851e3) by `scripts/remake-params-gen.mjs`.
+`scripts/remake-skill-schema.ts` at 1e9720e721d9b4276ec703fd1ee3bff9f7bd12ad) by `scripts/remake-params-gen.mjs`.
 These are the exact shapes the host accepts; where any other file in this Skill reads
 differently, this file is right. A field not listed under a step is refused on that step.
 `?` / (optional) = may be left out; `a | b` = one of; `[x, ...] (2-8 items)` = a list;
@@ -138,7 +138,7 @@ Each entry of `props`:
 ### `captions`
 
 - inputs: `video`: handle
-- params: `color` (optional): text; `size` (optional): number 0.5..2; `max_words` (optional): integer 1..8; `upper` (optional): true | false; `font` (optional): "sans" | "serif_caps" | "impact" | "condensed" | "rounded" | "cjk_sans"; `position` (optional): "bottom" | "center" | "top" | number 0..1; `mode` (optional): "phrase" | "word" | "highlight"; `stroke` (optional): integer 0..20
+- params: `color` (optional): text; `size` (optional): number 0.5..2; `max_words` (optional): integer 1..8; `upper` (optional): true | false; `font` (optional): "sans" | "serif_caps" | "impact" | "condensed" | "rounded" | "cjk_sans"; `position` (optional): "bottom" | "center" | "top" | number 0..1; `mode` (optional): "phrase" | "word" | "highlight"; `stroke` (optional): integer 0..20; `language` (optional): text; `terms` (optional): [text (<= 40), ...] (1-40 items)
 
 ### `frame`
 
