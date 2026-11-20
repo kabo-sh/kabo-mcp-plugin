@@ -46,7 +46,7 @@ that, not by how the request is worded ("remake" included):
    script, prompts or captions they also asked for, show them in your reply, and go on to make the
    video in the same flow. Never stop at a script or prompts, and never answer that a video cannot
    be made here while the tools are listed. Captions they asked for are always in the cut (placed
-   clear of on-screen text, never dropped for it).
+   clear of on-screen text, never dropped for it), with names from their words in `terms`.
 5. The whole remake is the shortcut for "the same structure again, with me": a reference of one
    of the four kinds below, or an approved script. It is not the fallback, and a reference plus
    the creator's footage does not make a request one; the creator's own video is footage to keep,
