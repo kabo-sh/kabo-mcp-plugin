@@ -15,6 +15,9 @@ the cue exists, that it comes after the promise, and reports the gap. A number n
 computed over a judgement somebody made.
 
     python3 compute_promise_payoff.py <content_evidence.json> [--payoff-cue N] [--output FILE]
+
+The result is written to `--output`, by default `promise_payoff.json` beside the evidence, so a gap measured
+after the brief was written is on disk where the report's checks read it, not only on the screen.
 """
 
 from __future__ import annotations
@@ -23,6 +26,17 @@ import argparse
 import json
 import sys
 from pathlib import Path
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import transcript_checks  # noqa: E402
+
+# The hook window by video length, as the media tool's sampling plan declares it: about three seconds for a short
+# video, fifteen for long-form (observed: 3s up to 170.6s, 15s from 417.5s). Used only when no frames were taken,
+# so no sampling plan declares one (a whole-video run).
+SHORT_FORM_MAX_S = 180.0
+SHORT_HOOK_S = 3.0
+LONG_HOOK_S = 15.0
 
 
 def hook_window(evidence: dict) -> float | None:
@@ -39,16 +53,29 @@ def hook_window(evidence: dict) -> float | None:
     """
     plan = ((evidence.get("frames") or {}).get("sampling_plan")) or {}
     window = plan.get("hook_window_s")
-    return float(window) if isinstance(window, (int, float)) else None
+    if isinstance(window, (int, float)):
+        return float(window)
+    # No frames, so no plan: a whole-video run. The video's length still says which window applies; this is the
+    # rule the plan itself follows, not a guess.
+    duration = (evidence.get("media") or {}).get("duration_s")
+    if not (evidence.get("frames") or {}).get("sampling_plan") and isinstance(duration, (int, float)) and duration > 0:
+        return SHORT_HOOK_S if duration <= SHORT_FORM_MAX_S else LONG_HOOK_S
+    return None
 
 
 def promise_anchor(evidence: dict, window: float) -> dict:
     """The first thing the viewer is told, spoken or on screen, inside the hook window."""
     cues = ((evidence.get("transcript") or {}).get("cues")) or []
+    # A cue that is only a sound marker ("[Music]"), a line speech recognition invents over music ("Thanks for
+    # watching!") or one past the end of the video is no evidence anything was said: a promise is never anchored on
+    # one. Production runs anchored on all three.
+    duration = (evidence.get("media") or {}).get("duration_s")
+    suspect = {item["index"] for item in transcript_checks.suspect_cues(cues, duration)}
     spoken = [
         {"index": i, "start_s": c["start_s"], "text": c["text"]}
         for i, c in enumerate(cues)
         if isinstance(c.get("start_s"), (int, float)) and c["start_s"] <= window and c.get("text")
+        and i not in suspect
     ]
     if spoken:
         first = min(spoken, key=lambda c: c["start_s"])
@@ -62,14 +89,20 @@ def promise_anchor(evidence: dict, window: float) -> dict:
         return {"status": "unavailable", "reason":
                 "the transcript is recorded as available but no cue text reached the evidence "
                 "object, so what was said in the hook window cannot be read"}
+    skipped = [i for i in sorted(suspect) if isinstance(cues[i].get("start_s"), (int, float))
+               and cues[i]["start_s"] <= window]
     return {"status": "unavailable", "reason":
-            f"nothing is spoken inside the {window}s hook window, and this evidence carries no "
-            "on-screen text track to read a written promise from"}
+            f"nothing is spoken inside the {window}s hook window"
+            + (f" (cue {', '.join(map(str, skipped))} there is a sound marker or a line speech recognition "
+               "invents, not speech)" if skipped else "")
+            + ", and this evidence carries no on-screen text track to read a written promise from"}
 
 
 def compute(evidence: dict, payoff_cue: int | None) -> dict:
     window = hook_window(evidence)
     cues = ((evidence.get("transcript") or {}).get("cues")) or []
+    planned = isinstance((((evidence.get("frames") or {}).get("sampling_plan")) or {}).get("hook_window_s"),
+                         (int, float))
     if window is None:
         # No declared window, no measurement. Reporting a distance computed over a guessed
         # window would put an invented number in the one place this module refuses to invent
@@ -91,6 +124,7 @@ def compute(evidence: dict, payoff_cue: int | None) -> dict:
     result = {
         "rule_version": "promise-payoff.v1",
         "hook_window_s": window,
+        "hook_window_basis": "sampling_plan" if planned else "video_length",
         "promise": promise,
         "transcript_origin": (evidence.get("transcript") or {}).get("origin"),
     }
@@ -147,12 +181,11 @@ def main() -> int:
         print(f"ERROR: {error}", file=sys.stderr)
         return 1
     text = json.dumps(result, ensure_ascii=False, indent=2)
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(text + "\n", encoding="utf-8")
-        print(f"wrote {args.output}")
-    else:
-        print(text)
+    output = args.output or args.evidence.parent / "promise_payoff.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(text + "\n", encoding="utf-8")
+    print(text)
+    print(f"wrote {output}")
     return 0
 
 

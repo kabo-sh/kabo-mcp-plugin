@@ -153,6 +153,9 @@ def grounding_review(judgment: dict[str, Any], evidence: dict[str, Any]) -> dict
         ref = f"transcript.cue[{index}]"
         if ref in refs:
             sources.append({"ref": ref, "kind": "recorded_speech", "source": copy.deepcopy(cue)})
+    for item in record(evidence.get("viewer_observations")).get("items") or []:
+        if item.get("id") in refs:
+            sources.append({"ref": item["id"], "kind": "viewer_observation", "source": copy.deepcopy(item)})
     for index, observation in enumerate(judgment.get("observations") or []):
         ref = f"observations.{observation['observation_id']}"
         if ref in refs:
@@ -248,7 +251,7 @@ def qualify_revision_refs(analysis: dict[str, Any], evidence_refs: set[str]) -> 
     return result, changed
 
 
-def completeness(evidence: dict[str, Any], judgment: dict[str, Any]) -> dict[str, Any]:
+def completeness(evidence: dict[str, Any], judgment: dict[str, Any], subject_state: Any = None) -> dict[str, Any]:
     """What the analysis could see, read off the evidence rather than restated.
 
     `media` and `frames` are a two-value enum in the analysis while the evidence has four states,
@@ -269,6 +272,10 @@ def completeness(evidence: dict[str, Any], judgment: dict[str, Any]) -> dict[str
     # Whether a comparable baseline was retrieved is not a fact about this video's own evidence,
     # so it is the one member of this block the judgment supplies.
     baseline = record(judgment.get("evidence_completeness")).get("account_baseline")
+    if baseline is None and subject_state in {"unknown", "third_party"}:
+        # Someone else's or an unattributed video has no account baseline of the creator's to compare with: that
+        # follows from whose video it is, so it is filled here rather than left for the judgment to remember.
+        baseline = "unavailable"
     if baseline is not None:
         block["account_baseline"] = baseline
     return block
@@ -361,13 +368,13 @@ def compose(judgment: dict[str, Any], evidence: dict[str, Any], deterministic: d
         )
     analysis: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
-        "analysis_id": f"va-{prefix}-{ref.get('content_id')}-{run_id}",
+        "analysis_id": f"va-{prefix}-{ref.get('content_id') or 'unresolved'}-{run_id}",
         "subject_state": record(request.get("source")).get("subject_state"),
         "request_ref": request.get("request_id"),
         "evidence_ref": evidence.get("evidence_id"),
         # The evidence ref carries more than identity; the analysis carries only identity.
         "content_ref": {key: ref.get(key) for key in CONTENT_REF_KEYS},
-        "evidence_completeness": completeness(evidence, judgment),
+        "evidence_completeness": completeness(evidence, judgment, record(request.get("source")).get("subject_state")),
         "deterministic": deterministic,
         "reproducibility": {
             "run_id": run_id,
@@ -454,9 +461,11 @@ def main() -> int:
         judgment = load(args.judgment)
         issues = judgment_reference_issues(judgment, evidence)
         result = {"status": "needs_correction" if issues else "ready",
-                  "artifact": str(args.judgment), "issues": issues, "legal_source_refs": refs}
+                  "artifact": str(args.judgment), "issues": issues}
         if not issues:
             result["grounding_review"] = grounding_review(judgment, evidence)
+        # The long list of legal refs goes last, so it never hides the issues or the review above it.
+        result["legal_source_refs"] = refs
         print(json.dumps(result, ensure_ascii=False))
         return 0
     if args.reference_index is not None:

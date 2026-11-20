@@ -5,11 +5,20 @@ the first data call of a run.
 
 ## Frame sampling
 
-The request asks for at most 60 frames with `"sampling": "duration_scaled"`: twice a second through
-the opening three seconds, then one a second, spread out evenly once a longer video would exceed the
-cap (`collect_media.py` adds `max_frames`). That plan already samples the opening densely, so never pass
-`fps`: it applies only to `evenly_spaced`, is capped at 2, and a higher value is rejected as
-invalid input.
+The request asks for at most 120 frames with `"sampling": "duration_scaled"`: twice a second through
+the first 50 seconds (a dense window every request carries) and through the closing two, one a second
+after that, the body spread out evenly once a longer video would exceed the cap. It also asks for a
+frame just after each detected cut (`include_shot_starts`) and for the dense windows the selected
+method cards name (`dense_windows`, from `analysis/method.json`, sent before the default one, three at
+most). The opening, the closing and shot starts come first; the windows then take at most half of
+what is left unless the rest of the video needs less, and are thinned by a whole factor to fit (on a
+video past about a minute the first 50 seconds are sampled every second, not every half second); the
+body fills only the time outside the windows. `observe_video.py` adds all of these, so never write them yourself and
+never pass `fps`: it applies only to `evenly_spaced`, is capped at 2, and a higher value is rejected
+as invalid input. Each frame's `source` says why it is there (`hook`, `closing`, `body`, `shot_start`,
+`dense_window`); a server that does not take the cut and window options yet returns the standard
+plan, the frames carry no `source`, and the script says so: then no frame sits at a cut on purpose.
+Read the frames 15 to a call, as the script prints the reads.
 `sampling_plan` records requested sampling, not verified decoded timestamps or viewing coverage; even `t_seconds` may be a nominal requested point. Without verified actual decode
 records, never state a planned interval as actual spacing in judgment or creator cards. Describe it
 only as a planned/requested sampling limitation. Judge the hook over `frames.sampling_plan.hook_window_s`
@@ -35,9 +44,9 @@ needs a frame.
 
 **Reading the frame bytes.** A completed keyframe job lists `frames[]` / `artifacts[]` refs. Select
 the exact refs you need and read them with `read_research_data_artifacts` (`job_id` plus those
-`object_refs`, with `"delivery": "download"`). If that read shows you the images themselves, they
-are viewed: do not save or stage them, one by one or at all; the evidence builder lists frames from
-the keyframe envelope, not from their bytes. When the read returns a download link instead, save
+`object_refs`, without `delivery`, as `observe_video.py` prints the reads: the images arrive inline,
+which is the working path). If that read shows you the images themselves, they are viewed: do not save or stage them, one by one or at all; the evidence builder lists frames from
+the keyframe envelope, not from their bytes. When a host returns a download link instead, save
 that small result and run `static_host.py fetch` on it (it is fetched, not persisted). Then open each image's `path` from fetch's output with the
 host's own file or image viewer: a file on disk is not yet seen. Only for items fetch lists as
 unavailable, or when scripts cannot reach the network, read those refs again without `delivery`
@@ -94,7 +103,7 @@ address, and YouTube refuses those: it answers `service_unavailable` on every Yo
 that used it lost title, tags, cover and publish date. `youtube_get_video` is the platform answering
 about its own video; it is not a deferred job and carries the same facts plus public counts. Call it
 with `{"parameters": {"video_id": "<resolved-video-id>"}, "delivery": "download"}`. Transcript,
-frames and measurements come from `collect_media.py` with the original video URL, as `SKILL.md`
+frames and measurements come from `observe_video.py` with the original video URL, as `SKILL.md`
 says; it builds the arguments.
 
 On **every other platform** (Instagram, TikTok, Douyin, Xiaohongshu, Kuaishou, Facebook, Bilibili)
@@ -147,10 +156,12 @@ Such a result is also what `static_host.py fetch` and `stage` refuse ("MCP error
 connector evidence"): record it with `--limitation` on the evidence-building command and carry on.
 
 The media jobs (transcript, frames, measurements) are deferred and take minutes. The backend waits
-for them inside `collect_video_media`; `collect_media.py` prints the same call again while any is
+for them inside `collect_video_media`; `observe_video.py` prints the same call again while any is
 still running, for up to about 15 minutes in all (a long video's transcript can take ten), and
-nothing is queued or charged twice. Keep making that call within this turn until
-the script reports `status: collected`: ending the turn to wait throws the jobs away. A job still
+nothing is queued or charged twice. A whole-video viewing has no server-side wait: the script waits
+between its readings itself and stops after about eight minutes. Keep making the printed calls
+within this turn until the script reports `status: observed`: ending the turn to wait throws the
+jobs away. A whole-video viewing still running at the cap is recorded as unfinished, never failed. A job still
 unfinished when the script stops waiting comes back as `--deferred-incomplete <operation>=<job id>`
 for the evidence builder (recorded `deferred_incomplete`), never as `failed`; it carries no media
 evidence and keeps the affected stages unassessed. Say that step was still running; never call it a

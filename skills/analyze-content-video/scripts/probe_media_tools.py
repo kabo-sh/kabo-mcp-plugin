@@ -19,12 +19,11 @@ evidence rather than raised as a script failure. `--require` is for the one call
 cannot continue: it exits 3 so the difference between "a requirement is absent" and "this script
 itself broke" survives in the exit status.
 
-**A path no script here walks is never reported as available.** Local speech recognition is
-declared, because the transcript tiers name it and a creator asking why their draft has no
-transcript deserves to see which rung is missing. It reports `not_implemented_here` even on a
-machine where the library imports cleanly, because this version of the Skill has nothing that would
-call it. Reporting it as available would be a promise the package cannot keep, and the creator
-would go install a dependency that changes nothing.
+**Local speech recognition is available only when it would actually run.** transcribe_local.py
+needs the `faster_whisper` package and its speech model already on this machine (it never downloads
+the model), so the package alone reports `model_missing`, not `available`: a creator told
+"available" would reasonably expect a transcript and get none. Either way the one install line
+covers both.
 
     python3 probe_media_tools.py [--require ffmpeg,ffprobe] [--out FILE]
 """
@@ -34,6 +33,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -72,8 +72,10 @@ REQUIREMENTS = (
         "kind": "python_module",
         "name": "faster_whisper",
         "enables": "transcribing a local file that has neither platform captions nor a subtitle file",
-        "implemented": False,
-        "install_hint": "pip install faster-whisper",
+        "implemented": True,
+        # The same line transcribe_local.py prints: the package, then its small model fetched once.
+        "install_hint": ("python3 -m pip install faster-whisper && python3 -c \"from faster_whisper import "
+                         "WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')\""),
     },
 )
 
@@ -85,9 +87,9 @@ GAP_TEXT = {
                "audio -- could not be read on this machine, so nothing in the analysis rests on them.",
     "ffmpeg": "No frame could be sampled from the file on this machine, so this reading rests on "
               "speech and stated context alone and every visual judgement is unassessed.",
-    "faster_whisper": "Local speech recognition is not part of this version of the Skill. Where the "
-                      "platform published no captions and no subtitle file was supplied, the spoken "
-                      "track was not read.",
+    "faster_whisper": "Local speech recognition is not installed on this machine. Where the platform "
+                      "published no captions and no subtitle file was supplied, the spoken track was "
+                      "not read.",
 }
 
 
@@ -147,6 +149,24 @@ def probe_python_module(requirement: dict) -> dict:
     return {"state": "available" if spec is not None else "absent"}
 
 
+# Where the speech model lands when the install line fetches it: the Hugging Face hub cache.
+SPEECH_MODEL_DIR = "models--Systran--faster-whisper-small"
+
+
+def speech_model_cached() -> bool:
+    """Whether the small speech model is in this machine's model cache (read only; nothing is fetched)."""
+    cache = os.environ.get("HF_HUB_CACHE")
+    if not cache:
+        home = os.environ.get("HF_HOME") or os.path.join(
+            os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache"), "huggingface")
+        cache = os.path.join(home, "hub")
+    snapshots = Path(cache) / SPEECH_MODEL_DIR / "snapshots"
+    try:
+        return any((snapshot / "model.bin").is_file() for snapshot in snapshots.iterdir())
+    except OSError:
+        return False
+
+
 def probe(requirement: dict) -> dict:
     """Resolve one requirement into a reportable row."""
     row = {"key": requirement["key"], "enables": requirement["enables"]}
@@ -155,12 +175,8 @@ def probe(requirement: dict) -> dict:
     else:
         row.update(probe_python_module(requirement))
 
-    if not requirement["implemented"]:
-        # The honesty rule. Whatever the machine has, no script in this package walks this path, so
-        # the only true answer is that it is not implemented here. Overwriting a found module with
-        # this state is the point, not a bug: a creator told "available" would reasonably expect a
-        # transcript, and would get none.
-        row["state"] = "not_implemented_here"
+    if requirement["key"] == "faster_whisper" and row["state"] == "available" and not speech_model_cached():
+        row["state"] = "model_missing"
 
     if row["state"] != "available":
         row["install_hint"] = requirement["install_hint"]

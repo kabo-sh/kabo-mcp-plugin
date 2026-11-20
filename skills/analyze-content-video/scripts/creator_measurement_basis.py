@@ -7,8 +7,10 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
+sys.dont_write_bytecode = True  # sibling imports must not leave __pycache__ in the Skill
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import public_video_sources  # noqa: E402
+import report_locale  # noqa: E402
 
 
 def record(value: Any) -> dict:
@@ -63,8 +65,18 @@ def measurement_basis(evidence: dict, analysis: dict, view: dict) -> dict:
             number(dense, "dense sampling window")
             number(interval, "dense sampling interval", positive=True)
         body = plan.get("body_interval_s")
-        if body is not None or plan.get("body_degraded") is True:
+        # A plan with no body grid (body_frames 0) has no body interval: its frames come from the opening, the
+        # closing, shot starts and dense windows, as when the default window covers a video of 50s or less. The
+        # connector writes null there; local plans before this one wrote 0.0. Each laid window's interval is checked
+        # instead.
+        no_body = (plan.get("body_frames") == 0 and not isinstance(plan.get("body_frames"), bool)
+                   and (body is None or (body == 0 and not isinstance(body, bool))))
+        if (body is not None or plan.get("body_degraded") is True) and not no_body:
             number(body, "reduced sampling interval", positive=True)
+        for window in plan.get("dense_windows") or []:
+            window = record(window)
+            if window.get("ignored") is None and window.get("frames"):
+                number(window.get("interval_s"), "dense window interval", positive=True)
         # The plan and t_seconds may both be nominal extraction requests. Neither
         # confirms actual decoded timestamps, so no spacing enters measured facts.
     elif status == "available" and frames.get("origin") == "model_observation":
@@ -124,8 +136,9 @@ def measurement_basis(evidence: dict, analysis: dict, view: dict) -> dict:
     return facts
 
 
-# This line is relayed as is with the report: the zh view is written in Chinese, and other languages are
-# still written in English and localized by the host per SKILL.md.
+# This line is relayed as is with the report: the zh view is written in Chinese, a language listed in
+# references/report-locales.json in that language, and any other language in English (localized by the host per
+# SKILL.md).
 # The two wordings carry the same facts and the same numbers; the English wording stays unchanged character
 # for character, and the validator compares it character by character per view language.
 # Platforms with a common Chinese name are written by that name; the rest use their label (the YouTube,
@@ -150,8 +163,9 @@ ZH_WORDS = {
 
 
 def note_language(view: dict) -> str:
-    """`zh` for a Chinese view (`zh`, `zh-CN`, `zh-Hant`), `en` for anything else or nothing."""
-    return "zh" if str(record(view).get("language") or "").strip().lower().startswith("zh") else "en"
+    """`zh` for a Chinese view (`zh`, `zh-CN`, `zh-Hant`), a listed language by its primary subtag (`pt-BR` is
+    `pt`), `en` for anything else or nothing."""
+    return report_locale.report_language(view)
 
 
 def display_width(text: str) -> int:
@@ -167,6 +181,8 @@ def measurement_note(facts: dict, language: str = "en") -> str:
     "the picture was never looked at" (group feedback, 11-06). The frame count and citation count already show that sampled frames were used, so that note is no longer added."""
     if language == "zh":
         note = _zh_note(facts)
+    elif language in report_locale.LOCALES:
+        note = _localized_note(facts, report_locale.note_words(language))
     else:
         note = _en_note(facts)
     if display_width(note) > 240:
@@ -206,19 +222,58 @@ def _zh_note(facts: dict) -> str:
     return "；".join(parts) + "。"
 
 
+def source_platform(source: str) -> str | None:
+    """The platform label inside an English source name ("YouTube video" -> "YouTube"); None for a local file."""
+    return source[:-len(" video")] if source.endswith(" video") else None
+
+
+def _localized_note(facts: dict, words: dict) -> str:
+    """The same facts and numbers as the English line, in a language from references/report-locales.json."""
+    kind = facts["frame_kind"]
+    frames = words["frames"].get(kind)
+    if kind == "extracted":
+        frames = words["frames_extracted"].format(n=facts["extracted_frames"])
+        if "requested_frames" in facts:
+            frames += words["frames_requested"].format(m=facts["requested_frames"])
+    platform = source_platform(facts["source"])
+    source = words["source_platform"].format(platform=platform) if platform else words["source_local"]
+    parts = [source, frames, words["cited"].format(n=facts["cited_frame_refs"])]
+    transcript = words["transcript"][facts["transcript"]]
+    if "caption_cues" in facts:
+        count = facts["caption_cues"]
+        transcript += (words["cues_one"] if count == 1 else words["cues_other"]).format(n=count)
+    parts += [transcript, words["owner"].format(status=words["owner_status"][facts["owner_metrics"]])]
+    return words["separator"].join(parts) + words["end"]
+
+
+def image_note(available: int, returned: int, total: Any, completeness: str, owner: str, language: str) -> str:
+    """The image-post line in a language from references/report-locales.json (zh and en stay in the builder)."""
+    words = report_locale.note_words(language)
+    unknown = words["unknown"]
+    return words["image"].format(available=available, returned=returned,
+                                 total=unknown if total == "unknown" else total,
+                                 completeness=unknown if completeness == "unknown" else completeness,
+                                 owner=words["owner_status"].get(owner, owner))
+
+
 def canonical_note(evidence: dict, analysis: dict, view: dict) -> str:
     return measurement_note(measurement_basis(evidence, analysis, view), note_language(view))
 
 
 def note_matches(note, evidence: dict, analysis: dict, view: dict) -> bool:
-    """New results write data_note in the view language; earlier versions wrote an English line for the zh view, and replay accepts both.
-    Lines from before 1.0.32 had an extra trailing "viewing unverified" segment (Chinese and English forms), which replay of old results accepts as well."""
+    """New results write data_note in the view language; earlier versions wrote an English line for every view
+    other than en (zh included, and every language now localized), and replay accepts both.
+    Lines from before 1.0.32 had an extra trailing "viewing unverified" segment (Chinese and English forms), which
+    replay of old results accepts as well; no localized line other than zh ever carried it."""
     facts = measurement_basis(evidence, analysis, view)
-    current = {measurement_note(facts, note_language(view))}
-    if note_language(view) != "en":
+    language = note_language(view)
+    current = {measurement_note(facts, language)}
+    older = set()
+    if language != "en":
         try:
-            current.add(measurement_note(facts, "en"))
+            older.add(measurement_note(facts, "en"))
         except ValueError:
             pass
-    legacy = {line[:-1] + ("；画面查看未核实。" if line.endswith("。") else "; viewing unverified.") for line in current}
-    return note in current | legacy
+    before_1_0_32 = older | (current if language in ("zh", "en") else set())
+    legacy = {line[:-1] + ("；画面查看未核实。" if line.endswith("。") else "; viewing unverified.") for line in before_1_0_32}
+    return note in current | older | legacy

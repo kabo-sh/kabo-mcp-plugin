@@ -69,7 +69,8 @@ def main() -> int:
         sys.stdout.buffer.write(raw)
         # In real runs the final reply to a short question ("why did it go viral") is often summarized by the model into a few lines: the end of the report states directly how to deliver it.
         print(("" if raw.endswith(b"\n") else "\n") + f"creator_report: {args.report.resolve()}")
-        print('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says), then this creator_report line.')
+        # SKILL.md delivery forbids file paths in the reply: the creator_report line is for the run's record only.
+        print('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says). The creator_report line is for this run\'s record: leave it, and every file path, out of the reply.')
     else:
         print("OK: Creator-facing video report contains no forbidden internal identifiers or metadata")
     return 0

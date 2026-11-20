@@ -53,6 +53,9 @@ linked_media = importlib.util.module_from_spec(_linked_spec)
 _linked_spec.loader.exec_module(linked_media)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import public_video_sources  # noqa: E402
+import viewer_response  # noqa: E402
+import acv_timing  # noqa: E402
+import transcript_checks  # noqa: E402
 
 SCHEMA_VERSION = "content-evidence.v1"
 MEDIA_CONNECTOR = "public-video-media"
@@ -64,6 +67,9 @@ MEDIA_CONNECTOR = "public-video-media"
 # metadata role comes from on YouTube, and the downloader keeps it on the other platforms.
 YOUTUBE_METADATA_CONNECTOR = "youtube-public"
 YOUTUBE_METADATA_OPERATION = "get_video"
+# tiktok_search_get_video: TikTok's own answer about the video (counts, caption, sound), read as metadata.
+TIKTOK_METADATA_CONNECTOR = "tiktok-search"
+TIKTOK_METADATA_OPERATION = "get_video"
 KEYFRAME_OPERATIONS = {
     "extract_keyframes",
     "extract_keyframes_hosted_media",
@@ -133,7 +139,12 @@ ZONED = re.compile(r"(Z|[+-]\d{2}:?\d{2})$")
 SAMPLING_PLAN_KEYS = {
     "base_interval_s", "hook_window_s", "hook_dense_window_s", "hook_interval_s", "hook_frames",
     "body_interval_s", "body_frames", "budget", "frames", "body_degraded", "note", "closing_frame_s",
+    # Present only when shot starts or dense windows were asked for (and the server applied them).
+    "include_shot_starts", "shot_detection", "shot_start_frames", "dense_window_frames", "dense_windows",
+    "dropped_for_budget", "dropped_as_duplicate", "dedupe_s", "budget_priority",
 }
+# Why a frame is in the plan: the same names on the server and on this machine.
+FRAME_SOURCES = {"hook", "body", "closing", "shot_start", "dense_window"}
 # media.encoding closes to additional properties, so the writer filters to exactly its key set
 # rather than passing a probe response through and discovering the mismatch at validation.
 ENCODING_KEYS = {
@@ -240,6 +251,9 @@ def role_of(envelope: dict[str, Any]) -> str | None:
     if (envelope.get("connector_id") == YOUTUBE_METADATA_CONNECTOR
             and str(envelope.get("operation")) == YOUTUBE_METADATA_OPERATION):
         return "metadata"
+    if (envelope.get("connector_id") == TIKTOK_METADATA_CONNECTOR
+            and str(envelope.get("operation")) == TIKTOK_METADATA_OPERATION):
+        return "metadata"
     if (envelope.get("connector_id") in POST_CONNECTORS
             and str(envelope.get("operation")) == POST_OPERATION):
         return "public_post"
@@ -259,6 +273,9 @@ def normalise_metadata(envelope: dict[str, Any]) -> dict[str, Any]:
     each reader a second shape keeps one definition of what a metadata envelope looks like --
     and the fields are the same facts under different names, not different facts.
     """
+    if (envelope.get("connector_id") == TIKTOK_METADATA_CONNECTOR
+            and str(envelope.get("operation")) == TIKTOK_METADATA_OPERATION):
+        return normalise_tiktok_metadata(envelope)
     if (envelope.get("connector_id") != YOUTUBE_METADATA_CONNECTOR
             or str(envelope.get("operation")) != YOUTUBE_METADATA_OPERATION):
         return envelope
@@ -297,6 +314,60 @@ def normalise_metadata(envelope: dict[str, Any]) -> dict[str, Any]:
             "tags": row.get("tags") or [],
         }
     }
+    return normalised
+
+
+def unresolved_safe_id(ref: dict[str, Any]) -> str:
+    """The content id for an evidence id; an unresolved short link gets a stable token from its URL, never a guess."""
+    if ref.get("content_id"):
+        return str(ref["content_id"])
+    return "unresolved-" + hashlib.sha256(str(ref.get("permalink") or "").encode("utf-8")).hexdigest()[:12]
+
+
+def normalise_tiktok_metadata(envelope: dict[str, Any]) -> dict[str, Any]:
+    """The aweme row of tiktok_search_get_video in the downloader's data.video shape, plus the sound it declares."""
+    video = as_record(as_record(envelope.get("data")).get("video"))
+    if not video:
+        return envelope
+    stats = as_record(video.get("statistics"))
+    music = as_record(video.get("music"))
+    author = as_record(video.get("author"))
+
+    def count(value: Any) -> Any:
+        return value if type(value) is int else None
+
+    created = video.get("create_time")
+    published = (datetime.fromtimestamp(created, timezone.utc).isoformat().replace("+00:00", "Z")
+                 if type(created) is int and created > 0 else None)
+    duration_ms = as_record(video.get("video")).get("duration")
+    tags = [str(item.get("hashtag_name")) for item in video.get("text_extra") or []
+            if isinstance(item, dict) and item.get("type") == 1 and item.get("hashtag_name")]
+    desc = video.get("desc")
+    normalised = dict(envelope)
+    normalised["data"] = {"video": {
+        "id": str(video["aweme_id"]) if video.get("aweme_id") else None,
+        "title": None,
+        "description": desc if isinstance(desc, str) else None,
+        "webpage_url": None,
+        "channel": author.get("unique_id") or None,
+        "channel_id": author.get("uid") or None,
+        "duration_seconds": duration_ms / 1000 if type(duration_ms) in (int, float) and duration_ms > 0 else None,
+        "upload_date": published,
+        "view_count": count(stats.get("play_count")),
+        "like_count": count(stats.get("digg_count")),
+        "comment_count": count(stats.get("comment_count")),
+        # The cover is an expiring signed CDN link, so it is not written into the evidence.
+        "thumbnail": None,
+        "tags": tags,
+    }}
+    if music:
+        original = music.get("is_original_sound")
+        normalised["data"]["audio"] = {
+            "uses_original_audio": original if isinstance(original, bool) else None,
+            "audio_id": str(music.get("id_str") or music.get("id")) if (music.get("id_str") or music.get("id")) else None,
+            "artist_name": music.get("author") if isinstance(music.get("author"), str) else None,
+            "song_name": music.get("title") if isinstance(music.get("title"), str) else None,
+        }
     return normalised
 
 
@@ -340,7 +411,7 @@ def carried_metadata(frames: dict[str, Any] | None) -> dict[str, Any] | None:
     return carried
 
 
-def video_identity(envelopes: list[dict[str, Any]], platform: Any) -> dict[str, Any] | None:
+def video_identity(envelopes: list[dict[str, Any]], platform: Any, file_id: str | None = None) -> dict[str, Any] | None:
     """The video the backend says these responses are about (``data.video_identity``), or None.
 
     Short links only name a video after the server resolved them, and a transcript-only export has no
@@ -357,6 +428,10 @@ def video_identity(envelopes: list[dict[str, Any]], platform: Any) -> dict[str, 
             raise ValueError("the media responses name two different videos; build the evidence from one video's "
                              "responses only")
         found = identity
+    if found is not None and file_id and str(found.get("platform_video_id")).lower() == file_id:
+        # A video attached in Kabo (kabo-file:<id>) is named by its file id and is on no platform yet: the request's
+        # platform is the one the creator named for it.
+        return found
     if found is not None and found.get("platform") != platform:
         raise ValueError(f"the media responses identify a {found.get('platform')} video, but the request names "
                          f"{platform!r}: set the platform of the link the creator gave")
@@ -364,7 +439,8 @@ def video_identity(envelopes: list[dict[str, Any]], platform: Any) -> dict[str, 
 
 
 def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, published_at: str | None,
-                post_published_at: str | None = None, identity: dict[str, Any] | None = None) -> dict[str, Any]:
+                post_published_at: str | None = None, identity: dict[str, Any] | None = None,
+                metadata_ids: list[str] | None = None) -> dict[str, Any]:
     source = as_record(request.get("source"))
     video = as_record(as_record(metadata.get("data")).get("video")) if usable(metadata) else {}
     platform = source.get("platform")
@@ -376,15 +452,17 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
     permalink = source.get("url") or video.get("webpage_url")
     # A short link (v.douyin.com, b23.tv, ...) has no readable id: the backend resolves it and writes it into every
     # result's video_identity, including transcript-only exports.
+    # With no id in the request (an unresolved short link), take the id a metadata result of this run gives; with none it stays null, never guessed.
     content_id = (source.get("content_id") or video.get("id") or content_id_from_url(platform, permalink)
                   or as_record(identity).get("platform_video_id")
+                  or next((str(item) for item in metadata_ids or [] if item), None)
                   or (Path(str(file_ref)).stem if file_ref else None))
     if not permalink and file_ref:
         # An unpublished draft has no platform address; its locator is the file itself.
         permalink = Path(str(file_ref)).expanduser().resolve().as_uri()
-    if not content_id or not permalink:
-        raise ValueError("content_ref needs a content_id and a URL or file_ref: put the original post or video "
-                         "link in the request's source.url, or its id in source.content_id")
+    if not permalink:
+        raise ValueError("content_ref needs the video's URL or file_ref: put the original post or video link in "
+                         "the request's source.url")
     # The post projection's publish time only fills in what metadata did not give: metadata is the platform's own
     # answer about its video, and takes priority when both exist.
     published = published_at or video.get("upload_date") or post_published_at
@@ -395,7 +473,8 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
         text = str(published).strip()
         try:
             if re.fullmatch(r"\d{8}", text):  # the metadata's compact YYYYMMDD upload date
-                datetime.strptime(text, "%Y%m%d")
+                # Written as an ISO date: the brief and the report quote it, and 20260919 reads as a number.
+                published = datetime.strptime(text, "%Y%m%d").date().isoformat()
             elif "T" in text:
                 datetime.fromisoformat(text.replace("Z", "+00:00"))
                 precise = True
@@ -405,7 +484,7 @@ def content_ref(request: dict[str, Any], metadata: dict[str, Any] | None, publis
             raise ValueError(f"published_at {text!r} is neither a date nor an ISO date-time") from None
     return {
         "platform": platform,
-        "content_id": str(content_id),
+        "content_id": str(content_id) if content_id else None,
         "permalink": str(permalink),
         "published_at": str(published) if published else "unknown",
         "published_at_precision": "second" if precise else "day",
@@ -429,6 +508,26 @@ def acquisition_entry(envelope: dict[str, Any]) -> dict[str, Any]:
         "raw_retained_outside_git": True,
         "credits_charged": None,
         "note": None,
+    }
+
+
+def viewer_acquisition_entry(viewer: dict[str, Any]) -> dict[str, Any]:
+    """One ledger entry for the whole-video viewing: the start call and every poll of the same analysis."""
+    run = viewer.get("run") or {}
+    polls = int(viewer.get("polls") or 0)
+    return {
+        "step": "connector_call",
+        "connector_id": viewer_response.CONNECTOR,
+        "operation": viewer_response.START_TOOL,
+        "connector_request_id": str(run.get("id") or viewer.get("idempotency_key") or "unknown"),
+        "status": viewer_response.acquisition_status(viewer),
+        "retrieved_at": run.get("updatedAt"),
+        "raw_hash": viewer.get("raw_sha256"),
+        "raw_retained_outside_git": True,
+        "credits_charged": None,
+        "note": (f"whole-video viewing; final state read after {polls} {viewer_response.POLL_TOOL} poll(s); "
+                 "only timestamped notes and the transcript were kept, every score, verdict and piece of advice "
+                 "was discarded"),
     }
 
 
@@ -648,10 +747,35 @@ def post_facts(post: dict[str, Any] | None) -> dict[str, Any]:
     return facts
 
 
+# measure_audio_local.py's block, as the evidence carries it: everything but its notes (already limitations) and
+# the per-second loudness series (it stays in the local artifact, as a connector's series stays in its envelope).
+LOCAL_AUDIO_KEYS = {
+    "schema_version", "status", "measured", "unavailable", "skipped", "duration_s", "measured_until_s",
+    "speech_source", "loudness", "segments", "voice", "clarity", "pulse", "onsets", "stereo", "cut_alignment",
+    "findings", "listen_check", "thresholds",
+}
+AUDIO_SEGMENT_KEYS = {"start_s", "end_s", "duration_s", "label", "modulation"}
+AUDIO_FINDING_KEYS = {"id", "measure", "claim", "confidence", "value", "threshold", "at_s", "end_s"}
+
+
+def local_audio_block(audio: Any) -> dict[str, Any] | None:
+    if not isinstance(audio, dict) or audio.get("schema_version") != "local-audio.v1":
+        return None
+    block = {key: value for key, value in audio.items() if key in LOCAL_AUDIO_KEYS}
+    if isinstance(block.get("loudness"), dict):
+        block["loudness"] = {key: value for key, value in block["loudness"].items() if key != "series_1s"}
+    block["segments"] = [{key: value for key, value in as_record(item).items() if key in AUDIO_SEGMENT_KEYS}
+                         for item in block.get("segments") or []]
+    block["findings"] = [{key: value for key, value in as_record(item).items() if key in AUDIO_FINDING_KEYS}
+                         for item in block.get("findings") or []]
+    return block
+
+
 def media_block(frames: dict[str, Any] | None, metadata: dict[str, Any] | None,
                 local: dict[str, Any] | None = None,
                 measurements: dict[str, Any] | None = None,
-                captions: dict[str, Any] | None = None) -> dict[str, Any]:
+                captions: dict[str, Any] | None = None,
+                stated_duration_s: float | None = None) -> dict[str, Any]:
     if local is not None:
         facts = as_record(local.get("media"))
         duration = facts.get("duration_s")
@@ -675,6 +799,9 @@ def media_block(frames: dict[str, Any] | None, metadata: dict[str, Any] | None,
         probed = probed_block({"status": "completed", "data": signals}) if isinstance(signals, dict) else None
         if probed:
             local_block["probed"] = probed
+        audio = local_audio_block(facts.get("audio"))
+        if audio:
+            local_block["audio"] = audio
         return local_block
     observed = as_record(frames.get("data")).get("duration_s") if usable(frames) else None
     declared = as_record(as_record(metadata.get("data")).get("video")).get("duration_seconds") if usable(metadata) else None
@@ -685,12 +812,23 @@ def media_block(frames: dict[str, Any] | None, metadata: dict[str, Any] | None,
     # transcript response carries the platform-declared duration for them; it ranks last.
     spoken = as_record(captions.get("data")).get("duration_seconds") if usable(captions) else None
     spoken = spoken if isinstance(spoken, (int, float)) and spoken > 0 else None
+    # The measurement probes the same downloaded file the keyframes do: on a whole-video run it is the call that
+    # learns the duration before the viewing starts, and often the only one that carries it.
+    measured = as_record(measurements.get("data")).get("duration_s") if usable(measurements) else None
+    measured = measured if isinstance(measured, (int, float)) and not isinstance(measured, bool) and measured > 0 else None
+    stated = (stated_duration_s if isinstance(stated_duration_s, (int, float)) and stated_duration_s > 0 else None)
     if observed is not None:
         duration, source = float(observed), "connector_extract_keyframes"
+    elif measured is not None:
+        duration, source = float(measured), "connector_measure"
     elif declared is not None:
         duration, source = float(declared), "connector_metadata"
     elif spoken is not None:
         duration, source = float(spoken), "connector_transcript"
+    elif stated is not None:
+        # The duration the observation was given (observe_video.py --duration-s) or learned outside these
+        # envelopes; it ranks last, below anything fetched about this copy.
+        duration, source = float(stated), "host_supplied"
     else:
         duration, source = None, "unavailable"
     block: dict[str, Any] = {
@@ -731,6 +869,47 @@ def media_block(frames: dict[str, Any] | None, metadata: dict[str, Any] | None,
         if observed is not None and declared is not None and abs(float(observed) - float(declared)) > 1:
             block["discrepancies"] = [{"field": "duration_s", "declared": declared, "observed": observed}]
     return block
+
+
+def past_end_notes(block: dict[str, Any], duration_s: float | None) -> list[dict[str, Any]]:
+    """Remove from `block` the whole-video notes that start after the video ends; return them.
+
+    The viewer reports its own times. On a seven-minute video it once placed notes at 637 and 658 seconds of a
+    417.5-second video, and another at 209 s where the frames showed the moment at 126.8 s: it read 2:09 as 209
+    seconds. A note past the end cannot be placed, so it is dropped and named; it is never silently converted."""
+    if not isinstance(duration_s, (int, float)) or not block.get("items"):
+        return []
+    limit_ms = (duration_s + transcript_checks.END_TOLERANCE_S) * 1000
+    dropped = [item for item in block["items"] if item["start_ms"] > limit_ms]
+    if dropped:
+        block["items"] = [item for item in block["items"] if item["start_ms"] <= limit_ms]
+        if not block["items"]:
+            block.update(status="unavailable", failure={"code": "no_observations", "retryable": False})
+    return dropped
+
+
+def minutes_read_as_seconds(seconds: float, duration_s: float) -> str | None:
+    """`2:09` when `seconds` (129 s) looks like minutes:seconds read as plain seconds (209) and fits the video."""
+    whole = int(seconds)
+    minutes, rest = divmod(whole, 100)
+    if minutes and rest < 60 and minutes * 60 + rest <= duration_s + transcript_checks.END_TOLERANCE_S:
+        return f"{minutes}:{rest:02d}"
+    return None
+
+
+def past_end_limitation(dropped: list[dict[str, Any]], duration_s: float) -> str:
+    named = ", ".join(f"{item['id']} ({item['start_ms'] / 1000:g}s)" for item in dropped)
+    text = (f"Whole-video notes {named} start after the end of this {duration_s:g}s video and were dropped: "
+            "the viewer's times for them cannot be placed.")
+    readings = [(item, minutes_read_as_seconds(item["start_ms"] / 1000, duration_s)) for item in dropped]
+    if readings and all(reading for _, reading in readings):
+        shown = ", ".join(f"{item['start_ms'] / 1000:g}s as {reading}" for item, reading in readings)
+        text += (f" Their times look like minutes:seconds read as seconds ({shown}), so the other notes' times "
+                 "may be misread the same way: check each against the frames or measured cuts before citing it. "
+                 "No time was converted.")
+    else:
+        text += " Check the other notes' times against the frames or measured cuts before citing them."
+    return text
 
 
 def cues_from(records: Any) -> list[dict[str, Any]]:
@@ -779,6 +958,12 @@ def local_transcript_block(local: dict[str, Any], request: dict[str, Any]) -> di
         "text_sha256": None,
         "origin": None,
     }
+    if local.get("status") in {"no_speech_detected", "no_audio_track"}:
+        # Local speech recognition read the whole file and heard no words: that is the answer, not a failure.
+        block["status"] = local["status"]
+        block["status_basis"] = str(local.get("status_basis") or "local speech recognition heard no speech")
+        block["origin"] = "speech_recognition"
+        return block
     if local.get("status") != "available":
         block["status"] = "provider_error"
         block["status_basis"] = str(local.get("status_basis") or "the supplied subtitle file could not be read")
@@ -909,6 +1094,7 @@ def frames_block(frames: dict[str, Any] | None, local: dict[str, Any] | None = N
                 "sha256": frame.get("sha256"),
                 "retained_outside_git": True,
                 "path": frame.get("path"),
+                **({"source": frame["source"]} if frame.get("source") in FRAME_SOURCES else {}),
             })
         plan = block.get("sampling_plan")
         plan = {key: value for key, value in plan.items() if key in SAMPLING_PLAN_KEYS} if isinstance(plan, dict) else None
@@ -941,6 +1127,7 @@ def frames_block(frames: dict[str, Any] | None, local: dict[str, Any] | None = N
             "sha256": frame.get("sha256"),
             "retained_outside_git": True,
             "path": frame.get("object_ref"),
+            **({"source": frame["source"]} if frame.get("source") in FRAME_SOURCES else {}),
         })
     plan = data.get("sampling_plan")
     plan = {key: value for key, value in plan.items() if key in SAMPLING_PLAN_KEYS} if isinstance(plan, dict) else None
@@ -1035,6 +1222,8 @@ def build(
     snapshot_root: Path | None = None,
     analysis_root: Path | None = None,
     now: datetime | None = None,
+    viewer: dict[str, Any] | None = None,
+    stated_duration_s: float | None = None,
 ) -> dict[str, Any]:
     from prepare_link_request import public_only_request_errors
     scope_errors = public_only_request_errors(request)
@@ -1047,6 +1236,14 @@ def build(
         raise ValueError(
             f"a local media artifact was given but the request declares acquisition "
             f"{acquisition_mode!r}: the evidence would claim it measured a file the request never named"
+        )
+    if viewer is not None and (acquisition_mode == "local_file" or local_media is not None
+                               or local_transcript is not None):
+        # The whole-video viewer watched the platform's copy; a local file is the creator's master. One object
+        # never claims both readings describe the same thing.
+        raise ValueError(
+            "a whole-video viewing result was given for a local file: the viewer watched the published copy, "
+            "not this file, and is not evidence about it"
         )
     # A deferred job still unfinished has a job id and no envelope yet. It is recorded as pending
     # (polling window over, run still going) or deferred_incomplete (the run is closing), never as
@@ -1064,7 +1261,8 @@ def build(
                 "status": status, "retrieved_at": None, "raw_hash": None, "raw_retained_outside_git": True,
                 "credits_charged": None, "note": "deferred job still unfinished when the acquisition window closed",
             })
-    if not envelope_paths and not pending_entries and local_media is None and local_transcript is None:
+    if (not envelope_paths and not pending_entries and local_media is None and local_transcript is None
+            and viewer is None):
         # An evidence object records at least one acquisition; with none there is nothing to derive.
         raise ValueError("no connector envelope was given: persist every fetch this run made, failed ones "
                          "included, and pass each with --envelope")
@@ -1084,7 +1282,8 @@ def build(
     ]
     # Hosts also retain readiness catalogs in the same staging directory. They are acquisition
     # metadata, not connector evidence; unknown documents and malformed envelopes still fail.
-    if not envelopes and not linked_bundles and not pending_entries and local_media is None and local_transcript is None:
+    if (not envelopes and not linked_bundles and not pending_entries and local_media is None
+            and local_transcript is None and viewer is None):
         raise ValueError("no content acquisition was given: a readiness catalog is not post evidence")
     by_role: dict[str, list[dict[str, Any]]] = {}
     for _, envelope in envelopes:
@@ -1125,8 +1324,14 @@ def build(
     local_steps = [as_record(step) for step in as_record(local_media).get("steps") or []]
     local_steps += [as_record(step) for step in as_record(local_transcript).get("steps") or []]
 
-    identity = video_identity([envelope for _, envelope in envelopes], as_record(request.get("source")).get("platform"))
-    ref = content_ref(request, metadata, published_at, post_facts(post).get("published_at"), identity)
+    source_url = str(as_record(request.get("source")).get("url") or "")
+    file_id = source_url.split(":", 1)[1].lower() if source_url.lower().startswith("kabo-file:") else None
+    identity = video_identity([envelope for _, envelope in envelopes], as_record(request.get("source")).get("platform"),
+                              file_id)
+    metadata_ids = [as_record(as_record(item.get("data")).get("video")).get("id")
+                    for item in by_role.get("metadata", []) if usable(item)]
+    ref = content_ref(request, metadata, published_at, post_facts(post).get("published_at"), identity,
+                      metadata_ids)
     # Tier 1 before tier 2, which is the order SKILL.md states. A supplied subtitle file is the
     # fallback for a cut with no published captions, not an override of the ones the platform
     # returned: taking it unconditionally would throw away what a viewer with captions on actually
@@ -1143,6 +1348,74 @@ def build(
         used_local_transcript = True
     else:
         used_local_transcript = False
+    media = media_block(frames, metadata, local_media, measurements, captions, stated_duration_s)
+    duration_s = media.get("duration_s") if isinstance(media.get("duration_s"), (int, float)) else None
+    viewer_block = viewer_response.observations(viewer) if viewer is not None else None
+    viewer_notes_dropped = past_end_notes(viewer_block, duration_s) if viewer_block is not None else []
+    viewer_cues = cues_from(viewer_response.transcript_cues(viewer))
+    fetched_transcript = transcript if transcript.get("source_connector") and not used_local_transcript else None
+    fetched_cues = list((fetched_transcript or {}).get("cues") or [])
+    # Words the fetched transcript holds that may stand for speech: none when it carries only sound markers or the
+    # generic lines speech recognition invents over music.
+    fetched_worded = transcript_checks.worded_cues(fetched_cues, duration_s)
+    fetched_empty = transcript["status"] != "available" or (
+        transcript.get("granularity") == "timestamped" and not fetched_worded)
+    used_viewer_transcript = False
+    if viewer_cues and fetched_empty and not used_local_transcript:
+        # The viewer heard the audio itself: its words fill the transcript when no fetched transcript holds words.
+        text = "\n".join(cue["text"] for cue in viewer_cues)
+        why = ("no fetched transcript was available" if transcript["status"] != "available" else
+               f"the fetched transcript's {len(fetched_cues)} cue(s) held only sound markers or generic lines")
+        transcript = {
+            "status": "available",
+            "status_basis": (f"the whole-video viewer ({viewer_response.START_TOOL}) returned {len(viewer_cues)} "
+                             f"timed cues heard from the video's audio; {why}"),
+            "source_connector": viewer_response.CONNECTOR,
+            "granularity": "timestamped",
+            "timestamps_available": True,
+            "language_requested": transcript.get("language_requested"),
+            "language": None,
+            "segment_count": len(viewer_cues),
+            "character_count": len(text),
+            "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "cues": viewer_cues,
+            "origin": "speech_recognition",
+        }
+        used_viewer_transcript = True
+    viewer_run = as_record(as_record(viewer).get("run"))
+    viewer_heard = viewer_run.get("status") == "completed"
+    sources = []
+    if fetched_transcript is not None:
+        sources.append(transcript_checks.source_entry(
+            "fetched", str(fetched_transcript["status"]), fetched_cues, used=not used_viewer_transcript,
+            declared=fetched_transcript.get("language"), origin=fetched_transcript.get("origin")))
+    if viewer is not None:
+        sources.append(transcript_checks.source_entry(
+            "whole_video_viewer", ("available" if viewer_cues else "no_speech_heard") if viewer_heard
+            else str((viewer_block or {}).get("status") or "unavailable"), viewer_cues, used=used_viewer_transcript,
+            origin="speech_recognition"))
+    if local_transcript is not None:
+        heard = as_record(local_transcript).get("origin") == "speech_recognition" or as_record(local_transcript).get(
+            "status") in {"no_speech_detected", "no_audio_track"}
+        sources.append(transcript_checks.source_entry(
+            "local_speech_recognition" if heard else "subtitle_file", str(as_record(local_transcript).get("status")),
+            cues_from(as_record(local_transcript).get("cues")), used=used_local_transcript,
+            declared=as_record(local_transcript).get("language"), origin=transcript.get("origin")))
+    video_facts = as_record(as_record(metadata.get("data")).get("video")) if usable(metadata) else {}
+    transcript_conflicts = transcript_checks.conflicts(
+        fetched_cues if fetched_transcript is not None else None, viewer_cues if viewer is not None else None,
+        fetched_language=(fetched_transcript or {}).get("language"), viewer_heard=viewer_heard,
+        duration_s=duration_s,
+        metadata_text=" ".join(str(video_facts.get(key) or "") for key in ("title", "description")) or None,
+        used=transcript.get("cues") or [],
+        used_label="the whole-video viewer's transcript" if used_viewer_transcript else "the transcript")
+    suspect = transcript_checks.suspect_cues(transcript.get("cues") or [], duration_s)
+    if sources:
+        transcript["sources"] = sources
+    if transcript_conflicts:
+        transcript["conflicts"] = transcript_conflicts
+    if suspect:
+        transcript["suspect_cues"] = suspect
     frame_block = frames_block(frames, local_media)
     # Local extraction already writes its own real files under hashed names and records each
     # path. Only connector pixels are renamed by host envelope staging.
@@ -1150,10 +1423,18 @@ def build(
         if analysis_root is None:
             raise ValueError("snapshot frame binding requires this run's analysis directory")
         materialise_frame_aliases(frame_block, snapshot_root, analysis_root)
-    anything = transcript["status"] == "available" or frame_block["status"] == "available" or usable(metadata)
+    anything = (transcript["status"] == "available" or frame_block["status"] == "available" or usable(metadata)
+                or bool(viewer_block and viewer_block["items"]))
     notes: list[str] = []
     for _, envelope in envelopes:
         if envelope.get("status") == "unsupported" and role_of(envelope) in served_elsewhere:
+            continue
+        if role_of(envelope) == "captions" and used_viewer_transcript:
+            # Its "no transcript was retrieved" is true of that call only: the viewer's words fill the transcript.
+            replaced = (f"{envelope.get('operation')} returned no words; the transcript here is the one the "
+                        "whole-video viewer heard.")
+            if replaced not in notes:
+                notes.append(replaced)
             continue
         fact = f"{envelope.get('operation')} returned {envelope.get('status')}."
         for value in envelope.get("limitations") or []:
@@ -1184,6 +1465,22 @@ def build(
                 f"The supplied subtitle file runs past the end of this cut (a line starts at "
                 f"{last_cue:g}s in a {duration:g}s video), so it may belong to a different version."
             )
+    if used_local_transcript and as_record(local_transcript).get("complete") is False:
+        reached = as_record(local_transcript).get("transcribed_until_s")
+        notes.append(f"Local speech recognition stopped at its time limit after {reached}s of the file: past that "
+                     "second the words were not read, which is not the same as silence.")
+    if viewer_cues and not used_viewer_transcript:
+        notes.append("The whole-video viewer also returned a transcript; the fetched transcript was used instead.")
+    if viewer_notes_dropped:
+        notes.append(past_end_limitation(viewer_notes_dropped, duration_s))
+    for text in transcript_conflicts:
+        if text not in notes:
+            notes.append(text)
+    if viewer_block is not None and viewer_block["status"] != "available":
+        code = (viewer_block.get("failure") or {}).get("code")
+        notes.append("Whole-video viewing " + ("was still running when observation closed" if viewer_block["status"] == "pending"
+                                                else f"returned no observations ({code})")
+                     + ", so its timestamped notes are unavailable.")
     if ref["published_at"] == "unknown":
         notes.append("No publish date was available from the retrieved metadata.")
     if usable(metadata):
@@ -1212,10 +1509,12 @@ def build(
         hashes["local_media_input"] = local_media["input_sha256"]
     if isinstance(as_record(local_transcript).get("source_file_sha256"), str):
         hashes["local_subtitle_input"] = local_transcript["source_file_sha256"]
+    if viewer is not None:
+        hashes["whole_video_response"] = viewer["raw_sha256"]
 
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
-        "evidence_id": f"ev-{public_video_sources.content_id_prefix(ref['platform'])}-{ref['content_id']}",
+        "evidence_id": f"ev-{public_video_sources.content_id_prefix(ref['platform'])}-{unresolved_safe_id(ref)}",
         "request_ref": request.get("request_id"),
         "content_ref": ref,
         "acquisition": (
@@ -1224,8 +1523,9 @@ def build(
                                        or as_record(local_media).get("input_sha256"))
                for step in local_steps]
             + pending_entries
+            + ([viewer_acquisition_entry(viewer)] if viewer is not None else [])
         ),
-        "media": media_block(frames, metadata, local_media, measurements, captions),
+        "media": media,
         "transcript": transcript,
         "frames": frame_block,
         "owner_metrics": owner_metrics or {"status": "unavailable", "source_mode": "unavailable",
@@ -1243,9 +1543,17 @@ def build(
     facts = post_facts(post)
     if not facts.get("public_metrics"):
         facts["public_metrics"] = metadata_public_metrics(metadata, ref["platform"])
+    if not facts.get("audio_attribution"):
+        # With no sound in the post row, use the sound platform metadata declares (TikTok's music.is_original_sound and so on).
+        declared = next((as_record(as_record(item.get("data")).get("audio")) for item in by_role.get("metadata", [])
+                         if usable(item) and as_record(as_record(item.get("data")).get("audio"))), None)
+        if declared:
+            facts["audio_attribution"] = {**declared, "trend_metrics_available": False}
     for key in ("public_metrics", "derived", "audio_attribution"):
         if facts.get(key):
             evidence[key] = facts[key]
+    if viewer_block is not None:
+        evidence["viewer_observations"] = viewer_block
     linked = linked_media.bind(linked_bundles, [e for _, e in envelopes], request, analysis_root)
     if linked is not None:
         evidence["images"] = linked
@@ -1272,6 +1580,30 @@ def build(
             elif item["name"] == "caption_hashtag_count":
                 item["value"] = len(HASHTAG.findall(caption))
     return evidence
+
+
+# The media operations that observe the video itself (frame and measurement routes may carry a suffix).
+OBSERVING_OPERATIONS = ("fetch_transcript", "extract_keyframes", "measure_media_signals")
+
+
+def observation_source(evidence: dict[str, Any]) -> str:
+    """Which observation source this evidence came from, read off its acquisition ledger."""
+    steps = evidence.get("acquisition") or []
+    if any(entry.get("step") == "local_extraction" for entry in steps):
+        return "local_frames"
+    # Only what arrived counts: a failed media call before a fallback, or a failed viewing, observed nothing.
+    # Metadata alone is not an observation of the video either: a whole-video run fetches it too.
+    viewer = (evidence.get("viewer_observations") or {}).get("status") == "available"
+    media = any(entry.get("connector_id") == MEDIA_CONNECTOR and entry.get("status") in {"completed", "completed_partial"}
+                and str(entry.get("operation") or "").startswith(OBSERVING_OPERATIONS) for entry in steps)
+    if viewer and media:
+        return "combined"
+    if viewer or media:
+        return "whole_video" if viewer else "server_frames"
+    # Nothing arrived: name what was tried, a viewing only when no media observation was even asked for.
+    asked = any(entry.get("connector_id") == MEDIA_CONNECTOR and str(entry.get("operation") or "").startswith(
+        OBSERVING_OPERATIONS) for entry in steps)
+    return "whole_video" if "viewer_observations" in evidence and not asked else "server_frames"
 
 
 def write_evidence_with_reference_index(output: Path, evidence_bytes: bytes,
@@ -1321,7 +1653,12 @@ def main() -> int:
                         help="the artifact extract_local_frames.py wrote, for a file read on this machine")
     parser.add_argument("--local-transcript", type=Path,
                         help="the artifact read_subtitle_file.py wrote, for a subtitle file the creator supplied")
-    parser.add_argument("--run-id")
+    parser.add_argument("--viewer", type=Path,
+                        help="the saved whole-video viewing result (analyze_content_video / get_analysis_run)")
+    parser.add_argument("--run-id", help="by default the run directory's name, when the output is in <run>/analysis/")
+    parser.add_argument("--duration-s", type=float,
+                        help="the video's duration as observe_video.py printed it; used only when no envelope "
+                             "carries one")
     parser.add_argument("--snapshot-root", type=Path,
                         help="this run's snapshot directory; bind staged frame bytes to canonical IDs")
     parser.add_argument("--output", type=Path, required=True)
@@ -1332,7 +1669,7 @@ def main() -> int:
         reference_path = args.reference_index
         if reference_path is not None:
             inputs = [args.request, *args.envelope, args.owner_metrics,
-                      args.local_media, args.local_transcript]
+                      args.local_media, args.local_transcript, args.viewer]
             inputs = [path for path in inputs if path is not None]
             if reference_path.resolve() == args.output.resolve():
                 raise ValueError("the evidence and reference index must use different paths")
@@ -1343,10 +1680,19 @@ def main() -> int:
                         raise ValueError("evidence and reference outputs must not overwrite an input")
             if reference_path.exists() or reference_path.is_symlink():
                 raise ValueError("the reference sidecar already exists; no input or output was overwritten")
+        request = load_json(args.request)
+        run_id = args.run_id
+        if not run_id and not request.get("request_id"):
+            # The run directory names the run: <run>/analysis/content_evidence.json. A request written with a relative
+            # path once carried an empty request id, and every id composed from it ended in "-unknown".
+            candidate = args.output.resolve().parent.parent
+            if args.output.resolve().parent.name == "analysis" and (candidate / ".static-run.json").is_file():
+                run_id = candidate.name
         evidence = build(
-            load_json(args.request),
+            request,
             args.envelope,
-            run_id=args.run_id,
+            run_id=run_id,
+            stated_duration_s=args.duration_s,
             owner_metrics=load_json(args.owner_metrics) if args.owner_metrics else None,
             limitations=args.limitation,
             published_at=args.published_at,
@@ -1356,6 +1702,7 @@ def main() -> int:
             local_transcript=load_json(args.local_transcript) if args.local_transcript else None,
             snapshot_root=args.snapshot_root,
             analysis_root=args.snapshot_root.parent / "analysis" if args.snapshot_root else None,
+            viewer=viewer_response.read(args.viewer.read_bytes()) if args.viewer else None,
         )
         evidence_bytes = (json.dumps(evidence, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -1391,7 +1738,13 @@ def main() -> int:
         "transcript_origin": evidence["transcript"].get("origin"),
         "local_steps": sum(1 for entry in evidence["acquisition"] if entry.get("step") == "local_extraction"),
         "content_metadata": evidence["content_metadata"]["status"],
+        **({"viewer_observations": evidence["viewer_observations"]["status"],
+            "viewer_notes": len(evidence["viewer_observations"]["items"])} if "viewer_observations" in evidence else {}),
     }, ensure_ascii=False))
+    # Observation ends when its evidence is built; which source it was follows from what arrived.
+    analysis_dir = args.output.parent
+    acv_timing.set_source(analysis_dir, observation_source(evidence))
+    acv_timing.close_stage(analysis_dir, "observe")
     return 0
 
 

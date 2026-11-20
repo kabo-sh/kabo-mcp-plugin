@@ -56,7 +56,8 @@
           ]
         },
         "content_id": {
-          "type": "string"
+          "type": ["string", "null"],
+          "description": "Null only while a short link stays unresolved: no response named the video, and an id is never guessed."
         },
         "permalink": {
           "type": "string",
@@ -249,10 +250,12 @@
             "connector_extract_keyframes",
             "connector_metadata",
             "connector_transcript",
+            "connector_measure",
+            "host_supplied",
             "local_probe",
             "unavailable"
           ],
-          "description": "extract_keyframes probes the downloaded file; collect_public_metadata returns the platform-declared duration and was observed to be null for Instagram. connector_transcript is the platform-declared duration that fetch_transcript carries on Douyin, Xiaohongshu and Kuaishou, used only when neither of the first two gave one. local_probe is the creator's own file, probed on the machine this run executed on - it is the master they exported, not the copy a platform re-encoded and delivered, and the same is true of every other field in this block on that path."
+          "description": "extract_keyframes probes the downloaded file; collect_public_metadata returns the platform-declared duration and was observed to be null for Instagram. connector_transcript is the platform-declared duration that fetch_transcript carries on Douyin, Xiaohongshu and Kuaishou, used only when neither of the first two gave one. connector_measure is the duration measure_media_signals probes from the downloaded file, used when no keyframes carried one (a whole-video run measures before its viewing starts). host_supplied is the duration the observation was given or learned outside these envelopes (observe_video.py --duration-s), used only when no fetched source carried one. local_probe is the creator's own file, probed on the machine this run executed on - it is the master they exported, not the copy a platform re-encoded and delivered, and the same is true of every other field in this block on that path."
         },
         "width": {
           "type": [
@@ -744,6 +747,242 @@
             }
           }
         },
+        "audio": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "The sound of a file on this machine, measured by measure_audio_local.py on one timeline: loudness over time, a speech / non-speech / silence map, the voice against what sits under it, onsets and pulse, the cuts against the onsets, and the voice's clarity. Absent on every other path. Every finding carries the measure and threshold it cleared and a confidence tier; a reading below its threshold is a number here and never a finding. `listen_check` lists what no measurement can settle (genre, mood and fit, which track and whether it is trending or licensed, voice timbre, effect quality): those are questions for the creator, never findings. Like the rest of this block on that path, it is the master the creator exported, not the copy a platform delivered.",
+          "additionalProperties": false,
+          "properties": {
+            "schema_version": {
+              "const": "local-audio.v1"
+            },
+            "status": {
+              "enum": [
+                "completed",
+                "completed_partial",
+                "no_audio_track",
+                "unavailable"
+              ]
+            },
+            "measured": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "unavailable": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "skipped": {
+              "type": "array",
+              "description": "Measures not taken, each with why (numpy absent, the samples not decoded in time). Unmeasured, not absent.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "measure",
+                  "reason"
+                ],
+                "properties": {
+                  "measure": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "duration_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "measured_until_s": {
+              "type": "object",
+              "description": "Present when the command stopped early: the second each pass reached. Past it the sound is unmeasured, not quiet.",
+              "additionalProperties": {
+                "type": "number"
+              }
+            },
+            "speech_source": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Where the speech spans came from (the local transcript's word or cue timings) and the recogniser's mean confidence. Null source: no transcript, so the map could not tell speech from other sound."
+            },
+            "loudness": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "EBU R128 integrated loudness, loudness range and true peak, full-scale samples, the opening against the body, and level jumps between sections. The per-second series stays in the local artifact."
+            },
+            "segments": {
+              "type": "array",
+              "description": "The timeline in order, 50 ms resolution. `non_speech_signal` is sound where no words were recognised (music, ambience or effects); `sound_unclassified` is sound where no transcript was read.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "start_s",
+                  "end_s",
+                  "label"
+                ],
+                "properties": {
+                  "start_s": {
+                    "type": "number"
+                  },
+                  "end_s": {
+                    "type": "number"
+                  },
+                  "duration_s": {
+                    "type": "number"
+                  },
+                  "label": {
+                    "enum": [
+                      "speech",
+                      "non_speech_signal",
+                      "silence",
+                      "sound_unclassified"
+                    ]
+                  },
+                  "modulation": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "voice": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "The voice against what sits under it: how far the level falls between words, its syllable-rate movement, the level in wordless gaps, and the reading those support."
+            },
+            "clarity": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Share of the voice's energy above 4 kHz, mains hum, the noise floor in pauses, and the recogniser's mean confidence."
+            },
+            "pulse": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Autocorrelation of the onset envelope: strength, contrast and an approximate tempo (octave-ambiguous)."
+            },
+            "onsets": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "How many sound onsets were found and how densely."
+            },
+            "stereo": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Side-to-mid energy in speech and elsewhere; a centred voice over a wide bed shows as side energy during speech."
+            },
+            "cut_alignment": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Share of cuts outside speech within two frames of a strong onset, against the share the same cuts reach when shifted around the timeline; and where the cut list came from."
+            },
+            "findings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "measure",
+                  "claim",
+                  "confidence",
+                  "value",
+                  "threshold"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "measure": {
+                    "type": "string"
+                  },
+                  "claim": {
+                    "type": "string"
+                  },
+                  "confidence": {
+                    "enum": [
+                      "high",
+                      "medium"
+                    ]
+                  },
+                  "value": {
+                    "type": [
+                      "number",
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "threshold": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "at_s": {
+                    "type": "number"
+                  },
+                  "end_s": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            "listen_check": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "ask"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "ask": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "thresholds": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            }
+          }
+        },
         "declared": {
           "type": [
             "object",
@@ -911,6 +1150,103 @@
             null
           ],
           "description": "Who produced these words. platform_captions are published with the video and are what a viewer with captions on would read. speech_recognition is a machine transcribing the audio after the fact: it carries a word error rate, so a line taken from it may be quoted as what the analysis heard but never as the creator's exact wording, and a proper noun or figure read from it needs a frame to confirm it. creator_supplied is a subtitle or text file the creator handed over for this run: its wording may be quoted as theirs, because no machine guessed at it - that is the whole reason this field distinguishes the two. What it is not is evidence of what the platform published, and it was not checked against the audio, so a second taken from it is the file's claim about the video rather than a measurement of it."
+        },
+        "sources": {
+          "type": "array",
+          "description": "Every transcript source this run had, the kept one marked used: the fetched transcript, the whole-video viewer's, a subtitle file or local speech recognition. Written so a reader sees which words were not kept and why; only the kept transcript's cues may be cited. On-screen text in the frames is a further source the analysis reads itself.",
+          "items": {
+            "type": "object",
+            "required": [
+              "source",
+              "used",
+              "status",
+              "cue_count"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "enum": [
+                  "fetched",
+                  "whole_video_viewer",
+                  "subtitle_file",
+                  "local_speech_recognition"
+                ]
+              },
+              "used": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string"
+              },
+              "origin": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cue_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "worded_cue_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "language": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The language the source declared, when it declared one."
+              },
+              "detected_language": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The language its words read as, from common function words or the writing system; null when too short or mixed to tell."
+              },
+              "excerpt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Its first worded lines, shortened, so a disagreement can be seen without opening the source."
+              }
+            }
+          }
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Each disagreement among the transcript sources, or with the video's length and language, in one sentence. Also recorded in limitations."
+        },
+        "suspect_cues": {
+          "type": "array",
+          "description": "Cues of the kept transcript that are no evidence of speech: only a sound marker, a generic line speech recognition invents over music or silence, or a start past the end of the video. They stay in cues verbatim; a promise is never anchored on one.",
+          "items": {
+            "type": "object",
+            "required": [
+              "index",
+              "reason"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "enum": [
+                  "sound_marker_only",
+                  "generic_line",
+                  "past_end"
+                ]
+              }
+            }
+          }
         }
       }
     },
@@ -980,6 +1316,10 @@
                   "null"
                 ],
                 "description": "Where the frame file is, as a host artifact URI or a path under the run workspace. Required whenever the frames were extracted in this run. Without it the evidence records that a frame exists and not where to look at it, so any consumer that did not do the extraction — a replay, an App drill-down, a re-analysis under a better prompt — can only reuse the descriptions already written into observations. That is the same shape as the transcript defect: a hash identifies a fetch, it cannot be read."
+              },
+              "source": {
+                "enum": ["hook", "body", "closing", "shot_start", "dense_window"],
+                "description": "Why the plan holds this frame: the opening or closing window, the body grid, just after a detected cut, or a dense window a method card asked for. Absent where the plan did not say (a server that took its standard plan)."
               }
             }
           }
@@ -1036,8 +1376,31 @@
             },
             "closing_frame_s": {
               "type": "number",
-              "description": "The last second, sampled explicitly. A 1 fps walk from the opening leaves a remainder at the end, and the call to action lives there."
-            }
+              "description": "Where the closing window starts (the last two seconds, sampled at the opening's spacing). A 1 fps walk from the opening leaves a remainder at the end, and the call to action lives there."
+            },
+            "include_shot_starts": { "type": "boolean" },
+            "shot_detection": {
+              "type": "object",
+              "description": "How the cuts behind the shot-start frames were found. A failed or partial detection means frames at cuts are missing there, not that there were no cuts.",
+              "properties": {
+                "status": { "enum": ["detected", "partial", "failed", "not_requested"] },
+                "cuts": { "type": "integer" },
+                "threshold": { "type": "number" },
+                "read_until_s": { "type": "number" },
+                "cuts_at_s": {
+                  "type": "array",
+                  "items": { "type": "number" },
+                  "description": "The detected cut times in seconds, sorted, read at the file's full frame rate on this machine. Absent from the connector's plan and from artifacts written before it was recorded."
+                }
+              }
+            },
+            "shot_start_frames": { "type": "integer" },
+            "dense_window_frames": { "type": "integer" },
+            "dense_windows": { "type": "array", "items": { "type": "object" } },
+            "dropped_for_budget": { "type": "object", "additionalProperties": { "type": "integer" } },
+            "dropped_as_duplicate": { "type": "object", "additionalProperties": { "type": "integer" } },
+            "dedupe_s": { "type": "number" },
+            "budget_priority": { "type": "array", "items": { "type": "string" } }
           }
         },
         "origin": {
@@ -1505,6 +1868,42 @@
             }
           }
         }
+      }
+    },
+    "viewer_observations": {
+      "type": "object",
+      "description": "What a whole-video viewer saw and heard, kept as observations only. Each item is one timestamped note the viewer anchored to a span of the video, with the viewer's aspect key verbatim. Every score, summary, verdict and piece of advice the viewer also returned is dropped before this object is written and listed by name in discarded_fields; none of it may appear anywhere in the evidence, the analysis brief or the report. Items are reported observations: they carry time and may be cited by id, but they are not frames, and cut timing or shot length is never measured from them.",
+      "required": ["status", "source", "analysis_id", "failure", "items", "discarded_fields"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["available", "unavailable", "pending", "not_attempted"] },
+        "source": { "const": "whole_video" },
+        "analysis_id": { "type": ["string", "null"] },
+        "failure": {
+          "type": ["object", "null"],
+          "required": ["code", "retryable"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "retryable": { "type": "boolean" }
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "start_ms", "end_ms", "aspect", "note"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^V[0-9]{2,}$" },
+              "start_ms": { "type": "integer", "minimum": 0 },
+              "end_ms": { "type": "integer", "minimum": 0 },
+              "aspect": { "type": "string", "minLength": 1 },
+              "note": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "discarded_fields": { "type": "array", "items": { "type": "string" } }
       }
     }
   }

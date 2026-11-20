@@ -75,7 +75,7 @@ test("support list: contracts/ and the Skill copy are byte-identical and match t
   assert.equal(compiled.code, 0, compiled.out);
 });
 
-test("support list: the schema platform enum, the SKILL.md evidence table and the evidence-reading notes match it, and no script keeps its own platform table", async () => {
+test("support list: the schema platform enum and the evidence-reading notes match it, SKILL.md names no platform list, and no script keeps its own platform table", async () => {
   const ids = (await readJson(path.join(root, "contracts/public-video-sources.v1.json"))).sources.map((source) => source.id).sort();
   const request = await readJson(path.join(skill, "references/video-analysis-request.schema.json"));
   assert.deepEqual([...request.properties.source.properties.platform.enum].sort(), [...ids, "unknown"].sort());
@@ -86,8 +86,11 @@ test("support list: the schema platform enum, the SKILL.md evidence table and th
 
   const list = await readJson(path.join(root, "contracts/public-video-sources.v1.json"));
   const body = await readFile(path.join(skill, "SKILL.md"), "utf8");
+  // Which platforms can be read is the backend's answer, not the Skill's: the evidence table is not a list of
+  // supported platforms, and an unsupported link stops the run with one sentence to the creator.
   const header = body.split("\n").find((line) => line.startsWith("| Evidence |"));
-  for (const source of list.sources) assert.ok(header.includes(source.label), `the evidence table has no ${source.label}`);
+  for (const source of list.sources) assert.ok(!header.includes(source.label), `the evidence table lists ${source.label} as a column`);
+  assert.match(body, /when a tool says the platform or link is not\s+supported, tell the creator which link could not be read and stop/);
   const reading = await readFile(path.join(skill, "references/evidence-reading.md"), "utf8");
   for (const source of list.sources.filter((item) => !item.public_metrics.views))
     assert.match(reading, new RegExp(`${source.label}[^.]*publish\\s+no\\s+public\\s+view\\s+count`), `evidence-reading.md does not say ${source.label} publishes no view count`);
@@ -129,6 +132,11 @@ const SAMPLES = {
   "https://www.youtube.com/v/dQw4w9WgXcQ": ["youtube", "video", "dQw4w9WgXcQ"],
   "https://www.tiktok.com/@someone/video/7301234567890123456?lang=en": ["tiktok", "video", "7301234567890123456"],
   "https://vm.tiktok.com/ZMabc/": ["tiktok", "short_link", null],
+  // www.tiktok.com/t/<code>/ is a share link on a page host: short_link_path_patterns, not a video page.
+  "https://www.tiktok.com/t/ZTfCHqHy2/": ["tiktok", "short_link", null],
+  "https://www.tiktok.com/t/ZTfCHqHy2": ["tiktok", "short_link", null],
+  "https://www.tiktok.com/t/ZTfCHqHy2/extra": null,
+  "https://www.tiktok.com/@someone": null,
   // Hosts are compared exactly, never by suffix; https only.
   "https://www.douyin.com.example.net/video/7703997413695219810": null,
   "http://www.douyin.com/video/7703997413695219810": null,
@@ -141,6 +149,15 @@ test("support list: links resolve to platform and id by kabo's rules (exact host
   const result = python(["-c", probe, scripts, JSON.stringify(Object.keys(SAMPLES))]);
   assert.equal(result.code, 0, result.out);
   assert.deepEqual(JSON.parse(result.stdout), SAMPLES);
+});
+
+test("support list: a www.tiktok.com/t/<code>/ share link is a TikTok short link with no guessed id", () => {
+  const url = "https://www.tiktok.com/t/ZTfCHqHy2/";
+  const probe = "import json,sys; sys.path.insert(0, sys.argv[1]); import public_video_sources as s; "
+    + "print(json.dumps([s.match_url(sys.argv[2]), s.content_id_from_url('tiktok', sys.argv[2])]))";
+  const result = python(["-c", probe, scripts, url]);
+  assert.equal(result.code, 0, result.out);
+  assert.deepEqual(JSON.parse(result.stdout), [{ platform: "tiktok", kind: "short_link", id: null }, null]);
 });
 
 const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -270,7 +287,7 @@ for (const item of CASES) {
     assert.ok(evidenceSchema(evidence), JSON.stringify(evidenceSchema.errors));
     assert.equal(evidence.evidence_id, `ev-${item.prefix}-${item.id}`);
     assert.equal(evidence.content_ref.platform, item.platform);
-    assert.equal(evidence.content_ref.published_at, item.platform === "douyin" ? "20261101" : "20261105");
+    assert.equal(evidence.content_ref.published_at, item.platform === "douyin" ? "2026-11-01" : "2026-11-05");
     assert.equal(evidence.content_metadata.status, "available");
     assert.equal(evidence.content_metadata.title, item.platform === "douyin" ? "One thing" : "161K views · 2.3K reactions | Reel");
     assert.equal(evidence.transcript.status, "available");
@@ -331,11 +348,12 @@ test("short link, transcript only: the link has no readable id, so the backend's
   assert.equal(exported.code, 0, exported.out);
   assert.match(await readFile(path.join(run, "report/transcript.txt"), "utf8"), /Here is the one thing you need/);
 
-  // A short link without video_identity still reports the missing id; nothing is guessed.
+  // A short link without video_identity keeps its id null instead of failing the run; nothing is guessed.
   const none = await buildOnly(t, "douyin-short-none", { platform: "douyin", url: "https://v.douyin.com/iRNBho6u/", content_id: null },
     [mediaEnvelope("fetch_transcript", uuid(2), transcriptData(null))]);
-  assert.equal(none.built.code, 1);
-  assert.match(none.built.out, /content_ref needs a content_id/);
+  assert.equal(none.built.code, 0, none.built.out);
+  assert.equal(none.evidence.content_ref.content_id, null);
+  assert.match(none.evidence.evidence_id, /^ev-dy-unresolved-/);
 
   // The result says the video belongs to another platform: the requested platform was wrong; say so rather than mix them.
   const other = await buildOnly(t, "douyin-mismatch", { platform: "tiktok", url: "https://v.douyin.com/iRNBho6u/", content_id: null },

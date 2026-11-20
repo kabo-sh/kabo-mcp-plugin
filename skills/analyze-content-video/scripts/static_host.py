@@ -32,10 +32,11 @@ PENDING = {"queued", "running", "pending", "in_progress", "accepted"}
 DOWNLOAD_HOST = "storage.googleapis.com"
 DOWNLOAD_PREFIX = "https://" + DOWNLOAD_HOST + "/"
 DOWNLOAD_TIMEOUT = 60
-# Cap on the number of frames in a frame-extraction request, added to the arguments by job-call. The server defaults to up to 120 frames, and viewing them one by one is too slow;
-# the cap only thins out the sampling after the opening, and the opening density is unchanged.
+# Cap on the number of frames in a frame-extraction request, added to the arguments by job-call: the pinned
+# contract's own maximum (120). Frames are read 15 per call (observe_video.py READ_CHUNK), so a full plan is eight
+# reads; over the cap the server thins only the body, never the opening or the close.
 FRAME_CAPS = dict.fromkeys(("public_video_extract_keyframes", "public_video_extract_keyframes_hosted_media",
-                            "public_video_extract_keyframes_hosted_stream"), 60)
+                            "public_video_extract_keyframes_hosted_stream"), 120)
 # Closed set of types an artifact download may declare -> file extension to write. Text is written as .txt, the same as stage's inline text: .json would be read in by
 # persist_envelope as an envelope candidate. Anything outside the set (including application/octet-stream) is not written.
 ARTIFACT_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp",

@@ -348,7 +348,17 @@ Use `collect_*_trend_candidates` / `enrich_*_shortlist` as references.
   save results → resume". Each round adds two or three model calls. A competitor workflow takes
   14–16 steps, exceeding the Web Agent's 12-step limit per turn and also slowing the plugin.
   Existing drivers are legacy implementations awaiting migration. `scripts/fetch-orchestration.test.mjs`
-  records the round count per skill; counts may only decrease.
+  records the round count per skill; counts may only decrease. It counts calls of any helper whose name
+  starts with `fetch_round`, `fetch_or_hand_over` or `hand_over`, and fails when any other function
+  prints a `Hand-over: ` or `call: ` line, so renaming a helper does not hide a round.
+
+  A single observation request, its bounded wait on the same job (KS8) and one fallback after the first
+  source failed are not a multi-round fetch, but they are still hand-overs and the test counts them
+  (`analyze-content-video`: 7 sites). One pre-round remains there as a known exception: when the duration
+  is unknown, the whole-video viewing starts only after `collect_video_media` has measured it, because
+  `analyze_content_video` neither reports the duration nor refuses a video over the 10-minute limit. It
+  moves into the backend once that tool checks the duration itself. No round is handed over only to wait
+  for the YouTube metadata.
 - **KS9.2** (error): Scripts must not detect a host-specific fetch path (connector-outbox, session
   thread IDs or turn tokens). Branching by host hides platform differences in scripts and causes
   behavior to diverge across hosts. The same test records the existing files; their number may

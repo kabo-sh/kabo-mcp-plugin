@@ -123,9 +123,13 @@ const NON_ENGLISH = /[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uff00
 const LOCALIZED_DIR = "docs/i18n/";
 // Localized report strings, and patterns that match non-English user input or platform content.
 const LOCALIZED_SKILL_DATA = [
+  "skills/analyze-content-video/references/report-locales.json",
+  "skills/analyze-content-video/references/video-method/index.json",
+  "skills/analyze-content-video/references/video-method/index.md",
   "skills/analyze-content-video/scripts/build_creator_result.py",
   "skills/analyze-content-video/scripts/creator_measurement_basis.py",
   "skills/analyze-content-video/scripts/render_video_report.py",
+  "skills/analyze-content-video/scripts/transcript_checks.py",
   "skills/analyze-content-video/scripts/validate_creator_shape.py",
   "skills/analyze-creator-competitors/scripts/render_reply.py",
   "skills/analyze-creator-competitors/scripts/validate_discovery_intents.py",
@@ -191,6 +195,7 @@ const LOCALIZED_SKILL_DATA = [
 const NON_ENGLISH_TEST_DATA = [
   "scripts/account-review-correction.test.mjs",
   "scripts/account-review-evidence.test.mjs",
+  "scripts/acv-report-checks.test.mjs",
   "scripts/content-language-regression.py",
   "scripts/continuation-overlap.test.mjs",
   "scripts/english-output.test.mjs",

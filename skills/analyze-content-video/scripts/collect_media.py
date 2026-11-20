@@ -14,6 +14,10 @@ Run it from the run directory.
   `build_content_evidence.py`, and the one `read_research_data_artifacts` call that brings the
   frames into the run.
 
+`--url` is the original public link, or `kabo-file:<uuid>` for a video the creator attached in Kabo (the media
+tool reads the stored file the same way it reads a link). A file on the creator's own machine never comes here:
+it is read locally and never uploaded.
+
 Prints `status: failed` with the reason when a result cannot be used.
 """
 from __future__ import annotations
@@ -22,6 +26,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -33,6 +38,8 @@ SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 import static_host  # noqa: E402
 import public_video_sources  # noqa: E402
+import select_method  # noqa: E402
+import viewer_response  # noqa: E402
 
 TOOL = "collect_video_media"
 CONNECTOR = "public-video-media"
@@ -61,6 +68,16 @@ OPERATIONS = {
 }
 # The same value as the frame-count cap in static_host.job-call.
 MAX_FRAMES = static_host.FRAME_CAPS["public_video_extract_keyframes"]
+# The keyframes request's two optional additions to the duration_scaled plan, both still inside max_frames: a frame
+# just after each detected cut (on by default), and up to three denser windows: the first 50 seconds every 0.5s on
+# every video (select_method.DEFAULT_DENSE_WINDOW) after any a method card asks for (analysis/method.json `frames`,
+# written by select_method.py). A server that does not know them yet ignores them
+# and takes its standard plan. One that refuses them gets the same call once more without them: inside this call
+# that is the keyframes item failing with `validation_error` (the other items still run); a whole-call MCP -32602
+# is handled the same way.
+FRAME_OPTION_KEYS = ("include_shot_starts", "dense_windows")
+MAX_DENSE_WINDOWS = 3
+MIN_DENSE_INTERVAL_S = 0.2
 # Same approach as the connector_driver.py handoff (kabo ADR-0084 "2026-11-04"): the model hands over only the
 # result id, and the resume fetches by id itself; saving to a file is only the fallback when there is no
 # download link.
@@ -70,6 +87,25 @@ SAVE_RULE = ("Do not save the result. Its download url holds its result id: the 
              "fallback file named under the call (with the host's file-write tool, never as a command-line "
              "argument) and leave `--id` out. Never download anything yourself; call get_research_data_download "
              "only when the resume says the id expired.")
+
+
+# A video the creator attached in Kabo: the same reference form as remake-viral-video's static_host.py FILE_REF_RE.
+FILE_REF_RE = re.compile(r"^kabo-file:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", re.IGNORECASE)
+
+
+def video_source(raw: str) -> str:
+    """The video source as the media tool takes it: a link unchanged, a Kabo file reference in lower case."""
+    text = str(raw).strip()
+    if not text.lower().startswith("kabo-file:"):
+        return text
+    found = FILE_REF_RE.match(text)
+    if not found:
+        raise ValueError("a Kabo file reference is kabo-file:<id>, the id of the attached video exactly as given")
+    return f"kabo-file:{found.group(1).lower()}"
+
+
+def is_file_ref(source: str) -> bool:
+    return bool(FILE_REF_RE.match(str(source)))
 
 
 def say(text: str) -> None:
@@ -94,12 +130,104 @@ def run_key() -> str:
     return "acv:" + hashlib.sha256(str(static_host.run_dir().resolve()).encode()).hexdigest()[:32]
 
 
+def dense_windows(value: Any) -> list[dict[str, float]]:
+    """The valid dense windows of a frame plan, at most MAX_DENSE_WINDOWS, in the request's shape."""
+    windows = []
+    for window in value if isinstance(value, list) else []:
+        if not isinstance(window, dict):
+            continue
+        numbers = [window.get(key) for key in ("start_s", "end_s", "interval_s")]
+        if not all(isinstance(number, (int, float)) and not isinstance(number, bool) for number in numbers):
+            continue
+        start, end, interval = (float(number) for number in numbers)
+        if start >= 0 and end > start and interval >= MIN_DENSE_INTERVAL_S:
+            entry = {"start_s": start, "end_s": end, "interval_s": interval}
+            if entry not in windows:
+                windows.append(entry)
+    return windows[:MAX_DENSE_WINDOWS]
+
+
+def frame_options() -> dict[str, Any]:
+    """This run's keyframes options, fixed at the first hand-over so a repeated call keeps the same arguments.
+
+    Empty once the server refused them. Shot starts are on unless the method's frame plan turns them off."""
+    current = state()
+    if current.get("frame_options_refused"):
+        return {}
+    if isinstance(current.get("frame_options"), dict):
+        return current["frame_options"]
+    plan: dict[str, Any] = {}
+    chosen = static_host.run_dir() / "analysis" / "method.json"
+    if chosen.is_file():
+        try:
+            method = json.loads(chosen.read_text(encoding="utf-8"))
+        except ValueError:
+            method = {}
+        plan = method.get("frames") if isinstance(method, dict) and isinstance(method.get("frames"), dict) else {}
+    # The default window (the first 50s every 0.5s) always goes, after the cards' windows; three at most.
+    options: dict[str, Any] = {"include_shot_starts": plan.get("include_shot_starts") is not False,
+                               "dense_windows": select_method.with_default_window(dense_windows(plan.get("dense_windows")))}
+    current["frame_options"] = options
+    save_state(current)
+    return options
+
+
+def refuse_frame_options(tool: str) -> None:
+    """The server refused the frame options before anything ran: the next call goes without them."""
+    current = state()
+    current["frame_options_refused"] = True
+    current.setdefault("notes", []).append(
+        f"{tool} did not accept include_shot_starts / dense_windows on this server; repeated without them, so the "
+        "frames follow the standard plan")
+    save_state(current)
+
+
+def options_refused_in(record: dict[str, Any]) -> bool:
+    """Whether this terminal result's keyframes item failed on its arguments while the frame options were sent."""
+    current = state()
+    if current.get("frame_options_refused") or not any((current.get("frame_options") or {}).get(key)
+                                                        for key in FRAME_OPTION_KEYS):
+        return False
+    for call in record.get("calls") or []:
+        if not str(call.get("group", "")).endswith("/extract_keyframes") or not Path(call.get("path", "")).is_file():
+            continue
+        try:
+            body = json.loads(Path(call["path"]).read_text())
+        except ValueError:
+            return False
+        error = body.get("error") if isinstance(body.get("error"), dict) else {}
+        code = body.get("error_code") or error.get("code") or error.get("error_code")
+        return body.get("status") == "failed" and code == "validation_error"
+    return False
+
+
+def frame_options_note(envelope: dict[str, Any]) -> str | None:
+    """What became of the frame options on a finished keyframes envelope; None when nothing needs saying."""
+    current = state()
+    if current.get("frame_options_refused"):
+        return ("This server refused the shot-start and dense-window frame options; the frames follow the standard "
+                "plan.")
+    sent = current.get("frame_options") or {}
+    if not any(sent.get(key) for key in FRAME_OPTION_KEYS):
+        return None
+    data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
+    plan = data.get("sampling_plan") if isinstance(data.get("sampling_plan"), dict) else {}
+    if not data.get("frames"):
+        return None
+    if "include_shot_starts" not in plan and "dense_windows" not in plan:
+        return ("This server took its standard frame plan: the shot-start and dense-window options were not "
+                "applied, so no frame was placed at a cut on purpose.")
+    return None
+
+
 def call_arguments(args: argparse.Namespace) -> dict[str, Any]:
     requests = []
     for name in args.operations:
         parameters: dict[str, Any] = {"url": args.url}
         if name == "keyframes":
             parameters.update({"sampling": "duration_scaled", "max_frames": args.max_frames})
+            parameters.update({key: value for key, value in (getattr(args, "frame_options", None) or {}).items()
+                               if key in FRAME_OPTION_KEYS and value})
         requests.append({"content_id": "video", "operation": OPERATIONS[name], "parameters": parameters})
     return {"requests": requests, "run_key": run_key(), "delivery": "download"}
 
@@ -169,7 +297,9 @@ def staged_since(moment: str | None) -> bool:
     return any(str(record.get("staged_at") or "") >= moment for record in static_host.composite_records(TOOL))
 
 
-def take_saved(result_id: str | None) -> None:
+def take_saved(result_id: str | None) -> bool:
+    """Bring the saved results of the last hand-over into the run. True when the server refused the frame options
+    (MCP -32602) and the call must be made again without them."""
     current = state()
     taken = current.setdefault("taken", {})
     awaiting = current.get("awaiting") or []
@@ -203,6 +333,13 @@ def take_saved(result_id: str | None) -> None:
         digest = hashlib.sha256(raw).hexdigest()
         if taken.get(name) == digest:
             continue
+        if (viewer_response.input_rejected(raw) and not current.get("frame_options_refused")
+                and any((current.get("frame_options") or {}).get(key) for key in FRAME_OPTION_KEYS)):
+            # Nothing was queued or charged: the server refused the arguments before any job ran.
+            taken[name] = digest
+            save_state(current)
+            refuse_frame_options(TOOL)
+            return True
         try:
             result = static_host.fetch(TOOL, raw)
             if result.get("fetched") == 0:
@@ -212,6 +349,7 @@ def take_saved(result_id: str | None) -> None:
                              "as returned, download link included, then run the same resume command again") from None
         taken[name] = digest
         save_state(current)
+    return False
 
 
 def next_slot() -> int:
@@ -264,6 +402,9 @@ def finish(record: dict[str, Any]) -> None:
                      None)
     if keyframes and Path(keyframes["path"]).is_file():
         envelope = json.loads(Path(keyframes["path"]).read_text())
+        note = frame_options_note(envelope)
+        if note:
+            say(note)
         refs = [item.get("object_ref") for item in ((envelope.get("data") or {}).get("frames") or [])
                 if isinstance(item, dict) and item.get("object_ref")]
         job_id = envelope.get("job_id") or (jobs.get(keyframes["group"]) or {}).get("job_id")
@@ -277,7 +418,7 @@ def finish(record: dict[str, Any]) -> None:
                 "save and fetch it the way the Skill says for read_research_data_artifacts, then open each image's "
                 "path before any visual claim:")
             say("read: " + json.dumps({"tool": "read_research_data_artifacts",
-                                       "arguments": {"job_id": job_id, "object_refs": refs, "delivery": "download"}},
+                                       "arguments": {"job_id": job_id, "object_refs": refs}},
                                       ensure_ascii=False))
             return
     say("No frames arrived: keep the missing-visual-evidence limit and read the transcript and measurements only.")
@@ -285,7 +426,7 @@ def finish(record: dict[str, Any]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--url", required=True, help="the original public video url")
+    parser.add_argument("--url", required=True, help="the original public video url, or kabo-file:<id>")
     parser.add_argument("--operations", required=True,
                         help="comma-separated: " + ", ".join(OPERATIONS) + " (metadata only on "
                         + ", ".join(public_video_sources.media_call_metadata_labels()) + ")")
@@ -296,17 +437,23 @@ def main(argv: list[str] | None = None) -> int:
     bind_run_to_cwd()
     args.operations = [name.strip() for name in args.operations.split(",") if name.strip()]
     try:
+        args.url = video_source(args.url)
         unknown = [name for name in args.operations if name not in OPERATIONS]
         if unknown or not args.operations:
             raise ValueError("--operations takes " + ", ".join(OPERATIONS) + "; got " + ",".join(unknown or ["nothing"]))
         if not 1 <= args.max_frames <= MAX_FRAMES:
             raise ValueError(f"--max-frames must be from 1 to {MAX_FRAMES}")
+        args.frame_options = frame_options() if "keyframes" in args.operations else {}
         if not args.placed:
             if state().get("awaiting"):
                 say("This media round was already handed over; make the call printed earlier, or run with --placed.")
             hand_over_media(args)
             return 0
-        take_saved(args.result_id)
+        if take_saved(args.result_id):
+            args.frame_options = {}
+            hand_over_media(args, note="This server did not accept include_shot_starts / dense_windows: repeating "
+                                       "the same call without them (nothing was queued or charged).")
+            return 0
         records = static_host.composite_records(TOOL)
         if not records:
             raise ValueError(f"no {TOOL} result was saved in this run; make the printed call and save it first")
@@ -319,6 +466,12 @@ def main(argv: list[str] | None = None) -> int:
         if pending and waited < WAIT_BUDGET_S and current["rounds"] < MAX_ROUNDS:
             hand_over_media(args, note=f"{pending} media job(s) are still running ({round(waited / 60)} of up to "
                                        f"{WAIT_BUDGET_S // 60} min waited); keep waiting.")
+            return 0
+        if options_refused_in(latest):
+            refuse_frame_options(TOOL)
+            args.frame_options = {}
+            hand_over_media(args, note="This server refused include_shot_starts / dense_windows for the frames: "
+                                       "repeating the same call without them (the finished jobs are not run again).")
             return 0
         finish(latest)
         return 0

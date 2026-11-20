@@ -1,0 +1,272 @@
+{
+ "file_ref": "kabo-file:1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed",
+ "envelopes": {
+  "collect_public_metadata": {
+   "schema_version": "1.0",
+   "connector_id": "public-video-media",
+   "operation": "collect_public_metadata",
+   "provider": "kabo-media",
+   "status": "completed",
+   "summary": "ok",
+   "limitations": [
+    "This is an uploaded video file, not a platform post. Platform fields — title, caption, channel, upload date, views, likes, comments, tags and thumbnail — do not apply to it and are null: do not read them as zero or as data that failed to load. Duration, frame size and audio presence were read from the file itself."
+   ],
+   "credential_values_recorded": false,
+   "job_id": "00000000-0000-4000-8000-000000000101",
+   "evidence_ref": "ev-00000000-0000-4000-8000-000000000101",
+   "raw_sha256": "0000000000004000800000000000010100000000000040008000000000000101",
+   "request_id": "req-00000000-0000-4000-8000-000000000101",
+   "retrieved_at": "2026-11-18T10:00:00Z",
+   "observation_refs": [],
+   "data": {
+    "video": {
+     "id": "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed",
+     "title": null,
+     "description": null,
+     "webpage_url": null,
+     "channel": null,
+     "channel_id": null,
+     "duration_seconds": 30.5,
+     "upload_date": null,
+     "view_count": null,
+     "like_count": null,
+     "comment_count": null,
+     "thumbnail": null,
+     "tags": [],
+     "categories": [],
+     "extractor": null,
+     "width": 1080,
+     "height": 1920,
+     "fps": 30,
+     "has_audio": true
+    },
+    "origin": "uploaded_file",
+    "artifacts": []
+   }
+  },
+  "fetch_transcript": {
+   "schema_version": "1.0",
+   "connector_id": "public-video-media",
+   "operation": "fetch_transcript",
+   "provider": "kabo-media",
+   "status": "completed",
+   "summary": "ok",
+   "limitations": [
+    "This transcript is speech recognition of the uploaded file; there is no platform caption track for an upload. Quote it as heard, not as the creator's exact wording."
+   ],
+   "credential_values_recorded": false,
+   "job_id": "00000000-0000-4000-8000-000000000102",
+   "evidence_ref": "ev-00000000-0000-4000-8000-000000000102",
+   "raw_sha256": "0000000000004000800000000000010200000000000040008000000000000102",
+   "request_id": "req-00000000-0000-4000-8000-000000000102",
+   "retrieved_at": "2026-11-18T10:00:00Z",
+   "observation_refs": [],
+   "data": {
+    "cues": [
+     {
+      "start_ms": 400,
+      "end_ms": null,
+      "text": "hello"
+     },
+     {
+      "start_ms": 2250,
+      "end_ms": null,
+      "text": "world"
+     }
+    ],
+    "origin": "speech_recognition",
+    "cue_count": 2,
+    "artifacts": []
+   }
+  },
+  "extract_keyframes": {
+   "schema_version": "1.0",
+   "connector_id": "public-video-media",
+   "operation": "extract_keyframes",
+   "provider": "kabo-media",
+   "status": "completed",
+   "summary": "ok",
+   "limitations": [],
+   "credential_values_recorded": false,
+   "job_id": "00000000-0000-4000-8000-000000000103",
+   "evidence_ref": "ev-00000000-0000-4000-8000-000000000103",
+   "raw_sha256": "0000000000004000800000000000010300000000000040008000000000000103",
+   "request_id": "req-00000000-0000-4000-8000-000000000103",
+   "retrieved_at": "2026-11-18T10:00:00Z",
+   "observation_refs": [],
+   "data": {
+    "frame_preview": {
+     "version": "jpeg-1280-200k-v1",
+     "maxEdge": 1280,
+     "maxBytes": 204800
+    },
+    "frame_count": 9,
+    "selection": "duration_scaled_v1",
+    "duration_s": 30.5,
+    "sampling_plan": {
+     "hook_window_s": 3,
+     "hook_interval_s": 0.5,
+     "body_interval_s": 12,
+     "body_degraded": false,
+     "closing_frame_s": 30
+    },
+    "frames": [
+     {
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "frame_id": "frame-0001",
+      "t_seconds": 0,
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0001.jpg"
+     },
+     {
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "frame_id": "frame-0002",
+      "t_seconds": 0.5,
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0002.jpg"
+     },
+     {
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "frame_id": "frame-0003",
+      "t_seconds": 1,
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0003.jpg"
+     },
+     {
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "frame_id": "frame-0004",
+      "t_seconds": 1.5,
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0004.jpg"
+     },
+     {
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "frame_id": "frame-0005",
+      "t_seconds": 2,
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0005.jpg"
+     },
+     {
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "frame_id": "frame-0006",
+      "t_seconds": 2.5,
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0006.jpg"
+     },
+     {
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "frame_id": "frame-0007",
+      "t_seconds": 12,
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0007.jpg"
+     },
+     {
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "frame_id": "frame-0008",
+      "t_seconds": 24,
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0008.jpg"
+     },
+     {
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "frame_id": "frame-0009",
+      "t_seconds": 30,
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0009.jpg"
+     }
+    ],
+    "artifacts": [
+     {
+      "kind": "keyframes",
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0001.jpg"
+     },
+     {
+      "kind": "keyframes",
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0002.jpg"
+     },
+     {
+      "kind": "keyframes",
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0003.jpg"
+     },
+     {
+      "kind": "keyframes",
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0004.jpg"
+     },
+     {
+      "kind": "keyframes",
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0005.jpg"
+     },
+     {
+      "kind": "keyframes",
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0006.jpg"
+     },
+     {
+      "kind": "keyframes",
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0007.jpg"
+     },
+     {
+      "kind": "keyframes",
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0008.jpg"
+     },
+     {
+      "kind": "keyframes",
+      "bytes": 100,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "object_ref": "creator-media/00000000-0000-4000-8000-000000000103/epoch-1/frame-0009.jpg"
+     }
+    ]
+   }
+  },
+  "measure_media_signals": {
+   "schema_version": "1.0",
+   "connector_id": "public-video-media",
+   "operation": "measure_media_signals",
+   "provider": "kabo-media",
+   "status": "completed",
+   "summary": "ok",
+   "limitations": [],
+   "credential_values_recorded": false,
+   "job_id": "00000000-0000-4000-8000-000000000104",
+   "evidence_ref": "ev-00000000-0000-4000-8000-000000000104",
+   "raw_sha256": "0000000000004000800000000000010400000000000040008000000000000104",
+   "request_id": "req-00000000-0000-4000-8000-000000000104",
+   "retrieved_at": "2026-11-18T10:00:00Z",
+   "observation_refs": [],
+   "data": {
+    "shots": {
+     "count": 2,
+     "cuts_at_s": [
+      12.5
+     ],
+     "shots": [
+      {
+       "start_s": 0,
+       "end_s": 12.5
+      },
+      {
+       "start_s": 12.5,
+       "end_s": 30.5
+      }
+     ]
+    },
+    "artifacts": []
+   }
+  }
+ }
+}

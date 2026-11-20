@@ -83,7 +83,10 @@ test("video analysis media single composite call: hand off one call, resume unti
   assert.match(args.run_key, /^acv:[0-9a-f]{32}$/);
   assert.deepEqual(args.requests.map((r) => r.operation), ["fetch_transcript", "extract_keyframes", "measure_media_signals"]);
   const keyframes = args.requests.find((r) => r.operation === "extract_keyframes");
-  assert.deepEqual(keyframes.parameters, { url: URL_, sampling: "duration_scaled", max_frames: 60 });
+  // The contract's cap, a frame just after each cut (on by default), and the default dense window (the first 50s every
+  // 0.5s; no method cards chose windows here).
+  assert.deepEqual(keyframes.parameters, { url: URL_, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true,
+    dense_windows: [{ start_s: 0, end_s: 50, interval_s: 0.5 }] });
 
   // Jobs are still running: a resume emits the same call again.
   await save(saveOf(first.out), composite(args, new Set(["video/extract_keyframes"])));
