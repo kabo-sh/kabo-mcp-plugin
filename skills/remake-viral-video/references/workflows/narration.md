@@ -19,8 +19,8 @@ How each step is called, the storyboard's fields and saving the plan are in `../
 `frame` with `shots: true` on the reference (and a `frame` or two up close), `transcribe` of it.
 Write two things, kept in the analysis you will save:
 
-- **The style card** (step 0 of `../steps/motion-graphics.md`): `medium`, `look`, `cast`, `frame`,
-  `edit`, `sound`, `captions`, `avoid`, and the style card from `../motion-catalog.md` whose
+- **The style card** (step 0 of `../steps/motion-graphics.md`; saved as the storyboard's `style`, `../steps/plan.md`): `medium`, `look`, `cast`, `frame`,
+  `edit`, `sound`, `captions`, `avoid`, and the motion style from `../motion-catalog.md` whose
   `medium` matches.
 - **Reference notes**: the opening (what it shows and says in the first 2-3 s to hold attention);
   the **pacing skeleton** -- the video cut into its 3-6 segments (hook, setup, turns, payoff, call

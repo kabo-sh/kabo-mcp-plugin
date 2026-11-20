@@ -7,13 +7,12 @@ voice comes from a recording of them speaking or, only when there is none, from 
 - **Photos**: one to four photos of the creator's face. Videos and photos together are at most
   four, and the creator's name is required.
 - **Voice**: with at least one video of the creator speaking, the voice is cloned from it. With
-  photos only, ask once, in one message, for a short recording of them speaking (10-30 seconds; an
-  audio file or any video where they talk) or one of the preset voices by number and name. If they
-  say they have no recording, let them pick a preset by number. Never pick a preset for them, never
-  use one when a recording of them exists, and say that the video will use a preset voice, not
-  their own.
+  photos only and no voice named, do not stop to ask: choose the preset that fits them (gender,
+  age, tone) yourself, say in one line that the video uses that preset voice, not their own, and
+  that a short recording of them speaking (10-30 seconds; an audio file or any video where they
+  talk) switches it to theirs, and go on. Never use a preset when a recording of them exists.
 - The remake may be refused before anything is charged: `voice_sample_needed` (photos only, no
-  voice: ask as above), `photo_url_unreadable` or `photo_url_invalid` (a link is not a reachable
+  voice: choose a preset as above and send it again), `photo_url_unreadable` or `photo_url_invalid` (a link is not a reachable
   public JPEG/PNG: ask for another link or the file), `creator_appearance_missing`. Relay the
   message in plain words.
 - At delivery, if the notes say the appearance came from photos or a preset voice was used, say so
@@ -21,6 +20,6 @@ voice comes from a recording of them speaking or, only when there is none, from 
 
 **On Kabo Web** (the `remake_video` tool is listed): pass the photos in `creator_videos` like
 videos (uploaded files listed in this conversation); a recording goes in `creator_videos` too. The
-preset voices are the ones the host lists (number and name); pass the pick as `voice_preset` on
-`prepare` with the same inputs. When `prepare` returns `voice_sample_needed`, the host's message
+preset voices are the ones the host lists (number and name); pass the one you chose as `voice_preset`
+on `prepare` with the same inputs. When `prepare` returns `voice_sample_needed`, the host's message
 lists them.
