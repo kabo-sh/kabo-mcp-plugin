@@ -547,3 +547,9 @@ print(json.dumps({"en": canonical_note(late, analysis, view("en")), "zh": canoni
   assert.match(out.skipped, /frames not sampled/);
   for (const [code, note] of Object.entries(out.locales)) assert.ok(note.includes(out.words[code]), `${code}: ${note}`);
 });
+
+test("a craft teardown ends with the line on what it rests on and is checked before delivery", () => {
+  const craft = readFileSync(new URL("../skills/analyze-content-video/references/craft-teardown.md", import.meta.url), "utf8");
+  assert.match(craft, /End the report with one line, in the creator's language, saying what it\s+rests on/);
+  assert.match(craft, /scripts\/validate_creator_report\.py report\/craft-teardown\.md --emit-report/);
+});

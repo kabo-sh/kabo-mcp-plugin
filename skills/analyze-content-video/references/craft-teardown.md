@@ -47,6 +47,12 @@ to look for.
    question, ranking, what one person can do alone, and the two levels of sourcing), any topic card
    such as `sound`, and the rules below into `analysis/brief.md`. Read it whole, then write the
    report.
+5. **Check and deliver.** End the report with one line, in the creator's language, saying what it
+   rests on: how many frames and at what spacing, whether the transcript and the measurements
+   were there, and whether the sound was heard. Then run
+   `python3 <skill directory>/scripts/validate_creator_report.py report/craft-teardown.md --emit-report`
+   from the run directory: it refuses internal names and prints the report to deliver; on an
+   error, fix the report and run it again.
 
 ## What may not be claimed in a teardown
 
@@ -82,4 +88,5 @@ and no number is stated about this creator's own results that nobody measured.
 ## What this mode writes
 
 `analysis/craft-request.json` before retrieval and `report/craft-teardown.md` at the end. The
-answer is the prose, shaped by the question rather than by a schema.
+answer is the prose, shaped by the question rather than by a schema, closed by the one line on
+what it rests on and checked by `validate_creator_report.py` before it is delivered.
