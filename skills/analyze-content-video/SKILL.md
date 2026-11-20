@@ -218,7 +218,7 @@ Diagnosis, content read and craft teardown run the same steps. Read
 
    It prints calls and one resume command. Make the calls in the order printed, in one turn, save
    each result as it says, then run the resume command; repeat while it prints calls (jobs still
-   running: it waits between readings itself, up to one 240-second deadline). The run is not over
+   running: it waits between readings itself, up to one 330-second deadline). The run is not over
    while it is observing. `status: timed_out`, or a non-empty `timed_out` list, means that part did
    not arrive in time: go on with what arrived and say so plainly, as it prints. When it
    prints `status: observed` it has persisted everything in `snapshot/`, names the arguments for the

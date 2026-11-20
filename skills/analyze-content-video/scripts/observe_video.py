@@ -42,7 +42,7 @@ for build_content_evidence.py and the one frame read.
 At most one whole-video analysis is started per run: its idempotency key never changes, so re-sending the
 call after a lost answer replays the same analysis instead of starting a paid second one.
 
-The whole observation has one deadline, `observation_order.OBSERVE_DEADLINE_S` (240 seconds) from the first
+The whole observation has one deadline, `observation_order.OBSERVE_DEADLINE_S` (330 seconds) from the first
 hand-over, the same on every host. At the deadline it stops waiting: a job or viewing still running is recorded as
 not arrived in time (a `--deferred-incomplete` job and one limitation line), a fallback starts only while enough of
 the deadline is left for it to finish (`observation_order.MIN_LEFT_S`), and the run goes on with what arrived.

@@ -47,7 +47,7 @@ CONNECTOR = "public-video-media"
 STATE = Path("collect-media.json")
 # Media waits are measured in wall time, not rounds. One call waits on the backend for at most 45 seconds
 # (within the Codex tool timeout of 60 seconds). The wait from the first hand-over is the observation deadline
-# (observation_order.OBSERVE_DEADLINE_S, 240 seconds), the same on every host: Kabo Web ends a turn at 500 seconds,
+# (observation_order.OBSERVE_DEADLINE_S, 330 seconds), the same on every host: Kabo Web ends a turn at 500 seconds,
 # and a 15-minute wait once held a throttled Bilibili download for 477 seconds until the turn died with no reply. A
 # job still running then is recorded as unfinished (`--deferred-incomplete`), never as failed, and the analysis goes
 # on with what arrived; the wait ends as soon as every job is terminal.

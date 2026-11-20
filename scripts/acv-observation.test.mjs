@@ -1647,10 +1647,10 @@ test("whole-video viewing the tool cannot read (unsupported) is a gap: the run c
   }
 });
 
-// One observation deadline (240 s from the first hand-over, the same on every host): Kabo Web ends a turn at 500 s,
+// One observation deadline (330 s from the first hand-over, the same on every host): Kabo Web ends a turn at 500 s,
 // and on the pre-release service a throttled Bilibili download held the fetch step for 477 s until the turn died
 // with no reply. The clock is injected by moving the run's recorded start back, so nothing here waits.
-const DEADLINE_S = 240;
+const DEADLINE_S = 330;
 // The whole flags line: flagsOf stops at the first ": ", and a limitation line has one of its own.
 const allFlags = (out) => { const line = out.split("\n").find((item) => item.startsWith("Pass these to build_content_evidence.py")); return line.slice(line.indexOf(": ") + 2); };
 function withPending(args, operations, change = (value) => value) {
@@ -1690,7 +1690,7 @@ async function driveWith(run, out, { media = (args) => composite(args), viewerSt
   return { out, handed };
 }
 
-test("observation deadline: frames and transcript still running at 240 s stop the wait, no fallback viewing starts, and the run goes on from the metadata saying they did not arrive in time", async (t) => {
+test("observation deadline: frames and transcript still running at 330 s stop the wait, no fallback viewing starts, and the run goes on from the metadata saying they did not arrive in time", async (t) => {
   const run = await newRun(t);
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run);
   const late = ["fetch_transcript", "extract_keyframes"];
@@ -1702,13 +1702,13 @@ test("observation deadline: frames and transcript still running at 240 s stop th
   assert.equal(handed.filter((call) => call.tool === "analyze_content_video").length, 0, "no viewing can finish in time");
   assert.match(out, /"status": "timed_out"/);
   assert.match(out, /"timed_out": \["the transcript", "the frames"\]/);
-  assert.match(out, /stopped at its 240-second deadline: the transcript and the frames did not arrive in time/);
+  assert.match(out, /stopped at its 330-second deadline: the transcript and the frames did not arrive in time/);
   assert.match(out, /must say plainly that/);
   const flags = allFlags(out);
   assert.match(flags, /--deferred-incomplete fetch_transcript=/);
   assert.match(flags, /--deferred-incomplete extract_keyframes=/);
-  assert.match(flags, /--limitation 'Observation deadline reached \(240s\): the transcript and the frames did not arrive in time/);
-  assert.match(flags, /--limitation 'No fallback whole-video viewing was started: too little of the 240s observation deadline was left to finish\.'/);
+  assert.match(flags, /--limitation 'Observation deadline reached \(330s\): the transcript and the frames did not arrive in time/);
+  assert.match(flags, /--limitation 'No fallback whole-video viewing was started: too little of the 330s observation deadline was left to finish\.'/);
   await writeRequest(run);
   const built = build(run, flags);
   assert.equal(built.code, 0, built.out);
@@ -1719,14 +1719,14 @@ test("observation deadline: frames and transcript still running at 240 s stop th
   const prepared = await prepare(run, ["--mode", "diagnosis"]);
   assert.equal(prepared.code, 0, prepared.out);
   const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
-  assert.match(brief, /### Did not arrive in time\n\n- Observation deadline reached \(240s\)/);
+  assert.match(brief, /### Did not arrive in time\n\n- Observation deadline reached \(330s\)/);
   assert.match(brief, /Say this plainly in the first lines of what the creator reads/);
 });
 
 test("observation deadline: with nothing and no metadata in time, the brief is refused with a did-not-arrive statement, not the gone-video one", async (t) => {
   const run = await newRun(t);
   await writeRequest(run);
-  const late = "Observation deadline reached (240s): the transcript and the frames did not arrive in time, so the analysis uses only what had arrived.";
+  const late = "Observation deadline reached (330s): the transcript and the frames did not arrive in time, so the analysis uses only what had arrived.";
   const built = build(run, `--deferred-incomplete fetch_transcript=${uuid(2)} --deferred-incomplete extract_keyframes=${uuid(3)} --limitation '${late}'`);
   assert.equal(built.code, 0, built.out);
   const refused = await prepare(run, ["--mode", "diagnosis"]);
@@ -1735,7 +1735,7 @@ test("observation deadline: with nothing and no metadata in time, the brief is r
   assert.doesNotMatch(refused.out, /deleted/);
 });
 
-test("observation deadline: a viewing still running at 240 s is recorded as not arrived in time and no fallback starts", async (t) => {
+test("observation deadline: a viewing still running at 330 s is recorded as not arrived in time and no fallback starts", async (t) => {
   const run = await newRun(t);
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis", "--duration-s", "30", "--observe-source", "whole_video"], run);
   const { out, handed } = await driveWith(run, first.out, { viewerSteps: [queued, queued, queued],
@@ -1745,10 +1745,10 @@ test("observation deadline: a viewing still running at 240 s is recorded as not 
   assert.equal(handed.filter((call) => call.tool === "collect_video_media").length, 1, out);
   assert.match(out, /"timed_out": \["the whole-video viewing"\]/);
   assert.match(out, /whole_video failed \(timed_out\)/);
-  assert.match(allFlags(out), /--limitation 'Observation deadline reached \(240s\): the whole-video viewing did not arrive in time/);
+  assert.match(allFlags(out), /--limitation 'Observation deadline reached \(330s\): the whole-video viewing did not arrive in time/);
 });
 
-test("observation deadline: the same 240 s bound holds in collect_media.py and observe_video.py, from one constant", () => {
+test("observation deadline: the same 330 s bound holds in collect_media.py and observe_video.py, from one constant", () => {
   const probe = spawnSync("python3", ["-I", "-B", "-c", "import sys, json\nsys.path.insert(0, sys.argv[1])\n"
     + "import collect_media, observation_order, observe_video\n"
     + "print(json.dumps([observation_order.OBSERVE_DEADLINE_S, collect_media.WAIT_BUDGET_S, hasattr(observe_video, 'VIEWER_BUDGET_S')]))",

@@ -51,8 +51,9 @@ SOURCE_UNAVAILABLE_REPLY = ("This video can't be opened: it may have been delete
                             "regions. Send another public link or the video file and I'll analyse that instead.")
 # The one total observation deadline, counted from the first fetch and the same on every host. Kabo Web ends a turn
 # at 500 seconds: a throttled download once held the fetch step for 477 seconds and the turn died with no reply.
-# 240 seconds leaves the rest of the turn for the evidence, the analysis and the reply.
-OBSERVE_DEADLINE_S = 240
+# 330 seconds is a safety net, not the expected wait: it stops only a fetch that is stuck (a throttled platform), and
+# leaves about two and a half minutes of the turn for the evidence, the analysis and the reply.
+OBSERVE_DEADLINE_S = 330
 # A source started after the first one (a fallback, or a viewing waiting for the duration) starts only while this
 # much of the deadline is left: a viewing of a video up to ten minutes normally finishes in one to two minutes, the
 # frames and transcript of a media call in about one.

@@ -158,7 +158,7 @@ connector evidence"): record it with `--limitation` on the evidence-building com
 The media jobs (transcript, frames, measurements) are deferred and take minutes. The backend waits
 for them inside `collect_video_media`; `observe_video.py` prints the same call again while any is
 still running, and nothing is queued or charged twice. A whole-video viewing has no server-side
-wait: the script waits between its readings itself. The whole observation has one deadline, 240
+wait: the script waits between its readings itself. The whole observation has one deadline, 330
 seconds from the first call, the same on every host; a fallback starts only while enough of it is
 left to finish. Keep making the printed calls within this turn until the script reports its status:
 ending the turn to wait throws the jobs away. A job or viewing still running at the deadline did not

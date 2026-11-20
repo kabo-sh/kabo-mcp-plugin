@@ -267,7 +267,7 @@ test("transcript-only export: when the request has no content_id, take it from t
   assert.match(await readFile(path.join(run, "report/transcript.txt"), "utf8"), /Here is the one thing you need/);
 });
 
-// Media waits use wall time, not a fixed number of rounds, up to the one observation deadline (240 seconds, the same
+// Media waits use wall time, not a fixed number of rounds, up to the one observation deadline (330 seconds, the same
 // as observe_video.py): Kabo Web ends a turn at 500 seconds. A job still running then is unfinished, not failed: in
 // a dev-box Codex run the model once reported a still-running transcript as a backend service_unavailable.
 test("collect_media.py: while jobs run it keeps waiting by wall time (past the old 6 rounds), stops at the deadline, and records unfinished jobs as deferred-incomplete, not failed", async (t) => {
@@ -282,7 +282,7 @@ test("collect_media.py: while jobs run it keeps waiting by wall time (past the o
     await save(saveOf(out), composite(args, transcriptPending));
     const resumed = shell(resumeOf(out));
     assert.equal(resumed.code, 0, resumed.out);
-    assert.match(resumed.out, /1 media job\(s\) are still running \(\d+ of up to 240 s waited\); keep waiting\./, `round ${round}`);
+    assert.match(resumed.out, /1 media job\(s\) are still running \(\d+ of up to 330 s waited\); keep waiting\./, `round ${round}`);
     assert.deepEqual(calls(resumed.out)[0].arguments, args);
     assert.doesNotMatch(resumed.out, /"status": "collected"/);
     out = resumed.out;
