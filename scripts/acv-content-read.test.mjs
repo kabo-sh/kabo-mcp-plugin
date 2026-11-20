@@ -6,7 +6,7 @@
 // Pinned here: a question about content is a content read (transcript + frames + metadata), a transcript export
 // only when a file is wanted, and machine-heard words are first treated as possible lyrics when an existing track
 // plays or nobody on screen is speaking. The content-read rules now reach the model through the analysis brief
-// (references/analysis-brief/output-content-read.md), so they are checked there.
+// (the output-content-read section of references/analysis-brief.md), so they are checked there.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -19,7 +19,8 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const skillDir = path.join(root, "skills/analyze-content-video");
 const skill = readFileSync(path.join(skillDir, "SKILL.md"), "utf8");
-const contentRead = readFileSync(path.join(skillDir, "references/analysis-brief/output-content-read.md"), "utf8");
+const briefTexts = readFileSync(path.join(skillDir, "references/analysis-brief.md"), "utf8");
+const contentRead = briefTexts.split(/^<!-- section: output-content-read -->\n/m)[1].split(/^<!-- section: /m)[0];
 const description = skill.match(/^description: "(.*)"$/m)[1];
 const section = (heading) => {
   const start = skill.indexOf(`\n## ${heading}\n`);

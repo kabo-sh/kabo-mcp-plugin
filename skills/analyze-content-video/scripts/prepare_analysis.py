@@ -35,7 +35,20 @@ import acv_timing  # noqa: E402
 import select_method  # noqa: E402
 import transcript_checks  # noqa: E402
 
-BRIEF_TEXTS = SKILL / "references" / "analysis-brief"
+BRIEF_TEXTS = SKILL / "references" / "analysis-brief.md"
+BRIEF_SECTION = re.compile(r"^<!-- section: ([a-z-]+) -->\n", re.M)
+
+
+def brief_text(name: str) -> str:
+    """One section of `references/analysis-brief.md`: from its marker line to the next marker or the end."""
+    text = BRIEF_TEXTS.read_text(encoding="utf-8")
+    marks = list(BRIEF_SECTION.finditer(text))
+    for index, mark in enumerate(marks):
+        if mark.group(1) == name:
+            return text[mark.end():marks[index + 1].start() if index + 1 < len(marks) else len(text)]
+    raise KeyError(f"analysis-brief.md has no section {name!r}")
+
+
 MODES = ("diagnosis", "content_read", "craft_teardown")
 MODE_TEXT = {
     "diagnosis": "Diagnosis: how this post did and what to keep, recut or replace next, from its own timestamped "
@@ -45,8 +58,8 @@ MODE_TEXT = {
     "craft_teardown": "Craft teardown: how the video was made, in steps one person can follow, answered in "
                       "`report/craft-teardown.md` and shaped by the creator's question.",
 }
-OUTPUT_FILE = {"diagnosis": "output-diagnosis.md", "content_read": "output-content-read.md",
-               "craft_teardown": "output-craft-teardown.md"}
+OUTPUT_SECTION = {"diagnosis": "output-diagnosis", "content_read": "output-content-read",
+                  "craft_teardown": "output-craft-teardown"}
 NEXT = {
     "diagnosis": "write analysis/video_judgment.json as its section 7 says",
     "content_read": "answer the creator in the chat as its section 7 says",
@@ -387,7 +400,7 @@ def method_section(method: dict[str, Any], library: Path, index: dict[str, Any])
 
 
 def output_section(mode: str) -> list[str]:
-    lines = [nested((BRIEF_TEXTS / OUTPUT_FILE[mode]).read_text(encoding="utf-8")), ""]
+    lines = [nested(brief_text(OUTPUT_SECTION[mode])), ""]
     if mode == "diagnosis":
         done = subprocess.run([sys.executable, "-B", str(SCRIPTS / "compose_video_analysis.py"),
                                "--print-judgment-schema"], capture_output=True, text=True)
@@ -414,7 +427,7 @@ def brief(question: str, mode: str, focus: list[str], method: dict[str, Any], li
                                *evidence_lines]),
         ("4. Deterministic results", deterministic_lines),
         ("5. Method", method_section(method, library, index)),
-        ("6. Judgment rules", [nested((BRIEF_TEXTS / "judgment-rules.md").read_text(encoding="utf-8")), ""]),
+        ("6. Judgment rules", [nested(brief_text("judgment-rules")), ""]),
         ("7. Output contract", output_section(mode)),
     ]
     out = ["# Analysis brief", "", "Read this whole before writing anything. It is the only analysis "
