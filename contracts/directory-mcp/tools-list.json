@@ -18704,6 +18704,487 @@
       "annotations": {
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Song in a public Instagram/YouTube/TikTok video: audio recognition, else the platform's audio tag (source says which). Other sites: unsupported_platform. No quota.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "end_s": {
+            "description": "Clip end, seconds; after start_s.",
+            "exclusiveMinimum": 0,
+            "maximum": 86400,
+            "type": "integer"
+          },
+          "start_s": {
+            "description": "Clip start, seconds.",
+            "maximum": 86400,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "video_url": {
+            "description": "Public Instagram, YouTube or TikTok video.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "video_url"
+        ],
+        "type": "object"
+      },
+      "name": "identify_video_song",
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "platform": {
+            "anyOf": [
+              {
+                "enum": [
+                  "instagram",
+                  "youtube",
+                  "tiktok"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "platform_audio": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "credit": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "original": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "title",
+                  "credit",
+                  "original",
+                  "url"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sample_start_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "song": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "album": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "artist": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "title",
+                  "artist",
+                  "album",
+                  "url"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "recognition",
+                  "platform_tag"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "matched",
+              "platform_metadata",
+              "no_match",
+              "unavailable",
+              "in_progress",
+              "quota_exceeded",
+              "unsupported_platform"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "source",
+          "reason",
+          "platform",
+          "sample_start_s",
+          "song",
+          "platform_audio"
+        ],
+        "type": "object"
+      },
+      "securitySchemes": [
+        {
+          "scopes": [
+            "data"
+          ],
+          "type": "oauth2"
+        }
+      ],
+      "title": "Identify the song in a video"
+    },
+    {
+      "_meta": {
+        "securitySchemes": [
+          {
+            "scopes": [
+              "data"
+            ],
+            "type": "oauth2"
+          }
+        ]
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Audience view from a public YouTube/Instagram/TikTok video's top comments: sentiment, themes, questions, requests, controversy. Paraphrased; no comment text or commenters. Other sites: unsupported_platform. No quota.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "video_url": {
+            "description": "Public YouTube, Instagram or TikTok video.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "video_url"
+        ],
+        "type": "object"
+      },
+      "name": "summarize_video_comments",
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "controversy": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "flagged": {
+                    "type": "boolean"
+                  },
+                  "note": {
+                    "anyOf": [
+                      {
+                        "maxLength": 240,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "flagged",
+                  "note"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "enum": [
+                  "youtube",
+                  "tiktok",
+                  "instagram"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "retrieved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sample_size": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sentiment": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "negative": {
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "neutral": {
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "positive": {
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "positive",
+                  "neutral",
+                  "negative"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "too_few_comments",
+              "unsupported_platform"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "themes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "maxLength": 240,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "label": {
+                  "maxLength": 60,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "share": {
+                  "maximum": 100,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "label",
+                "description",
+                "share"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total_comments": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "platform",
+          "total_comments",
+          "sample_size",
+          "language",
+          "sentiment",
+          "summary",
+          "themes",
+          "questions",
+          "requests",
+          "controversy",
+          "retrieved_at"
+        ],
+        "type": "object"
+      },
+      "securitySchemes": [
+        {
+          "scopes": [
+            "data"
+          ],
+          "type": "oauth2"
+        }
+      ],
+      "title": "Summarize a video's comments"
+    },
+    {
+      "_meta": {
+        "securitySchemes": [
+          {
+            "scopes": [
+              "data"
+            ],
+            "type": "oauth2"
+          }
+        ]
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
         "openWorldHint": false,
         "readOnlyHint": true
       },

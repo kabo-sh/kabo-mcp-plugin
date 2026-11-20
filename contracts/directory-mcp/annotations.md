@@ -40,6 +40,8 @@ OAuth 通过 `securitySchemes` 与 `_meta.securitySchemes` 同值声明。下表
 | make_video | video | false | false | true | 把账号自己的项目交给后台制作方按已确认的分镜生成（调用视频、配音、图像供应商），按实际花费计费；同键同入参只回当前状态、不重复启动。 |
 | reply_to_video | video | false | false | true | 把创作者的回答或修改要求原话转给该任务的后台制作方，可能据此按创作者的要求继续付费生成；同键同入参只受理一次。 |
 | upload_file | video | false | false | false | 在账号自己的文件空间登记待上传文件并签发短期上传地址，或核对刚传完的文件（大小、类型、内容）并标记可用；同键同文件重放同一结果；不访问第三方、不占额度。 |
+| identify_video_song | data | true | false | true | 读取第三方公开数据；不占账号额度、不创建账号记录（服务端调用审计与证据副本不算）。 |
+| summarize_video_comments | data | true | false | true | 读取第三方公开数据；不占账号额度、不创建账号记录（服务端调用审计与证据副本不算）。 |
 | get_research_capabilities | data | true | false | false | 只读 Kabo 自有状态（任务、制品、快照或目录），不访问第三方、不占额度。 |
 | youtube_search_videos | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | youtube_search_channels | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |

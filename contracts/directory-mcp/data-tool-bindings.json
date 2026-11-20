@@ -65,6 +65,7 @@
     "get_research_data_job",
     "get_script",
     "get_social_connection",
+    "identify_video_song",
     "list_connected_accounts",
     "list_library_videos",
     "list_scripts",
@@ -78,6 +79,7 @@
     "save_script",
     "start_skill_run",
     "start_video_project",
+    "summarize_video_comments",
     "update_content_preferences",
     "update_script",
     "upload_file"

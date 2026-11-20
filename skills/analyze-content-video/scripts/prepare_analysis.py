@@ -63,8 +63,9 @@ OUTPUT_SECTION = {"diagnosis": "output-diagnosis", "content_read": "output-conte
                   "craft_teardown": "output-craft-teardown"}
 # A kind of request that adds its own instruction to section 7 (select_method.py records it as `ask`).
 ASK_SECTION = {"identify_track": "output-identify-track"}
-ASK_TEXT = {"identify_track": "Find the track: which song or sound the video uses, named only from the metadata, "
-                              "on-screen text and speech. No sound card and no whole-video viewing."}
+ASK_TEXT = {"identify_track": "Find the track: which song or sound the video uses, named from the song "
+                              "recognition's match when there is one, otherwise only from the metadata, on-screen "
+                              "text and speech. No sound card and no whole-video viewing."}
 NEXT = {
     "diagnosis": "write analysis/video_judgment.json as its section 7 says",
     "content_read": "answer the creator in the chat as its section 7 says",
@@ -258,6 +259,8 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
     for item in evidence.get("derived") or []:
         lines.append(f"- `derived.{item['name']}` = {item.get('value')}")
     lines += [""] + sound_lines(evidence)
+    if "audience_response" in evidence or any(card.get("id") == AUDIENCE_CARD for card in method.get("cards") or []):
+        lines += audience_lines(evidence)
 
     frames = evidence.get("frames") or {}
     items = frames.get("items") or []
@@ -333,6 +336,92 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
     return lines
 
 
+AUDIENCE_CARD = "audience-response"
+SONG_GAP = {
+    "no_match": "the recognition found no match in the video's audio",
+    "unavailable": "the recognition could not read the video's audio",
+    "in_progress": "the recognition did not finish within its one call",
+    "quota_exceeded": "the recognition is out of its daily allowance",
+    "unsupported_platform": "the recognition covers Instagram, YouTube and TikTok links only",
+    "not_attempted": "an uploaded file is not sent to the recognition",
+    "failed": "the recognition brought no answer here",
+}
+COMMENT_GAP = {
+    "too_few_comments": "the post has too few comments to summarise",
+    "unsupported_platform": "comment summaries cover YouTube, Instagram and TikTok links only",
+    "not_attempted": "an uploaded file has no public comments",
+    "failed": "the comment summary is not available here",
+}
+
+
+def song_lines(evidence: dict[str, Any]) -> list[str]:
+    """What the song recognition answered, for a find-the-song request."""
+    song = evidence.get("song_identification")
+    if not isinstance(song, dict):
+        return []
+    status = song.get("status")
+    named = song.get("song") or {}
+    tag = song.get("platform_audio") or {}
+    if status == "matched" and named:
+        line = (f"- `song_identification.song`: recognised from the video's audio (sample from "
+                f"{seconds(song.get('sample_start_s'))}): \"{named.get('title')}\" by {named.get('artist')}"
+                + (f", album {named['album']}" if named.get("album") else "")
+                + (f"; listen link {named['url']}" if named.get("url") else "; no listen link") + ".")
+    elif status == "platform_metadata":
+        line = "- Song recognition: no audio match; the platform's own sound label is what names it."
+    else:
+        line = (f"- Song recognition: {status} ({SONG_GAP.get(str(status), 'no answer')}"
+                + (f"; {song['reason']}" if song.get("reason") and status != "not_attempted" else "") + ").")
+    lines = [line]
+    if tag:
+        lines.append(f"- `song_identification.platform_audio` (the platform's sound label): \"{tag.get('title')}\""
+                     + (f", credited to {tag['credit']}" if tag.get("credit") else "")
+                     + (", marked as the creator's original sound" if tag.get("original") is True else "")
+                     + (f"; link {tag['url']}" if tag.get("url") else "") + ".")
+    return lines
+
+
+def audience_lines(evidence: dict[str, Any]) -> list[str]:
+    """The comment summary the audience-response card asked for, or why the comments were not read."""
+    block = evidence.get("audience_response")
+    counts = [metric for metric in evidence.get("public_metrics") or []
+              if "comment" in str(metric.get("native_name") or "")]
+    count = ", ".join(f"`public_metrics.{metric['native_name']}` = {metric.get('value')}" for metric in counts)
+    lines = ["### Audience response (comment summary)", ""]
+    if not isinstance(block, dict) or block.get("status") != "available":
+        status = (block or {}).get("status") if isinstance(block, dict) else None
+        why = COMMENT_GAP.get(str(status), "no comment summary was fetched in this run")
+        return lines + [f"- The comments were not read: {why}. Work from the public comment count "
+                        f"({count or 'no public comment count either'}) and say plainly that the comments themselves "
+                        "were not read; never guess what viewers said.", ""]
+    sample = block.get("sample_size")
+    lines.append(f"- A paraphrased summary of {sample if sample is not None else 'an unknown number of'} top comments"
+                 + (f" out of {block['total_comments']}" if block.get("total_comments") is not None else "")
+                 + (f", mostly in {block['language']}" if block.get("language") else "")
+                 + (f", retrieved {block['retrieved_at']}" if block.get("retrieved_at") else "")
+                 + ". No comment text: never quote or invent a comment. Shares are shares of this sample."
+                 + (f" Public count: {count}." if count else ""))
+    if block.get("summary"):
+        lines.append(f"- `audience_response.summary`: {one_line(block['summary'])}")
+    sentiment = block.get("sentiment")
+    if sentiment:
+        lines.append(f"- `audience_response.sentiment`: {sentiment.get('positive')}% positive, "
+                     f"{sentiment.get('neutral')}% neutral, {sentiment.get('negative')}% negative")
+    for index, theme in enumerate(block.get("themes") or []):
+        lines.append(f"- `audience_response.themes[{index}]` {theme.get('label')}"
+                     + (f" ({theme['share']}% of the sample)" if theme.get("share") is not None else "")
+                     + (f": {one_line(theme['description'])}" if theme.get("description") else ""))
+    for field, label in (("questions", "question"), ("requests", "request")):
+        for index, text in enumerate(block.get(field) or []):
+            lines.append(f"- `audience_response.{field}[{index}]` {label}: {one_line(text)}")
+    controversy = block.get("controversy")
+    if controversy:
+        lines.append("- `audience_response.controversy`: "
+                     + ("flagged" if controversy.get("flagged") else "not flagged")
+                     + (f": {one_line(controversy['note'])}" if controversy.get("note") else ""))
+    return lines + [""]
+
+
 def sound_lines(evidence: dict[str, Any]) -> list[str]:
     """What this run has for deciding whose words the transcript holds and whether the sound was analysed."""
     lines = ["### Sound", ""]
@@ -342,6 +431,7 @@ def sound_lines(evidence: dict[str, Any]) -> list[str]:
     else:
         lines.append("- `audio_attribution` unavailable: no source in this run declares whether the sound is "
                      "original or an existing track.")
+    lines += song_lines(evidence)
     cues = (evidence.get("transcript") or {}).get("cues") or []
     marked = [(index, SOUND_MARKER.findall(str(cue.get("text") or ""))) for index, cue in enumerate(cues)]
     marked = [(index, found) for index, found in marked if found]

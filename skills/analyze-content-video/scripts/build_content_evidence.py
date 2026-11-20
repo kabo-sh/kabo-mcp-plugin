@@ -557,6 +557,152 @@ def local_acquisition_entry(step: dict[str, Any], input_sha256: str | None) -> d
     }
 
 
+# The two single-call tools observe_video.py makes beside the observation, as persisted there (acv-side-call/v1).
+SIDE_SCHEMA = "acv-side-call/v1"
+SIDE_CONNECTOR = "kabo-video-insights"
+SONG_STATUSES = {"matched", "platform_metadata", "no_match", "unavailable", "in_progress", "quota_exceeded",
+                 "unsupported_platform"}
+COMMENT_STATUSES = {"ok": "available", "too_few_comments": "too_few_comments",
+                    "unsupported_platform": "unsupported_platform"}
+SIDE_WORDS = {"song": "The song recognition", "comment_summary": "The comment summary"}
+
+
+def side_record(value: Any, name: str) -> dict[str, Any]:
+    """A persisted side-call record, checked; ValueError when it is not one observe_video.py wrote for `name`."""
+    if not isinstance(value, dict) or value.get("schema_version") != SIDE_SCHEMA or value.get("name") != name:
+        raise ValueError(f"the {name} file is not a side-call record observe_video.py persisted")
+    return value
+
+
+def link(value: Any) -> str | None:
+    return value if isinstance(value, str) and re.match(r"^https?://\S+$", value) else None
+
+
+def text_or_none(value: Any, limit: int = 600) -> str | None:
+    return " ".join(value.split())[:limit] if isinstance(value, str) and value.strip() else None
+
+
+def side_failure(record: dict[str, Any]) -> dict[str, Any] | None:
+    error = record.get("error")
+    if not isinstance(error, dict):
+        return None
+    return {"code": str(error.get("code") or "tool_error"), "retryable": error.get("retryable") is True}
+
+
+def song_block(record: dict[str, Any]) -> dict[str, Any]:
+    """`song_identification`: what identify_video_song answered, or why there is no answer."""
+    block: dict[str, Any] = {"status": "not_attempted", "source": None, "reason": record.get("skipped"),
+                             "sample_start_s": None, "song": None, "platform_audio": None, "failure": None}
+    answer = record.get("answer")
+    if not record.get("attempted"):
+        return block
+    if not isinstance(answer, dict) or answer.get("status") not in SONG_STATUSES:
+        failure = side_failure(record) or {"code": "unreadable_result", "retryable": False}
+        return {**block, "status": "failed", "reason": failure["code"], "failure": failure}
+    song = answer.get("song") if isinstance(answer.get("song"), dict) else None
+    named = song if song and text_or_none(song.get("title")) and text_or_none(song.get("artist")) else None
+    tag = answer.get("platform_audio") if isinstance(answer.get("platform_audio"), dict) else None
+    status = answer["status"]
+    if status == "matched" and named is None:
+        return {**block, "status": "failed", "reason": "unreadable_result",
+                "failure": {"code": "unreadable_result", "retryable": False}}
+    start = answer.get("sample_start_s")
+    return {**block, "status": status,
+            "source": answer.get("source") if answer.get("source") in {"recognition", "platform_tag"} else None,
+            "reason": text_or_none(answer.get("reason"), 80),
+            "sample_start_s": start if type(start) is int and start >= 0 else None,
+            "song": ({"title": text_or_none(named["title"], 200), "artist": text_or_none(named["artist"], 200),
+                      "album": text_or_none(named.get("album"), 200), "url": link(named.get("url"))}
+                     if named else None),
+            "platform_audio": ({"title": text_or_none(tag.get("title"), 200), "credit": text_or_none(tag.get("credit"), 200),
+                                "original": tag.get("original") if isinstance(tag.get("original"), bool) else None,
+                                "url": link(tag.get("url"))}
+                               if tag and text_or_none(tag.get("title")) else None)}
+
+
+def audience_block(record: dict[str, Any]) -> dict[str, Any]:
+    """`audience_response`: the comment summary summarize_video_comments returned (paraphrased, from a sample of the
+    top comments, with no comment text), or why there is none. Only the contract's fields are kept."""
+    block: dict[str, Any] = {"status": "not_attempted", "reason": record.get("skipped"), "platform": None,
+                             "total_comments": None, "sample_size": None, "language": None, "sentiment": None,
+                             "summary": None, "themes": [], "questions": [], "requests": [], "controversy": None,
+                             "retrieved_at": None, "failure": None}
+    answer = record.get("answer")
+    if not record.get("attempted"):
+        return block
+    if not isinstance(answer, dict) or answer.get("status") not in COMMENT_STATUSES:
+        failure = side_failure(record) or {"code": "unreadable_result", "retryable": False}
+        return {**block, "status": "failed", "reason": failure["code"], "failure": failure}
+
+    def count(value: Any) -> int | None:
+        return value if type(value) is int and value >= 0 else None
+
+    sentiment = answer.get("sentiment") if isinstance(answer.get("sentiment"), dict) else None
+    if sentiment is not None and not all(count(sentiment.get(key)) is not None and sentiment[key] <= 100
+                                         for key in ("positive", "neutral", "negative")):
+        sentiment = None
+    themes = []
+    for item in answer.get("themes") or []:
+        if isinstance(item, dict) and text_or_none(item.get("label")):
+            share = item.get("share")
+            themes.append({"label": text_or_none(item["label"], 120),
+                           "description": text_or_none(item.get("description"), 400),
+                           "share": share if isinstance(share, (int, float)) and not isinstance(share, bool)
+                           and 0 <= share <= 100 else None})
+    controversy = answer.get("controversy") if isinstance(answer.get("controversy"), dict) else None
+    status = COMMENT_STATUSES[answer["status"]]
+    return {**block, "status": status, "reason": None if status == "available" else answer["status"],
+            "platform": answer.get("platform") if isinstance(answer.get("platform"), str) else None,
+            "total_comments": count(answer.get("total_comments")), "sample_size": count(answer.get("sample_size")),
+            "language": text_or_none(answer.get("language"), 35),
+            "sentiment": ({key: sentiment[key] for key in ("positive", "neutral", "negative")} if sentiment else None),
+            "summary": text_or_none(answer.get("summary"), 1200), "themes": themes,
+            "questions": [text for text in (text_or_none(item, 300) for item in answer.get("questions") or []) if text],
+            "requests": [text for text in (text_or_none(item, 300) for item in answer.get("requests") or []) if text],
+            "controversy": ({"flagged": controversy.get("flagged") is True,
+                             "note": text_or_none(controversy.get("note"), 300)} if controversy else None),
+            "retrieved_at": text_or_none(answer.get("retrieved_at"), 40)}
+
+
+def side_acquisition_entry(record: dict[str, Any], status: str) -> dict[str, Any]:
+    """One ledger entry for an attempted side call."""
+    digest = record.get("raw_sha256")
+    return {
+        "step": "connector_call",
+        "connector_id": SIDE_CONNECTOR,
+        "operation": str(record.get("tool")),
+        "connector_request_id": f"{record.get('tool')}:{str(digest)[:16]}" if digest else str(record.get("tool")),
+        "status": ("failed" if status == "failed" else "unsupported" if status == "unsupported_platform"
+                   else "completed"),
+        "retrieved_at": record.get("saved_at"),
+        "raw_hash": digest,
+        "raw_retained_outside_git": True,
+        "credits_charged": None,
+        "note": "one bounded call beside the observation, read once",
+    }
+
+
+def side_limitation(name: str, status: str) -> str | None:
+    """The plain line for a side call that brought nothing usable; None when it did."""
+    what = SIDE_WORDS[name]
+    if name == "comment_summary":
+        if status == "available":
+            return None
+        return {
+            "not_attempted": "The comments were not read: an uploaded file has no public comments to summarise.",
+            "unsupported_platform": "The comments were not read: comment summaries cover YouTube, Instagram and "
+                                    "TikTok links only.",
+            "too_few_comments": "The comments were not read: the post has too few comments to summarise.",
+        }.get(status, "The comments were not read: the comment summary is not available here.")
+    if status in {"matched", "platform_metadata"}:
+        return None
+    return {
+        "not_attempted": f"{what} was not run: an uploaded file is named from its own data only.",
+        "unsupported_platform": f"{what} covers Instagram, YouTube and TikTok links only.",
+        "no_match": f"{what} found no match in the video's audio.",
+    }.get(status, f"{what} brought no answer here.")
+
+
 def percentile(values: list[float], fraction: float) -> float | None:
     if not values:
         return None
@@ -1225,6 +1371,8 @@ def build(
     now: datetime | None = None,
     viewer: dict[str, Any] | None = None,
     stated_duration_s: float | None = None,
+    song: dict[str, Any] | None = None,
+    comment_summary: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     from prepare_link_request import public_only_request_errors
     scope_errors = public_only_request_errors(request)
@@ -1238,6 +1386,9 @@ def build(
             f"a local media artifact was given but the request declares acquisition "
             f"{acquisition_mode!r}: the evidence would claim it measured a file the request never named"
         )
+    side = {name: side_record(record, name) for name, record in (("song", song), ("comment_summary", comment_summary))
+            if record is not None}
+    side_blocks = {name: (song_block if name == "song" else audience_block)(record) for name, record in side.items()}
     if viewer is not None and (acquisition_mode == "local_file" or local_media is not None
                                or local_transcript is not None):
         # The whole-video viewer watched the platform's copy; a local file is the creator's master. One object
@@ -1495,6 +1646,10 @@ def build(
     for text in limitations or []:
         if text.strip() and text.strip() not in notes:
             notes.append(text.strip())
+    for name, block in side_blocks.items():
+        text = side_limitation(name, block["status"])
+        if text and text not in notes:
+            notes.append(text)
     if (any(as_record(envelope.get("data")).get("source_unavailable") is True for _, envelope in envelopes)
             and observation_order.SOURCE_UNAVAILABLE_MARK not in notes):
         # The one marker for a video the backend could not fetch at all, whichever result said so.
@@ -1516,6 +1671,9 @@ def build(
         hashes["local_subtitle_input"] = local_transcript["source_file_sha256"]
     if viewer is not None:
         hashes["whole_video_response"] = viewer["raw_sha256"]
+    for name, record in side.items():
+        if isinstance(record.get("raw_sha256"), str):
+            hashes[f"{name}_response"] = record["raw_sha256"]
 
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -1529,6 +1687,8 @@ def build(
                for step in local_steps]
             + pending_entries
             + ([viewer_acquisition_entry(viewer)] if viewer is not None else [])
+            + [side_acquisition_entry(record, side_blocks[name]["status"]) for name, record in side.items()
+               if record.get("attempted")]
         ),
         "media": media,
         "transcript": transcript,
@@ -1559,6 +1719,10 @@ def build(
             evidence[key] = facts[key]
     if viewer_block is not None:
         evidence["viewer_observations"] = viewer_block
+    if "song" in side_blocks:
+        evidence["song_identification"] = side_blocks["song"]
+    if "comment_summary" in side_blocks:
+        evidence["audience_response"] = side_blocks["comment_summary"]
     linked = linked_media.bind(linked_bundles, [e for _, e in envelopes], request, analysis_root)
     if linked is not None:
         evidence["images"] = linked
@@ -1660,6 +1824,9 @@ def main() -> int:
                         help="the artifact read_subtitle_file.py wrote, for a subtitle file the creator supplied")
     parser.add_argument("--viewer", type=Path,
                         help="the saved whole-video viewing result (analyze_content_video / get_analysis_run)")
+    parser.add_argument("--song", type=Path, help="the persisted song identification (snapshot/song.json)")
+    parser.add_argument("--comment-summary", type=Path,
+                        help="the persisted comment summary (snapshot/comment-summary.json)")
     parser.add_argument("--run-id", help="by default the run directory's name, when the output is in <run>/analysis/")
     parser.add_argument("--duration-s", type=float,
                         help="the video's duration as observe_video.py printed it; used only when no envelope "
@@ -1674,7 +1841,7 @@ def main() -> int:
         reference_path = args.reference_index
         if reference_path is not None:
             inputs = [args.request, *args.envelope, args.owner_metrics,
-                      args.local_media, args.local_transcript, args.viewer]
+                      args.local_media, args.local_transcript, args.viewer, args.song, args.comment_summary]
             inputs = [path for path in inputs if path is not None]
             if reference_path.resolve() == args.output.resolve():
                 raise ValueError("the evidence and reference index must use different paths")
@@ -1708,6 +1875,8 @@ def main() -> int:
             snapshot_root=args.snapshot_root,
             analysis_root=args.snapshot_root.parent / "analysis" if args.snapshot_root else None,
             viewer=viewer_response.read(args.viewer.read_bytes()) if args.viewer else None,
+            song=load_json(args.song) if args.song else None,
+            comment_summary=load_json(args.comment_summary) if args.comment_summary else None,
         )
         evidence_bytes = (json.dumps(evidence, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -1743,6 +1912,9 @@ def main() -> int:
         "transcript_origin": evidence["transcript"].get("origin"),
         "local_steps": sum(1 for entry in evidence["acquisition"] if entry.get("step") == "local_extraction"),
         "content_metadata": evidence["content_metadata"]["status"],
+        **({"song_identification": evidence["song_identification"]["status"]}
+           if "song_identification" in evidence else {}),
+        **({"audience_response": evidence["audience_response"]["status"]} if "audience_response" in evidence else {}),
         **({"viewer_observations": evidence["viewer_observations"]["status"],
             "viewer_notes": len(evidence["viewer_observations"]["items"])} if "viewer_observations" in evidence else {}),
     }, ensure_ascii=False))

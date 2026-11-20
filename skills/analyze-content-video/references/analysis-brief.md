@@ -132,11 +132,16 @@ This is a find-the-song request. It replaces the content read's paragraphs above
 the video uses, in two or three sentences, then write `analysis/answer.md` and run the timing command as
 above.
 
-- Name a track only from what names it: the platform's sound label (`audio_attribution` in section 3),
-  the title, caption or tags, on-screen text read in a frame, or words spoken (not sung) in the video
-  that name it. Say which of these it came from, with the time when it is in the video.
-- Never name a song, artist or remix from the sound, the melody or the lyrics, and never guess from the
-  genre or mood. Do not quote or paraphrase sung words.
+- A song recognition match (`song_identification.song` in section 3, matched from the video's own
+  audio) comes first: give the title and artist, and its listen link when there is one, and say it
+  was recognised from the video's audio. It is the recognition's result, not something you heard.
+- Otherwise name a track only from what names it: the platform's sound label
+  (`song_identification.platform_audio` or `audio_attribution`), the title, caption or tags,
+  on-screen text read in a frame, or words spoken (not sung) that name it. Say which it came from,
+  with the time when it is in the video. A label marked as the creator's original sound names no
+  song: say the sound is their own.
+- Never name a song, artist or remix from your own impression of the sound, the melody or the lyrics,
+  and never guess from the genre or mood. Do not quote or paraphrase sung words.
 - When nothing names it, say so plainly in the first sentence: the track can't be identified from this
-  video's data. Say what was checked (the sound label, the caption, the on-screen text, the speech) and
-  suggest the platform's own sound page or a music-recognition app once.
+  video's data. Say what was checked (the recognition when it ran, the sound label, the caption, the
+  on-screen text, the speech) and suggest the platform's own sound page once.

@@ -3,8 +3,13 @@
 
 The order is data, not code: `default` lists the sources a run starts with, `fallback` what to try after a
 source fails, `add_when_cards` what a selected method card adds to the chosen source (the `sound` card adds the
-whole-video viewing, which hears the audio: server frames plus a viewing is `combined`), and `whole_video_max_ms`
-caps the length a viewing takes. The viewing is offered for any link and any `kabo-file:<id>`: whether it can
+whole-video viewing, which hears the audio: server frames plus a viewing is `combined`) or beside it (the
+`audience-response` card adds the comment summary), `add_when_asks` what a kind of request adds beside it (a
+find-the-song request adds the song identification), and `whole_video_max_ms` caps the length a viewing takes.
+
+A side call (`SIDE_CALLS`) is not an observation source: it is one bounded call made in the observation's first
+hand-over, read once, never polled and never repeated. A file attached in Kabo has no public link for it, so it
+gets none; for any public link the tool's own answer says whether it can read it. The viewing is offered for any link and any `kabo-file:<id>`: whether it can
 read that source is the tool's own answer, and an unsupported answer ends that source like any other failure. This module reads the table plus the facts of this run
 (platform, duration when known, what already failed, the analysis mode, the method cards selected before the
 fetch) and nothing else. It never looks at which host runs it.
@@ -20,7 +25,7 @@ Two modes and one kind of question bend the table, the same way on every host:
     python3 observation_order.py --platform tiktok [--duration-s 42] [--failed server_frames] [--mode MODE]
         [--cards sound,opening] [--ask identify_track] [--observe-source ID]
 
-prints {"source": "<id>" | null, "reason": "..."}.
+prints {"source": "<id>" | null, "reason": "...", "side_calls": [<name>, ...]}.
 """
 from __future__ import annotations
 
@@ -71,6 +76,8 @@ VIEWER_SOURCES = ("whole_video", "combined")
 PARTS = {"server_frames": ("server_frames",), "whole_video": ("whole_video",),
          "combined": ("server_frames", "whole_video")}
 ADDABLE = ("server_frames", "whole_video")
+# One bounded call beside the observation, by name: the tool it calls. Read once from the first hand-over.
+SIDE_CALLS = {"song": "identify_video_song", "comment_summary": "summarize_video_comments"}
 # Modes that never start a whole-video viewing, and modes whose method needs frames beside any viewing.
 NO_VIEWER_MODES = {"transcript_export"}
 FRAMES_MODES = {"craft_teardown"}
@@ -92,10 +99,16 @@ def load_order(path: Path | None = None) -> dict[str, Any]:
         raise ValueError("observation order: whole_video_max_ms must be a positive integer")
     added = document.get("add_when_cards")
     if not isinstance(added, dict) or any(not isinstance(key, str) or not isinstance(value, list)
-                                          or any(item not in ADDABLE for item in value)
+                                          or any(item not in ADDABLE + tuple(SIDE_CALLS) for item in value)
                                           for key, value in added.items()):
         raise ValueError("observation order: add_when_cards maps a method card id to a list of "
-                         + " / ".join(ADDABLE))
+                         + " / ".join(ADDABLE + tuple(SIDE_CALLS)))
+    asks = document.get("add_when_asks", {})
+    if not isinstance(asks, dict) or any(key not in ASKS or not isinstance(value, list)
+                                         or any(item not in SIDE_CALLS for item in value)
+                                         for key, value in asks.items()):
+        raise ValueError("observation order: add_when_asks maps a kind of request to a list of "
+                         + " / ".join(SIDE_CALLS))
     if "whole_video_platforms" in document:
         # The viewing is not limited by platform here: the tool answers for the sources it cannot read.
         raise ValueError("observation order: whole_video_platforms is no longer part of the table")
@@ -145,7 +158,7 @@ def with_cards(order: dict[str, Any], source: str, reason: str, *, cards: list[s
     notes = []
     for card in cards:
         for extra in order["add_when_cards"].get(card, []):
-            if extra in parts or extra in tried:
+            if extra in parts or extra in tried or extra in SIDE_CALLS:
                 continue
             if extra == "whole_video" and viewer_barred(mode, ask):
                 notes.append(f"the {card} card would add whole_video, but a {barred_by(mode, ask)} never starts a viewing")
@@ -158,6 +171,24 @@ def with_cards(order: dict[str, Any], source: str, reason: str, *, cards: list[s
             notes.append(f"the {card} card adds {extra}")
     chosen = next(name for name, made_of in PARTS.items() if set(made_of) == parts)
     return chosen, "; ".join([reason, *notes])
+
+
+def side_calls(order: dict[str, Any], *, cards: list[str] | tuple[str, ...] = (), ask: str | None = None,
+               file_ref: bool = False) -> list[dict[str, Any]]:
+    """The side calls the selected cards and the kind of request add, in table order: {name, tool, why, make}.
+
+    `make` is False for a file attached in Kabo, which has no public link for these tools: the call is not made
+    and the gap is recorded the same way as a tool that answered it cannot read the link."""
+    wanted: dict[str, str] = {}
+    for card in cards:
+        for extra in order["add_when_cards"].get(card, []):
+            if extra in SIDE_CALLS:
+                wanted.setdefault(extra, f"the {card} card adds {extra}")
+    for extra in order.get("add_when_asks", {}).get(ask or "", []):
+        wanted.setdefault(extra, f"a {ASK_NAMES.get(ask or '', ask)} adds {extra}")
+    return [{"name": name, "tool": SIDE_CALLS[name], "make": not file_ref,
+             "why": why + (", but an uploaded file has no public link for it" if file_ref else "")}
+            for name, why in wanted.items()]
 
 
 def choose(order: dict[str, Any], *, platform: str | None, duration_s: float | None = None,
@@ -217,15 +248,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--local-file", action="store_true")
     parser.add_argument("--order", type=Path, help="test only: another observation-order table")
     args = parser.parse_args(argv)
+    cards = [item.strip() for item in args.cards.split(",") if item.strip()]
     try:
-        source, reason = choose(load_order(args.order), platform=args.platform, duration_s=args.duration_s,
+        order = load_order(args.order)
+        source, reason = choose(order, platform=args.platform, duration_s=args.duration_s,
                                 failed=args.failed, failure_code=args.failure_code, force=args.observe_source,
-                                local_file=args.local_file, mode=args.mode, ask=args.ask,
-                                cards=[item.strip() for item in args.cards.split(",") if item.strip()])
+                                local_file=args.local_file, mode=args.mode, ask=args.ask, cards=cards)
+        extras = [item["name"] for item in side_calls(order, cards=cards, ask=args.ask) if not args.local_file]
     except (ValueError, OSError, json.JSONDecodeError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}))
         return 2
-    print(json.dumps({"source": source, "reason": reason}))
+    print(json.dumps({"source": source, "reason": reason, "side_calls": extras}))
     return 0
 
 

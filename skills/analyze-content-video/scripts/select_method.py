@@ -19,10 +19,13 @@ starts on unless a card turns them off; at most three dense windows, in card ord
 local sampler then add the default window, the first 50 seconds every 0.5s (`with_default_window`). Unknown or non-topic focus ids, more than two, or a base card the evidence cannot support, exit 2 with a
 message.
 
-`--ask identify_track` is a find-the-song request ("what song is this?"): a content read answered from the
-metadata (`audio_attribution`, title, caption, tags), on-screen text and speech only. It takes no topic card (the
-`sound` card would add a paid whole-video viewing, and a track is never named by ear), and observe_video.py starts
-no viewing for it. method.json records it as `ask`.
+`--ask identify_track` is a find-the-song request ("what song is this?"): a content read answered from the song
+recognition (one bounded `identify_video_song` call for a link, which observation-order.json's `add_when_asks`
+adds), else from the metadata (`audio_attribution`, title, caption, tags), on-screen text and speech. It takes no
+topic card (the `sound` card would add a paid whole-video viewing, and the model never names a track by ear), and
+observe_video.py starts no viewing for it. method.json records it as `ask`. Likewise the `audience-response` card
+adds the comment summary through `add_when_cards`; it needs no evidence kind, because without the summary it works
+from the public comment count.
 """
 from __future__ import annotations
 
@@ -174,7 +177,8 @@ def select(index: dict[str, Any], mode: str, focus: list[str], evidence: dict[st
         raise SelectionError("a find-the-song request is a content read: run it with --mode content_read")
     if ask == "identify_track" and focus:
         raise SelectionError("a find-the-song request reads no topic card (not even sound: the track is named from "
-                             "metadata, on-screen text and speech, never by ear); pass no --focus")
+                             "the song recognition, metadata, on-screen text and speech, never by ear); pass no "
+                             "--focus")
     cards = {card["id"]: card for card in index["cards"]}
     unknown = [item for item in focus if item not in cards]
     if unknown:

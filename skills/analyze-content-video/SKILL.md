@@ -3,7 +3,7 @@ name: analyze-content-video
 description: "Diagnose one video or still-image post from its own timestamped evidence and say what to keep, recut or replace next; or break down how a video was made into steps one person can follow. Also exports a video's transcript as TXT or SRT and reports its cover and tags. Use for what a video is about or says, why it flopped or took off, hook and retention review, a re-edit plan, an unpublished local cut, how was this edited, whether its music or sound fits, or getting a video's subtitles."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, a writable workspace, and script network access to kabo.sh and the signed storage.googleapis.com links Kabo tool results return (or a host that saves a tool's complete result to a file). Local video files need ffmpeg and ffprobe; optional local speech recognition needs faster-whisper and its small model, installed by the user. Kabo permissions: data; video for the whole-video viewing (analyze_content_video, get_analysis_run)."
-allowed-tools: get_research_capabilities get_research_data_download read_research_data_artifacts collect_video_media analyze_content_video get_analysis_run youtube_get_video youtube_get_channel youtube_list_channel_uploads lookup_instagram_post instagram_get_transcript instagram_resolve_profile instagram_list_posts instagram_list_reels tiktok_search_get_video tiktok_search_get_transcript tiktok_search_list_profile_videos start_skill_run
+allowed-tools: get_research_capabilities get_research_data_download read_research_data_artifacts collect_video_media analyze_content_video get_analysis_run identify_video_song summarize_video_comments youtube_get_video youtube_get_channel youtube_list_channel_uploads lookup_instagram_post instagram_get_transcript instagram_resolve_profile instagram_list_posts instagram_list_reels tiktok_search_get_video tiktok_search_get_transcript tiktok_search_list_profile_videos start_skill_run
 ---
 
 # Analyze Content Video
@@ -73,7 +73,7 @@ the report, say so.
 |---|---|
 | Metadata, cover, tags | `youtube_get_video` for a YouTube link; otherwise `observe_video.py` |
 | Post row (Instagram still-image posts) | `lookup_instagram_post` |
-| Transcript, frames, measurements, whole-video notes | `observe_video.py` |
+| Transcript, frames, measurements, whole-video notes, song match, comment summary | `observe_video.py` |
 | Own baseline (own published only) | `youtube_list_channel_uploads`, `instagram_list_reels` / `instagram_list_posts` or `tiktok_search_list_profile_videos`; none elsewhere |
 
 Which links can be read is the tools' answer: when a tool says the platform or link is not
@@ -159,7 +159,7 @@ Decide before retrieving anything.
 | How it did, and what to change next — why it flopped or took off, retention, the cover, whether to repost | **Diagnosis** |
 | How it was *made* — how that was cut, how to get that look, when a transition earns its place, which steps need no team, what to buy first | **Craft teardown** — read `references/craft-teardown.md` whole |
 | What it is about or says — what it shows, what is said or written in it, what it sells or asks for | **Content read** |
-| Which song or track it uses — "what song is this?" | **Find the track**: a content read with `--ask identify_track` in step 3; no `sound` card, no whole-video viewing |
+| Which song or track it uses — "what song is this?" | **Find the track**: a content read with `--ask identify_track` in step 3: one song recognition call for a link; no `sound` card, no whole-video viewing |
 | The words themselves as a file — a transcript or subtitle file to edit, translate or quote in full | **Transcript export** (below) |
 
 **A bare link, or "analyze this" with nothing else, is a diagnosis** with the default method: do
@@ -168,7 +168,8 @@ read, not a transcript export: the words alone show nothing on screen, and machi
 be a song's lyrics rather than anyone speaking. The signal is what they asked about, **not whether a
 link is present**. When both are asked, follow the main clause and offer the other once in
 `next_actions`; never produce two reports. Questions about sound are answered inside whichever mode
-applies; naming the track is Find the track, answered from metadata, on-screen text and speech only.
+applies; naming the track is Find the track, answered from the song recognition's match, else metadata,
+on-screen text and speech, never by ear.
 
 **Consent.** A bare link or an explicit request to analyze, read or tear down a video is consent to
 observe it, including one paid whole-video viewing where the observation order calls for it (a
@@ -205,7 +206,8 @@ Diagnosis, content read and craft teardown run the same steps. Read
 
    Exit 2 names a card id problem: correct `--focus` once. The cards decide what the observation
    needs: the `sound` card adds a whole-video viewing, which hears the audio, where one is possible
-   (a local file is measured instead: `references/local-file.md`).
+   (a local file is measured instead: `references/local-file.md`); `audience-response` adds the
+   comment summary. A side call that brings nothing is missing evidence, never retried.
 4. **Observe.** One command chooses the observation source from
    `references/observation-order.json` and the cards (server keyframes, a whole-video viewing, or
    both) and falls back by itself when one fails:
@@ -227,8 +229,9 @@ Diagnosis, content read and craft teardown run the same steps. Read
    Save and fetch a read only when it returns a download link. Fetch and persist every other
    response as *Data tools and complete evidence* says.
 5. **Build the evidence** once, with one `--envelope` for every `snapshot/envelope-*.json` (the
-   observation's and any you persisted) plus the `--viewer` and `--deferred-incomplete` arguments
-   `observe_video.py` printed (add the per-run flags from the runtime reference only here):
+   observation's and any you persisted) plus every other argument `observe_video.py` printed
+   (`--viewer`, `--song`, `--comment-summary`, `--deferred-incomplete`; add the per-run flags from the
+   runtime reference only here):
 
    ```sh
    cd '<run directory>' && python3 <skill directory>/scripts/build_content_evidence.py --request analysis/video-analysis-request.json --envelope snapshot/<file>.json [--envelope ...] [--viewer snapshot/whole-video.json] --snapshot-root snapshot --output analysis/content_evidence.json --reference-index analysis/content_evidence.references.json

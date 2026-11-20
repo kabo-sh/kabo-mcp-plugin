@@ -503,3 +503,33 @@ test("profile edits: the read switch and the write tool are both in the pinned t
     assert.match(text, /`references\/profile-edits\.md`/, skill);
   }
 });
+
+// identify_video_song and summarize_video_comments (kabo mcp-pub, 2026-11-21): pinned from the backend's
+// directory audit export, declared by analyze-content-video, and every status their pinned output schemas allow is
+// one the evidence builder reads.
+test("video insight tools: both are pinned with their contract, the pin digests hold, and analyze-content-video declares and reads them", async () => {
+  const pin = JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/pin.json"), "utf8"));
+  for (const [name, { sha256: expected }] of Object.entries(pin.files))
+    assert.equal(sha256(await readFile(path.join(root, "contracts/directory-mcp", name))), expected, name);
+  const bindings = JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/data-tool-bindings.json"), "utf8"));
+  const song = pinned.get("identify_video_song"), comments = pinned.get("summarize_video_comments");
+  for (const tool of [song, comments]) {
+    assert.ok(tool, "pinned");
+    assert.deepEqual(tool._meta.securitySchemes[0].scopes, ["data"]);
+    assert.equal(tool.annotations.readOnlyHint, true);
+    assert.deepEqual(tool.inputSchema.required, ["video_url"]);
+    assert.equal(tool.inputSchema.additionalProperties, false);
+    assert.ok(bindings.requiredTools.includes(tool.name), tool.name);
+  }
+  assert.deepEqual(Object.keys(song.inputSchema.properties).sort(), ["end_s", "start_s", "video_url"]);
+  assert.deepEqual(Object.keys(comments.inputSchema.properties), ["video_url"]);
+  const allowed = (await readFile(path.join(root, "skills/analyze-content-video/SKILL.md"), "utf8")).match(/^allowed-tools: (.*)$/m)[1].split(" ");
+  for (const name of ["identify_video_song", "summarize_video_comments"]) assert.ok(allowed.includes(name), name);
+  for (const name of allowed) assert.ok(pinned.has(name), `${name} is not in the pinned tools/list`);
+  const read = JSON.parse(python(["-c", "import json, sys; sys.path.insert(0, sys.argv[1]); import build_content_evidence as b, "
+    + "observation_order as o; print(json.dumps([sorted(b.SONG_STATUSES), sorted(b.COMMENT_STATUSES), o.SIDE_CALLS]))",
+  scripts("analyze-content-video")]));
+  assert.deepEqual(read[0], [...song.outputSchema.properties.status.enum].sort());
+  assert.deepEqual(read[1], [...comments.outputSchema.properties.status.enum].sort());
+  assert.deepEqual(read[2], { song: "identify_video_song", comment_summary: "summarize_video_comments" });
+});

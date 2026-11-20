@@ -151,7 +151,8 @@ const operationsOf = (call) => call.arguments.requests.map((request) => request.
 test("observation-order.json is the agreed table, and the next source follows it", async () => {
   assert.deepEqual(await readJson(path.join(skill, "references/observation-order.json")), {
     schema_version: "observation-order/v2", default: ["server_frames"], fallback: { server_frames: ["whole_video"], whole_video: ["server_frames"] },
-    add_when_cards: { sound: ["whole_video"] }, whole_video_max_ms: 600000 });
+    add_when_cards: { sound: ["whole_video"], "audience-response": ["comment_summary"] },
+    add_when_asks: { identify_track: ["song"] }, whole_video_max_ms: 600000 });
   const pick = (...args) => { const r = python("observation_order.py", args, root); return { code: r.code, ...JSON.parse(r.out) }; };
   assert.equal(pick("--platform", "tiktok").source, "server_frames");
   assert.equal(pick("--platform", "tiktok", "--failed", "server_frames").source, "whole_video");
@@ -179,6 +180,13 @@ test("observation-order.json is the agreed table, and the next source follows it
   assert.equal(pick("--platform", "douyin", "--cards", "sound").source, "combined");
   assert.equal(pick("--platform", "youtube", "--duration-s", "900", "--cards", "sound").source, "server_frames");
   assert.equal(pick("--platform", "tiktok", "--cards", "sound", "--mode", "transcript_export").source, "server_frames");
+  // The audience-response card and a find-the-song request add a side call, never an observation source.
+  const audience = pick("--platform", "tiktok", "--cards", "diagnosis-default,audience-response");
+  assert.deepEqual([audience.source, audience.side_calls], ["server_frames", ["comment_summary"]]);
+  const song = pick("--platform", "tiktok", "--mode", "content_read", "--ask", "identify_track");
+  assert.deepEqual([song.source, song.side_calls], ["server_frames", ["song"]]);
+  assert.deepEqual(pick("--platform", "tiktok", "--cards", "sound,audience-response").source, "combined");
+  assert.deepEqual(pick("--local-file", "--cards", "audience-response").side_calls, []);
   // A viewing that already failed is never added back, and a forced source stays forced.
   assert.equal(pick("--platform", "tiktok", "--failed", "whole_video", "--cards", "sound").source, "server_frames");
   assert.equal(pick("--platform", "tiktok", "--observe-source", "server_frames", "--cards", "sound").source, "server_frames");
@@ -1669,7 +1677,10 @@ async function startedAgo(run, seconds) {
   await writeFile(file, JSON.stringify(state));
 }
 // Drive an observation already started in `run` to its end: `media(args, n)` answers the n-th media call.
-async function driveWith(run, out, { media = (args) => composite(args), viewerSteps = [viewerFixture], afterRound } = {}) {
+// The two side calls: `side[tool]` is what the host saved for that call (an object is saved as an MCP result, a string
+// as it is); a tool left out of `side` gets no file at all, as on a host that does not have it.
+const SIDE_TOOLS = new Set(["identify_video_song", "summarize_video_comments"]);
+async function driveWith(run, out, { media = (args) => composite(args), viewerSteps = [viewerFixture], afterRound, side = {} } = {}) {
   const steps = [...viewerSteps];
   const handed = [];
   let mediaCalls = 0;
@@ -1679,7 +1690,9 @@ async function driveWith(run, out, { media = (args) => composite(args), viewerSt
     for (const [index, call] of calls.entries()) {
       handed.push(call);
       if (call.tool === "collect_video_media") await writeFile(files[index], mcp(media(call.arguments, mediaCalls++)));
-      else await writeFile(files[index], typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
+      else if (SIDE_TOOLS.has(call.tool)) {
+        if (side[call.tool] !== undefined) await writeFile(files[index], typeof side[call.tool] === "string" ? side[call.tool] : mcp(side[call.tool]));
+      } else await writeFile(files[index], typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
     }
     if (afterRound) await afterRound(run, round);
     const resumed = shell(resumeOf(out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
@@ -1772,12 +1785,12 @@ test("find the track: select_method records the ask, refuses the sound card, and
   const pick = python("observation_order.py", ["--platform", "tiktok", "--failed", "server_frames", "--ask", "identify_track", "--mode", "content_read"], root);
   assert.equal(JSON.parse(pick.out).source, null);
   assert.match(JSON.parse(pick.out).reason, /find-the-song request never starts a whole-video viewing/);
-  // Frames and words fail: the run ends without a viewing.
+  // Frames and words fail: the run ends without a viewing. The one song recognition call rides in the first round.
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "content_read"], run);
   const ops = callLines(first.out)[0].arguments.requests.map((request) => request.operation);
   assert.deepEqual(ops, ["collect_public_metadata", "fetch_transcript", "extract_keyframes"]);
   const { handed } = await driveWith(run, first.out, { media: (args) => composite(args, { failed: true }) });
-  assert.deepEqual(handed.map((call) => call.tool), ["collect_video_media"]);
+  assert.deepEqual(handed.map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
 });
 
 test("find the track: the brief answers from metadata, on-screen text and speech and says plainly when the track can't be identified", async (t) => {
@@ -1792,7 +1805,7 @@ test("find the track: the brief answers from metadata, on-screen text and speech
   const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
   assert.match(brief, /Find the track: which song or sound the video uses/);
   assert.match(brief, /This is a find-the-song request/);
-  assert.match(brief, /Never name a song, artist or remix from the sound/);
+  assert.match(brief, /Never name a song, artist or remix from your own impression of the sound/);
   assert.match(brief, /the track can't be identified from this\s+video's data/);
   assert.equal((await readJson(path.join(run, "analysis/method.json"))).ask, "identify_track");
 });
@@ -1831,4 +1844,171 @@ test("source unavailable: one marker and one statement, from the observation, th
   const refused = await prepare(run, ["--mode", "diagnosis"]);
   assert.equal(refused.code, 2, refused.out);
   assert.ok(JSON.parse(refused.out.split("\n")[0]).error.includes(statement), refused.out);
+});
+
+// Side calls: a find-the-song request adds one identify_video_song call and the audience-response card one
+// summarize_video_comments call. Each rides in the observation's first hand-over (no round of its own, KS9), is
+// read once, and whatever it brings, nothing included, becomes evidence the same way on every host.
+const pinnedTools = new Map(JSON.parse(readFileSync(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools.map((tool) => [tool.name, tool]));
+const pinnedInput = (name) => new Ajv({ strict: false, logger: false, validateFormats: false }).compile(pinnedTools.get(name).inputSchema);
+const pinnedOutput = (name) => new Ajv({ strict: false, logger: false, validateFormats: false }).compile(pinnedTools.get(name).outputSchema);
+const SONG = {
+  matched: { status: "matched", source: "recognition", reason: null, platform: "tiktok", sample_start_s: 0,
+    song: { title: "Golden Hour", artist: "Example Artist", album: "Example Album", url: "https://music.example.com/track/1" },
+    platform_audio: { title: "original sound", credit: "cook", original: true, url: null } },
+  noMatch: { status: "no_match", source: null, reason: null, platform: "tiktok", sample_start_s: 0, song: null,
+    platform_audio: { title: "Golden Hour (sped up)", credit: "Example Artist", original: false, url: "https://www.tiktok.com/music/x-1" } },
+  unsupported: { status: "unsupported_platform", source: null, reason: null, platform: null, sample_start_s: null, song: null, platform_audio: null },
+};
+const COMMENTS = {
+  ok: { status: "ok", platform: "tiktok", total_comments: null, sample_size: 48, language: "en",
+    sentiment: { positive: 70, neutral: 20, negative: 10 }, summary: "Viewers relate to the burnt pan and want the fix spelled out.",
+    themes: [{ label: "Which pan", description: "Many ask which pan is used in the close-up.", share: 40 },
+      { label: "Relatable mistake", description: "Viewers say they burn food the same way.", share: 35 }],
+    questions: ["Which pan is this?"], requests: ["Show the same fix for stainless steel."],
+    controversy: { flagged: false, note: null }, retrieved_at: "2026-11-21" },
+  tooFew: { status: "too_few_comments", platform: "tiktok", total_comments: null, sample_size: 3, language: null, sentiment: null,
+    summary: null, themes: [], questions: [], requests: [], controversy: null, retrieved_at: "2026-11-21" },
+};
+
+async function sideRun(t, { focus, ask, url = TIKTOK, side = {}, mode } = {}) {
+  const run = await newRun(t);
+  const runMode = mode ?? (ask ? "content_read" : "diagnosis");
+  const chosen = python("select_method.py", ["--mode", runMode, ...(focus ? ["--focus", focus] : []), ...(ask ? ["--ask", ask] : []),
+    "--out", "analysis/method.json"], run);
+  assert.equal(chosen.code, 0, chosen.out);
+  const first = python("observe_video.py", ["--url", url, "--mode", runMode], run);
+  assert.equal(first.code, 0, first.out);
+  const { out, handed } = await driveWith(run, first.out, { side });
+  if (url.startsWith("kabo-file:")) {
+    const made = python("prepare_link_request.py", ["--file-ref", url, "--platform", "tiktok", "--subject-state", "own_unpublished",
+      "--max-connector-calls", "10", "--confirmed-by-user", "--output", path.join(run, "analysis/video-analysis-request.json")], run);
+    assert.equal(made.code, 0, made.out);
+  } else await writeRequest(run);
+  const built = build(run, allFlags(out));
+  assert.equal(built.code, 0, built.out);
+  const evidence = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assertValidEvidence(evidence);
+  return { run, first: first.out, out, handed, evidence };
+}
+
+test("side-call fixtures match the pinned output schemas of identify_video_song and summarize_video_comments", () => {
+  for (const value of Object.values(SONG)) assert.ok(pinnedOutput("identify_video_song")(value), JSON.stringify(value));
+  for (const value of Object.values(COMMENTS)) assert.ok(pinnedOutput("summarize_video_comments")(value), JSON.stringify(value));
+});
+
+test("find the track, matched: one identify_video_song call beside the media call; the brief names the song and its listen link", async (t) => {
+  const { run, first, handed, evidence, out } = await sideRun(t, { ask: "identify_track", side: { identify_video_song: SONG.matched } });
+  // One hand-over: the media call and the song call together, in the form the Web host executes.
+  const handover = hostHandover(first);
+  assert.deepEqual(handover.calls.map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
+  assert.deepEqual(handover.calls[1].arguments, { video_url: TIKTOK });
+  assert.ok(pinnedInput("identify_video_song")(handover.calls[1].arguments));
+  assert.equal(handed.filter((call) => call.tool === "identify_video_song").length, 1);
+  assert.equal(handed.some((call) => call.tool === "analyze_content_video"), false);
+  assert.match(out, /--song snapshot\/song\.json/);
+  assert.match(out, /Side calls: song matched/);
+  assert.deepEqual(evidence.song_identification.song, SONG.matched.song);
+  assert.equal(evidence.song_identification.source, "recognition");
+  assert.ok(evidence.acquisition.some((entry) => entry.operation === "identify_video_song" && entry.status === "completed"));
+  const refs = (await readJson(path.join(run, "analysis/content_evidence.references.json"))).evidence_refs;
+  assert.ok(refs.includes("song_identification.song") && refs.includes("song_identification.platform_audio"));
+  const prepared = await prepare(run, ["--mode", "content_read"], "what song is this?");
+  assert.equal(prepared.code, 0, prepared.out);
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.match(section(brief, 3), /recognised from the video's audio .*"Golden Hour" by Example Artist.*listen link https:\/\/music\.example\.com\/track\/1/);
+  assert.match(section(brief, 3), /marked as the creator's original sound/);
+  assert.match(section(brief, 7), /A song recognition match .* comes first: give the title and artist, and its listen link/s);
+});
+
+test("find the track, no match: the platform's sound label is the fallback, and the brief says the recognition found nothing", async (t) => {
+  const { run, evidence } = await sideRun(t, { ask: "identify_track", side: { identify_video_song: SONG.noMatch } });
+  assert.equal(evidence.song_identification.status, "no_match");
+  assert.equal(evidence.song_identification.song, null);
+  assert.equal(evidence.song_identification.platform_audio.title, "Golden Hour (sped up)");
+  assert.ok(evidence.limitations.includes("The song recognition found no match in the video's audio."), evidence.limitations.join(" | "));
+  assert.equal((await prepare(run, ["--mode", "content_read"], "what song is this?")).code, 0);
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.match(section(brief, 3), /Song recognition: no_match \(the recognition found no match in the video's audio\)/);
+  assert.match(section(brief, 3), /the platform's sound label\): "Golden Hour \(sped up\)", credited to Example Artist/);
+  assert.match(section(brief, 7), /the track can't be identified from this\s+video's data/);
+});
+
+test("find the track, unsupported or missing: the tool's unsupported answer, an error and no saved result are each a gap, never a failure", async (t) => {
+  const douyin = await newRun(t);
+  assert.equal(python("select_method.py", ["--mode", "content_read", "--ask", "identify_track", "--out", "analysis/method.json"], douyin).code, 0);
+  // Any public link gets the call: which links it reads is the tool's own answer.
+  assert.deepEqual(callLines(python("observe_video.py", ["--url", DOUYIN, "--mode", "content_read"], douyin).out)[1],
+    { tool: "identify_video_song", arguments: { video_url: DOUYIN } });
+  for (const [answer, status, code] of [[SONG.unsupported, "unsupported_platform", null],
+    ["MCP error -32601: Tool not found: identify_video_song", "failed", "tool_error"], [undefined, "failed", "not_returned"]]) {
+    const { run, out, evidence } = await sideRun(t, { ask: "identify_track", side: answer === undefined ? {} : { identify_video_song: answer } });
+    assert.match(out, /"status": "observed"/);
+    assert.equal(evidence.song_identification.status, status);
+    assert.equal(evidence.song_identification.failure?.code ?? null, code);
+    assert.equal((await prepare(run, ["--mode", "content_read"], "what song is this?")).code, 0);
+    assert.match(section(await readFile(path.join(run, "analysis/brief.md"), "utf8"), 3), new RegExp(`Song recognition: ${status}`));
+  }
+});
+
+test("find the track, uploaded file: no recognition call; the evidence says it was not attempted", async (t) => {
+  const id = "0f8fad5b-d9cb-469f-a165-70867728950e";
+  const { run, handed, evidence, out } = await sideRun(t, { ask: "identify_track", url: `kabo-file:${id}` });
+  assert.deepEqual(handed.map((call) => call.tool), ["collect_video_media"]);
+  assert.match(out, /Side calls: song uploaded_file/);
+  assert.deepEqual([evidence.song_identification.status, evidence.song_identification.reason], ["not_attempted", "uploaded_file"]);
+  assert.equal(evidence.acquisition.some((entry) => entry.operation === "identify_video_song"), false);
+  assert.equal((await prepare(run, ["--mode", "content_read"], "what song is this?")).code, 0);
+  assert.match(section(await readFile(path.join(run, "analysis/brief.md"), "utf8"), 3), /an uploaded file is not sent to the recognition/);
+});
+
+test("audience-response: choosing the card adds one summarize_video_comments call; the summary becomes citable evidence and a brief section", async (t) => {
+  const { run, first, handed, evidence, out } = await sideRun(t, { focus: "audience-response", side: { summarize_video_comments: COMMENTS.ok } });
+  const handover = hostHandover(first);
+  assert.deepEqual(handover.calls.map((call) => call.tool), ["collect_video_media", "summarize_video_comments"]);
+  assert.ok(pinnedInput("summarize_video_comments")(handover.calls[1].arguments));
+  assert.equal(handed.filter((call) => call.tool === "summarize_video_comments").length, 1);
+  assert.match(out, /--comment-summary snapshot\/comment-summary\.json/);
+  const block = evidence.audience_response;
+  assert.equal(block.status, "available");
+  assert.equal(block.sample_size, 48);
+  assert.deepEqual(block.themes.map((theme) => theme.label), ["Which pan", "Relatable mistake"]);
+  const refs = (await readJson(path.join(run, "analysis/content_evidence.references.json"))).evidence_refs;
+  for (const ref of ["audience_response.summary", "audience_response.sentiment", "audience_response.controversy",
+    "audience_response.themes[1]", "audience_response.questions[0]", "audience_response.requests[0]"]) assert.ok(refs.includes(ref), ref);
+  assert.equal((await prepare(run, ["--mode", "diagnosis"], "why did this do so well?")).code, 0);
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.match(section(brief, 3), /### Audience response \(comment summary\)/);
+  assert.match(section(brief, 3), /A paraphrased summary of 48 top comments, mostly in en.*No comment text: never quote or invent a comment/);
+  assert.match(section(brief, 3), /`audience_response\.themes\[0\]` Which pan \(40% of the sample\)/);
+  assert.match(section(brief, 3), /`audience_response\.questions\[0\]` question: Which pan is this\?/);
+  assert.match(section(brief, 5), /\(`audience-response`, topic card, version 1\.0\.0\)/);
+  // Without the card, no comment call is made.
+  const plain = await newRun(t);
+  await selectFirst(plain, "opening");
+  assert.deepEqual(callLines(python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], plain).out).map((call) => call.tool), ["collect_video_media"]);
+});
+
+test("audience-response without a summary (tool missing on this host, an error, too few comments, an uploaded file): the comments were not read", async (t) => {
+  const cases = [
+    [{}, "failed", /the comment summary is not available here/],
+    [{ summarize_video_comments: JSON.stringify({ code: "service_unavailable", message: "down", retryable: true }) }, "failed", /the comment summary is not available here/],
+    [{ summarize_video_comments: COMMENTS.tooFew }, "too_few_comments", /the post has too few comments to summarise/],
+  ];
+  for (const [side, status, why] of cases) {
+    const { run, out, evidence } = await sideRun(t, { focus: "audience-response", side });
+    assert.match(out, /"status": "observed"/);
+    assert.equal(evidence.audience_response.status, status);
+    assert.deepEqual(evidence.audience_response.themes, []);
+    assert.ok(evidence.limitations.some((line) => line.startsWith("The comments were not read")), evidence.limitations.join(" | "));
+    assert.equal((await prepare(run, ["--mode", "diagnosis"], "what are people saying about this?")).code, 0);
+    const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+    assert.match(section(brief, 3), new RegExp(`The comments were not read: ${why.source}\\. Work from the public comment count \\(\`public_metrics\\.comment_count\` = 4\\)`));
+    const refs = (await readJson(path.join(run, "analysis/content_evidence.references.json"))).evidence_refs;
+    assert.equal(refs.some((ref) => ref.startsWith("audience_response.")), false);
+  }
+  const id = "0f8fad5b-d9cb-469f-a165-70867728950e";
+  const uploadedRun = await sideRun(t, { focus: "audience-response", url: `kabo-file:${id}` });
+  assert.equal(uploadedRun.handed.some((call) => call.tool === "summarize_video_comments"), false);
+  assert.equal(uploadedRun.evidence.audience_response.status, "not_attempted");
 });

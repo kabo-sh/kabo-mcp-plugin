@@ -156,6 +156,15 @@ def grounding_review(judgment: dict[str, Any], evidence: dict[str, Any]) -> dict
     for item in record(evidence.get("viewer_observations")).get("items") or []:
         if item.get("id") in refs:
             sources.append({"ref": item["id"], "kind": "viewer_observation", "source": copy.deepcopy(item)})
+    audience = record(evidence.get("audience_response"))
+    for ref in sorted(ref for ref in refs if ref.startswith("audience_response.")):
+        # A paraphrase of a sample of the top comments, never a comment: the review sees what the ref points at.
+        field, _, index = ref.split(".", 1)[1].partition("[")
+        value = audience.get(field)
+        if index and isinstance(value, list) and index[:-1].isdigit() and int(index[:-1]) < len(value):
+            value = value[int(index[:-1])]
+        sources.append({"ref": ref, "kind": "comment_summary", "source": copy.deepcopy(value),
+                        "sample_size": audience.get("sample_size")})
     for index, observation in enumerate(judgment.get("observations") or []):
         ref = f"observations.{observation['observation_id']}"
         if ref in refs:

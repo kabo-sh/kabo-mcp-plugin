@@ -358,7 +358,9 @@ Use `collect_*_trend_candidates` / `enrich_*_shortlist` as references.
   is unknown, the whole-video viewing starts only after `collect_video_media` has measured it, because
   `analyze_content_video` neither reports the duration nor refuses a video over the 10-minute limit. It
   moves into the backend once that tool checks the duration itself. No round is handed over only to wait
-  for the YouTube metadata.
+  for the YouTube metadata. The two side calls (`identify_video_song` for a find-the-song request,
+  `summarize_video_comments` for the audience-response card) are single bounded calls that ride in the
+  observation's first hand-over, are read once and never polled or repeated, so they add no site.
 - **KS9.2** (error): Scripts must not detect a host-specific fetch path (connector-outbox, session
   thread IDs or turn tokens). Branching by host hides platform differences in scripts and causes
   behavior to diverge across hosts. The same test records the existing files; their number may

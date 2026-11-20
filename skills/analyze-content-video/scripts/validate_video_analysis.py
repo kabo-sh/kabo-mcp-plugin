@@ -133,6 +133,15 @@ def evidence_handles(evidence: dict, analysis: dict | None = None) -> set[str]:
     # object resolve; the scores and advice the viewer also returned are never in it, so never citable.
     handles |= {item["id"] for item in (evidence.get("viewer_observations") or {}).get("items") or []
                 if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    # The comment summary and the song identification, where the run asked for them and they came back.
+    audience = evidence.get("audience_response") or {}
+    if audience.get("status") == "available":
+        handles |= {f"audience_response.{field}" for field in ("summary", "sentiment", "controversy")
+                    if audience.get(field) is not None}
+        for field in ("themes", "questions", "requests"):
+            handles |= {f"audience_response.{field}[{i}]" for i in range(len(audience.get(field) or []))}
+    song = evidence.get("song_identification") or {}
+    handles |= {f"song_identification.{field}" for field in ("song", "platform_audio") if song.get(field)}
     handles |= {f"observations.{o['observation_id']}"
                 for o in (analysis or {}).get("observations") or []}
     metadata = evidence.get("content_metadata") or {}

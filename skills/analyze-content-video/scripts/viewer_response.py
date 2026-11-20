@@ -10,6 +10,9 @@ Accepted inputs: the tool's complete MCP result (with `structuredContent`, or on
 result object, a failed call (an MCP error result, the bare `{code, message, retryable}` failure body a host
 may save instead, or the plain text a host shows for it, "MCP error -32602: ..."), or the redacted copy `observe_video.py` persists (`schema_version: acv-whole-video/v1`).
 
+`tool_answer` reads the two single-call tools observe_video.py makes beside the observation the same tolerant way
+(identify_video_song, summarize_video_comments): nothing in them is redacted, because they carry no scores.
+
 A completed result asked for with `delivery: "download"` carries a `download` object in place of `result` and
 `transcript`; `download_offer` finds it, and observe_video.py downloads and checks the complete result (the
 same JSON an inline answer carries) before `read` sees it.
@@ -284,6 +287,58 @@ def read(raw: bytes) -> dict[str, Any]:
                 "error": failure or {"code": _error_code(text), "message": text[:300] or "no message",
                                      "retryable": False}}
     return {**base, "run": redact(check_run(_structured(value))), "error": None}
+
+
+def tool_answer(raw: bytes) -> dict[str, Any]:
+    """{"answer": object | None, "error": {code, message, retryable} | None, "raw_sha256"} for a saved single-call
+    result that carries a `status` (identify_video_song, summarize_video_comments): its structuredContent, its one
+    JSON text block or the bare object; or the failure it states, in any of the forms `read` accepts. Never raises:
+    an unreadable save is a failure of that one call, not of the run."""
+    digest = hashlib.sha256(raw).hexdigest()
+
+    def failed(code: str, message: str, retryable: bool = False) -> dict[str, Any]:
+        return {"answer": None, "raw_sha256": digest,
+                "error": {"code": code, "message": message[:300] or "no message", "retryable": retryable}}
+
+    text = plain_error(raw)
+    if text is not None:
+        return failed(_error_code(text), text)
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return failed("unreadable_result", "the saved result is not JSON")
+    if not isinstance(value, dict):
+        return failed("unreadable_result", "the saved result is not an object")
+    failure = _failure_body(value)
+    if failure is None and isinstance(value.get("error"), dict):
+        rpc = value["error"]
+        message = rpc.get("message") if isinstance(rpc.get("message"), str) else ""
+        failure = {"code": "validation_error" if rpc.get("code") == INVALID_PARAMS else _error_code(message),
+                   "message": message[:300] or "no message", "retryable": False}
+    if failure is not None:
+        return {"answer": None, "raw_sha256": digest, "error": failure}
+    blocks = value.get("content") if isinstance(value.get("content"), list) else []
+    block_text = " ".join(block.get("text", "") for block in blocks
+                          if isinstance(block, dict) and isinstance(block.get("text"), str)).strip()
+    if value.get("isError") and not isinstance(value.get("structuredContent"), dict):
+        try:
+            failure = _failure_body(json.loads(block_text))
+        except ValueError:
+            failure = None
+        return {"answer": None, "raw_sha256": digest,
+                "error": failure or {"code": _error_code(block_text), "message": block_text[:300] or "no message",
+                                     "retryable": False}}
+    answer: Any = value
+    if isinstance(value.get("structuredContent"), dict):
+        answer = value["structuredContent"]
+    elif "content" in value and "status" not in value:
+        try:
+            answer = json.loads(block_text)
+        except ValueError:
+            return failed("unreadable_result", "the saved result carries no structured result")
+    if not isinstance(answer, dict) or not isinstance(answer.get("status"), str):
+        return failed("unreadable_result", "the saved result carries no status")
+    return {"answer": answer, "raw_sha256": digest, "error": None}
 
 
 def items(run: dict[str, Any] | None) -> list[dict[str, Any]]:

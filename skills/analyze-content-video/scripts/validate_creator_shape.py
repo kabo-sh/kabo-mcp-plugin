@@ -118,7 +118,8 @@ EVIDENCE_ROOTS = ("media", "transcript", "content_metadata", "content_ref", "pub
                   "viewer_observations", "frames", "images", "observations", "owner_metrics", "evidence_completeness",
                   "deterministic")
 EVIDENCE_FIELDS = ("audio_attribution", "source_unavailable", "data_note", "listen_note", "evidence_refs",
-                   "sampling_plan", "hook_window_s", "why_for_you", "next_actions")
+                   "sampling_plan", "hook_window_s", "why_for_you", "next_actions", "audience_response",
+                   "song_identification")
 # ASCII edges, not \b: in Chinese or Japanese prose a name sits right against the text around it.
 INTERNAL_NAME = re.compile(
     r"(?<![A-Za-z0-9_-])(?:" + "|".join(re.escape(name) for name in SKILL_IDS) + r")(?![A-Za-z0-9_-])"

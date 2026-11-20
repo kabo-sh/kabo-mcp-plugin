@@ -79,9 +79,10 @@ test("a content read writes no report, and heard words are first checked for lyr
   assert.match(skill, /A content read has no report: it answers from the evidence/);
 });
 
-test("mode table: find the track is its own row, with no sound card and no whole-video viewing", () => {
+test("mode table: find the track is its own row, with one song recognition call, no sound card and no whole-video viewing", () => {
   const table = section("Which question is this");
-  assert.match(table, /\| Which song or track it uses .*\| \*\*Find the track\*\*: a content read with `--ask identify_track` in step 3; no `sound` card, no whole-video viewing \|/);
+  assert.match(table, /\| Which song or track it uses .*\| \*\*Find the track\*\*: a content read with `--ask identify_track` in step 3: one song recognition call for a link; no `sound` card, no whole-video viewing \|/);
+  assert.match(table, /answered from the song recognition's match, else metadata,\non-screen text and speech, never by ear/);
   assert.match(skill, /select_method\.py --mode <diagnosis\|content_read\|craft_teardown> \[--focus <id>\[,<id>\]\] \[--ask identify_track\]/);
   const index = readFileSync(path.join(skillDir, "references/video-method/index.md"), "utf8");
   assert.match(index, /"What song is this\?" is a find-the-song request, not the `sound` card/);

@@ -1905,6 +1905,99 @@
         },
         "discarded_fields": { "type": "array", "items": { "type": "string" } }
       }
+    },
+    "song_identification": {
+      "type": "object",
+      "description": "What the song-recognition tool (identify_video_song) answered for a find-the-song request, cut to its contract's fields: a match from the video's audio (source recognition), the platform's own sound label (source platform_tag), or why neither came (no_match, unavailable, in_progress, quota_exceeded, unsupported_platform; not_attempted for an uploaded file, which has no public link; failed when no result or an error came back, with failure saying which). A recognised match is the tool's result, not something heard: it may be named with its link. Present only when the run asked.",
+      "required": ["status", "source", "reason", "sample_start_s", "song", "platform_audio", "failure"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["matched", "platform_metadata", "no_match", "unavailable", "in_progress", "quota_exceeded", "unsupported_platform", "not_attempted", "failed"] },
+        "source": { "enum": ["recognition", "platform_tag", null] },
+        "reason": { "type": ["string", "null"] },
+        "sample_start_s": { "type": ["integer", "null"], "minimum": 0 },
+        "song": {
+          "type": ["object", "null"],
+          "required": ["title", "artist", "album", "url"],
+          "additionalProperties": false,
+          "properties": {
+            "title": { "type": "string", "minLength": 1 },
+            "artist": { "type": "string", "minLength": 1 },
+            "album": { "type": ["string", "null"] },
+            "url": { "type": ["string", "null"] }
+          }
+        },
+        "platform_audio": {
+          "type": ["object", "null"],
+          "required": ["title", "credit", "original", "url"],
+          "additionalProperties": false,
+          "properties": {
+            "title": { "type": "string", "minLength": 1 },
+            "credit": { "type": ["string", "null"] },
+            "original": { "type": ["boolean", "null"] },
+            "url": { "type": ["string", "null"] }
+          }
+        },
+        "failure": {
+          "type": ["object", "null"],
+          "required": ["code", "retryable"],
+          "additionalProperties": false,
+          "properties": { "code": { "type": "string", "minLength": 1 }, "retryable": { "type": "boolean" } }
+        }
+      }
+    },
+    "audience_response": {
+      "type": "object",
+      "description": "The comment summary (summarize_video_comments) the audience-response method card asked for: sentiment shares, themes, questions, requests and a controversy flag, paraphrased from a sample of the post's top comments (sample_size of them; total_comments only where the platform reports it). It carries no comment text and no commenter, and none may be quoted or invented from it; shares are shares of the sample. Cite it as audience_response.summary, .sentiment, .controversy, .themes[i], .questions[i] or .requests[i]. Without a summary (not_attempted for an uploaded file, unsupported_platform, too_few_comments, failed when the tool is missing here or errored) the comments were not read. Present only when the card asked.",
+      "required": ["status", "reason", "platform", "total_comments", "sample_size", "language", "sentiment", "summary", "themes", "questions", "requests", "controversy", "retrieved_at", "failure"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["available", "too_few_comments", "unsupported_platform", "not_attempted", "failed"] },
+        "reason": { "type": ["string", "null"] },
+        "platform": { "type": ["string", "null"] },
+        "total_comments": { "type": ["integer", "null"], "minimum": 0 },
+        "sample_size": { "type": ["integer", "null"], "minimum": 0 },
+        "language": { "type": ["string", "null"] },
+        "sentiment": {
+          "type": ["object", "null"],
+          "required": ["positive", "neutral", "negative"],
+          "additionalProperties": false,
+          "properties": {
+            "positive": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "neutral": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "negative": { "type": "integer", "minimum": 0, "maximum": 100 }
+          }
+        },
+        "summary": { "type": ["string", "null"] },
+        "themes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "description", "share"],
+            "additionalProperties": false,
+            "properties": {
+              "label": { "type": "string", "minLength": 1 },
+              "description": { "type": ["string", "null"] },
+              "share": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }
+            }
+          }
+        },
+        "questions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "requests": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "controversy": {
+          "type": ["object", "null"],
+          "required": ["flagged", "note"],
+          "additionalProperties": false,
+          "properties": { "flagged": { "type": "boolean" }, "note": { "type": ["string", "null"] } }
+        },
+        "retrieved_at": { "type": ["string", "null"] },
+        "failure": {
+          "type": ["object", "null"],
+          "required": ["code", "retryable"],
+          "additionalProperties": false,
+          "properties": { "code": { "type": "string", "minLength": 1 }, "retryable": { "type": "boolean" } }
+        }
+      }
     }
   }
 }

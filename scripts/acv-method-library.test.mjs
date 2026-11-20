@@ -13,7 +13,7 @@ const dir = path.join(root, "skills/analyze-content-video/references/video-metho
 const index = JSON.parse(readFileSync(path.join(dir, "index.json"), "utf8"));
 const indexMd = readFileSync(path.join(dir, "index.md"), "utf8");
 const cardIds = ["diagnosis-default", "craft-shot-description", "opening", "narrative-structure", "editing-pacing",
-  "sound", "captions-type", "visual-color", "packaging", "emotion"];
+  "sound", "captions-type", "visual-color", "packaging", "emotion", "audience-response"];
 const evidenceKinds = new Set(["frames", "transcript", "measure", "viewer_observations", "metadata"]);
 const semver = /^\d+\.\d+\.\d+$/;
 const libraryFiles = () => readdirSync(dir).filter((name) => /\.(md|json)$/.test(name));
@@ -119,4 +119,20 @@ test("select_method.py before the fetch: no --evidence, nothing skipped, the sam
   assert.equal(method.default_only, false);
   assert.equal(select("--mode", "diagnosis", "--focus", "no-such-card").code, 2);
   assert.equal(select("--mode", "transcript_export", "--focus", "sound").code, 2);
+});
+
+// The audience-response card reads the comment summary: choosing it is what fetches the summary (observation-order.json
+// add_when_cards), and without the summary it still works, from the public comment count.
+test("audience-response: a topic card that needs no evidence kind, adds the comment summary, and never quotes comments", () => {
+  const card = index.cards.find((item) => item.id === "audience-response");
+  assert.deepEqual([card.topic, card.needs_evidence, card.version], [true, [], "1.0.0"]);
+  assert.equal(index.library_version, "1.3.0");
+  const order = JSON.parse(readFileSync(path.join(root, "skills/analyze-content-video/references/observation-order.json"), "utf8"));
+  assert.deepEqual(order.add_when_cards["audience-response"], ["comment_summary"]);
+  assert.deepEqual(order.add_when_asks, { identify_track: ["song"] });
+  const text = readFileSync(path.join(dir, "audience-response.md"), "utf8");
+  for (const rule of [/sample_size/, /were not read/, /Never guess what viewers said/, /quoted or invented/,
+    /moment it is about/, /audience_response\.questions\[i\]/, /never claim the comments caused the reach/])
+    assert.match(text, rule);
+  assert.match(indexMd, /`audience-response` \| why it performed as it did/);
 });

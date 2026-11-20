@@ -16,6 +16,14 @@ already failed, the method cards selected: the `sound` card adds a whole-video v
   is read as it is.
 - `combined`: both. The whole-video call goes first so it runs while the media jobs run.
 
+Side calls (`observation_order.SIDE_CALLS`) ride along in the first hand-over and are read once: the song
+identification a find-the-song request adds (`identify_video_song`) and the comment summary the
+`audience-response` card adds (`summarize_video_comments`). Each is one bounded call with `video_url` only, never
+polled or repeated, and it adds no hand-over of its own. What comes back is persisted as it is
+(`snapshot/song.json`, `snapshot/comment-summary.json`); no saved result (the tool is not on this host, or the
+call was not made), an error, or an answer that it cannot read the link is recorded the same way, as that missing
+piece of evidence, never a failure of the run. A file attached in Kabo gets no side call: it has no public link.
+
 A fallback that needs media operations no earlier media call asked for (a failed viewing had only the metadata
 or measurement call) starts one more media call for exactly those operations, under the same run key;
 each source is judged on the media results that carry its operations. The mode bends the order the way
@@ -77,6 +85,11 @@ MEDIA_TOOL = collect_media.TOOL
 START_TOOL = viewer_response.START_TOOL
 POLL_TOOL = viewer_response.POLL_TOOL
 PERSISTED_VIEWER = "snapshot/whole-video.json"
+# Where each side call's answer is persisted, and the build flag that passes it on.
+SIDE_PERSISTED = {"song": "snapshot/song.json", "comment_summary": "snapshot/comment-summary.json"}
+SIDE_FLAGS = {"song": "--song", "comment_summary": "--comment-summary"}
+SIDE_SCHEMA = "acv-side-call/v1"
+SIDE_TOOLS = set(observation_order.SIDE_CALLS.values())
 # At most this many frames per read: hosts cap the images one tool result may show.
 READ_CHUNK = 15
 # A reading waits inside the call for a final status (`wait_s`), the way collect_video_media waits for its jobs.
@@ -102,8 +115,10 @@ MODE_OPERATIONS = {
 # Modes whose answer reads the post's own metadata (title, counts, caption, tags).
 METADATA_MODES = {"diagnosis", "content_read"}
 SAVE_RULE = (
-    f"Save each {START_TOOL} / {POLL_TOOL} result whole, as returned (its download link or an error included), to "
-    "the file named under its call with the host's file-write tool, never as a command-line argument; this script "
+    f"Save each {START_TOOL} / {POLL_TOOL} / " + " / ".join(observation_order.SIDE_CALLS.values()) + " result whole, "
+    "as returned (its download link or an error included), to "
+    "the file named under its call with the host's file-write tool, never as a command-line argument (when this host "
+    "has no such tool, save nothing for that call: the run goes on without it); this script "
     f"downloads and checks what the link holds. For {MEDIA_TOOL}, do not save the result: put its result id (the 22 characters between "
     "`research-export/v1/` and `.json` in its download url) into the resume command as `--id=<id>`; only if it has "
     "no download url, save it whole to its file and leave `--id` out. Never download anything yourself.")
@@ -249,7 +264,7 @@ def media_namespace(current: dict[str, Any]) -> SimpleNamespace:
 
 
 def hand_over_calls(current: dict[str, Any], *, start_viewer: bool, poll_viewer: bool, media: bool,
-                    note: str = "") -> None:
+                    note: str = "", side: list[str] | tuple[str, ...] = ()) -> None:
     """Print the calls still needed this round, the file for each, and the one resume command."""
     # KS9: each call site is counted in fetch-orchestration.test.mjs HANDOVER_SITES, which says what each one is:
     # the observation request (or its single fallback), the bounded wait on the same jobs (each reading waits
@@ -270,6 +285,11 @@ def hand_over_calls(current: dict[str, Any], *, start_viewer: bool, poll_viewer:
         media_state["handed_at"] = now().isoformat()
         media_state.setdefault("started_at", media_state["handed_at"])
         collect_media.save_state(media_state)
+    for name in side:
+        # One bounded call each, beside the observation's own calls: read once on resume, never handed over again.
+        entry = current["side"][name]
+        calls.append((entry["tool"], {"video_url": current["url"]}, slot(entry["tool"])))
+        entry["handed"] = True
     current = state() | {key: value for key, value in current.items() if key != "slots"}
     current["awaiting"] = [{"tool": tool, "file": str(file)} for tool, _, file in calls]
     current["handed_at"] = now().isoformat()
@@ -303,8 +323,17 @@ def start(args: argparse.Namespace) -> int:
         raise ValueError(f"no observation source for this link: {reason}")
     current = {"url": url, "mode": args.mode, "platform": platform, "duration_s": args.duration_s, "cards": cards,
                "ask": ask, "source": source, "reason": reason, "tried": [], "started_at": now().isoformat(),
-               "viewer": {"active": False}, "media": {"active": False}}
+               "viewer": {"active": False}, "media": {"active": False},
+               "side": {item["name"]: {**item, "handed": False}
+                        for item in observation_order.side_calls(order, cards=cards, ask=ask,
+                                                                 file_ref=collect_media.is_file_ref(url))}}
+    for name, entry in current["side"].items():
+        if not entry["make"]:
+            persist_side(current, name, None, skipped="uploaded_file")
     save_state(current)
+    side = [name for name, entry in current["side"].items() if entry["make"]]
+    if side:
+        reason += "; side calls: " + ", ".join(side)
     analysis = static_host.run_dir() / "analysis"
     acv_timing.open_stage(analysis, "observe")
     acv_timing.set_source(analysis, source)
@@ -342,9 +371,10 @@ def begin(current: dict[str, Any], note: str = "") -> int:
         else:
             refuse_viewer(current, code)
     save_state(current)
-    if not start_viewer and not start_media:
+    side = [name for name, entry in (current.get("side") or {}).items() if entry["make"] and not entry["handed"]]
+    if not start_viewer and not start_media and not side:
         return settle(current)
-    hand_over_calls(current, start_viewer=start_viewer, poll_viewer=False, media=start_media, note=note)
+    hand_over_calls(current, start_viewer=start_viewer, poll_viewer=False, media=start_media, note=note, side=side)
     return 0
 
 
@@ -431,6 +461,33 @@ def read_viewer(current: dict[str, Any], file: Path, tool: str) -> None:
                  "discarded_fields": viewer_response.DISCARDED_FIELDS}
     Path(PERSISTED_VIEWER).write_text(json.dumps(persisted, ensure_ascii=False, indent=2) + "\n")
     viewer["persisted"] = PERSISTED_VIEWER
+
+
+def persist_side(current: dict[str, Any], name: str, raw: bytes | None, *, skipped: str | None = None) -> None:
+    """Persist what one side call brought: its answer, the failure it states, or why there is none."""
+    entry = current["side"][name]
+    if skipped is not None:
+        reading = {"answer": None, "error": None, "raw_sha256": None}
+    elif raw is None:
+        reading = {"answer": None, "raw_sha256": None,
+                   "error": {"code": "not_returned", "retryable": False,
+                             "message": "no result was saved for this call: the tool is not available here, or the "
+                                        "call was not made"}}
+    else:
+        reading = viewer_response.tool_answer(raw)
+    record = {"schema_version": SIDE_SCHEMA, "name": name, "tool": entry["tool"], "source_url": current["url"],
+              "attempted": skipped is None, "skipped": skipped, "saved_at": now().isoformat(), **reading}
+    path = Path(SIDE_PERSISTED[name])
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+    entry["persisted"] = str(path)
+    entry["status"] = ((reading["answer"] or {}).get("status") if reading["answer"]
+                       else skipped or (reading["error"] or {}).get("code"))
+
+
+def read_side(current: dict[str, Any], tool: str, file: Path) -> None:
+    name = next(key for key, entry in current["side"].items() if entry["tool"] == tool)
+    persist_side(current, name, file.read_bytes() if file.is_file() and file.stat().st_size else None)
 
 
 def duration_of(body: Any) -> float | None:
@@ -681,6 +738,8 @@ def settle(current: dict[str, Any]) -> int:
         flags += [f"--deferred-incomplete {item}" for item in media["pending"]]
     if viewer.get("active") and viewer.get("persisted"):
         flags.append(f"--viewer {viewer['persisted']}")
+    flags += [f"{SIDE_FLAGS[name]} {entry['persisted']}" for name, entry in (current.get("side") or {}).items()
+              if entry.get("persisted")]
     duration = current.get("duration_s")
     if duration is None and media is not None:
         duration = media["duration_s"]
@@ -705,6 +764,10 @@ def settle(current: dict[str, Any]) -> int:
                     "media_pending": media["pending"] if media else [], "timed_out": late}, ensure_ascii=False))
     for line in dict.fromkeys(current.get("fallback_notes") or []):
         say("Fallback: " + line)
+    side = current.get("side") or {}
+    if side:
+        say("Side calls: " + ", ".join(f"{name} {entry.get('status') or 'not read'}" for name, entry in side.items())
+            + ". A side call that brought nothing is a gap the evidence records, not a failure: never call it again.")
     if media and media.get("frames_note"):
         say("Frames: " + media["frames_note"])
     if status == observation_order.SOURCE_UNAVAILABLE:
@@ -760,6 +823,8 @@ def resume(args: argparse.Namespace) -> int:
     for entry in awaiting:
         if entry["tool"] in {START_TOOL, POLL_TOOL}:
             read_viewer(current, Path(entry["file"]), entry["tool"])
+        elif entry["tool"] in SIDE_TOOLS:
+            read_side(current, entry["tool"], Path(entry["file"]))
     media_refused = False
     if any(entry["tool"] == MEDIA_TOOL for entry in awaiting):
         # True when the server refused the frame options before any job ran: the same call goes again without them.

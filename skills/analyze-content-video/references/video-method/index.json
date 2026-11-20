@@ -1,6 +1,6 @@
 {
   "schema_version": "video-method-index/v1",
-  "library_version": "1.2.0",
+  "library_version": "1.3.0",
   "cards": [
     {
       "id": "diagnosis-default",
@@ -307,6 +307,38 @@
           "感染力",
           "共鸣",
           "同样情绪"
+        ]
+      },
+      "needs_evidence": []
+    },
+    {
+      "id": "audience-response",
+      "file": "audience-response.md",
+      "version": "1.0.0",
+      "title": "Audience response",
+      "base_for": [],
+      "topic": true,
+      "use_when": "The creator asks why the post performed as it did, how viewers reacted, whether it was controversial, or what to make next from the comments.",
+      "focus_terms": {
+        "en": [
+          "comments",
+          "how did people react",
+          "audience reaction",
+          "what viewers said",
+          "controversial",
+          "backlash",
+          "why did it do well",
+          "what to make next"
+        ],
+        "zh": [
+          "评论",
+          "评论区",
+          "观众反应",
+          "观众怎么说",
+          "争议",
+          "翻车",
+          "为什么火",
+          "下一条拍什么"
         ]
       },
       "needs_evidence": []

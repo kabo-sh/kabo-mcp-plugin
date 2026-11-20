@@ -69,7 +69,9 @@
     "upload_file",
     "check_video_plan",
     "make_video",
-    "reply_to_video"
+    "reply_to_video",
+    "identify_video_song",
+    "summarize_video_comments"
   ],
   "optionalTools": [
     "creator_trends_get_instagram_audio_board",
