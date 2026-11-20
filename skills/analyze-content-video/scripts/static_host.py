@@ -34,7 +34,9 @@ DOWNLOAD_PREFIX = "https://" + DOWNLOAD_HOST + "/"
 DOWNLOAD_TIMEOUT = 60
 # Cap on the number of frames in a frame-extraction request, added to the arguments by job-call: the pinned
 # contract's own maximum (120). Frames are read 15 per call (observe_video.py READ_CHUNK), so a full plan is eight
-# reads; over the cap the server thins only the body, never the opening or the close.
+# reads; over the cap the server thins only the body, never the opening or the close. The overview sheets of a
+# video past 50 s (at most 16, acv_timing.OVERVIEW_MAX_SHEETS) are not frames and do not count against the cap; they
+# are read first, adding at most two reads.
 FRAME_CAPS = dict.fromkeys(("public_video_extract_keyframes", "public_video_extract_keyframes_hosted_media",
                             "public_video_extract_keyframes_hosted_stream"), 120)
 # Closed set of types an artifact download may declare -> file extension to write. Text is written as .txt, the same as stage's inline text: .json would be read in by

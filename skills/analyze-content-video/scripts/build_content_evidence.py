@@ -143,9 +143,49 @@ SAMPLING_PLAN_KEYS = {
     # Present only when shot starts or dense windows were asked for (and the server applied them).
     "include_shot_starts", "shot_detection", "shot_start_frames", "dense_window_frames", "dense_windows",
     "dropped_for_budget", "dropped_as_duplicate", "dedupe_s", "budget_priority",
+    # Present only on the overview plan (acv_timing.py's docstring) of a video longer than 50s.
+    "overview", "overview_stride_s", "change_candidates", "change_frames", "anchor_frames",
+    "change_threshold_units", "anchor_gap_s",
 }
 # Why a frame is in the plan: the same names on the server and on this machine.
-FRAME_SOURCES = {"hook", "body", "closing", "shot_start", "dense_window"}
+FRAME_SOURCES = {"hook", "body", "closing", "shot_start", "dense_window", "change", "anchor"}
+CHANGE_REASONS = {"picture_change", "text_change"}
+
+
+def frame_why(frame: dict[str, Any]) -> dict[str, Any]:
+    """A frame's `source`, and on a change frame its reason and score, where the plan said them."""
+    why: dict[str, Any] = {}
+    if frame.get("source") in FRAME_SOURCES:
+        why["source"] = frame["source"]
+    if frame.get("reason") in CHANGE_REASONS:
+        why["reason"] = frame["reason"]
+        if isinstance(frame.get("change_units"), int) and not isinstance(frame.get("change_units"), bool):
+            why["change_units"] = frame["change_units"]
+    return why
+
+
+def overview_block(overview: Any, ref_key: str) -> dict[str, Any] | None:
+    """The overview sheets as the evidence keeps them: where each sheet is and which seconds it covers."""
+    if not isinstance(overview, dict) or overview.get("status") != "available":
+        return None
+    numbers = {key: overview.get(key) for key in ("stride_s", "columns", "rows", "tile_long_edge_px", "seconds")}
+    if not all(isinstance(numbers[key], int) and numbers[key] > 0 for key in ("stride_s", "columns", "rows")):
+        return None
+    sheets = []
+    for number, sheet in enumerate(overview.get("sheets") or [], start=1):
+        sheet = sheet if isinstance(sheet, dict) else {}
+        if not isinstance(sheet.get("from_s"), (int, float)) or not isinstance(sheet.get("to_s"), (int, float)):
+            continue
+        sheets.append({"sheet_id": str(sheet.get("sheet_id") or f"overview-{number:02d}"),
+                       "from_s": sheet["from_s"], "to_s": sheet["to_s"],
+                       **({"tiles": sheet["tiles"]} if isinstance(sheet.get("tiles"), int) else {}),
+                       "sha256": sheet.get("sha256"), "path": sheet.get(ref_key)})
+    if not sheets:
+        return None
+    block = {key: value for key, value in numbers.items() if isinstance(value, int)}
+    if isinstance(overview.get("read_until_s"), (int, float)):
+        block["read_until_s"] = overview["read_until_s"]
+    return {**block, "sheets": sheets}
 # media.encoding closes to additional properties, so the writer filters to exactly its key set
 # rather than passing a probe response through and discovering the mismatch at validation.
 ENCODING_KEYS = {
@@ -1095,13 +1135,14 @@ def frames_block(frames: dict[str, Any] | None, local: dict[str, Any] | None = N
                 "sha256": frame.get("sha256"),
                 "retained_outside_git": True,
                 "path": frame.get("path"),
-                **({"source": frame["source"]} if frame.get("source") in FRAME_SOURCES else {}),
+                **frame_why(frame),
             })
         plan = block.get("sampling_plan")
         plan = {key: value for key, value in plan.items() if key in SAMPLING_PLAN_KEYS} if isinstance(plan, dict) else None
         selection = block.get("selection") if block.get("selection") in FRAME_SELECTIONS else "none"
         if not items:
             return {**empty, "status": "unavailable", "selection": selection, "sampling_plan": plan}
+        overview = overview_block(block.get("overview"), "path")
         return {
             "status": "available",
             "selection": selection,
@@ -1111,6 +1152,7 @@ def frames_block(frames: dict[str, Any] | None, local: dict[str, Any] | None = N
             # Real pixels, sampled from the file the creator named. The same origin the connector
             # path sets, because it is the same claim: somebody looked at this frame this run.
             "origin": "extracted_frames",
+            **({"overview": overview} if overview else {}),
         }
     if frames is None:
         return empty
@@ -1128,12 +1170,13 @@ def frames_block(frames: dict[str, Any] | None, local: dict[str, Any] | None = N
             "sha256": frame.get("sha256"),
             "retained_outside_git": True,
             "path": frame.get("object_ref"),
-            **({"source": frame["source"]} if frame.get("source") in FRAME_SOURCES else {}),
+            **frame_why(frame),
         })
     plan = data.get("sampling_plan")
     plan = {key: value for key, value in plan.items() if key in SAMPLING_PLAN_KEYS} if isinstance(plan, dict) else None
     selection = data.get("selection") if data.get("selection") in FRAME_SELECTIONS else "none"
     if items:
+        overview = overview_block(data.get("overview"), "object_ref")
         return {
             "status": "available",
             "selection": selection,
@@ -1141,6 +1184,7 @@ def frames_block(frames: dict[str, Any] | None, local: dict[str, Any] | None = N
             "items": items,
             "sampling_plan": plan,
             "origin": "extracted_frames",
+            **({"overview": overview} if overview else {}),
         }
     observations = []
     for entry in data.get("observations") or []:

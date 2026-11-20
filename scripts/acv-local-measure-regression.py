@@ -380,6 +380,78 @@ class SamplingRuleTest(unittest.TestCase):
                 self.module.parse_dense_window(bad)
 
 
+class OverviewPlanTest(unittest.TestCase):
+    """The overview plan (acv_timing.py): a video up to 50s keeps today's frames; a longer one gets every second in
+    low-resolution sheets and, in place of the body grid, a bounded set of frames where the picture or text changes."""
+
+    def setUp(self) -> None:
+        self.module = load()
+        self.timing = self.module.acv_timing
+
+    def units(self, duration, every=7):
+        """A change every `every` seconds, alternating picture and text, noise below the threshold elsewhere."""
+        layout = self.timing.overview_layout(duration)
+        return [(0, 0)] + [((300 if index % (2 * every) == 0 else 20), (150 if index % every == 0 else 30))
+                           for index in range(1, layout["tiles"])]
+
+    def plan(self, duration, units=None, cuts=(), budget=120):
+        layout = self.timing.overview_layout(duration)
+        return self.module.plan_frames(duration, 3.0, 1.0, 2, budget, cuts=list(cuts),
+                                       dense_windows=self.module.select_method.with_default_window([]),
+                                       overview_units=units, overview_stride_s=layout["stride_s"])
+
+    def test_thirty_seconds_is_unchanged(self) -> None:
+        self.assertEqual(self.plan(30.0), self.plan(30.0, self.units(30.0)))
+
+    def test_layouts_cover_every_second_within_sixteen_sheets(self) -> None:
+        for duration, layout in ((120.0, (6, 5, 1, 4)), (600.0, (8, 7, 1, 11)), (1800.0, (12, 10, 1, 15)),
+                                 (3600.4, (12, 10, 2, 15))):
+            got = self.timing.overview_layout(duration)
+            self.assertEqual(layout, (got["columns"], got["rows"], got["stride_s"], got["sheets"]), duration)
+            self.assertGreaterEqual(got["tiles"] * got["stride_s"], round(duration))
+
+    def test_two_ten_and_thirty_minutes_keep_a_bounded_set_of_change_frames(self) -> None:
+        for duration in (120.0, 600.0, 1800.0):
+            cuts = [float(second) - 0.4 for second in range(20, int(duration), 45)]
+            plan = self.plan(duration, self.units(duration), cuts)
+            kinds = plan["_kinds"]
+            self.assertLessEqual(len(kinds), 120, duration)
+            self.assertNotIn("body", kinds)
+            self.assertTrue(plan["overview"])
+            self.assertFalse(plan["body_degraded"])
+            self.assertGreater(plan["change_frames"], 0, duration)
+            changes = [at for at, kind in zip(plan["_timestamps"], kinds) if kind == "change"]
+            others = [at for at, kind in zip(plan["_timestamps"], kinds) if kind not in ("change", "anchor")]
+            for at in changes:
+                self.assertEqual(at, int(at))
+                self.assertTrue(3 <= at < duration - 2)
+                self.assertTrue(all(abs(at - other) >= 1 for other in others), at)
+            reasons = {reason["reason"] for reason in plan["_reasons"] if reason}
+            self.assertLessEqual(reasons, {"picture_change", "text_change"})
+            # Spread over the video, not bunched at its start.
+            self.assertGreater(max(changes), duration / 2, duration)
+
+    def test_a_static_video_spends_frames_only_on_anchors_in_long_gaps(self) -> None:
+        quiet = [(0, 0)] * self.timing.overview_layout(300.0)["tiles"]
+        plan = self.plan(300.0, quiet)
+        self.assertEqual(0, plan["change_frames"])
+        times = plan["_timestamps"]
+        self.assertLessEqual(max(later - earlier for earlier, later in zip(times, times[1:])), 10.0)
+        self.assertLess(len(times), 120)
+
+    def test_the_change_score_reads_the_picture_and_the_text_bands(self) -> None:
+        size = self.timing.LUMA_GRID_PX
+        flat = bytes([60]) * (size * size)
+        brighter = bytes([75]) * (size * size)
+        caption = bytearray(brighter)
+        for x in range(4, 60, 2):
+            caption[(size - 6) * size + x] = 230
+        units = self.timing.change_units(flat + flat + brighter + bytes(caption))
+        self.assertEqual([(0, 0), (0, 0), (150, 0)], units[:3])
+        self.assertLess(units[3][0], 100)
+        self.assertGreaterEqual(units[3][1], 100)
+
+
 @unittest.skipUnless(HAS_FFMPEG, "ffmpeg/ffprobe not installed")
 class EndToEndTest(unittest.TestCase):
     @classmethod
@@ -532,6 +604,41 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual({"hook", "closing", "dense_window"}, {item["source"] for item in again["frames"]["items"]})
         self.assertEqual([], again["frames"]["contact_sheets"])
         self.assertEqual([8.0, 0.0], [window["start_s"] for window in again["frames"]["sampling_plan"]["dense_windows"]])
+
+    def test_a_long_file_gets_the_overview_and_change_frames(self) -> None:
+        media = self.dir / "long.mp4"
+        subprocess.run(
+            ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+             "-f", "lavfi", "-i", "color=c=gray:size=96x160:duration=55:rate=5",
+             "-f", "lavfi", "-i", "color=c=navy:size=96x160:duration=10:rate=5",
+             "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]",
+             "-map", "[v]", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(media)],
+            check=True, capture_output=True, timeout=300)
+        run = self.dir / "long"
+        (run / "analysis").mkdir(parents=True)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--media", str(media), "--out-dir", str(run / "analysis" / "frames"),
+             "--artifact", str(run / "analysis" / "local-media.json"), "--no-contact-sheets", "--no-shot-starts",
+             "--deadline-s", "120"],
+            capture_output=True, text=True, timeout=600)
+        self.assertEqual(0, result.returncode, result.stderr)
+        document = json.loads((run / "analysis" / "local-media.json").read_text(encoding="utf-8"))
+        overview = document["frames"]["overview"]
+        self.assertEqual(("available", 1, 6, 5, 65), (overview["status"], overview["stride_s"], overview["columns"],
+                                                      overview["rows"], overview["seconds"]))
+        self.assertEqual([(0, 29, 30), (30, 59, 30), (60, 64, 5)],
+                         [(sheet["from_s"], sheet["to_s"], sheet["tiles"]) for sheet in overview["sheets"]])
+        for sheet in overview["sheets"]:
+            self.assertTrue((run / "analysis" / sheet["path"]).is_file())
+        self.assertFalse((run / "analysis" / "frames" / ".overview-luma.gray").exists())
+        changes = [item for item in document["frames"]["items"] if item["source"] == "change"]
+        # The cut at 55s is past the default window (the first 50s): with no cut frames asked for, it is the one
+        # change, at a whole second, of the picture.
+        self.assertEqual([(55.0, "picture_change")], [(item["t_seconds"], item["reason"]) for item in changes])
+        self.assertNotIn("body", {item["source"] for item in document["frames"]["items"]})
+        summary = json.loads(result.stdout)
+        self.assertEqual(3, len(summary["overview"]["sheets"]))
+        self.assertIn("overview", [step["operation"] for step in document["steps"]])
 
     def test_ffmpeg_progress_reports_how_far_a_pass_read(self) -> None:
         result = subprocess.run(

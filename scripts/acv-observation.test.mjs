@@ -1458,7 +1458,8 @@ test("keyframes request: the contract's max_frames, shot starts and the default 
   const plain = await newRun(t);
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], plain);
   assert.deepEqual(keyframesOf(callLines(first.out)[0]),
-    { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true, dense_windows: [DEFAULT_WINDOW] });
+    { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true, dense_windows: [DEFAULT_WINDOW],
+      overview: true });
 
   const run = await newRun(t);
   const method = await selectFirst(run, "opening,editing-pacing");
@@ -1467,10 +1468,10 @@ test("keyframes request: the contract's max_frames, shot starts and the default 
   const call = callLines(out)[0];
   // The card's window first, then the default one.
   assert.deepEqual(keyframesOf(call), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true,
-    dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW] });
+    dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW], overview: true });
   // The options are fixed at the first hand-over, so a repeated call while jobs run sends the same arguments.
   assert.deepEqual((await readJson(path.join(run, "collect-media.json"))).frame_options,
-    { include_shot_starts: true, dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW] });
+    { include_shot_starts: true, dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW], overview: true });
 
   // Merged with the cards' windows, the request never carries more than three: a card window the default already
   // covers is left out, a repeat is dropped, and past the limit the later card windows go, never the default.
@@ -1505,29 +1506,43 @@ print(json.dumps(select_method.with_default_window(json.loads(sys.argv[2]))))
 const FRAME_OPTIONS_REJECTED = JSON.stringify({ isError: true, content: [{ type: "text",
   text: "MCP error -32602: Input validation error: Invalid arguments for tool collect_video_media: Unrecognized key: \"include_shot_starts\"" }] });
 
-test("a server refusing the frame options (keyframes item validation_error, or -32602): the media call is repeated once without them, and the run says so", async (t) => {
+test("a server refusing the frame options (keyframes item validation_error, or -32602): the media call is repeated without overview, then without the rest, and the run says so", async (t) => {
   const run = await newRun(t);
   await selectFirst(run, "opening");
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run);
   const [call] = callLines(first.out);
   assert.equal(keyframesOf(call).include_shot_starts, true);
+  assert.equal(keyframesOf(call).overview, true);
   await writeFile(slotFiles(first.out)[0], FRAME_OPTIONS_REJECTED);
   const retried = shell(resumeOf(first.out));
   assert.equal(retried.code, 0, retried.out);
-  const [again] = callLines(retried.out);
+  // The newest option goes alone first: a server that knows shot starts and windows keeps them.
+  const { overview: _overview, ...withoutOverview } = keyframesOf(call);
+  assert.deepEqual(keyframesOf(callLines(retried.out)[0]), withoutOverview);
+  assert.equal((await readJson(path.join(run, "collect-media.json"))).frame_options_refused, undefined);
+  await writeFile(slotFiles(retried.out)[0], FRAME_OPTIONS_REJECTED);
+  const retriedAgain = shell(resumeOf(retried.out));
+  assert.equal(retriedAgain.code, 0, retriedAgain.out);
+  const [again] = callLines(retriedAgain.out);
   assert.equal(again.tool, "collect_video_media");
   assert.deepEqual(keyframesOf(again), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
   assert.equal(again.arguments.run_key, call.arguments.run_key);
   assert.equal((await readJson(path.join(run, "collect-media.json"))).frame_options_refused, true);
-  const { out } = await driveFrom(run, retried.out);
+  const { out } = await driveFrom(run, retriedAgain.out);
+  assert.match(out, /Fallback: collect_video_media did not accept overview on this server; repeated without it/);
   assert.match(out, /Fallback: collect_video_media did not accept include_shot_starts \/ dense_windows on this server; repeated without them/);
   assert.match(out, /Frames: This server refused the shot-start and dense-window frame options/);
+  assert.match(out, /The overview was not applied/);
 
   // collect_media.py on its own retries the same way.
   const alone = await newRun(t);
   const handed = python("collect_media.py", ["--url", TIKTOK, "--operations", "keyframes"], alone);
   await writeFile(slotFiles(handed.out)[0], FRAME_OPTIONS_REJECTED);
-  const repeated = shell(resumeOf(handed.out));
+  const repeatedOnce = shell(resumeOf(handed.out));
+  assert.equal(repeatedOnce.code, 0, repeatedOnce.out);
+  assert.match(repeatedOnce.out, /did not accept overview/);
+  await writeFile(slotFiles(repeatedOnce.out)[0], FRAME_OPTIONS_REJECTED);
+  const repeated = shell(resumeOf(repeatedOnce.out));
   assert.equal(repeated.code, 0, repeated.out);
   assert.match(repeated.out, /did not accept include_shot_starts \/ dense_windows/);
   assert.deepEqual(keyframesOf(callLines(repeated.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
@@ -1542,9 +1557,10 @@ test("a server refusing the frame options (keyframes item validation_error, or -
   await writeFile(slotFiles(opened.out)[0], mcp(itemFailed));
   const repeatedItem = shell(resumeOf(opened.out));
   assert.equal(repeatedItem.code, 0, repeatedItem.out);
-  assert.deepEqual(keyframesOf(callLines(repeatedItem.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
+  const { overview: _dropped, ...itemWithoutOverview } = keyframesOf(firstCall);
+  assert.deepEqual(keyframesOf(callLines(repeatedItem.out)[0]), itemWithoutOverview);
   const { out: itemOut } = await driveFrom(itemRun, repeatedItem.out);
-  assert.match(itemOut, /Fallback: collect_video_media did not accept include_shot_starts/);
+  assert.match(itemOut, /Fallback: collect_video_media did not accept overview/);
   assert.match(itemOut, /^read: /m);
   const aloneItem = await newRun(t);
   const handedItem = python("collect_media.py", ["--url", TIKTOK, "--operations", "transcript,keyframes"], aloneItem);
@@ -1554,8 +1570,9 @@ test("a server refusing the frame options (keyframes item validation_error, or -
   await writeFile(slotFiles(handedItem.out)[0], mcp(aloneFailed));
   const aloneAgain = shell(resumeOf(handedItem.out));
   assert.equal(aloneAgain.code, 0, aloneAgain.out);
-  assert.match(aloneAgain.out, /refused include_shot_starts \/ dense_windows for the frames/);
-  assert.deepEqual(keyframesOf(callLines(aloneAgain.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
+  assert.match(aloneAgain.out, /refused overview for the frames/);
+  const { overview: _alsoDropped, ...aloneWithoutOverview } = keyframesOf(callLines(handedItem.out)[0]);
+  assert.deepEqual(keyframesOf(callLines(aloneAgain.out)[0]), aloneWithoutOverview);
   // Any other failure is never taken for a refusal of the options.
   const failedRun = await newRun(t);
   const other = python("collect_media.py", ["--url", TIKTOK, "--operations", "keyframes"], failedRun);
@@ -1600,6 +1617,71 @@ test("frame options: applied ones reach the evidence (frame source, plan); a ser
   assert.equal(evidence.frames.sampling_plan.include_shot_starts, true);
   assert.equal(evidence.frames.sampling_plan.shot_detection.status, "detected");
   assert.equal("frame_sources" in evidence.frames.sampling_plan, false);
+});
+
+// The overview plan (acv_timing.py): a server that made it returns low-resolution sheets of every second besides the
+// frames; the read brings the sheets first with a legend, and the evidence and the brief carry them with their seconds.
+function withOverview(value, { overview = true } = {}) {
+  for (const call of value.calls) {
+    if (call.result.operation !== "extract_keyframes") continue;
+    const data = call.result.data;
+    data.duration_s = 120;
+    data.frames = data.frames.map((frame, index) => ({ ...frame, source: index === 3 ? "change" : "hook",
+      ...(index === 3 ? { reason: "text_change", change_units: 180 } : {}) }));
+    data.sampling_plan = { base_interval_s: 1, hook_window_s: 3, hook_frames: 3, frames: 5, budget: 120, body_degraded: false,
+      body_interval_s: null, body_frames: 0, include_shot_starts: true, shot_detection: { status: "detected", cuts: 0, threshold: 0.15 },
+      shot_start_frames: 0, dense_window_frames: 0, dense_windows: [], dropped_for_budget: { shot_start: 0, dense_window: 0 },
+      dropped_as_duplicate: { shot_start: 0, dense_window: 0, body: 0, change: 0 }, dedupe_s: 0.25,
+      budget_priority: ["hook", "closing", "shot_start", "dense_window", "change", "anchor"], frame_sources: [],
+      ...(overview ? { overview: true, overview_stride_s: 1, change_candidates: 4, change_frames: 1, anchor_frames: 0,
+        change_threshold_units: 100, anchor_gap_s: 10 } : {}) };
+    if (overview) {
+      const sheets = [0, 1, 2, 3].map((index) => ({ sheet_id: `overview-0${index + 1}`, object_ref: `creator-media/job/overview-0${index + 1}.jpg`,
+        sha256: "d".repeat(64), bytes: 200, from_s: index * 30, to_s: index * 30 + 29, tiles: 30 }));
+      data.overview = { status: "available", selection: "overview_v1", columns: 6, rows: 5, tile_long_edge_px: 256, stride_s: 1,
+        padding_px: 2, seconds: 120, sheets, change: { grid_px: 64, threshold_units: 100, picture_units: [], text_units: [] } };
+      data.artifacts.push(...sheets.map((sheet) => ({ kind: "keyframes", bytes: 200, sha256: sheet.sha256, object_ref: sheet.object_ref })));
+    }
+  }
+  return value;
+}
+
+test("overview: the sheets are read first with their seconds, reach the evidence and the brief; a server without it is named", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run);
+  await writeFile(slotFiles(first.out)[0], mcp(withOverview(composite(callLines(first.out)[0].arguments))));
+  const done = shell(resumeOf(first.out));
+  assert.match(done.out, /"status": "observed"/);
+  assert.match(done.out, /Overview: the first 4 image\(s\) read are low-resolution sheets of every 1s/);
+  assert.match(done.out, /overview-02 30-59s/);
+  const read = JSON.parse(done.out.split("\n").find((line) => line.startsWith("read: ")).slice(6));
+  assert.deepEqual(read.arguments.object_refs.slice(0, 4), [1, 2, 3, 4].map((n) => `creator-media/job/overview-0${n}.jpg`));
+  assert.equal(read.arguments.object_refs.length, 4 + 5);
+  assert.doesNotMatch(done.out, /overview was not applied/);
+  await writeRequest(run);
+  const built = build(run, flagsOf(done.out));
+  assert.equal(built.code, 0, built.out);
+  const evidence = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assertValidEvidence(evidence);
+  assert.deepEqual(evidence.frames.overview.sheets.map((sheet) => [sheet.sheet_id, sheet.from_s, sheet.to_s, sheet.path]),
+    [0, 1, 2, 3].map((index) => [`overview-0${index + 1}`, index * 30, index * 30 + 29, `creator-media/job/overview-0${index + 1}.jpg`]));
+  assert.equal(evidence.frames.items[3].reason, "text_change");
+  assert.equal(evidence.frames.sampling_plan.change_frames, 1);
+  const prepared = await prepare(run, ["--mode", "diagnosis", "--focus", "opening"]);
+  assert.equal(prepared.code, 0, prepared.out);
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.match(brief, /Overview: every 1s of the whole video at low resolution, 6 tiles a row and 5 rows a sheet/);
+  assert.match(brief, /- overview `overview-03` 60s–89s `creator-media\/job\/overview-03\.jpg`/);
+  assert.match(brief, /`frame-0004` 12s change \(text_change\)/);
+  assert.match(brief, /no body grid: the overview shows every 1s, with 1 change and 0 anchor frame\(s\)/);
+
+  // A server that took the options but made no overview on a long video: said plainly, the frames still read.
+  const older = await newRun(t);
+  const opened = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], older);
+  await writeFile(slotFiles(opened.out)[0], mcp(withOverview(composite(callLines(opened.out)[0].arguments), { overview: false })));
+  const plain = shell(resumeOf(opened.out));
+  assert.match(plain.out, /This server does not make the overview yet\. The overview was not applied/);
+  assert.doesNotMatch(plain.out, /^Overview: /m);
 });
 
 // Whole-video fallback for every source: the platform list is gone; the tool's own answer decides.

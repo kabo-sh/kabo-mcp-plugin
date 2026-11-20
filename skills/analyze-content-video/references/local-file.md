@@ -37,6 +37,12 @@ comments: when the creator asks how the video performed, ask once for its publis
    time. Cite the frame, never the sheet. **Locally sampled frames are real pixels and are read exactly like any other frame:
    open them, quote what is on them, cite them the same way.** Nothing in the analysis branches on
    where a frame came from; the ledger records that, and the ledger is not the report.
+   On a file longer than 50 seconds it first writes the **overview** (`overview-NN.jpg`, listed under
+   `overview` in its summary and `frames.overview` in the artifact): every second of the file at low
+   resolution, tiles in time order left to right and top to bottom. Read those sheets before the contact
+   sheets; the high-resolution frames past the opening are then the moments where the picture or the
+   on-screen text changes (*Frame sampling* in `references/evidence-reading.md`). `--no-overview` keeps
+   the even body grid instead.
 3. **Measure, in a command of its own**, whenever the question touches pacing, cuts, pauses or the
    ending: `cd '<run directory>' && python3 <skill directory>/scripts/extract_local_frames.py --media <the same absolute path>
    --artifact analysis/local-media.json --signals-only`. Frames place no cut shorter than their

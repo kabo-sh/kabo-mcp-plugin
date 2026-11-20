@@ -268,13 +268,33 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
         windows = [w for w in plan.get("dense_windows") or [] if isinstance(w, dict)]
         spans = ", ".join(f"{w.get('start_s')}–{w.get('end_s')}s every {w.get('interval_s')}s" for w in windows)
         lines.append(f"Planned sampling (not decoded spacing): hook window {plan.get('hook_window_s')}s, "
-                     + (f"body interval {body}s" if body else "no body grid (dense windows cover the video)")
+                     + (f"body interval {body}s" if body else
+                        f"no body grid: the overview shows every {plan.get('overview_stride_s')}s, with "
+                        f"{plan.get('change_frames')} change and {plan.get('anchor_frames')} anchor frame(s)"
+                        if plan.get("overview") else "no body grid (dense windows cover the video)")
                      + (f", dense windows {spans}" if spans else "")
                      + f"{', body degraded' if plan.get('body_degraded') else ''}.")
-    lines += [f"- `{item['frame_id']}` {seconds(item.get('t_seconds'))}" + (f" `{item['path']}`" if item.get("path") else "")
+    overview = frames.get("overview") or {}
+    if overview.get("sheets"):
+        # The overview plan (acv_timing.py): every second at low resolution first, then the chosen frames.
+        lines.append(f"Overview: every {overview.get('stride_s')}s of the whole video at low resolution, "
+                     f"{overview.get('columns')} tiles a row and {overview.get('rows')} rows a sheet, in time order "
+                     "left to right and top to bottom (tile n of a sheet is from + n x the stride). It is the only "
+                     "view of the seconds between the frames below; quote on-screen text from a frame, not from it."
+                     + (f" It reaches {overview['read_until_s']:g}s only." if overview.get("read_until_s") else ""))
+        lines += [f"- overview `{sheet.get('sheet_id')}` {seconds(sheet.get('from_s'))}–{seconds(sheet.get('to_s'))}"
+                  + (f" `{sheet['path']}`" if sheet.get("path") else "") for sheet in overview["sheets"]]
+        lines.append("High-resolution frames, each with why it was chosen (change = the picture or the on-screen "
+                     "text changed against the second before; anchor = the middle of a gap over 10s):")
+    lines += [f"- `{item['frame_id']}` {seconds(item.get('t_seconds'))}"
+              + (f" {item['source']}" if overview.get("sheets") and item.get("source") else "")
+              + (f" ({item['reason']})" if item.get("reason") else "")
+              + (f" `{item['path']}`" if item.get("path") else "")
               for item in items]
     if items:
-        lines.append("Open the frames (the read the observation step printed, or these paths) before any visual claim.")
+        lines.append("Open the overview sheets, then the frames (the read the observation step printed, or these "
+                     "paths) before any visual claim." if overview.get("sheets") else
+                     "Open the frames (the read the observation step printed, or these paths) before any visual claim.")
     for observation in frames.get("observations") or []:
         lines.append(f"- reported: {one_line(json.dumps(observation, ensure_ascii=False))}")
     images = evidence.get("images") or {}

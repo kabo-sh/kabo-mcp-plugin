@@ -19,6 +19,16 @@ as invalid input. Each frame's `source` says why it is there (`hook`, `closing`,
 `dense_window`); a server that does not take the cut and window options yet returns the standard
 plan, the frames carry no `source`, and the script says so: then no frame sits at a cut on purpose.
 Read the frames 15 to a call, as the script prints the reads.
+On a video longer than 50 seconds the request also asks for the **overview** (`overview`): low-resolution
+sheets of every second of the whole video, tiles in time order left to right and top to bottom, listed
+under `frames.overview` with the seconds each sheet spans (the script prints a legend before the reads,
+and the sheets come first). The body then has no even grid: the high-resolution frames past the opening
+are chosen where the picture or the on-screen text changes (`source` `change`, with `reason`
+`picture_change` or `text_change`) and, where a gap is still over ten seconds, at its middle (`anchor`).
+Look at every sheet first: they are the only view of the seconds between frames, so a moment seen only
+on a sheet is cited by its second as seen at low resolution. Small text on a sheet is not readable;
+quote on-screen text from a frame. A server that does not make the overview yet returns the plan above,
+and the script says so.
 `sampling_plan` records requested sampling, not verified decoded timestamps or viewing coverage; even `t_seconds` may be a nominal requested point. Without verified actual decode
 records, never state a planned interval as actual spacing in judgment or creator cards. Describe it
 only as a planned/requested sampling limitation. Judge the hook over `frames.sampling_plan.hook_window_s`
