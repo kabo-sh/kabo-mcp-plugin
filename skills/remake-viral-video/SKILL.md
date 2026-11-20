@@ -4,7 +4,7 @@ description: "Have Kabo make a finished MP4: remake a reference video with the c
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
 metadata:
-  version: "1.0.13"
+  version: "1.0.12"
   platform_agnostic: "true"
 allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
@@ -93,11 +93,6 @@ that, not by how the request is worded ("remake" included):
    the plate), and the step before it is its own shot. A clip asked to do "plate it, then smile"
    often stops halfway, and the video then ends without its payoff. Everything the creator asked
    to see goes in `storyboard.asked` (short phrases), each with its own shot.
-9. **Pick up a refused step.** When the host or the runner refused a step or the project (a
-   check or validation error, a runner failure) and the creator then says to continue or try
-   again, or the host says the cause is fixed, send that same step again as planned (same inputs,
-   a new `idempotency_key`) in that reply and carry on with the plan. Never answer "continue" with
-   a summary and no new step; only after the same step is refused again, tell the creator plainly.
 
 | Keep | Change | Step | Redraws the face |
 |---|---|---|---|
