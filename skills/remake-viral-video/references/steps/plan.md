@@ -26,7 +26,9 @@ what was agreed, so ask first.
 
 **The frame.** When the creator names TikTok, Reels or Shorts (or asks for a vertical video), plan
 every picture and clip at 9:16 from the start (`aspect` on the steps that take it); never deliver
-those as landscape.
+those as landscape. Never lay a landscape source full width on a black 9:16 frame (`layout` with
+`fit: "contain"` on a solid colour): the picture ends up a third of the screen. Reframe it with
+`crop` (the writing is kept whole); `deliver` fills such letterboxed stretches itself and says so.
 
 **Several videos in one request** (ten styles of one story, five episodes, one per product):
 write every video asked for into each video's storyboard as `series` -- one entry per video in the

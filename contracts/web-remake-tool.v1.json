@@ -1,6 +1,6 @@
 {
  "source": "kabo-agent-service",
- "commit": "1e9720e721d9b4276ec703fd1ee3bff9f7bd12ad",
+ "commit": "7feff9bbd9c1efcfe97f85c46effeb14c41eed74",
  "atom": {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
@@ -2644,6 +2644,16 @@
         "type": "number",
         "minimum": 0,
         "maximum": 600
+       },
+       "words": {
+        "minItems": 1,
+        "maxItems": 8,
+        "type": "array",
+        "items": {
+         "type": "string",
+         "minLength": 1,
+         "maxLength": 40
+        }
        }
       },
       "additionalProperties": false

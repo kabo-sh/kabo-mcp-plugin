@@ -1,7 +1,7 @@
 # Step parameters (generated -- do not edit)
 
 Generated from the Web host's own schema (`contracts/web-remake-tool.v1.json`, kabo-agent-service
-`scripts/remake-skill-schema.ts` at 1e9720e721d9b4276ec703fd1ee3bff9f7bd12ad) by `scripts/remake-params-gen.mjs`.
+`scripts/remake-skill-schema.ts` at 7feff9bbd9c1efcfe97f85c46effeb14c41eed74) by `scripts/remake-params-gen.mjs`.
 These are the exact shapes the host accepts; where any other file in this Skill reads
 differently, this file is right. A field not listed under a step is refused on that step.
 `?` / (optional) = may be left out; `a | b` = one of; `[x, ...] (2-8 items)` = a list;
@@ -188,7 +188,7 @@ Each entry of `props`:
 ### `inpaint_text`
 
 - inputs: `media`: handle
-- params: `boxes` (optional): [[number 0..1, number 0..1, number 0..1, number 0..1] (4-4 items), ...] (1-8 items); `fill` (optional): "strokes" | "box"; `t0` (optional): number 0..600; `t1` (optional): number 0..600
+- params: `boxes` (optional): [[number 0..1, number 0..1, number 0..1, number 0..1] (4-4 items), ...] (1-8 items); `fill` (optional): "strokes" | "box"; `t0` (optional): number 0..600; `t1` (optional): number 0..600; `words` (optional): [text (<= 40), ...] (1-8 items)
 
 ### `layout`
 
