@@ -92,8 +92,8 @@ provenance and owner-metric availability. Requested
 or viewing. Without verified decode records, describe intervals only as planned/requested
 limitations beside the relevant finding. The line states only countable facts; it says nothing
 about viewing, so never add that the frames were not looked at when you opened and cited them. The
-builder writes it in Chinese, English, Spanish, Portuguese, German, French, Japanese, Korean or
-Indonesian by the view's `language`; for any other language, the host translates the complete line
+builder writes it in Chinese, English, Spanish, Portuguese, German, French, Japanese, Korean,
+Indonesian, Vietnamese, Arabic or Hindi by the view's `language`; for any other language, the host translates the complete line
 for delivery without changing its quantities or uncertainty.
 Put claim-specific uncertainty once beside the claim it weakens, not in this measurement line.
 

@@ -207,6 +207,13 @@ def strip_label(action: str) -> str:
     return text
 
 
+def same_words(first: str, second: str) -> bool:
+    """Whether two headings say the same thing, ignoring case, spacing, emphasis and punctuation."""
+    def bare(text: str) -> str:
+        return re.sub(r"[\W_]+", "", str(text or "")).casefold()
+    return bool(bare(first)) and bare(first) == bare(second)
+
+
 def lang_of(view: dict) -> str:
     """`zh`, `zh-CN`, `zh-Hant` read as Chinese; a listed language by its primary subtag (`pt-BR` as `pt`);
     anything else, or nothing, as English."""
@@ -289,7 +296,13 @@ def render(result: dict) -> str:
             # On somebody else's video card 2 is what copying it would bring along, so its action
             # says how to avoid that, not what to change in a post that is not the creator's.
             others = (result.get("details") or {}).get("subject_state") in ("third_party", "unknown")
-            out.append(f"**{action_label(card_index, others, words)}**{words['colon']}{strip_label(card['action'])}")
+            label = action_label(card_index, others, words)
+            # A card whose own heading already is that label ("## What to do in yours" over "**What to do in
+            # yours**: ...") printed the same heading twice in a row: the heading stands, the line goes unlabelled.
+            if same_words(label, card.get("title", "")):
+                out.append(strip_label(card["action"]))
+            else:
+                out.append(f"**{label}**{words['colon']}{strip_label(card['action'])}")
         # No `source_url` branch. The schema allows the field and SKILL.md never described it, so
         # two of three isolated runs set it and the renderer printed a naked URL under the change
         # instruction. Labelling it was the wrong repair -- it made a meaningless link tidy instead

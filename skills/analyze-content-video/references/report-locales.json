@@ -52,7 +52,8 @@
     "frames": {
      "descriptions": "descripciones visuales, sin ver los píxeles",
      "unavailable": "fotogramas no disponibles",
-     "not_attempted": "sin muestreo de fotogramas"
+     "not_attempted": "sin muestreo de fotogramas",
+     "timed_out": "los fotogramas no llegaron a tiempo"
     },
     "cited": "{n} fotogramas citados",
     "transcript": {
@@ -115,7 +116,8 @@
     "frames": {
      "descriptions": "descrições visuais, sem ver os pixels",
      "unavailable": "quadros indisponíveis",
-     "not_attempted": "quadros não amostrados"
+     "not_attempted": "quadros não amostrados",
+     "timed_out": "os quadros não chegaram a tempo"
     },
     "cited": "{n} quadros citados",
     "transcript": {
@@ -178,7 +180,8 @@
     "frames": {
      "descriptions": "Bildbeschreibungen, Pixel nicht geprüft",
      "unavailable": "Frames nicht verfügbar",
-     "not_attempted": "keine Frames entnommen"
+     "not_attempted": "keine Frames entnommen",
+     "timed_out": "Frames kamen nicht rechtzeitig an"
     },
     "cited": "{n} zitierte Frames",
     "transcript": {
@@ -241,7 +244,8 @@
     "frames": {
      "descriptions": "descriptions visuelles, pixels non vus",
      "unavailable": "images indisponibles",
-     "not_attempted": "aucune image échantillonnée"
+     "not_attempted": "aucune image échantillonnée",
+     "timed_out": "les images ne sont pas arrivées à temps"
     },
     "cited": "{n} images citées",
     "transcript": {
@@ -304,7 +308,8 @@
     "frames": {
      "descriptions": "画面は文章の描写で、ピクセルは直接確認していない",
      "unavailable": "フレームは利用不可",
-     "not_attempted": "フレーム未抽出"
+     "not_attempted": "フレーム未抽出",
+     "timed_out": "フレームが時間内に届かなかった"
     },
     "cited": "レポートで引用 {n} 枚",
     "transcript": {
@@ -367,7 +372,8 @@
     "frames": {
      "descriptions": "화면은 텍스트 묘사이며 픽셀은 직접 확인하지 않음",
      "unavailable": "프레임 사용 불가",
-     "not_attempted": "프레임 미추출"
+     "not_attempted": "프레임 미추출",
+     "timed_out": "프레임이 제시간에 도착하지 않음"
     },
     "cited": "리포트 인용 프레임 {n}개",
     "transcript": {
@@ -430,7 +436,8 @@
     "frames": {
      "descriptions": "deskripsi visual, piksel tidak diperiksa",
      "unavailable": "frame tidak tersedia",
-     "not_attempted": "frame tidak diambil"
+     "not_attempted": "frame tidak diambil",
+     "timed_out": "frame tidak tiba tepat waktu"
     },
     "cited": "{n} frame dikutip",
     "transcript": {
@@ -467,6 +474,198 @@
      "sung_or_spoken": "apakah kata-katanya dinyanyikan atau diucapkan",
      "voice_timbre": "bagaimana warna suaranya",
      "sfx_quality": "bagaimana efek suaranya"
+    }
+   }
+  },
+  "vi": {
+   "labels": {
+    "why": "Hiệu quả hiện tại",
+    "action": "Cần thay đổi gì",
+    "reuse": "Cách tái sử dụng",
+    "avoid": "Cách tránh",
+    "fix": "Cách sửa",
+    "yours": "Làm gì trong video của bạn",
+    "say": "Hãy nói",
+    "at": "Vị trí",
+    "on_screen": "Chữ trên màn hình",
+    "shot": "Cảnh quay",
+    "next": "Bước tiếp theo",
+    "colon": ": "
+   },
+   "note": {
+    "source_platform": "Video {platform}",
+    "source_local": "Tệp video trên máy",
+    "frames_extracted": "{n} khung hình đã trích",
+    "frames_requested": " trên {m} được yêu cầu",
+    "frames": {
+     "descriptions": "mô tả hình ảnh bằng chữ, không xem trực tiếp điểm ảnh",
+     "unavailable": "không có khung hình",
+     "not_attempted": "chưa trích khung hình",
+     "timed_out": "khung hình không về kịp"
+    },
+    "cited": "{n} khung hình được trích dẫn",
+    "transcript": {
+     "platform captions": "phụ đề của nền tảng",
+     "external transcript": "bản chép lời bên ngoài",
+     "machine transcript (wording unverified)": "bản chép lời tự động (câu chữ chưa kiểm tra)",
+     "creator-supplied transcript (not checked against audio)": "bản chép lời do nhà sáng tạo cung cấp (chưa đối chiếu với âm thanh)",
+     "no speech detected": "không phát hiện lời nói",
+     "no audio track": "không có rãnh âm thanh",
+     "platform captions unavailable": "không có phụ đề của nền tảng",
+     "transcript unavailable": "không có bản chép lời",
+     "transcript not retrieved": "chưa lấy bản chép lời"
+    },
+    "cues_one": " (1 dòng)",
+    "cues_other": " ({n} dòng)",
+    "owner": "số liệu tài khoản {status}",
+    "owner_status": {
+     "available": "có sẵn",
+     "partial": "có một phần",
+     "unavailable": "không có"
+    },
+    "unknown": "không rõ",
+    "separator": "; ",
+    "end": ".",
+    "image": "Bài đăng ảnh: {available}/{returned} vị trí trả về có sẵn; tổng {total}; độ đầy đủ {completeness}; số liệu tài khoản {owner}."
+   },
+   "listen": {
+    "line": "Âm thanh chỉ được đo, không ai nghe: hãy tự nghe để kiểm tra {items}.",
+    "sep": ", ",
+    "last_sep": " và ",
+    "items": {
+     "music_fit": "thể loại và không khí của nhạc có hợp không",
+     "track_identity": "đó là bài nào",
+     "sung_or_spoken": "lời được hát hay được nói",
+     "voice_timbre": "giọng nghe thế nào",
+     "sfx_quality": "hiệu ứng âm thanh nghe thế nào"
+    }
+   }
+  },
+  "ar": {
+   "labels": {
+    "why": "ما يحققه الآن",
+    "action": "ما الذي تغيّره",
+    "reuse": "كيف تعيد استخدامه",
+    "avoid": "كيف تتجنّبه",
+    "fix": "كيف تصلحه",
+    "yours": "ما تفعله في فيديوك",
+    "say": "قل هذا",
+    "at": "الموضع",
+    "on_screen": "النص على الشاشة",
+    "shot": "اللقطة",
+    "next": "الخطوات التالية",
+    "colon": ": "
+   },
+   "note": {
+    "source_platform": "فيديو {platform}",
+    "source_local": "ملف فيديو محلي",
+    "frames_extracted": "إطارات مستخرجة: {n}",
+    "frames_requested": " من {m} مطلوبة",
+    "frames": {
+     "descriptions": "أوصاف مرئية مكتوبة، دون فحص البكسلات",
+     "unavailable": "الإطارات غير متاحة",
+     "not_attempted": "لم تُستخرج إطارات",
+     "timed_out": "لم تصل الإطارات في الوقت المحدد"
+    },
+    "cited": "إطارات مستشهد بها: {n}",
+    "transcript": {
+     "platform captions": "ترجمة المنصة",
+     "external transcript": "نص مفرّغ خارجي",
+     "machine transcript (wording unverified)": "تفريغ آلي (الصياغة غير متحقق منها)",
+     "creator-supplied transcript (not checked against audio)": "نص من صانع المحتوى (لم يُطابَق مع الصوت)",
+     "no speech detected": "لم يُرصد كلام",
+     "no audio track": "لا يوجد مسار صوتي",
+     "platform captions unavailable": "ترجمة المنصة غير متاحة",
+     "transcript unavailable": "التفريغ غير متاح",
+     "transcript not retrieved": "لم يُجلب التفريغ"
+    },
+    "cues_one": " (سطر واحد)",
+    "cues_other": " ({n} أسطر)",
+    "owner": "إحصاءات الحساب {status}",
+    "owner_status": {
+     "available": "متاحة",
+     "partial": "متاحة جزئيًا",
+     "unavailable": "غير متاحة"
+    },
+    "unknown": "غير معروف",
+    "separator": "؛ ",
+    "end": ".",
+    "image": "منشور صور: {available}/{returned} من المواضع المُعادة متاحة؛ الإجمالي {total}؛ الاكتمال {completeness}؛ إحصاءات الحساب {owner}."
+   },
+   "listen": {
+    "line": "الصوت قيس فقط ولم يستمع إليه أحد: استمع بنفسك لتتحقق من {items}.",
+    "sep": "، ",
+    "last_sep": " و",
+    "items": {
+     "music_fit": "ملاءمة نوع الموسيقى وأجوائها",
+     "track_identity": "اسم المقطع الموسيقي",
+     "sung_or_spoken": "هل الكلمات مغنّاة أم منطوقة",
+     "voice_timbre": "كيف يبدو الصوت البشري",
+     "sfx_quality": "كيف تبدو المؤثرات الصوتية"
+    }
+   }
+  },
+  "hi": {
+   "labels": {
+    "why": "अभी इसका असर",
+    "action": "क्या बदलें",
+    "reuse": "इसे दोबारा कैसे इस्तेमाल करें",
+    "avoid": "इससे कैसे बचें",
+    "fix": "इसे कैसे ठीक करें",
+    "yours": "अपने वीडियो में क्या करें",
+    "say": "यह कहें",
+    "at": "जगह",
+    "on_screen": "स्क्रीन पर टेक्स्ट",
+    "shot": "शॉट",
+    "next": "अगले कदम",
+    "colon": ": "
+   },
+   "note": {
+    "source_platform": "{platform} वीडियो",
+    "source_local": "लोकल वीडियो फ़ाइल",
+    "frames_extracted": "{n} फ़्रेम निकाले गए",
+    "frames_requested": " ({m} मांगे गए में से)",
+    "frames": {
+     "descriptions": "दृश्य का लिखित विवरण, पिक्सेल सीधे नहीं देखे गए",
+     "unavailable": "फ़्रेम उपलब्ध नहीं",
+     "not_attempted": "फ़्रेम नहीं निकाले गए",
+     "timed_out": "फ़्रेम समय पर नहीं पहुंचे"
+    },
+    "cited": "{n} फ़्रेम का हवाला",
+    "transcript": {
+     "platform captions": "प्लेटफ़ॉर्म के कैप्शन",
+     "external transcript": "बाहरी ट्रांसक्रिप्ट",
+     "machine transcript (wording unverified)": "मशीन ट्रांसक्रिप्ट (शब्द जांचे नहीं गए)",
+     "creator-supplied transcript (not checked against audio)": "क्रिएटर का दिया ट्रांसक्रिप्ट (ऑडियो से मिलाया नहीं गया)",
+     "no speech detected": "कोई बोली नहीं मिली",
+     "no audio track": "कोई ऑडियो ट्रैक नहीं",
+     "platform captions unavailable": "प्लेटफ़ॉर्म के कैप्शन उपलब्ध नहीं",
+     "transcript unavailable": "ट्रांसक्रिप्ट उपलब्ध नहीं",
+     "transcript not retrieved": "ट्रांसक्रिप्ट नहीं लिया गया"
+    },
+    "cues_one": " (1 पंक्ति)",
+    "cues_other": " ({n} पंक्तियां)",
+    "owner": "अकाउंट के आंकड़े {status}",
+    "owner_status": {
+     "available": "उपलब्ध",
+     "partial": "आंशिक रूप से उपलब्ध",
+     "unavailable": "उपलब्ध नहीं"
+    },
+    "unknown": "अज्ञात",
+    "separator": "; ",
+    "end": "।",
+    "image": "इमेज पोस्ट: लौटाई गई {returned} में से {available} जगहें उपलब्ध; कुल {total}; पूर्णता {completeness}; अकाउंट के आंकड़े {owner}।"
+   },
+   "listen": {
+    "line": "आवाज़ सिर्फ़ मापी गई, किसी ने सुनी नहीं: खुद सुनकर जांचें {items}।",
+    "sep": ", ",
+    "last_sep": " और ",
+    "items": {
+     "music_fit": "संगीत की शैली और मूड मेल खाते हैं या नहीं",
+     "track_identity": "यह कौन सा गाना है",
+     "sung_or_spoken": "शब्द गाए गए हैं या बोले गए",
+     "voice_timbre": "आवाज़ कैसी लगती है",
+     "sfx_quality": "साउंड इफ़ेक्ट कैसे लगते हैं"
     }
    }
   }

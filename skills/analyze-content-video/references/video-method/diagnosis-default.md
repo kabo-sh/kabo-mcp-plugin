@@ -216,6 +216,22 @@ why:
   compare comment and view counts whose scopes differ.
 - Why it may have performed is a hypothesis; say what would test it.
 
+**A question about why it performed as it did** (why it took off or flopped, why so many views or
+comments) is answered from the public data first, in the summary and before any frame:
+
+1. The counts the evidence holds (plays, likes, comments, shares, saves), each with its platform
+   and date, and how they compare within this one post (likes against plays), described, not scored.
+2. What viewers said, only when comment text is in the evidence: the recurring reactions and their
+   tone, briefly quoted. Without it, give the comment count and say the comments were not read.
+3. The context the post names: the event, person, trend or date in its title, caption, tags or
+   on-screen text, and the audience that context brings before the video does anything.
+4. Then the craft: the two or three mechanisms above that may have helped or hurt, each labelled
+   a hypothesis.
+
+Never fill a gap with private numbers (retention, completion, reach, traffic source, follower
+share, an account average) unless the creator's own data is in the evidence; name the one that
+would test the hypothesis instead.
+
 ## 6. Sound: what may be said
 
 From heard or measured sound only. Broad, stable observations are fine: music or not, its general
@@ -241,7 +257,8 @@ mix were not analysed, and still use the words.
 
 - **Lead with the strongest insight.** Connect the viewer's desire, the creative device and the
   payoff into a plausible reason someone would watch or act. Then name the main opportunity. Do
-  not lead with a fact-check, a plot retelling or a feature list.
+  not lead with a fact-check, a plot retelling or a feature list. A question about why it
+  performed leads with the public data instead, as `performance` says.
 - **A strength says what to keep and why.** The moment, the mechanism, and what an edit must not
   break. Write strengths plainly; put a needed caveat once, where it matters, not after each one.
 - **A fix says where, why, and exactly how.** Where: time and what is on screen or said. Why: where

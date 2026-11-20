@@ -1,11 +1,11 @@
 {
   "schema_version": "video-method-index/v1",
-  "library_version": "1.1.0",
+  "library_version": "1.2.0",
   "cards": [
     {
       "id": "diagnosis-default",
       "file": "diagnosis-default.md",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "title": "Default video diagnosis",
       "base_for": [
         "diagnosis",

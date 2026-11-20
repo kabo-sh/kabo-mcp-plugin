@@ -84,7 +84,12 @@ def measurement_basis(evidence: dict, analysis: dict, view: dict) -> dict:
             raise ValueError("cannot derive data_note: the reported visual descriptions are missing")
         facts["frame_kind"] = "descriptions"
     elif status in ("unavailable", "not_attempted"):
-        facts["frame_kind"] = status
+        # A keyframes job still running when the observation deadline stopped the wait did not arrive in time:
+        # the line says so, rather than "frames not sampled", which reads as a choice.
+        late = any(record(entry).get("operation") == "extract_keyframes"
+                   and record(entry).get("status") in ("deferred_incomplete", "pending")
+                   for entry in evidence.get("acquisition") or [])
+        facts["frame_kind"] = "timed_out" if late else status
     else:
         raise ValueError("cannot derive data_note: the frame provenance is not known")
 
@@ -151,7 +156,7 @@ ZH_WORDS = {
                   for platform in public_video_sources.platform_ids()},
                "Local video file": "本地视频文件"},
     "frames": {"descriptions": "画面来自文字描述，未直接查看像素", "unavailable": "画面帧不可用",
-               "not_attempted": "未抽帧"},
+               "not_attempted": "未抽帧", "timed_out": "画面帧未能及时取回"},
     "transcript": {"platform captions": "平台字幕", "external transcript": "外部转写稿",
                    "machine transcript (wording unverified)": "机器转写（措辞未核实）",
                    "creator-supplied transcript (not checked against audio)": "创作者提供的文字稿（未与音频核对）",
@@ -193,7 +198,8 @@ def measurement_note(facts: dict, language: str = "en") -> str:
 def _en_note(facts: dict) -> str:
     kind = facts["frame_kind"]
     frames = {"descriptions": "reported visual descriptions, not inspected pixels",
-              "unavailable": "frames unavailable", "not_attempted": "frames not sampled"}.get(kind)
+              "unavailable": "frames unavailable", "not_attempted": "frames not sampled",
+              "timed_out": "frames did not arrive in time"}.get(kind)
     if kind == "extracted":
         frames = f"{facts['extracted_frames']} extracted frames"
         if "requested_frames" in facts:

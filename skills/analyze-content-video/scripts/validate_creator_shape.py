@@ -14,7 +14,8 @@ What this decides:
   * that a line offered for the creator to say is not lifted from the video being torn down;
   * that a figure inside such a line came from the evidence;
   * that the card proposing the change actually carries the instruction;
-  * that no field runs long enough to make the report something to read rather than act on.
+  * that no field runs long enough to make the report something to read rather than act on;
+  * that no field names a Skill id, a script or an evidence field path the creator does not know.
 
 What this does not decide: whether the columns actually pair. Line N of card 3 answering line N of
 card 2 is a claim about meaning, and an earlier rule that tried to pin the first card to the
@@ -101,6 +102,54 @@ FIELD_LIMITS = {
     "card.why_for_you": 480, "card.action": 320,
     "hook.purpose": 160, "hook.visual_direction": 240,
 }
+
+# Names the creator never reads. A pre-release run sent a creator to `create-script-and-packaging` and quoted
+# `media.probed.*` paths: ids and paths belong in `evidence_refs`, the prose says what they are in plain words. The
+# Skill ids are this repository's (skills.lock.json; a test keeps the two in step), since the Skill ships alone.
+SKILL_IDS = (
+    "analyze-content-video", "analyze-creator-competitors", "analyze-tiktok-competitors",
+    "create-script-and-packaging", "develop-content-ideas", "diagnose-reach-drop", "optimize-creator-brand",
+    "pick-daily-viral-videos", "plan-content-calendar", "plan-platform-monetization", "price-creator-brand-deals",
+    "recommend-publish-timing", "remake-viral-video", "research-instagram-trends", "research-tiktok-trends",
+    "research-youtube-trends", "review-creator-account", "review-creator-account-deep", "review-new-posts",
+    "review-thumbnail", "start-with-kabo", "verify-platform-rule",
+)
+EVIDENCE_ROOTS = ("media", "transcript", "content_metadata", "content_ref", "public_metrics", "derived",
+                  "viewer_observations", "frames", "images", "observations", "owner_metrics", "evidence_completeness",
+                  "deterministic")
+EVIDENCE_FIELDS = ("audio_attribution", "source_unavailable", "data_note", "listen_note", "evidence_refs",
+                   "sampling_plan", "hook_window_s", "why_for_you", "next_actions")
+# ASCII edges, not \b: in Chinese or Japanese prose a name sits right against the text around it.
+INTERNAL_NAME = re.compile(
+    r"(?<![A-Za-z0-9_-])(?:" + "|".join(re.escape(name) for name in SKILL_IDS) + r")(?![A-Za-z0-9_-])"
+    r"|(?<![A-Za-z0-9_])[A-Za-z_][A-Za-z0-9_]*\.py(?![A-Za-z0-9_])"
+    r"|(?<![A-Za-z0-9_])(?:" + "|".join(EVIDENCE_ROOTS) + r")(?:\.[a-z_*][A-Za-z0-9_*]*|\[\d+\])+"
+    r"|(?<![A-Za-z0-9_])(?:" + "|".join(EVIDENCE_FIELDS) + r")(?![A-Za-z0-9_])")
+# Fields the builder derives or that are not prose.
+NOT_PROSE = {"evidence_refs", "data_note", "listen_note", "language"}
+
+
+def internal_name_errors(view: dict) -> list[str]:
+    errors: list[str] = []
+
+    def walk(node, path: str) -> None:
+        if isinstance(node, dict):
+            for key, child in node.items():
+                if key not in NOT_PROSE:
+                    walk(child, f"{path}.{key}")
+        elif isinstance(node, list):
+            for index, child in enumerate(node):
+                walk(child, f"{path}[{index}]")
+        elif isinstance(node, str):
+            for found in dict.fromkeys(match.group(0) for match in INTERNAL_NAME.finditer(node)):
+                errors.append(
+                    f"{path} names {found!r}, an internal Skill, script or evidence field name the creator "
+                    "does not know. Say what it is in plain words (the caption, the measured loudness, a review "
+                    "of the whole account); ids go in evidence_refs only")
+
+    walk(view, "creator_view")
+    return errors
+
 
 # Digits only. Chinese numerals in "前三秒" ("the first three seconds") are prose, not a claim about a measured quantity.
 NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
@@ -556,6 +605,7 @@ def check(result: dict, analysis: dict, evidence: dict, computed: list | None = 
         authored_view.pop("data_note", None)
     authored_view.pop("listen_note", None)
     errors.extend(figure_errors(authored_view, source_values(analysis, evidence, *(computed or []))))
+    errors.extend(internal_name_errors(view))
     return errors
 
 

@@ -186,6 +186,9 @@ const LOCALIZED = {
   ja: { tag: "ja-JP", action: "変えること", next: "次にやること", source: "YouTubeの動画", unknown: "不明" },
   ko: { tag: "ko", action: "바꿀 점", next: "다음 단계", source: "YouTube 영상", unknown: "알 수 없음" },
   id: { tag: "id-ID", action: "Yang perlu diubah", next: "Langkah berikutnya", source: "Video YouTube", unknown: "tidak diketahui" },
+  vi: { tag: "vi-VN", action: "Cần thay đổi gì", next: "Bước tiếp theo", source: "Video YouTube", unknown: "không rõ" },
+  ar: { tag: "ar-SA", action: "ما الذي تغيّره", next: "الخطوات التالية", source: "فيديو YouTube", unknown: "غير معروف" },
+  hi: { tag: "hi-IN", action: "क्या बदलें", next: "अगले कदम", source: "YouTube वीडियो", unknown: "अज्ञात" },
 };
 const LOCALE_EVIDENCE = `
 evidence = {"content_ref": {"platform": "youtube"}, "owner_metrics": {"status": "unavailable"},
@@ -201,8 +204,8 @@ def view(language):
             "cards": [dict(card), dict(card), dict(card, hooks=[hook])], "next_actions": ["go"]}
 `;
 
-test("report labels and data_note: es, pt, de, fr, ja, ko and id render in their own language; an unlisted one in English", () => {
-  const tags = Object.values(LOCALIZED).map((entry) => entry.tag).concat(["vi", "en"]);
+test("report labels and data_note: es, pt, de, fr, ja, ko, id, vi, ar and hi render in their own language; an unlisted one in English", () => {
+  const tags = Object.values(LOCALIZED).map((entry) => entry.tag).concat(["nl", "en"]);
   const out = probe(`
 from creator_measurement_basis import canonical_note, note_matches
 from render_video_report import render
@@ -228,7 +231,7 @@ for tag in ${JSON.stringify(tags)}:
                 "edited": note_matches(note.replace("14", "15"), evidence, analysis, v),
                 "another language": note_matches(canonical_note(evidence, analysis, view("de" if tag != "de" else "fr")), evidence, analysis, v)}
 print(json.dumps(out, ensure_ascii=False))`);
-  assert.deepEqual(out.locales, ["de", "es", "fr", "id", "ja", "ko", "pt"]);
+  assert.deepEqual(out.locales, ["ar", "de", "es", "fr", "hi", "id", "ja", "ko", "pt", "vi"]);
   const labels = (text) => [...text.matchAll(/\*\*([^*]+)\*\*(?: : |: |：)/g)].map((match) => match[1]);
   const catalog = JSON.parse(readFileSync(path.join(root, "skills/analyze-content-video/references/report-locales.json"), "utf8")).languages;
   for (const [code, expected] of Object.entries(LOCALIZED)) {
@@ -253,13 +256,23 @@ print(json.dumps(out, ensure_ascii=False))`);
     assert.ok(got.image.includes(expected.unknown), `${code}: ${got.image}`);
     assert.doesNotMatch(got.image, /Image post|owner metrics/, code);
   }
+  // Every listed language carries the same keys as Spanish, the first one added.
+  for (const code of Object.keys(LOCALIZED)) {
+    for (const part of ["labels", "note", "listen"]) {
+      assert.deepEqual(Object.keys(catalog[code][part]).sort(), Object.keys(catalog.es[part]).sort(), `${code}.${part}`);
+    }
+    for (const part of ["frames", "transcript", "owner_status"]) {
+      assert.deepEqual(Object.keys(catalog[code].note[part]).sort(), Object.keys(catalog.es.note[part]).sort(), `${code}.note.${part}`);
+    }
+    assert.deepEqual(Object.keys(catalog[code].listen.items).sort(), Object.keys(catalog.es.listen.items).sort(), `${code}.listen.items`);
+  }
   // A language with no catalog entry, and English itself, keep the English wording.
-  assert.equal(out.vi.note, out.english);
+  assert.equal(out.nl.note, out.english);
   assert.equal(out.en.note, out.english);
-  assert.equal(out.vi.own, out.en.own);
-  assert.match(out.vi.own, /\*\*What to change\*\*: do it/);
-  assert.match(out.vi.image, /^Image post: 4\/5 returned positions available/);
-  assert.equal(out.vi["another language"], false);
+  assert.equal(out.nl.own, out.en.own);
+  assert.match(out.nl.own, /\*\*What to change\*\*: do it/);
+  assert.match(out.nl.image, /^Image post: 4\/5 returned positions available/);
+  assert.equal(out.nl["another language"], false);
 });
 
 // A video the dense windows cover whole has no body grid: the plan's body interval is null (0.0 in local plans
@@ -325,7 +338,7 @@ def built(tag, sound, viewer=None, authored=None):
         v["listen_note"] = authored
     return build({"creator_view": v}, analysis, ev, {"source": {"acquisition": "local_file"}}), ev
 out = {}
-for tag in ("zh-CN", "en", "es", "ja", "vi"):
+for tag in ("zh-CN", "en", "es", "ja", "hi", "nl"):
     result, ev = built(tag, audio)
     out[tag] = {"line": result["creator_view"].get("listen_note"), "report": render(result)}
 out["viewer heard it"] = "listen_note" in built("en", audio, viewer="available")[0]["creator_view"]
@@ -347,8 +360,9 @@ print(json.dumps(out, ensure_ascii=False))`);
   assert.match(out.en.line, /^The sound was measured, not listened to:/);
   assert.match(out.es.line, /^El sonido solo se midió/);
   assert.match(out.ja.line, /^音は測定しただけで/);
-  assert.equal(out.vi.line, out.en.line);
-  for (const tag of ["zh-CN", "en", "es", "ja"]) {
+  assert.match(out.hi.line, /^आवाज़ सिर्फ़ मापी गई/);
+  assert.equal(out.nl.line, out.en.line);
+  for (const tag of ["zh-CN", "en", "es", "ja", "hi"]) {
     const lines = out[tag].report.split("\n");
     const note = lines.findIndex((line) => line.startsWith("*") && line.endsWith("*") && !line.startsWith("**"));
     assert.ok(note > 0, out[tag].report);
@@ -413,7 +427,7 @@ print(json.dumps(out, ensure_ascii=False))`);
     ["music_fit", "track_identity", "sung_or_spoken"].indexOf(a) - ["music_fit", "track_identity", "sung_or_spoken"].indexOf(b)));
   assert.deepEqual(out.items.nothing, []);
   const codes = Object.keys(out.phrases);
-  assert.deepEqual(codes.sort(), ["de", "en", "es", "fr", "id", "ja", "ko", "pt", "zh"]);
+  assert.deepEqual(codes.sort(), ["ar", "de", "en", "es", "fr", "hi", "id", "ja", "ko", "pt", "vi", "zh"]);
   for (const code of codes) {
     const { items } = out.phrases[code];
     assert.equal(out.lines.nothing[code], null, code);
@@ -469,4 +483,67 @@ print(json.dumps({
   assert.equal(out["unknown observation"][1].status, "needs_correction");
   assert.deepEqual(out.view, [3, { status: "needs_correction", step: "build_creator_result.py",
     violations: ["creator_view.headline runs 90 columns against a 60 limit"] }]);
+});
+
+// A pre-release report printed "## 你的下一条怎么做" ("what to do in yours") and, under it, the action labelled
+// "**你的下一条怎么做**：" again: the card's heading was the label word for word. The heading stands; the line goes unlabelled.
+test("renderer: a card whose heading already is its action label does not repeat it", () => {
+  const out = probe(`
+from render_video_report import render
+def report(subject, titles, language):
+    cards = [{"title": title, "why_for_you": "a\\nb\\nc", "action": f"act {i}"} for i, title in enumerate(titles)]
+    return render({"creator_view": {"language": language, "headline": "H", "cards": cards}, "details": {"subject_state": subject}})
+print(json.dumps({
+  "zh": report("third_party", ["它为什么能打动人", "照搬会继承的问题", "你的下一条怎么做"], "zh"),
+  "en": report("own_published", ["What works", "What holds it back", "What to change:"], "en"),
+  "distinct": report("third_party", ["What works", "What you would inherit", "Your next video"], "en"),
+}, ensure_ascii=False))`);
+  assert.equal(out.zh.split("你的下一条怎么做").length - 1, 1, out.zh);
+  assert.match(out.zh, /## 你的下一条怎么做\n\n- a\n- b\n- c\n\nact 2\n$/);
+  assert.equal(out.en.split("What to change").length - 1, 1, out.en);
+  assert.match(out.distinct, /\*\*What to do in yours\*\*: act 2\n$/);
+});
+
+// Creator-facing text named a Skill id ("create-script-and-packaging") and evidence paths ("media.probed.*") in a
+// pre-release run. The view check reports each as a correction, never as a failed step, and leaves ids in
+// evidence_refs and the derived lines alone.
+test("view check: Skill ids, script names and evidence field paths in creator-facing text need correction", async () => {
+  const lock = JSON.parse(await readFile(path.join(root, "skills.lock.json"), "utf8"));
+  const out = probe(`
+from validate_creator_shape import SKILL_IDS, internal_name_errors
+from finish_diagnosis import view_can_fix
+view = {"language": "zh", "headline": "H", "summary": "响度见media.probed.loudness，第3句transcript.cue[3]。",
+        "data_note": "media.probed is derived", "cards": [
+          {"title": "T", "why_for_you": "a\\nb\\nc", "action": "keep the frames. Then cut", "evidence_refs": ["observations.o1", "media.probed.loudness"]},
+          {"title": "U", "why_for_you": "a\\nb\\nc", "action": "the platform's sound label says original audio"},
+          {"title": "V", "why_for_you": "a\\nb\\nc", "action": "run render_video_report.py", "hooks": [{"visual_direction": "audio_attribution 显示原声"}]}],
+        "next_actions": ["用 create-script-and-packaging 写下一条", "ask for a review of the whole account"]}
+found = internal_name_errors(view)
+print(json.dumps({"ids": sorted(SKILL_IDS), "found": found, "fixable": view_can_fix(found)}, ensure_ascii=False))`);
+  assert.deepEqual(out.ids, lock.skills.map((skill) => skill.id).sort(), "SKILL_IDS follows skills.lock.json");
+  const names = out.found.map((message) => /names '([^']+)'/.exec(message)[1]);
+  assert.deepEqual(names, ["media.probed.loudness", "transcript.cue[3]", "render_video_report.py", "audio_attribution",
+    "create-script-and-packaging"]);
+  assert.ok(out.found.every((message) => /^creator_view\.(summary|cards\[2\]\.(action|hooks\[0\]\.visual_direction)|next_actions\[0\]) /.test(message)), out.found.join("\n"));
+  assert.equal(out.fixable, true);
+});
+
+// When the observation deadline stops the wait before the frames arrive, the measurement line says so in every
+// report language instead of "frames not sampled", which reads as a choice.
+test("data_note: frames still running at the observation deadline did not arrive in time", () => {
+  const out = probe(`
+from creator_measurement_basis import canonical_note
+from report_locale import LOCALES
+${LOCALE_EVIDENCE}
+late = dict(evidence, frames={"status": "not_attempted", "items": []},
+            acquisition=[{"operation": "extract_keyframes", "status": "deferred_incomplete"}])
+skipped = dict(late, acquisition=[])
+print(json.dumps({"en": canonical_note(late, analysis, view("en")), "zh": canonical_note(late, analysis, view("zh")),
+                  "skipped": canonical_note(skipped, analysis, view("en")),
+                  "locales": {code: canonical_note(late, analysis, view(code)) for code in LOCALES},
+                  "words": {code: LOCALES[code]["note"]["frames"]["timed_out"] for code in LOCALES}}, ensure_ascii=False))`);
+  assert.match(out.en, /^YouTube video; frames did not arrive in time; 0 cited frame refs;/);
+  assert.match(out.zh, /画面帧未能及时取回/);
+  assert.match(out.skipped, /frames not sampled/);
+  for (const [code, note] of Object.entries(out.locales)) assert.ok(note.includes(out.words[code]), `${code}: ${note}`);
 });
