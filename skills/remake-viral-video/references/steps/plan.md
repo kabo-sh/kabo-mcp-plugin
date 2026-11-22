@@ -116,6 +116,10 @@ When the reference plays in clear segments (an opening hook, a setup, the turns,
 call to action), add `skeleton` at the top: each segment with its job, its share of the length and
 its shots, every shot in exactly one segment, in order (fields in `params.md`). Leave the sound
 levels (`audio_plan`) out: the defaults duck the music under the voice.
+When the user states the output itself -- a size (`720x1280`), a shape (16:9, landscape, 9:16), a
+frame rate (24 fps) or a limit ("under 60 s") -- write it at the top as `output: {aspect, width,
+height, fps, max_s}` (only what was said, in numbers): the delivery is made to it. Without one the
+video keeps the reference's shape; a platform word (TikTok, Reels, Shorts) means 9:16.
 `total_s` follows the reference when there is one. Without one (the creator's request and
 material only) and with no length asked for, plan the length the format needs, not the fewest
 seconds the material fills: a product or brand promo runs about 20-30 s, an explainer or a story as
@@ -188,6 +192,26 @@ Write the prompt yourself from `picture`, `form` (`avoid`), the `look` of each
 character in the row's `on_screen_cast`, and the style
 card, as step 4 above says, and save it into the row when you save the storyboard again.
 
+## What the change needs: make it, do not ask for it
+
+A change of words or theme, of a character or of a place needs material the reference does not
+have. Make it in the plan, before the shots, never ask the creator for it:
+
+- **New words or a new theme**: write the new script into the rows -- each row's `words` and the
+  action it shows in `picture`/`motion`, the same rows, beats and lengths as the reference. A
+  reference without speech (a pet or object story) changes by its actions: write the new action
+  of every row and keep the rows' contacts and results (who holds what, what ends up where).
+- **A new character**: a `characters` entry with its full look and a `voice` (a preset
+  `{language, gender, age}`), then one character sheet `still` (`params.sheet_for`) before any
+  shot with them; every row they speak in names them as `speaker`.
+- **A new place, time of day or light**: an `environments` entry per place with its look and
+  light, and a `still` of it from the reference's camera positions (wide, and reverse when the
+  reference cuts between two sides) registered as its sheet; every row names its `location`.
+
+Only what cannot be invented is asked for, once: the creator's own face or voice, and real product
+footage or screens (what an app or product really does). Without it, say plainly what is missing
+and leave it out -- never stand in an illustrated card for a real product demo.
+
 ## Length, actions and who does them
 
 **Length.** Set `target_s` on the storyboard to the length the video must have -- the user's stated
@@ -197,6 +221,10 @@ words/s brisk dialogue). If the save notes say the rows miss the target, fix the
 target. For narration and voice-over, give every shot its own line (`tts` + `mux` with
 `params.shot`) and join with `concat` `params.shots: "all"`; never lay one voice track over the
 whole cut -- the join then fits each shot to its share, a pause after its line.
+The storyboard's length holds: a voice shorter than the plan never shortens the picture (no
+`fit: "voice"` or `retime` of the whole cut to the voice); make the missing lines or let shots run
+under music. Build the voice track row by row in storyboard order, each line once; the delivery
+receipt names a line heard twice, out of order or missing -- fix it and deliver again.
 
 **What the creator asked to see.** Put what the creator explicitly asked to see in
 `storyboard.asked` as short phrases ("cutting the noodles", "plating the ramen"); every item gets
