@@ -419,9 +419,10 @@ def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
     interval is rounded.
 
     `overview_units` (the per-second change units of acv_timing.change_units, None without an overview) switch a
-    video longer than acv_timing.OVERVIEW_ABOVE_S to the overview plan: shot starts take at most half of what the
-    opening and closing leave, the windows' body need is the change candidates outside them, and change frames then
-    anchors take the place of the body grid (acv_timing's docstring). Up to that length the plan is unchanged.
+    video longer than acv_timing.OVERVIEW_ABOVE_S to the overview plan: the windows first keep what they need at twice
+    their requested interval (the first 50s at one frame a second) and shot starts get only what is left after that,
+    the windows' body need is the change candidates and anchors outside them, and change frames then anchors take the
+    place of the body grid (acv_timing's docstring). Up to that length the plan is unchanged.
     """
     hook_interval_s = base_interval_s / hook_multiplier
     overview = overview_units is not None and duration_s > acv_timing.OVERVIEW_ABOVE_S
@@ -446,6 +447,37 @@ def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
     left = budget - len(fixed)
 
     shot_frames: list[float] = []
+    # The windows, clipped to the duration; `lay` places them at a whole factor of their intervals, deduped against
+    # the opening, the closing and the shot starts kept so far.
+    clipped = []
+    for window in list(dense_windows)[:MAX_DENSE_WINDOWS]:
+        start, end = round(min(window["start_s"], duration_s), 3), round(min(window["end_s"], duration_s), 3)
+        clipped.append({"start_s": start, "end_s": end, "requested": window["interval_s"],
+                        "clipped": window["end_s"] > duration_s, "usable": end > start})
+
+    def lay(factor: int) -> list[dict]:
+        accepted: list[float] = []
+        placed = []
+        for window in clipped:
+            if not window["usable"]:
+                placed.append({"interval_s": window["requested"], "skip": 0, "kept": []})
+                continue
+            interval = round(window["requested"] * factor, 3)
+            count = max(1, math.ceil(_ms(window["end_s"] - window["start_s"]) / _ms(interval)))
+            within = min(DEDUPE_S, interval / 2)
+            kept, skip = [], 0
+            for at in (round(window["start_s"] + step * interval, 3) for step in range(count)):
+                if _near(at, fixed + shot_frames, within) or _near(at, accepted, within):
+                    skip += 1
+                else:
+                    kept.append(at)
+                    accepted.append(at)
+            placed.append({"interval_s": interval, "skip": skip, "kept": kept})
+        return placed
+
+    # On the overview plan the opening comes before the cuts: the windows keep what they need at twice their requested
+    # interval (the default first 50s at one frame a second), and the shot starts get only what is left after that.
+    opening_reserve = min(max(0, left), sum(len(entry["kept"]) for entry in lay(2))) if overview else 0
     if shots_requested:
         for cut in sorted({round(cut, 3) for cut in cuts}):  # repeated cuts count once, as the connector counts them
             at = round(cut + SHOT_START_OFFSET_S, 3)
@@ -455,7 +487,7 @@ def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
                 dropped_duplicate["shot_start"] += 1
                 continue
             shot_frames.append(at)
-        kept = _even_pick(shot_frames, max(0, left) // 2 if overview else max(0, left))
+        kept = _even_pick(shot_frames, max(0, left - opening_reserve))
         dropped_budget["shot_start"] = len(shot_frames) - len(kept)
         shot_frames = kept
     left -= len(shot_frames)
@@ -476,38 +508,13 @@ def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
         # at one frame a second (cap = max(half, left - that need)). Over the cap every window's interval is multiplied
         # by the same whole factor until they fit (or each is down to its first frame), then the windows are taken in
         # order, each whole or not at all.
-        clipped = []
-        for window in list(dense_windows)[:MAX_DENSE_WINDOWS]:
-            start, end = round(min(window["start_s"], duration_s), 3), round(min(window["end_s"], duration_s), 3)
-            clipped.append({"start_s": start, "end_s": end, "requested": window["interval_s"],
-                            "clipped": window["end_s"] > duration_s, "usable": end > start})
         usable = [window for window in clipped if window["usable"]]
         outside = uncovered_stretches(body_from_ms, body_to_ms, usable)
         # On the overview plan the body outside the windows needs its change candidates and one anchor per 10s.
         body_need = 0 if closing_start is None else (
             len(candidates_outside(usable)) + sum((until - since) // acv_timing.ANCHOR_GAP_MS for since, until in outside)
             if overview else sum((until - since) // 1000 for since, until in outside))
-        cap = max(max(0, left) // 2, left - body_need)
-
-        def lay(factor: int) -> list[dict]:
-            accepted: list[float] = []
-            placed = []
-            for window in clipped:
-                if not window["usable"]:
-                    placed.append({"interval_s": window["requested"], "skip": 0, "kept": []})
-                    continue
-                interval = round(window["requested"] * factor, 3)
-                count = max(1, math.ceil(_ms(window["end_s"] - window["start_s"]) / _ms(interval)))
-                within = min(DEDUPE_S, interval / 2)
-                kept, skip = [], 0
-                for at in (round(window["start_s"] + step * interval, 3) for step in range(count)):
-                    if _near(at, fixed + shot_frames, within) or _near(at, accepted, within):
-                        skip += 1
-                    else:
-                        kept.append(at)
-                        accepted.append(at)
-                placed.append({"interval_s": interval, "skip": skip, "kept": kept})
-            return placed
+        cap = max(max(0, left) // 2, left - body_need, opening_reserve)
 
         requested = lay(1)
         requested_kept = sum(len(entry["kept"]) for entry in requested)

@@ -431,6 +431,20 @@ class OverviewPlanTest(unittest.TestCase):
             # Spread over the video, not bunched at its start.
             self.assertGreater(max(changes), duration / 2, duration)
 
+    def test_a_cut_heavy_ten_minutes_keeps_the_opening_at_one_frame_a_second(self) -> None:
+        """The opening before the cuts: 119 cuts on a 10-minute video no longer thin the first 50s past one frame a
+        second; the shot starts take what is left after it."""
+        cuts = [second * 5 - 0.4 for second in range(1, 120)]
+        plan = self.plan(600.0, self.units(600.0, every=5), cuts)
+        kinds, times = plan["_kinds"], plan["_timestamps"]
+        self.assertEqual(120, len(kinds))
+        self.assertEqual((6, 4, 47, 63), tuple(kinds.count(kind) for kind in ("hook", "closing", "dense_window",
+                                                                             "shot_start")))
+        self.assertEqual(1.0, plan["dense_windows"][0]["interval_s"])
+        opening = sorted(at for at in times if at < 50)
+        self.assertLessEqual(max(later - earlier for earlier, later in zip(opening, opening[1:])), 1.0)
+        self.assertEqual(56, plan["dropped_for_budget"]["shot_start"])
+
     def test_a_static_video_spends_frames_only_on_anchors_in_long_gaps(self) -> None:
         quiet = [(0, 0)] * self.timing.overview_layout(300.0)["tiles"]
         plan = self.plan(300.0, quiet)

@@ -25,10 +25,12 @@ Videos up to 50 s (`OVERVIEW_ABOVE_S`, where the default dense window ends) keep
    9:16 tiles is at most 1558 x 736 px (or 874 x 1288): about 1.1 MP.
 
 2. **High-resolution frames** (720 px long edge, the frames read one at a time or as 2x2 contact sheets), at most
-   `max_frames` (120), in this priority: the opening 3 s and the closing 2 s every 0.5 s; one frame 0.05 s after
-   each cut (at most half of what those leave); the dense windows (the default first 50 s every 0.5 s and the
-   method cards' windows, with the connector's half-budget cap where the "body need" is the change candidates
-   outside the windows plus one anchor per whole 10 s outside them); then **change frames**; then **anchors**. The uniform body grid is gone: the
+   `max_frames` (120), in this priority: the opening 3 s and the closing 2 s every 0.5 s; **the opening before the
+   cuts**: the dense windows (the default first 50 s every 0.5 s and the method cards' windows) are first reserved
+   what they need at twice their requested interval, so the first 50 s keep about one frame a second (47 frames);
+   one frame 0.05 s after each cut gets only what is left after that reserve; the windows then take
+   max(reserve, the connector's half-budget cap where the "body need" is the change candidates outside the windows
+   plus one anchor per whole 10 s outside them); then **change frames**; then **anchors**. The uniform body grid is gone: the
    overview already shows every second.
 
    Change frames come from a 64 x 64 luma grid of each overview second (one ffmpeg pass writes the grid and the

@@ -12,7 +12,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const PARITY_SHA256 = "689cf1703d92a55cd5cc2a3733cd200e12c81c7df6b1b817399db0ae9dfe172f";
+const PARITY_SHA256 = "ae6292665babf955d1a750599aff07276013f90f651097442aa4571ecdacb64a";
 
 test("the overview golden vectors are the file the connector's test pins", () => {
   const raw = readFileSync(new URL("fixtures/acv-overview-parity.json", import.meta.url));
