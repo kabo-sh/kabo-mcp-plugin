@@ -207,6 +207,11 @@ have. Make it in the plan, before the shots, never ask the creator for it:
 - **A new place, time of day or light**: an `environments` entry per place with its look and
   light, and a `still` of it from the reference's camera positions (wide, and reverse when the
   reference cuts between two sides) registered as its sheet; every row names its `location`.
+  To keep a shot's exact motion in the new place, make its new first picture from the shot's own
+  first `frame` (a `still` with that frame as ref: same subjects, poses and camera, the new place
+  and light), then `refvideo` with the shot's `trim` as `ref_video` and that still as
+  `first_frame` (`kling/v4/reference-to-video`). A `refvideo` without the new first frame copies
+  the reference's room.
 
 Only what cannot be invented is asked for, once: the creator's own face or voice, and real product
 footage or screens (what an app or product really does). Without it, say plainly what is missing
