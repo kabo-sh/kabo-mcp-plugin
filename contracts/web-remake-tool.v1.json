@@ -1,6 +1,6 @@
 {
  "source": "kabo-agent-service",
- "commit": "f69f3cba1a71d1f25338cf2d9a5f21f2abf02c73",
+ "commit": "6c94a63a45029dc25ef2ec8338097a37e38ba915",
  "atom": {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [

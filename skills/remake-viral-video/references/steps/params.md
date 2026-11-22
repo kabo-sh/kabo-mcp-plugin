@@ -1,7 +1,7 @@
 # Step parameters (generated -- do not edit)
 
 Generated from the Web host's own schema (`contracts/web-remake-tool.v1.json`, kabo-agent-service
-`scripts/remake-skill-schema.ts` at f69f3cba1a71d1f25338cf2d9a5f21f2abf02c73) by `scripts/remake-params-gen.mjs`.
+`scripts/remake-skill-schema.ts` at 6c94a63a45029dc25ef2ec8338097a37e38ba915) by `scripts/remake-params-gen.mjs`.
 These are the exact shapes the host accepts; where any other file in this Skill reads
 differently, this file is right. A field not listed under a step is refused on that step.
 `?` / (optional) = may be left out; `a | b` = one of; `[x, ...] (2-8 items)` = a list;
