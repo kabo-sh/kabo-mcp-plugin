@@ -51,9 +51,13 @@ At most one whole-video analysis is started per run: its idempotency key never c
 call after a lost answer replays the same analysis instead of starting a paid second one.
 
 The whole observation has one deadline, `observation_order.OBSERVE_DEADLINE_S` (330 seconds) from the first
-hand-over, the same on every host. At the deadline it stops waiting: a job or viewing still running is recorded as
-not arrived in time (a `--deferred-incomplete` job and one limitation line), a fallback starts only while enough of
-the deadline is left for it to finish (`observation_order.MIN_LEFT_S`), and the run goes on with what arrived.
+hand-over, the same on every host. It bounds when the last hand-over ends, not only when it starts: each call waits
+inside its tool, so a media poll or a viewing's reading is handed over only while what is left still covers its wait
+plus a margin (`observation_order.round_waits`; the media poll first, the reading with what remains, its `wait_s`
+shortened to fit). When it no longer fits, the observation stops waiting at once: a job or viewing still running is
+recorded as not arrived in time (a `--deferred-incomplete` job and one limitation line), exactly as at the deadline
+itself. A fallback starts only while enough of the deadline is left for it to finish
+(`observation_order.MIN_LEFT_S`), and the run goes on with what arrived.
 The status line says how it ended: `observed`, `timed_out` (nothing to look at arrived in time) or
 `source_unavailable` (the video itself could not be read: a result said so, or every source came back empty).
 """
@@ -93,11 +97,11 @@ SIDE_TOOLS = set(observation_order.SIDE_CALLS.values())
 # At most this many frames per read: hosts cap the images one tool result may show.
 READ_CHUNK = 15
 # A reading waits inside the call for a final status (`wait_s`), the way collect_video_media waits for its jobs.
-# 45 seconds, the same budget as collect_media.py: it keeps the call inside the 60-second tool timeout some hosts
-# (Codex) apply. The submission itself does not wait (docs/skills-spec.md KS8, decision of 2026-10-20). Where a reading still comes back sooner (a host or server that does not
+# 45 seconds (observation_order.CALL_WAIT_S), the same budget as collect_media.py: it keeps the call inside the
+# 60-second tool timeout some hosts (Codex) apply. Near the observation deadline it is shortened to what is left. The submission itself does not wait (docs/skills-spec.md KS8, decision of 2026-10-20). Where a reading still comes back sooner (a host or server that does not
 # wait), the script waits out the rest of POLL_INTERVAL_S since the hand-over itself (inside one command, well
 # under the hosts' one-minute command limit), so a poll costs one model turn per interval, not one per second.
-VIEWER_WAIT_S = 45
+VIEWER_WAIT_S = observation_order.CALL_WAIT_S
 POLL_INTERVAL_S = 40
 # A completed result whose download expired or could not be read is asked for again with get_analysis_run (it only
 # reads; nothing is re-run or charged): with a new link after an expiry, inline otherwise. At most this many times.
@@ -219,8 +223,16 @@ def deadline_left(current: dict[str, Any]) -> float:
 
 
 def time_for(current: dict[str, Any], source: str) -> bool:
-    """Whether enough of the deadline is left to start `source` and still see it finish."""
-    return deadline_left(current) >= observation_order.MIN_LEFT_S.get(source, 0)
+    """Whether enough of the deadline is left to start `source` and still see it finish: at least its MIN_LEFT_S,
+    and never less than one full call wait plus the margin."""
+    return deadline_left(current) >= max(observation_order.MIN_LEFT_S.get(source, 0),
+                                         observation_order.CALL_WAIT_S + observation_order.HAND_OVER_MARGIN_S)
+
+
+def operation_words(current: dict[str, Any]) -> list[str]:
+    """What the current media call's operations would have brought, in the limitation line's words."""
+    names = [collect_media.OPERATIONS.get(name, name) for name in current["media"].get("operations") or []]
+    return [OPERATION_WORDS.get(name, name) for name in names if name in OPERATION_WORDS] or ["the media"]
 
 
 # What each media operation brings, in the words the limitation line uses.
@@ -242,7 +254,7 @@ def record_timeout(current: dict[str, Any], what: list[str]) -> None:
                               if not line.startswith(observation_order.DEADLINE_MARK)] + [text]
 
 
-def viewer_arguments(current: dict[str, Any], *, start: bool) -> dict[str, Any]:
+def viewer_arguments(current: dict[str, Any], *, start: bool, wait_s: int = VIEWER_WAIT_S) -> dict[str, Any]:
     viewer = current["viewer"]
     if current.get("legacy_viewer_args"):
         # A server that does not know wait_s / delivery yet: the original arguments, answered inline, polled at the
@@ -254,18 +266,23 @@ def viewer_arguments(current: dict[str, Any], *, start: bool) -> dict[str, Any]:
     if viewer.get("redeliver") == "inline":
         # The finished result once more, in the answer itself: its download could not be used here.
         return {"analysis_id": viewer["analysis_id"], "delivery": "inline"}
-    return {"analysis_id": viewer["analysis_id"], "wait_s": VIEWER_WAIT_S, "delivery": "download"}
+    return {"analysis_id": viewer["analysis_id"], "wait_s": int(wait_s), "delivery": "download"}
 
 
-def media_namespace(current: dict[str, Any]) -> SimpleNamespace:
+def media_namespace(current: dict[str, Any], wait_s: int | None = None) -> SimpleNamespace:
     operations = current["media"]["operations"]
     return SimpleNamespace(url=current["url"], operations=operations, max_frames=collect_media.MAX_FRAMES,
-                           frame_options=collect_media.frame_options() if "keyframes" in operations else {})
+                           frame_options=collect_media.frame_options() if "keyframes" in operations else {},
+                           wait_s=wait_s)
 
 
 def hand_over_calls(current: dict[str, Any], *, start_viewer: bool, poll_viewer: bool, media: bool,
-                    note: str = "", side: list[str] | tuple[str, ...] = ()) -> None:
-    """Print the calls still needed this round, the file for each, and the one resume command."""
+                    note: str = "", side: list[str] | tuple[str, ...] = (), viewer_wait_s: int = VIEWER_WAIT_S,
+                    media_wait_s: int | None = None) -> None:
+    """Print the calls still needed this round, the file for each, and the one resume command.
+
+    `viewer_wait_s` / `media_wait_s` are the waits the deadline still covers (observation_order.round_waits); the
+    media call sends its own only when shorter than the tool's."""
     # KS9: each call site is counted in fetch-orchestration.test.mjs HANDOVER_SITES, which says what each one is:
     # the observation request (or its single fallback), the bounded wait on the same jobs (each reading waits
     # inside the tool, wait_s), and the viewing started after the media call reported the duration, the one
@@ -276,10 +293,10 @@ def hand_over_calls(current: dict[str, Any], *, start_viewer: bool, poll_viewer:
         calls.append((START_TOOL, viewer_arguments(current, start=True), file))
     elif poll_viewer:
         file = slot(POLL_TOOL)
-        calls.append((POLL_TOOL, viewer_arguments(current, start=False), file))
+        calls.append((POLL_TOOL, viewer_arguments(current, start=False, wait_s=viewer_wait_s), file))
     if media:
         file = slot(MEDIA_TOOL)
-        calls.append((MEDIA_TOOL, collect_media.call_arguments(media_namespace(current)), file))
+        calls.append((MEDIA_TOOL, collect_media.call_arguments(media_namespace(current, media_wait_s)), file))
         media_state = collect_media.state()
         media_state.setdefault("awaiting", []).append(str(file))
         media_state["handed_at"] = now().isoformat()
@@ -374,7 +391,11 @@ def begin(current: dict[str, Any], note: str = "") -> int:
     side = [name for name, entry in (current.get("side") or {}).items() if entry["make"] and not entry["handed"]]
     if not start_viewer and not start_media and not side:
         return settle(current)
-    hand_over_calls(current, start_viewer=start_viewer, poll_viewer=False, media=start_media, note=note, side=side)
+    # A media call started now waits inside the tool too: never past what the deadline covers (time_for already
+    # kept a fallback from starting without a full wait).
+    media_wait = (observation_order.round_waits(deadline_left(current), 1) or [None])[0] if start_media else None
+    hand_over_calls(current, start_viewer=start_viewer, poll_viewer=False, media=start_media, note=note, side=side,
+                    media_wait_s=media_wait)
     return 0
 
 
@@ -848,37 +869,51 @@ def resume(args: argparse.Namespace) -> int:
     save_state(current)
 
     viewer = current["viewer"]
-    in_time = deadline_left(current) > 0
-    # A finished result whose download must be asked for again is read again whatever the time: those readings are
-    # bounded by MAX_REDELIVERIES and wait for nothing.
+    retry = viewer.pop("legacy_retry", None)
+    left = deadline_left(current)
+    # A new hand-over waits inside its tool, so it starts only while the deadline still covers that wait plus the
+    # margin (observation_order.round_waits): the media poll first, the viewing's reading with what remains, its
+    # wait_s shortened to fit. What no longer fits stops now and is recorded as not arrived in time, as at the
+    # deadline itself. A finished result whose download must be asked for again is read again whatever the time:
+    # those readings are bounded by MAX_REDELIVERIES and wait for nothing.
+    covered = bool(observation_order.round_waits(left, 1))
+    viewer_polls = bool(viewer.get("active") and not viewer.get("done") and not viewer.get("redeliver")
+                        and retry != START_TOOL and int(viewer.get("polls") or 0) < MAX_POLLS)
+    media_open = bool(current["media"].get("active") and not current["media"].get("done") and not media_refused)
+    pending = media_pending(current) if media_open else 0
+    rounds_left = int(collect_media.state().get("rounds") or 0) < collect_media.MAX_ROUNDS
+    # The keyframes item failed on the frame options (validation_error) while the other items ran: the same call
+    # once more without them, if it fits.
+    resend = media_refused or bool(media_open and not pending and collect_media.options_refused_in(
+        static_host.composite_records(MEDIA_TOOL)[-1]))
+    media_wants = bool(pending and rounds_left) or resend
+    waits = observation_order.round_waits(left, int(media_wants) + int(viewer_polls))
+    media_wait = waits.pop(0) if media_wants and waits else None
+    viewer_wait = waits.pop(0) if viewer_polls and waits else None
     viewer_waiting = bool(viewer.get("active") and not viewer.get("done")
-                          and (viewer.get("redeliver")
-                               or (in_time and int(viewer.get("polls") or 0) < MAX_POLLS)))
-    if viewer.get("active") and not viewer.get("done") and not viewer_waiting and not in_time:
+                          and (viewer.get("redeliver") or viewer_wait is not None))
+    if (viewer.get("active") and not viewer.get("done") and not viewer_waiting and retry != START_TOOL
+            and (viewer_polls or not covered)):
         viewer["timed_out"] = True
         record_timeout(current, ["the whole-video viewing"])
-    media_waiting = media_refused
-    if current["media"].get("active") and not current["media"].get("done") and not media_refused:
-        media_state = collect_media.state()
-        pending = media_pending(current)
-        media_waiting = bool(pending and in_time and int(media_state.get("rounds") or 0) < collect_media.MAX_ROUNDS)
-        if pending and not in_time:
+    media_waiting = media_wants and media_wait is not None
+    if media_refused and not media_waiting:
+        # Nothing ran on the refused call, and the deadline no longer covers sending it again.
+        media_refused = False
+        current["media"]["done"] = True
+        record_timeout(current, operation_words(current))
+    if media_open:
+        if pending and not media_waiting:
             record_timeout(current, late_operations())
-        if (not media_waiting and in_time
-                and collect_media.options_refused_in(static_host.composite_records(MEDIA_TOOL)[-1])):
-            # The keyframes item failed on the frame options (validation_error) while the other items ran: the same
-            # call once more without them.
+        if resend and media_waiting:
             dropped = collect_media.refuse_frame_options(MEDIA_TOOL)
             current.setdefault("fallback_notes", []).append(
                 f"{MEDIA_TOOL} did not accept {dropped} on this server; repeated without "
                 + ("it" if dropped == "overview" else "them"))
-            media_refused = media_waiting = True
+            media_refused = True
         elif not media_waiting:
             current["media"]["done"] = True
-    start_viewer = False
-    retry = viewer.pop("legacy_retry", None)
-    if retry == START_TOOL:
-        start_viewer = True
+    start_viewer = retry == START_TOOL
     if current.get("viewer_deferred"):
         verdict, code = viewer_gate(current, media_in_flight=media_waiting)
         if verdict == "start":
@@ -892,15 +927,25 @@ def resume(args: argparse.Namespace) -> int:
                 if retry == START_TOOL else
                 f"The video runs {current['duration_s']:g}s, within the whole-video limit: starting the viewing")
         hand_over_calls(current, start_viewer=True, poll_viewer=False, media=media_waiting,
-                        note=note + (" The media jobs are still running." if media_waiting else ""))
+                        note=note + (" The media jobs are still running." if media_waiting else ""),
+                        media_wait_s=media_wait)
         return 0
     if viewer_waiting and not media_waiting and not viewer.get("redeliver") and not retry:
         # Nothing else is running and the tool came back sooner than the interval (it did not wait): wait the rest
         # here rather than spend a model turn on a reading that comes back running.
         remaining = POLL_INTERVAL_S - seconds_since(handed_at)
-        remaining = min(remaining, deadline_left(current), args.poll_sleep_s)
+        # Never into the time the reading itself needs: after the sleep it must still fit the deadline.
+        spare = (deadline_left(current) - observation_order.HAND_OVER_MARGIN_S - observation_order.MIN_CALL_WAIT_S
+                 - 1)
+        remaining = min(remaining, spare, args.poll_sleep_s)
         if remaining > 0:
             time.sleep(remaining)
+            viewer_wait = (observation_order.round_waits(deadline_left(current), 1)
+                           or [observation_order.MIN_CALL_WAIT_S])[0]
+    if viewer.get("redeliver"):
+        # A finished result waits for nothing; the wait_s is only kept inside the deadline.
+        viewer_wait = (observation_order.round_waits(deadline_left(current), 1)
+                       or [observation_order.MIN_CALL_WAIT_S])[0]
     save_state(current)
     if viewer_waiting or media_waiting:
         parts = []
@@ -914,7 +959,8 @@ def resume(args: argparse.Namespace) -> int:
         elif media_waiting:
             parts.append(f"{media_pending(current)} media job(s) are still running")
         hand_over_calls(current, start_viewer=False, poll_viewer=viewer_waiting and bool(viewer.get("analysis_id")),
-                        media=media_waiting, note="Still running: " + "; ".join(parts) + ". Keep waiting.")
+                        media=media_waiting, note="Still running: " + "; ".join(parts) + ". Keep waiting.",
+                        viewer_wait_s=viewer_wait or VIEWER_WAIT_S, media_wait_s=media_wait)
         return 0
     return settle(current)
 

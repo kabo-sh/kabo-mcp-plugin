@@ -58,10 +58,23 @@ SOURCE_UNAVAILABLE_REPLY = ("This video can't be opened: it may have been delete
 # at 500 seconds: a throttled download once held the fetch step for 477 seconds and the turn died with no reply.
 # 330 seconds is a safety net, not the expected wait: it stops only a fetch that is stuck (a throttled platform), and
 # leaves about two and a half minutes of the turn for the evidence, the analysis and the reply.
+# The deadline bounds when the last hand-over ends, not only when it starts: every hand-over waits inside its tool,
+# so one started just before the deadline runs past it (on pre, a 45-second media poll started just before 330
+# seconds held a 1 h 50 min video's fetch step for 385 seconds, and the turn died at 500 with no reply). A new
+# hand-over therefore starts only while the deadline still covers its own longest wait (`round_waits`).
 OBSERVE_DEADLINE_S = 330
+# How long one hand-over may wait inside its tool: collect_video_media's own wait when no `wait_s` is sent, and the
+# `wait_s` a get_analysis_run reading sends. 45 seconds keeps a call inside the 60-second tool timeout some hosts
+# (Codex) apply.
+CALL_WAIT_S = 45
+# A wait shorter than this is not worth a model turn: below it the call is not started at all. Both tools accept a
+# `wait_s` from 0, so this is the script's floor, inside theirs.
+MIN_CALL_WAIT_S = 10
+# Kept back from the deadline for each hand-over's own overhead: the model making the call and running the resume.
+HAND_OVER_MARGIN_S = 15
 # A source started after the first one (a fallback, or a viewing waiting for the duration) starts only while this
 # much of the deadline is left: a viewing of a video up to ten minutes normally finishes in one to two minutes, the
-# frames and transcript of a media call in about one.
+# frames and transcript of a media call in about one. Each is at least one full wait plus the margin.
 MIN_LEFT_S = {"whole_video": 120, "combined": 120, "server_frames": 60}
 # The line recorded when the deadline stops the observation, and the limitation it leaves in the evidence.
 DEADLINE_MARK = "Observation deadline reached"
@@ -81,6 +94,22 @@ SIDE_CALLS = {"song": "identify_video_song", "comment_summary": "summarize_video
 # Modes that never start a whole-video viewing, and modes whose method needs frames beside any viewing.
 NO_VIEWER_MODES = {"transcript_export"}
 FRAMES_MODES = {"craft_teardown"}
+
+
+def round_waits(left_s: float, count: int) -> list[int]:
+    """The wait, in whole seconds, each of `count` waiting calls handed over together may take, so the round still
+    ends `HAND_OVER_MARGIN_S` before the deadline (`left_s` is what is left of it).
+
+    The calls of one round are made one after another, so their waits add up: each gets an equal share of what is
+    left after the margin, at most `CALL_WAIT_S`. A share under `MIN_CALL_WAIT_S` drops the last call (the list comes
+    back shorter); an empty list means no call fits and the observation stops waiting now. A full wait is
+    `CALL_WAIT_S`: the latest a full-length call starts is `OBSERVE_DEADLINE_S - HAND_OVER_MARGIN_S - CALL_WAIT_S`
+    seconds after the first hand-over, a shortened one up to `MIN_CALL_WAIT_S` before that margin."""
+    budget = left_s - HAND_OVER_MARGIN_S
+    fits = min(count, max(0, int(budget // MIN_CALL_WAIT_S)))
+    if fits <= 0:
+        return []
+    return [min(CALL_WAIT_S, int(budget // fits))] * fits
 
 
 def load_order(path: Path | None = None) -> dict[str, Any]:

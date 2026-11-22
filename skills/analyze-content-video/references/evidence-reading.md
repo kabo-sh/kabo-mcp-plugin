@@ -169,8 +169,9 @@ The media jobs (transcript, frames, measurements) are deferred and take minutes.
 for them inside `collect_video_media`; `observe_video.py` prints the same call again while any is
 still running, and nothing is queued or charged twice. A whole-video viewing has no server-side
 wait: the script waits between its readings itself. The whole observation has one deadline, 330
-seconds from the first call, the same on every host; a fallback starts only while enough of it is
-left to finish. Keep making the printed calls within this turn until the script reports its status:
+seconds from the first call, the same on every host. Each printed call waits inside its tool, so
+near the end the script prints only calls whose wait still ends inside the deadline (fewer, or with
+a shorter `wait_s`) and then none; a fallback starts only while enough of it is left to finish. Keep making the printed calls within this turn until the script reports its status:
 ending the turn to wait throws the jobs away. A job or viewing still running at the deadline did not
 arrive in time: a job comes back as `--deferred-incomplete <operation>=<job id>` for the evidence
 builder (recorded `deferred_incomplete`), never as `failed`, with one limitation line naming what

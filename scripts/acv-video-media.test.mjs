@@ -321,6 +321,51 @@ test("collect_media.py: while jobs run it keeps waiting by wall time (past the o
   assert.equal(evidence.frames.status, "available");
 });
 
+// The deadline bounds when the last call ends: each call waits inside the tool (up to 45 s), so a hand-over starts
+// only while what is left covers its waits plus a 15 s margin. On pre, a 45 s poll started just before 330 s held the
+// fetch step for 385 s and the turn died at 500 s. The clock is injected by moving the recorded first hand-over back.
+test("collect_media.py: near the deadline a hand-over makes fewer calls, then a shorter wait_s, then none, and the outcome text is the deadline's", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
+  t.after(() => rm(workspace, { recursive: true, force: true }));
+  const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  let out = python("collect_media.py", ["--url", URL_, "--operations", "transcript,keyframes"], { cwd: run, run }).out;
+  const args = calls(out)[0].arguments;
+  assert.equal(args.wait_s, undefined, "a full wait is the tool's own");
+  assert.match(out, /or you have made it 6 times/);
+  const stateFile = path.join(run, "collect-media.json");
+  const startedAgo = async (seconds) => {
+    const saved = JSON.parse(await readFile(stateFile, "utf8"));
+    saved.started_at = new Date(Date.now() - seconds * 1000).toISOString();
+    await writeFile(stateFile, JSON.stringify(saved));
+  };
+  const pending = new Set(["video/fetch_transcript"]);
+  const round = async (ago) => {
+    await save(saveOf(out), composite(args, pending));
+    await startedAgo(ago);
+    const resumed = shell(resumeOf(out));
+    assert.equal(resumed.code, 0, resumed.out);
+    out = resumed.out;
+    return resumed.out;
+  };
+  // 260 s in: 70 s left covers one full 45 s call plus the margin, not two.
+  let resumed = await round(260);
+  assert.match(resumed, /or you have made it 1 times/);
+  assert.deepEqual(calls(resumed)[0].arguments, args);
+  // 290 s in: 40 s left covers only a 25 s wait (24 once the resume's own start-up has ticked), so the call says so.
+  resumed = await round(290);
+  assert.match(resumed, /or you have made it 1 times/);
+  const { wait_s: wait, ...rest } = calls(resumed)[0].arguments;
+  assert.deepEqual(rest, args);
+  assert.ok(wait === 25 || wait === 24, `wait_s ${wait}`);
+  // 310 s in, still inside the 330 s deadline: 20 s left cannot cover even a 10 s wait, so no call starts and the
+  // job is recorded exactly as at the deadline.
+  resumed = await round(310);
+  assert.equal(calls(resumed).length, 0);
+  assert.match(resumed, /"status": "collected"/);
+  assert.match(resumed, /1 media job\(s\) were still running when waiting stopped after about 31\d s \(fetch_transcript\)\. They did not arrive in time and are unfinished, not failed/);
+  assert.match(resumed, /--deferred-incomplete fetch_transcript=/);
+});
+
 test("collect_media.py: a hard round cap besides wall time stops endless hand-overs when the host returns at once every time", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));

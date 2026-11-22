@@ -8,11 +8,13 @@ Run it from the run directory.
   queues every job itself and waits for them; nothing is polled job by job.
 - `--placed --id=<id>`: fetches that result. While the backend still reports running jobs
   (`coverage.pending` above 0) it prints the same call again: nothing is queued or charged twice.
-  Once every job is terminal (or at the observation deadline, `WAIT_BUDGET_S` after the first hand-over,
+  Once every job is terminal (or at the observation deadline, `WAIT_BUDGET_S` after the first hand-over, or
   `MAX_ROUNDS` results at most) it persists each terminal envelope as `snapshot/envelope-NN.json`, prints the `--envelope` /
   `--deferred-incomplete` arguments for
   `build_content_evidence.py`, and the one `read_research_data_artifacts` call that brings the
-  frames into the run.
+  frames into the run. A call waits inside the tool, so a new hand-over starts only while the deadline still covers
+  its wait (`media_plan`): fewer repeats, then a shorter `wait_s`, then none, and the jobs still running are
+  recorded as not arrived in time, the same as at the deadline itself.
 
 `--url` is the original public link, or `kabo-file:<uuid>` for a video the creator attached in Kabo (the media
 tool reads the stored file the same way it reads a link). A file on the creator's own machine never comes here:
@@ -48,17 +50,20 @@ OVERVIEW_ABOVE_S = 50.0
 CONNECTOR = "public-video-media"
 STATE = Path("collect-media.json")
 # Media waits are measured in wall time, not rounds. One call waits on the backend for at most 45 seconds
-# (within the Codex tool timeout of 60 seconds). The wait from the first hand-over is the observation deadline
-# (observation_order.OBSERVE_DEADLINE_S, 330 seconds), the same on every host: Kabo Web ends a turn at 500 seconds,
-# and a 15-minute wait once held a throttled Bilibili download for 477 seconds until the turn died with no reply. A
-# job still running then is recorded as unfinished (`--deferred-incomplete`), never as failed, and the analysis goes
-# on with what arrived; the wait ends as soon as every job is terminal.
+# (observation_order.CALL_WAIT_S, within the Codex tool timeout of 60 seconds). The wait from the first hand-over is
+# the observation deadline (observation_order.OBSERVE_DEADLINE_S, 330 seconds), the same on every host: Kabo Web ends
+# a turn at 500 seconds, and a 15-minute wait once held a throttled Bilibili download for 477 seconds until the turn
+# died with no reply. The deadline bounds when the last call ends: a hand-over starts only while what is left covers
+# its calls' waits plus observation_order.HAND_OVER_MARGIN_S (`media_plan`). A job still running then is recorded as
+# unfinished (`--deferred-incomplete`), never as failed, and the analysis goes on with what arrived; the wait ends as
+# soon as every job is terminal.
 WAIT_BUDGET_S = observation_order.OBSERVE_DEADLINE_S
 # A hard cap besides wall time: a normal round takes about 45-60 seconds, so 15 minutes is about 15-20 rounds;
 # if the host returns immediately every time, this stops the hand-overs from repeating forever.
 MAX_ROUNDS = 40
 # Within one hand-over, how many more times the model may call again on the spot while jobs are still running
-# (this only saves steps; how long to wait is still decided by the wall time above).
+# (this only saves steps; how long to wait is still decided by the wall time above, and near the deadline the
+# hand-over allows only as many calls as it still covers).
 CALLS_PER_HAND_OVER = 6
 # Option name -> operation of collect_video_media. Metadata goes through the media tool only on platforms whose
 # support-list metadata_route is media_call (YouTube uses youtube_get_video).
@@ -277,7 +282,12 @@ def call_arguments(args: argparse.Namespace) -> dict[str, Any]:
             parameters.update({key: value for key, value in (getattr(args, "frame_options", None) or {}).items()
                                if key in FRAME_OPTION_KEYS and value})
         requests.append({"content_id": "video", "operation": OPERATIONS[name], "parameters": parameters})
-    return {"requests": requests, "run_key": run_key(), "delivery": "download"}
+    arguments: dict[str, Any] = {"requests": requests, "run_key": run_key(), "delivery": "download"}
+    wait = getattr(args, "wait_s", None)
+    if wait is not None and wait < observation_order.CALL_WAIT_S:
+        # Shortened so the call ends inside the observation deadline; a full wait is the tool's own, sent as nothing.
+        arguments["wait_s"] = int(wait)
+    return arguments
 
 
 def resume_command(args: argparse.Namespace) -> str:
@@ -304,7 +314,11 @@ def bind_run_to_cwd() -> None:
         os.environ["KABO_STATIC_RUN_DIR"] = str(run)
 
 
-def hand_over_media(args: argparse.Namespace, note: str = "") -> None:
+def hand_over_media(args: argparse.Namespace, note: str = "",
+                    plan: tuple[int, int | None] = (CALLS_PER_HAND_OVER, None)) -> None:
+    """Print the media call. `plan` is (how many calls this hand-over may make, the wait_s each sends or None for the
+    tool's own wait), from media_plan."""
+    calls, args.wait_s = plan
     current = state()
     results = Path.cwd() / "host-results"
     first = len(list(results.glob("*.json"))) + 1 if results.is_dir() else 1
@@ -322,7 +336,7 @@ def hand_over_media(args: argparse.Namespace, note: str = "") -> None:
     say(f"Hand-over: make this one call now with the arguments verbatim; the backend queues this video's {wanted} "
         f"jobs and waits for them. If its result still reports running jobs (coverage.pending above 0), make the "
         f"same call again right away with the same arguments (nothing is queued or charged twice) until pending is "
-        f"0 or you have made it {CALLS_PER_HAND_OVER} times; only the last result counts. The media is not ready until this "
+        f"0 or you have made it {calls} times; only the last result counts. The media is not ready until this "
         f"script says so: the run is not over while jobs are running. " + SAVE_RULE)
     say("call: " + json.dumps({"tool": TOOL, "arguments": call_arguments(args)}, ensure_ascii=False))
     say(f"  result {file.name.split('-', 1)[0]}  (fallback file, only if the result has no download url: {file})")
@@ -337,6 +351,18 @@ def waited_s(current: dict[str, Any]) -> float:
     except ValueError:
         return 0.0
     return max(0.0, (datetime.now(timezone.utc) - started).total_seconds())
+
+
+def media_plan(current: dict[str, Any]) -> tuple[int, int | None] | None:
+    """(calls, wait_s) for the next media hand-over, so its last call still ends inside the observation deadline:
+    as many full-length calls as fit (CALLS_PER_HAND_OVER at most, wait_s None), else one shorter call; None when
+    not even that fits and the wait stops now."""
+    left = WAIT_BUDGET_S - waited_s(current)
+    full = int((left - observation_order.HAND_OVER_MARGIN_S) // observation_order.CALL_WAIT_S)
+    if full >= 1:
+        return min(CALLS_PER_HAND_OVER, full), None
+    waits = observation_order.round_waits(left, 1)
+    return (1, waits[0]) if waits else None
 
 
 def staged_since(moment: str | None) -> bool:
@@ -502,8 +528,12 @@ def main(argv: list[str] | None = None) -> int:
         dropped = take_saved(args.result_id)
         if dropped:
             args.frame_options = frame_options()
+            plan = media_plan(state())
+            if plan is None:
+                raise ValueError(f"the {WAIT_BUDGET_S}-second observation deadline left no time to repeat the media "
+                                 f"call without {dropped}")
             hand_over_media(args, note=f"This server did not accept {dropped}: repeating "
-                                       "the same call without them (nothing was queued or charged).")
+                                       "the same call without them (nothing was queued or charged).", plan=plan)
             return 0
         records = static_host.composite_records(TOOL)
         if not records:
@@ -514,15 +544,18 @@ def main(argv: list[str] | None = None) -> int:
         current["rounds"] = int(current.get("rounds") or 0) + 1
         save_state(current)
         waited = waited_s(current)
-        if pending and waited < WAIT_BUDGET_S and current["rounds"] < MAX_ROUNDS:
+        # No new call once the deadline cannot cover its wait: the jobs still running did not arrive in time.
+        plan = media_plan(current) if current["rounds"] < MAX_ROUNDS else None
+        if pending and plan:
             hand_over_media(args, note=f"{pending} media job(s) are still running ({round(waited)} of up to "
-                                       f"{WAIT_BUDGET_S} s waited); keep waiting.")
+                                       f"{WAIT_BUDGET_S} s waited); keep waiting.", plan=plan)
             return 0
-        if options_refused_in(latest):
+        if plan and options_refused_in(latest):
             dropped = refuse_frame_options(TOOL)
             args.frame_options = frame_options()
             hand_over_media(args, note=f"This server refused {dropped} for the frames: "
-                                       "repeating the same call without them (the finished jobs are not run again).")
+                                       "repeating the same call without them (the finished jobs are not run again).",
+                            plan=plan)
             return 0
         finish(latest)
         return 0

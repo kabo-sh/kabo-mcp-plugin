@@ -1852,6 +1852,69 @@ test("observation deadline: the same 330 s bound holds in collect_media.py and o
   assert.deepEqual(JSON.parse(probe.stdout), [DEADLINE_S, DEADLINE_S, false]);
 });
 
+// The deadline bounds when the last hand-over ends, not only when it starts: each call waits inside its tool (45 s),
+// so a new one starts only while what is left covers its wait plus a 15 s margin; a wait_s is shortened to fit. On
+// pre, a 45 s poll started just before 330 s held a 1 h 50 min video's fetch step for 385 s and the turn died at 500 s.
+test("observation deadline: round_waits gives each call of a round the wait the deadline still covers, one constant for every host", () => {
+  const probe = spawnSync("python3", ["-I", "-B", "-c", "import sys, json\nsys.path.insert(0, sys.argv[1])\n"
+    + "import observation_order as o\n"
+    + "print(json.dumps([o.CALL_WAIT_S, o.MIN_CALL_WAIT_S, o.HAND_OVER_MARGIN_S]\n"
+    + "  + [o.round_waits(left, 1) for left in (330, 60, 59, 40, 25, 24, 0)]\n"
+    + "  + [o.round_waits(left, 2) for left in (330, 80, 30, 24)]))",
+  scripts], { encoding: "utf8", env });
+  assert.equal(probe.status, 0, probe.stderr);
+  assert.deepEqual(JSON.parse(probe.stdout), [45, 10, 15, [45], [45], [44], [25], [10], [], [], [45, 45], [32, 32], [15], []]);
+});
+
+test("observation deadline: a media poll that would run past the deadline is not started, and the outcome text is the deadline's", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run);
+  const late = ["fetch_transcript", "extract_keyframes"];
+  // 310 s in, still before 330 s: 20 s left cannot cover a poll's wait plus the margin, so none starts.
+  const { out, handed } = await driveWith(run, first.out, {
+    media: (args) => withPending(args, late),
+    afterRound: async (dir, round) => { if (round === 1) await startedAgo(dir, 310); } });
+  assert.equal(handed.filter((call) => call.tool === "collect_video_media").length, 2, out);
+  assert.equal(handed.filter((call) => call.arguments.wait_s !== undefined).length, 0, "both polls were full length");
+  assert.match(out, /"status": "timed_out"/);
+  assert.match(out, /"timed_out": \["the transcript", "the frames"\]/);
+  assert.match(out, /stopped at its 330-second deadline: the transcript and the frames did not arrive in time/);
+  const flags = allFlags(out);
+  assert.match(flags, /--deferred-incomplete fetch_transcript=/);
+  assert.match(flags, /--limitation 'Observation deadline reached \(330s\): the transcript and the frames did not arrive in time, so the analysis uses only what had arrived\.'/);
+});
+
+test("observation deadline: a viewing's wait_s is shortened to what is left, and a reading that cannot fit is not started", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis", "--duration-s", "30", "--observe-source", "whole_video"], run);
+  // 290 s in: 40 s left, less the 15 s margin, leaves a 25 s reading; 312 s in: 18 s left fits none.
+  const { out, handed } = await driveWith(run, first.out, { viewerSteps: [queued, queued, queued, queued],
+    afterRound: async (dir, round) => { if (round === 1) await startedAgo(dir, 290); if (round === 2) await startedAgo(dir, 312); } });
+  const readings = handed.filter((call) => call.tool === "get_analysis_run").map((call) => call.arguments.wait_s);
+  // 24 once the resume's own start-up has ticked past the whole second.
+  assert.equal(readings.length, 2);
+  assert.equal(readings[0], 45);
+  assert.ok(readings[1] === 25 || readings[1] === 24, `wait_s ${readings[1]}`);
+  assert.match(out, /"timed_out": \["the whole-video viewing"\]/);
+  assert.match(out, /whole_video failed \(timed_out\)/);
+  assert.match(allFlags(out), /--limitation 'Observation deadline reached \(330s\): the whole-video viewing did not arrive in time/);
+});
+
+test("observation deadline: a viewing reading and a media poll in one round share what is left, and both wait_s add up inside it", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis", "--duration-s", "30", "--observe-source", "combined"], run);
+  // 250 s in: 80 s left, less the margin, is 65 s for two calls made one after the other: 32 s each.
+  const { out, handed } = await driveWith(run, first.out, { viewerSteps: [queued, queued, queued],
+    media: (args) => withPending(args, ["fetch_transcript"]),
+    afterRound: async (dir, round) => { if (round === 0) await startedAgo(dir, 250); if (round === 1) await startedAgo(dir, DEADLINE_S + 5); } });
+  const second = handed.slice(2, 4);
+  assert.deepEqual(second.map((call) => call.tool), ["get_analysis_run", "collect_video_media"]);
+  // An equal share each (31 once the resume's own start-up has ticked past 64 s), never more than 65 s in all.
+  const [viewing, media] = second.map((call) => call.arguments.wait_s);
+  assert.ok((viewing === 32 || viewing === 31) && viewing === media, `wait_s ${viewing} + ${media}`);
+  assert.match(out, /"timed_out": \["the whole-video viewing", "the transcript"\]/);
+});
+
 // "What song is this?" is its own request: answered from metadata, on-screen text and speech, never by ear, so it
 // takes no sound card and never starts the paid whole-video viewing, not even as a fallback.
 test("find the track: select_method records the ask, refuses the sound card, and the observation never starts a viewing", async (t) => {
