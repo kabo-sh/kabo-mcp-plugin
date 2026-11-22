@@ -213,6 +213,11 @@ have. Make it in the plan, before the shots, never ask the creator for it:
   `first_frame` (`kling/v4/reference-to-video`). A `refvideo` without the new first frame copies
   the reference's room.
 
+The new script is part of the plan, not a question: save it with the storyboard and go on making
+the video in the same turn; never stop to show it for approval (11-22 pre: "change the story to …"
+got only a script back and needed a second message). A row whose words are a voice-over (nobody
+seen speaking) still needs its line under its clip: `tts` (or the reference's own audio) and
+`mux` onto that shot before the join, as for any other row.
 Only what cannot be invented is asked for, once: the creator's own face or voice, and real product
 footage or screens (what an app or product really does). Without it, say plainly what is missing
 and leave it out -- never stand in an illustrated card for a real product demo.
