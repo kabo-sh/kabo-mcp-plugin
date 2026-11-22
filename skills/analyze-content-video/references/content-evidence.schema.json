@@ -1318,8 +1318,16 @@
                 "description": "Where the frame file is, as a host artifact URI or a path under the run workspace. Required whenever the frames were extracted in this run. Without it the evidence records that a frame exists and not where to look at it, so any consumer that did not do the extraction — a replay, an App drill-down, a re-analysis under a better prompt — can only reuse the descriptions already written into observations. That is the same shape as the transcript defect: a hash identifies a fetch, it cannot be read."
               },
               "source": {
-                "enum": ["hook", "body", "closing", "shot_start", "dense_window"],
-                "description": "Why the plan holds this frame: the opening or closing window, the body grid, just after a detected cut, or a dense window a method card asked for. Absent where the plan did not say (a server that took its standard plan)."
+                "enum": ["hook", "body", "closing", "shot_start", "dense_window", "change", "anchor"],
+                "description": "Why the plan holds this frame: the opening or closing window, the body grid, just after a detected cut, or a dense window a method card asked for; on the overview plan, a second where the picture or on-screen text changes (change) or the middle of a gap longer than 10s (anchor). Absent where the plan did not say (a server that took its standard plan)."
+              },
+              "reason": {
+                "enum": ["picture_change", "text_change"],
+                "description": "On a change frame: whether the picture changed (mean luma) or only the text bands (top and bottom thirds) did."
+              },
+              "change_units": {
+                "type": "integer",
+                "description": "On a change frame: its change score, 100 being the threshold."
               }
             }
           }
@@ -1400,7 +1408,44 @@
             "dropped_for_budget": { "type": "object", "additionalProperties": { "type": "integer" } },
             "dropped_as_duplicate": { "type": "object", "additionalProperties": { "type": "integer" } },
             "dedupe_s": { "type": "number" },
-            "budget_priority": { "type": "array", "items": { "type": "string" } }
+            "budget_priority": { "type": "array", "items": { "type": "string" } },
+            "overview": { "type": "boolean" },
+            "overview_stride_s": { "type": "integer" },
+            "change_candidates": { "type": "integer" },
+            "change_frames": { "type": "integer" },
+            "anchor_frames": { "type": "integer" },
+            "change_threshold_units": { "type": "integer" },
+            "anchor_gap_s": { "type": "number" }
+          }
+        },
+        "overview": {
+          "type": ["object", "null"],
+          "description": "On a video longer than 50s whose frames came with the overview plan: low-resolution sheets of every stride_s seconds of the whole video, tiles in time order left to right and top to bottom, columns x rows a sheet, sheet k from from_s. Read it before the high-resolution frames: it is the only view of the seconds between them. Small text is not readable on it; quote on-screen text from a frame.",
+          "additionalProperties": false,
+          "required": ["stride_s", "columns", "rows", "sheets"],
+          "properties": {
+            "stride_s": { "type": "integer" },
+            "columns": { "type": "integer" },
+            "rows": { "type": "integer" },
+            "tile_long_edge_px": { "type": "integer" },
+            "seconds": { "type": "integer" },
+            "read_until_s": { "type": "number" },
+            "sheets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["sheet_id", "from_s", "to_s"],
+                "additionalProperties": false,
+                "properties": {
+                  "sheet_id": { "type": "string" },
+                  "from_s": { "type": "number" },
+                  "to_s": { "type": "number" },
+                  "tiles": { "type": "integer" },
+                  "sha256": { "type": ["string", "null"] },
+                  "path": { "type": ["string", "null"] }
+                }
+              }
+            }
           }
         },
         "origin": {

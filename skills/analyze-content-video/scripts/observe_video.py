@@ -615,7 +615,7 @@ def finish_media(mode: str) -> dict[str, Any]:
     media_state = collect_media.state()
     placed = media_state.setdefault("placed", {})
     envelopes, pending, usable, gone, duration = [], [], False, False, None
-    read, frames_note = None, None
+    read, frames_note, overview_legend = None, None, []
     for operation, call in calls.items():
         body = json.loads(Path(call["path"]).read_text())
         if operation not in placed:
@@ -642,6 +642,9 @@ def finish_media(mode: str) -> dict[str, Any]:
             frames_note = collect_media.frame_options_note(body)
             refs = [item.get("object_ref") for item in data.get("frames") or []
                     if isinstance(item, dict) and item.get("object_ref")]
+            # The overview sheets (every second, low resolution) are read before the frames, with a legend.
+            sheet_refs, overview_legend = collect_media.overview_lines(body)
+            refs = sheet_refs + refs if refs else refs
             job_id = body.get("job_id") or (jobs.get(call["group"]) or {}).get("job_id")
             if refs and job_id:
                 # A host cut one 60-frame read off after 16 images: read at most READ_CHUNK frames per call.
@@ -655,7 +658,7 @@ def finish_media(mode: str) -> dict[str, Any]:
         if operation not in placed and job.get("job_id") and job.get("status") in static_host.PENDING:
             pending.append(f"{operation}={job['job_id']}")
     return {"envelopes": envelopes, "pending": pending, "usable": usable, "source_unavailable": gone, "read": read,
-            "duration_s": duration, "frames_note": frames_note}
+            "duration_s": duration, "frames_note": frames_note, "overview_legend": overview_legend}
 
 
 def observed_anything(current: dict[str, Any], media: dict[str, Any] | None) -> bool:
@@ -792,6 +795,8 @@ def settle(current: dict[str, Any]) -> int:
         "run persisted: " + " ".join(flags))
     if media and media["read"]:
         reads = media["read"]
+        for line in media.get("overview_legend") or []:
+            say(line)
         say(("Frames: make this one read now. " if len(reads) == 1 else
              f"Frames: make these {len(reads)} reads now, one after another, each at most {READ_CHUNK} frames so "
              "the host shows every image. ")
@@ -828,10 +833,12 @@ def resume(args: argparse.Namespace) -> int:
     media_refused = False
     if any(entry["tool"] == MEDIA_TOOL for entry in awaiting):
         # True when the server refused the frame options before any job ran: the same call goes again without them.
-        media_refused = collect_media.take_saved(args.result_id)
+        dropped = collect_media.take_saved(args.result_id)
+        media_refused = bool(dropped)
         if media_refused:
             current.setdefault("fallback_notes", []).append(
-                f"{MEDIA_TOOL} did not accept include_shot_starts / dense_windows on this server; repeated without them")
+                f"{MEDIA_TOOL} did not accept {dropped} on this server; repeated without "
+                + ("it" if dropped == "overview" else "them"))
         else:
             media_state = collect_media.state()
             media_state["rounds"] = int(media_state.get("rounds") or 0) + 1
@@ -861,9 +868,10 @@ def resume(args: argparse.Namespace) -> int:
                 and collect_media.options_refused_in(static_host.composite_records(MEDIA_TOOL)[-1])):
             # The keyframes item failed on the frame options (validation_error) while the other items ran: the same
             # call once more without them.
-            collect_media.refuse_frame_options(MEDIA_TOOL)
+            dropped = collect_media.refuse_frame_options(MEDIA_TOOL)
             current.setdefault("fallback_notes", []).append(
-                f"{MEDIA_TOOL} did not accept include_shot_starts / dense_windows on this server; repeated without them")
+                f"{MEDIA_TOOL} did not accept {dropped} on this server; repeated without "
+                + ("it" if dropped == "overview" else "them"))
             media_refused = media_waiting = True
         elif not media_waiting:
             current["media"]["done"] = True

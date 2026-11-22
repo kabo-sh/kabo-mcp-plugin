@@ -43,6 +43,8 @@ import select_method  # noqa: E402
 import viewer_response  # noqa: E402
 
 TOOL = "collect_video_media"
+# Videos up to this long keep the plan unchanged; the overview applies above it (acv_timing.OVERVIEW_ABOVE_S).
+OVERVIEW_ABOVE_S = 50.0
 CONNECTOR = "public-video-media"
 STATE = Path("collect-media.json")
 # Media waits are measured in wall time, not rounds. One call waits on the backend for at most 45 seconds
@@ -71,11 +73,13 @@ MAX_FRAMES = static_host.FRAME_CAPS["public_video_extract_keyframes"]
 # The keyframes request's two optional additions to the duration_scaled plan, both still inside max_frames: a frame
 # just after each detected cut (on by default), and up to three denser windows: the first 50 seconds every 0.5s on
 # every video (select_method.DEFAULT_DENSE_WINDOW) after any a method card asks for (analysis/method.json `frames`,
-# written by select_method.py). A server that does not know them yet ignores them
+# written by select_method.py). And `overview`: on a video longer than 50 seconds, low-resolution sheets of every
+# second and, in place of the body grid, high-resolution frames where the picture or on-screen text changes
+# (acv_timing.py's docstring). A server that does not know them yet ignores them
 # and takes its standard plan. One that refuses them gets the same call once more without them: inside this call
 # that is the keyframes item failing with `validation_error` (the other items still run); a whole-call MCP -32602
-# is handled the same way.
-FRAME_OPTION_KEYS = ("include_shot_starts", "dense_windows")
+# is handled the same way. `overview` is the newest, so a refusal drops it alone first, then the other two.
+FRAME_OPTION_KEYS = ("include_shot_starts", "dense_windows", "overview")
 MAX_DENSE_WINDOWS = 3
 MIN_DENSE_INTERVAL_S = 0.2
 # Same approach as the connector_driver.py handoff (kabo ADR-0084 "2026-11-04"): the model hands over only the
@@ -166,20 +170,33 @@ def frame_options() -> dict[str, Any]:
         plan = method.get("frames") if isinstance(method, dict) and isinstance(method.get("frames"), dict) else {}
     # The default window (the first 50s every 0.5s) always goes, after the cards' windows; three at most.
     options: dict[str, Any] = {"include_shot_starts": plan.get("include_shot_starts") is not False,
-                               "dense_windows": select_method.with_default_window(dense_windows(plan.get("dense_windows")))}
+                               "dense_windows": select_method.with_default_window(dense_windows(plan.get("dense_windows"))),
+                               "overview": True}
     current["frame_options"] = options
     save_state(current)
     return options
 
 
-def refuse_frame_options(tool: str) -> None:
-    """The server refused the frame options before anything ran: the next call goes without them."""
+def refuse_frame_options(tool: str) -> str:
+    """The server refused the frame options before anything ran: the next call goes without `overview` if it was
+    sent, else without any of them. Returns the option names dropped."""
     current = state()
-    current["frame_options_refused"] = True
-    current.setdefault("notes", []).append(
-        f"{tool} did not accept include_shot_starts / dense_windows on this server; repeated without them, so the "
-        "frames follow the standard plan")
+    sent = current.get("frame_options") or {}
+    if sent.get("overview") and not current.get("overview_refused"):
+        current["overview_refused"] = True
+        current["frame_options"] = {key: value for key, value in sent.items() if key != "overview"}
+        dropped = "overview"
+        current.setdefault("notes", []).append(
+            f"{tool} did not accept overview on this server; repeated without it, so the frames follow the "
+            "duration-scaled plan with its body grid")
+    else:
+        current["frame_options_refused"] = True
+        dropped = "include_shot_starts / dense_windows"
+        current.setdefault("notes", []).append(
+            f"{tool} did not accept include_shot_starts / dense_windows on this server; repeated without them, so the "
+            "frames follow the standard plan")
     save_state(current)
+    return dropped
 
 
 def options_refused_in(record: dict[str, Any]) -> bool:
@@ -201,23 +218,54 @@ def options_refused_in(record: dict[str, Any]) -> bool:
     return False
 
 
+OVERVIEW_NOT_APPLIED = ("The overview was not applied: there are no low-resolution sheets of every second, the body "
+                        "follows the evenly spaced grid, and no frame was chosen where the picture or on-screen text "
+                        "changes. Say what the gaps between frames may hide.")
+
+
 def frame_options_note(envelope: dict[str, Any]) -> str | None:
     """What became of the frame options on a finished keyframes envelope; None when nothing needs saying."""
     current = state()
     if current.get("frame_options_refused"):
         return ("This server refused the shot-start and dense-window frame options; the frames follow the standard "
-                "plan.")
+                "plan." + (" " + OVERVIEW_NOT_APPLIED if current.get("overview_refused") else ""))
     sent = current.get("frame_options") or {}
-    if not any(sent.get(key) for key in FRAME_OPTION_KEYS):
-        return None
     data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
     plan = data.get("sampling_plan") if isinstance(data.get("sampling_plan"), dict) else {}
-    if not data.get("frames"):
-        return None
+    duration = data.get("duration_s")
+    long_video = isinstance(duration, (int, float)) and duration > OVERVIEW_ABOVE_S
+    overview = data.get("overview") if isinstance(data.get("overview"), dict) else None
+    notes = []
+    if current.get("overview_refused") and long_video:
+        notes.append("This server refused the overview option. " + OVERVIEW_NOT_APPLIED)
+    elif sent.get("overview") and long_video and data.get("frames") and (overview or {}).get("status") != "available":
+        reason = (overview or {}).get("reason")
+        notes.append(("The overview failed on the server" + (f" ({reason})" if reason else "") + ". "
+                      if overview else "This server does not make the overview yet. ") + OVERVIEW_NOT_APPLIED)
+    if not any(sent.get(key) for key in ("include_shot_starts", "dense_windows")) or not data.get("frames"):
+        return " ".join(notes) or None
     if "include_shot_starts" not in plan and "dense_windows" not in plan:
-        return ("This server took its standard frame plan: the shot-start and dense-window options were not "
-                "applied, so no frame was placed at a cut on purpose.")
-    return None
+        notes.insert(0, "This server took its standard frame plan: the shot-start and dense-window options were not "
+                        "applied, so no frame was placed at a cut on purpose.")
+    return " ".join(notes) or None
+
+
+def overview_lines(envelope: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """The overview sheets' object refs (read before the frames) and one line saying how to read them."""
+    data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
+    overview = data.get("overview") if isinstance(data.get("overview"), dict) else {}
+    sheets = [sheet for sheet in overview.get("sheets") or []
+              if isinstance(sheet, dict) and sheet.get("object_ref")] if overview.get("status") == "available" else []
+    if not sheets:
+        return [], []
+    spans = "; ".join(f"{sheet.get('sheet_id')} {sheet.get('from_s')}-{sheet.get('to_s')}s" for sheet in sheets)
+    return [sheet["object_ref"] for sheet in sheets], [
+        f"Overview: the first {len(sheets)} image(s) read are low-resolution sheets of every "
+        f"{overview.get('stride_s')}s of the whole video, {overview.get('columns')} tiles a row and "
+        f"{overview.get('rows')} rows a sheet, in time order left to right and top to bottom (tile n of a sheet is "
+        f"its first second + n x {overview.get('stride_s')}s): {spans}. Look at them first; they are the only view of "
+        "the seconds between the high-resolution frames after them. Quote on-screen text from a frame, not from a "
+        "sheet."]
 
 
 def call_arguments(args: argparse.Namespace) -> dict[str, Any]:
@@ -297,9 +345,9 @@ def staged_since(moment: str | None) -> bool:
     return any(str(record.get("staged_at") or "") >= moment for record in static_host.composite_records(TOOL))
 
 
-def take_saved(result_id: str | None) -> bool:
-    """Bring the saved results of the last hand-over into the run. True when the server refused the frame options
-    (MCP -32602) and the call must be made again without them."""
+def take_saved(result_id: str | None) -> str:
+    """Bring the saved results of the last hand-over into the run. The option names dropped when the server refused
+    the frame options (MCP -32602) and the call must be made again without them; empty otherwise."""
     current = state()
     taken = current.setdefault("taken", {})
     awaiting = current.get("awaiting") or []
@@ -338,8 +386,7 @@ def take_saved(result_id: str | None) -> bool:
             # Nothing was queued or charged: the server refused the arguments before any job ran.
             taken[name] = digest
             save_state(current)
-            refuse_frame_options(TOOL)
-            return True
+            return refuse_frame_options(TOOL)
         try:
             result = static_host.fetch(TOOL, raw)
             if result.get("fetched") == 0:
@@ -349,7 +396,7 @@ def take_saved(result_id: str | None) -> bool:
                              "as returned, download link included, then run the same resume command again") from None
         taken[name] = digest
         save_state(current)
-    return False
+    return ""
 
 
 def next_slot() -> int:
@@ -407,6 +454,7 @@ def finish(record: dict[str, Any]) -> None:
             say(note)
         refs = [item.get("object_ref") for item in ((envelope.get("data") or {}).get("frames") or [])
                 if isinstance(item, dict) and item.get("object_ref")]
+        sheet_refs, legend = overview_lines(envelope)
         job_id = envelope.get("job_id") or (jobs.get(keyframes["group"]) or {}).get("job_id")
         if refs and job_id:
             # When the frame-read call itself hands the images to the model (as the Web host does), the frames have already
@@ -417,8 +465,10 @@ def finish(record: dict[str, Any]) -> None:
                 "or stage them, and go on to build_content_evidence.py. Only if it returns a download link instead, "
                 "save and fetch it the way the Skill says for read_research_data_artifacts, then open each image's "
                 "path before any visual claim:")
+            for line in legend:
+                say(line)
             say("read: " + json.dumps({"tool": "read_research_data_artifacts",
-                                       "arguments": {"job_id": job_id, "object_refs": refs}},
+                                       "arguments": {"job_id": job_id, "object_refs": sheet_refs + refs}},
                                       ensure_ascii=False))
             return
     say("No frames arrived: keep the missing-visual-evidence limit and read the transcript and measurements only.")
@@ -449,9 +499,10 @@ def main(argv: list[str] | None = None) -> int:
                 say("This media round was already handed over; make the call printed earlier, or run with --placed.")
             hand_over_media(args)
             return 0
-        if take_saved(args.result_id):
-            args.frame_options = {}
-            hand_over_media(args, note="This server did not accept include_shot_starts / dense_windows: repeating "
+        dropped = take_saved(args.result_id)
+        if dropped:
+            args.frame_options = frame_options()
+            hand_over_media(args, note=f"This server did not accept {dropped}: repeating "
                                        "the same call without them (nothing was queued or charged).")
             return 0
         records = static_host.composite_records(TOOL)
@@ -468,9 +519,9 @@ def main(argv: list[str] | None = None) -> int:
                                        f"{WAIT_BUDGET_S} s waited); keep waiting.")
             return 0
         if options_refused_in(latest):
-            refuse_frame_options(TOOL)
-            args.frame_options = {}
-            hand_over_media(args, note="This server refused include_shot_starts / dense_windows for the frames: "
+            dropped = refuse_frame_options(TOOL)
+            args.frame_options = frame_options()
+            hand_over_media(args, note=f"This server refused {dropped} for the frames: "
                                        "repeating the same call without them (the finished jobs are not run again).")
             return 0
         finish(latest)
