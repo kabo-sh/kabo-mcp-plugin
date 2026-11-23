@@ -50,8 +50,8 @@ for build_content_evidence.py and the one frame read.
 At most one whole-video analysis is started per run: its idempotency key never changes, so re-sending the
 call after a lost answer replays the same analysis instead of starting a paid second one.
 
-The whole observation has one deadline, `observation_order.OBSERVE_DEADLINE_S` (330 seconds) from the first
-hand-over, the same on every host. It bounds when the last hand-over ends, not only when it starts: each call waits
+The whole observation has one deadline, `observation_order.OBSERVE_DEADLINE_S` (330 seconds; 270 once the video is
+known to run past ten minutes, `observation_order.deadline_s`) from the first hand-over, the same on every host. It bounds when the last hand-over ends, not only when it starts: each call waits
 inside its tool, so a media poll or a viewing's reading is handed over only while what is left still covers its wait
 plus a margin (`observation_order.round_waits`; the media poll first, the reading with what remains, its `wait_s`
 shortened to fit). When it no longer fits, the observation stops waiting at once: a job or viewing still running is
@@ -218,9 +218,14 @@ def selected_method() -> tuple[list[str], str | None]:
     return [str(card["id"]) for card in method.get("cards") or [] if isinstance(card, dict) and card.get("id")], ask
 
 
+def deadline_of(current: dict[str, Any]) -> int:
+    """This run's observation deadline: shorter once the video is known to run past ten minutes."""
+    return observation_order.deadline_s(known_duration(current))
+
+
 def deadline_left(current: dict[str, Any]) -> float:
     """Seconds left of the observation deadline, counted from the first hand-over (negative once it passed)."""
-    return observation_order.OBSERVE_DEADLINE_S - seconds_since(current.get("started_at"))
+    return deadline_of(current) - seconds_since(current.get("started_at"))
 
 
 def time_for(current: dict[str, Any], source: str) -> bool:
@@ -250,7 +255,7 @@ def record_timeout(current: dict[str, Any], what: list[str]) -> None:
     """One limitation line naming what had not arrived when the deadline stopped the observation."""
     late = list(dict.fromkeys([*(current.get("timed_out") or []), *what]))
     current["timed_out"] = late
-    text = observation_order.DEADLINE_TEXT.format(deadline=observation_order.OBSERVE_DEADLINE_S, what=joined(late))
+    text = observation_order.DEADLINE_TEXT.format(deadline=deadline_of(current), what=joined(late))
     current["limitations"] = [line for line in current.get("limitations") or []
                               if not line.startswith(observation_order.DEADLINE_MARK)] + [text]
 
@@ -584,7 +589,7 @@ def refuse_viewer(current: dict[str, Any], code: str) -> None:
     duration = current.get("duration_s")
     text = "Whole-video viewing not started because " + GATE_TEXT[code].format(
         duration=f"{duration:g}" if isinstance(duration, (int, float)) else "?", limit=limit_s,
-        deadline=observation_order.OBSERVE_DEADLINE_S) + "."
+        deadline=deadline_of(current)) + "."
     current["viewer_deferred"] = False
     current.setdefault("limitations", []).append(text)
     if current["source"] == "combined":
@@ -720,7 +725,7 @@ def fall_back(current: dict[str, Any], failed: str, code: str | None) -> int | N
         # Started now, the fallback would not finish inside the observation deadline: go on with what arrived.
         text = ("whole-video viewing was" if source in {"whole_video", "combined"} else "frames and transcript were")
         current.setdefault("limitations", []).append(
-            f"No fallback {text} started: too little of the {observation_order.OBSERVE_DEADLINE_S}s observation "
+            f"No fallback {text} started: too little of the {deadline_of(current)}s observation "
             "deadline was left to finish.")
         source, reason = None, f"too little of the observation deadline is left for {source}"
     current.setdefault("fallback_notes", []).append(f"{failed} failed ({code or 'no usable evidence'}); "
@@ -821,7 +826,7 @@ def settle(current: dict[str, Any]) -> int:
             "nothing in it was seen or heard; never say the video is deleted, private or unavailable, and never "
             "describe what it shows or says.")
     if late:
-        say(f"The observation stopped at its {observation_order.OBSERVE_DEADLINE_S}-second deadline: "
+        say(f"The observation stopped at its {deadline_of(current)}-second deadline: "
             + joined(late) + " did not arrive in time. Do not wait or call again. Build the evidence and go on "
             "with what arrived (the post's metadata, a transcript if any); the first lines of the report or answer "
             "must say plainly that " + joined(late) + " did not arrive in time, never that a step failed."

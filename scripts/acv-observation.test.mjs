@@ -1979,6 +1979,22 @@ test("observation deadline: frames and transcript still running at 330 s stop th
   assert.match(brief, /Say this plainly in the first lines of what the creator reads/);
 });
 
+test("observation deadline: a video known to run past ten minutes stops waiting at 270 s, leaving the analysis more of the turn", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run);
+  const late = ["fetch_transcript", "extract_keyframes"];
+  // The metadata reports an 18-minute video; frames and words are still running 280 s in.
+  const { out } = await driveWith(run, first.out, {
+    media: (args) => withPending(args, late, (value) => {
+      for (const call of value.calls) if (call.result.data?.video) call.result.data.video.duration_seconds = 1106;
+      return value;
+    }),
+    afterRound: async (dir, round) => { if (round === 0) await startedAgo(dir, 280); } });
+  assert.match(out, /"status": "timed_out"/);
+  assert.match(out, /stopped at its 270-second deadline/);
+  assert.doesNotMatch(out, /330-second deadline/);
+});
+
 test("observation deadline: with nothing and no metadata in time, the brief is refused with a did-not-arrive statement, not the gone-video one", async (t) => {
   const run = await newRun(t);
   await writeRequest(run);

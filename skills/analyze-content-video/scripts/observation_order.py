@@ -63,6 +63,19 @@ SOURCE_UNAVAILABLE_REPLY = ("This video can't be opened: it may have been delete
 # seconds held a 1 h 50 min video's fetch step for 385 seconds, and the turn died at 500 with no reply). A new
 # hand-over therefore starts only while the deadline still covers its own longest wait (`round_waits`).
 OBSERVE_DEADLINE_S = 330
+# A video known to run past ten minutes stops waiting earlier. Its analysis reads more (the overview sheets, a long
+# transcript) and its frames take minutes to decode: on pre an 18-minute video's frames arrived just before 330
+# seconds, the analysis that followed needed about two and a half minutes more, and the turn died at 500 with no
+# reply. 270 seconds leaves it about three and a half; frames that miss it are named as not arrived in time.
+LONG_VIDEO_S = 600
+LONG_VIDEO_DEADLINE_S = 270
+
+
+def deadline_s(duration_s: float | None) -> int:
+    """The observation deadline for a video of this duration (unknown: the general one)."""
+    if isinstance(duration_s, (int, float)) and not isinstance(duration_s, bool) and duration_s > LONG_VIDEO_S:
+        return LONG_VIDEO_DEADLINE_S
+    return OBSERVE_DEADLINE_S
 # How long one hand-over may wait inside its tool: collect_video_media's own wait when no `wait_s` is sent, and the
 # `wait_s` a get_analysis_run reading sends. 45 seconds keeps a call inside the 60-second tool timeout some hosts
 # (Codex) apply.
