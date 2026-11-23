@@ -555,6 +555,17 @@ def known_duration(current: dict[str, Any]) -> float | None:
         if found is not None:
             current["duration_s"] = found
             return found
+    # A media call's finished items while others still run: a measurement or the metadata reports the duration long
+    # before a long video's frames arrive, and the deadline for a long video depends on it.
+    for record in static_host.composite_records(MEDIA_TOOL):
+        for call in record.get("calls") or []:
+            try:
+                found = duration_of(json.loads(Path(call["path"]).read_text(encoding="utf-8")))
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+            if found is not None:
+                current["duration_s"] = found
+                return found
     return None
 
 

@@ -1995,6 +1995,23 @@ test("observation deadline: a video known to run past ten minutes stops waiting 
   assert.doesNotMatch(out, /330-second deadline/);
 });
 
+test("observation deadline: a measurement that finished while the frames still run sets the long-video deadline", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run);
+  // The metadata reports no duration; the measurement, done while frames and words run, reports 18 minutes.
+  const { out } = await driveWith(run, first.out, {
+    media: (args) => withPending(args, ["fetch_transcript", "extract_keyframes"], (value) => {
+      for (const call of value.calls) {
+        if (call.result.data?.video) call.result.data.video.duration_seconds = null;
+        if (call.result.operation === "measure_media_signals") call.result.data.duration_s = 1106;
+      }
+      return value;
+    }),
+    afterRound: async (dir, round) => { if (round === 0) await startedAgo(dir, 280); } });
+  assert.match(out, /"status": "timed_out"/);
+  assert.match(out, /stopped at its 270-second deadline/);
+});
+
 test("observation deadline: with nothing and no metadata in time, the brief is refused with a did-not-arrive statement, not the gone-video one", async (t) => {
   const run = await newRun(t);
   await writeRequest(run);
