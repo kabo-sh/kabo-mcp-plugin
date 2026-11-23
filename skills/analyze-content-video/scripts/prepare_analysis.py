@@ -172,12 +172,18 @@ def gone(evidence: dict[str, Any]) -> bool:
     return observation_order.SOURCE_UNAVAILABLE_MARK in (evidence.get("limitations") or [])
 
 
+def blocked(evidence: dict[str, Any]) -> bool:
+    """Whether the platform refused the video's picture and sound while the post's metadata arrived."""
+    return any(str(text).startswith(observation_order.MEDIA_BLOCKED_MARK) for text in evidence.get("limitations") or [])
+
+
 def observed_nothing(evidence: dict[str, Any]) -> bool:
     """True when no source brought anything to analyse: no frames, no transcript words, no notes, no images.
 
-    When the observation deadline stopped the fetch, the post's own metadata (title, caption, public counts) is
-    something to analyse: the run goes on from it and says plainly what did not arrive in time."""
-    if (late_lines(evidence) and not gone(evidence)
+    When the observation deadline stopped the fetch, or the platform refused the download, the post's own metadata
+    (title, caption, public counts) is something to analyse: the run goes on from it and says plainly what did not
+    arrive."""
+    if ((late_lines(evidence) or blocked(evidence)) and not gone(evidence)
             and (evidence.get("content_metadata") or {}).get("status") == "available"):
         return False
     if (evidence.get("frames") or {}).get("status") == "available":
@@ -240,6 +246,11 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
             "- Say this plainly in the first lines of what the creator reads (the summary, or the answer's opening): "
             "what did not arrive in time, in everyday words. It is not a failure and not a missing feature of the "
             "video; never describe what did not arrive.", ""]
+    if blocked(evidence) and not gone(evidence):
+        lines += ["### Picture and sound not fetched", "", f"- {one_line(observation_order.MEDIA_BLOCKED_TEXT)}",
+                  "- Say this plainly in the first lines of what the creator reads: the video's picture and sound could "
+                  "not be fetched this time, so the answer rests on the post's title, caption and public counts. The "
+                  "video is not deleted or private; never describe what it shows or says.", ""]
     for skipped in method.get("skipped") or []:
         lines.append(f"Method card `{skipped['id']}` was skipped: {skipped['reason']}.")
     if method.get("skipped"):

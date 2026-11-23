@@ -74,7 +74,9 @@ function composite(args, { failed = false, duration, emptyTranscript, frameTimes
   args.requests.forEach((request) => {
     const group = `${request.content_id}/${request.operation}`;
     const jobId = uuid(JOB_NUMBER[request.operation]);
-    const lost = failed && request.operation !== "collect_public_metadata";
+    // `failed: "all"` loses the post's metadata too, as a deleted video does; `true` keeps it, as a public video whose
+    // download the platform refused does.
+    const lost = failed === "all" || (failed && request.operation !== "collect_public_metadata");
     jobs.push({ group, content_id: request.content_id, operation: request.operation, attempt: 1, job_id: jobId, status: lost ? "failed" : "completed" });
     list.push({ tool: TOOLS[request.operation], parameters: request.parameters, group, attempts: 1,
       result: mediaEnvelope(request.operation, jobId, { failed: lost, duration, emptyTranscript, frameTimes, measuredDuration, cues }) });
@@ -119,7 +121,7 @@ const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
 // Drive one public-link observation to the end with the given tool answers; returns the run, its final output and
 // every call handed over, in order. `mediaFailed` fails the media call's observing jobs (true, or a function of the
 // media call's number in this run); `afterRound` runs after each round's results are saved, before the resume.
-const OBSERVED = /"status": "(?:observed|timed_out|source_unavailable)"/;
+const OBSERVED = /"status": "(?:observed|timed_out|metadata_only|source_unavailable)"/;
 async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed = false, mode = "diagnosis", duration,
   emptyTranscript, afterRound, frameTimes, args = [], cues, url = TIKTOK, measuredDuration } = {}) {
   const run = await newRun(t);
@@ -361,9 +363,9 @@ for (const [name, options, code, failure] of [
 test("a duration the media call returned keeps an over-long video from starting a viewing", async (t) => {
   const { out, handed } = await observe(t, null, { mediaFailed: true, duration: 900 });
   assert.equal(handed.filter((call) => call.tool === "analyze_content_video").length, 0, out);
-  // Every source came back empty: the run says so instead of "observed".
-  assert.match(out, /"status": "source_unavailable"/);
-  assert.match(out, /Follow \*Stops and gaps\*/);
+  // Frames and words came back empty but the post's metadata arrived: the run goes on from it, never "observed".
+  assert.match(out, /"status": "metadata_only"/);
+  assert.match(out, /Only the post's metadata arrived/);
   assert.match(out, /Fallback: server_frames failed \(media_unavailable\); the video runs 900s, past the whole-video limit of 600s/);
 });
 
@@ -1456,7 +1458,7 @@ const transcriptEnvelope = (cues, extra = {}) => ({ ...mediaEnvelope("fetch_tran
 
 test("a gone video: every source empty prints source_unavailable and no build arguments, and a brief from no evidence is refused with the stop rule", async (t) => {
   const { out } = await observe(t, null, {
-    mediaFailed: true, viewerSteps: [JSON.stringify({ code: "not_found", message: "The video could not be fetched.", retryable: false })] });
+    mediaFailed: "all", viewerSteps: [JSON.stringify({ code: "not_found", message: "The video could not be fetched.", retryable: false })] });
   assert.match(out, /"status": "source_unavailable"/);
   assert.doesNotMatch(out, /"status": "observed"/);
   assert.doesNotMatch(out, /Pass these to build_content_evidence\.py/);
@@ -1470,6 +1472,28 @@ test("a gone video: every source empty prints source_unavailable and no build ar
   assert.match(refused.out, /"status": "refused"/);
   assert.match(refused.out, /Stops and gaps/);
   assert.equal(existsSync(path.join(run, "analysis/brief.md")), false);
+});
+
+test("a refused download: frames and words empty but the post's metadata in, the run answers from the metadata and never calls the video deleted or private", async (t) => {
+  const { run, out } = await observe(t, null, {
+    mediaFailed: true, viewerSteps: [JSON.stringify({ code: "not_found", message: "The video could not be fetched.", retryable: false })] });
+  assert.match(out, /"status": "metadata_only"/);
+  assert.doesNotMatch(out, /Follow \*Stops and gaps\*/);
+  assert.doesNotMatch(out, /deleted, made private/);
+  assert.match(out, /never say the video is deleted, private or unavailable/);
+  const flags = allFlags(out);
+  assert.match(flags, /--limitation 'media_not_fetched: the platform did not let Kabo download/);
+  await writeRequest(run);
+  const built = build(run, flags);
+  assert.equal(built.code, 0, built.out);
+  const evidence = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assertValidEvidence(evidence);
+  assert.equal(evidence.content_metadata.status, "available");
+  const prepared = await prepare(run, ["--mode", "diagnosis"]);
+  assert.equal(prepared.code, 0, prepared.out);
+  const brief = await readBrief(run);
+  assert.match(brief, /### Picture and sound not fetched\n\n- media_not_fetched:/);
+  assert.match(brief, /The video is not deleted or private/);
 });
 
 test("a limitation recorded twice in one observation is passed to the builder once", async (t) => {
@@ -2085,7 +2109,7 @@ test("source unavailable: one marker and one statement, from the observation, th
   };
   const flagged = await newRun(t);
   const flaggedOut = await driveWith(flagged, python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], flagged).out, { media: gone });
-  const empty = await observe(t, null, { mediaFailed: true, viewerSteps: [JSON.stringify({ code: "not_found", message: "gone", retryable: false })] });
+  const empty = await observe(t, null, { mediaFailed: "all", viewerSteps: [JSON.stringify({ code: "not_found", message: "gone", retryable: false })] });
   for (const out of [flaggedOut.out, empty.out]) {
     assert.match(out, /"status": "source_unavailable"/);
     assert.ok(out.includes(`Evidence: ${marker}`), out);

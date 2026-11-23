@@ -232,7 +232,8 @@ three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which sta
    cards, the judgment rules and the output contract) and `references/evidence-reading.md`:
    neither depends on the evidence, and reading them then costs no turn of its own.
    `status: timed_out`, or a non-empty `timed_out` list, means that part did
-   not arrive in time: go on with what arrived and say so plainly, as it prints. When it
+   not arrive in time: go on with what arrived and say so plainly, as it prints; `status: metadata_only`
+   means only the post's metadata arrived: go on from it as it prints. When it
    prints `status: observed` it has persisted everything in `snapshot/`, names the arguments for the
    evidence builder and prints the `read_research_data_artifacts` calls (at most 15 frames each)
    that bring the frames in; make them all. When a read shows you the images themselves, they are viewed: do not save or stage them.
