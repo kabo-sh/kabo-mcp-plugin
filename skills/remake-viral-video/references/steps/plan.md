@@ -229,6 +229,18 @@ have. Make it in the plan, before the shots, never ask the creator for it:
   `refvideo` with the shot's `trim` as `ref_video` and that still as `first_frame`
   (11-23: "swap the left cat for a Shiba" went to `replace` and stopped to ask for the creator's
   video).
+- **A new story on the same picture** (a silent pet or object skit: "the cat makes a matcha latte"):
+  keep every beat's length, who acts and the camera; rewrite each beat's action and the props it
+  needs (new prop cards, states). When a beat keeps the reference's motion (stirring stays stirring),
+  re-make it with the edited first frame + `refvideo` following the reference segment; when the
+  action itself changes, `animate` the edited first frame per beat instead -- a reference clip
+  would pull the old action back.
+
+Editing a first frame (`still` with the frame as ref): one short instruction, one change per call
+-- "replace the orange cat on the left with a red fox, same pose" -- then the next subject on the
+result. Two swaps in one call, or a long description of the whole picture, came back unchanged
+(11-23 cat -> fox, remove a cat, night scene). A sheet made for a new subject follows the style
+card's look (a photoreal reference gets a photoreal sheet).
 
 A one-line change ("make the cats foxes", "set it at night in the rain") is the creator's whole
 brief: work out yourself everything it touches and change only that. Go module by module -- the
