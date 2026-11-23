@@ -30,7 +30,7 @@ second paraphrased report or narrate artifact writing, validation, file paths, c
 or providers. If the run fails, say the requested report could not be completed; never present
 unvalidated output as a report, and never answer from fetched data or your own knowledge instead of
 the report the final step prints. A content read has no report: it answers from the evidence, as
-step 7 of *Analysis* says.
+step 6 of *Analysis* says.
 
 **Nothing else reaches the creator.** Before the final answer, write no text to the creator but what
 this Skill prescribes (a stop statement, a question it allows): no notes to yourself, plans or
@@ -61,7 +61,7 @@ completed retrieval or rewrite a judgment to get past a validator. A check that 
 `needs_correction` is not a failure (`finish_diagnosis.py --check` exits 3 for it): the brief
 allows its one correction.
 
-**Declare the run.** Right after the run directory is reserved, call the Kabo tool `start_skill_run` once with `skill_id` `analyze-content-video` and `run_id` set to the last path segment of the run directory. It records the run once, so never call it again for the same run. If it fails with `credits_exhausted`, tell the user their credits are used up, give them the link in the error, and stop. If the tool is not available, continue without it.
+**Declare the run.** Right after the run directory is reserved, call the Kabo tool `start_skill_run` once with `skill_id` `analyze-content-video` and `run_id` set to the last path segment of the run directory. It records the run once, so never call it again for the same run. If it fails with `credits_exhausted`, tell the user their credits are used up, give them the link in the error, and stop. If the tool is not available, continue without it. It is the credit check, so it comes before the first fetch: wait for its answer before `begin_analysis.py`, which starts the observation, and never send them in the same turn. `get_research_capabilities` may go in the same turn as `start_skill_run`.
 
 ## Data tools and complete evidence
 
@@ -159,7 +159,7 @@ Decide before retrieving anything.
 | How it did, and what to change next — why it flopped or took off, retention, the cover, whether to repost | **Diagnosis** |
 | How it was *made* — how that was cut, how to get that look, when a transition earns its place, which steps need no team, what to buy first | **Craft teardown** — read `references/craft-teardown.md` whole |
 | What it is about or says — what it shows, what is said or written in it, what it sells or asks for | **Content read** |
-| Which song or track it uses — "what song is this?" | **Find the track**: a content read with `--ask identify_track` in step 3: one song recognition call for a link; no `sound` card, no whole-video viewing |
+| Which song or track it uses — "what song is this?" | **Find the track**: a content read with `--ask identify_track` in step 2: one song recognition call for a link; no `sound` card, no whole-video viewing |
 | The words themselves as a file — a transcript or subtitle file to edit, translate or quote in full | **Transcript export** (below) |
 
 **A bare link, or "analyze this" with nothing else, is a diagnosis** with the default method: do
@@ -181,7 +181,9 @@ judgment.
 ## Analysis
 
 Diagnosis, content read and craft teardown run the same steps. Read
-`references/diagnosis-runtime.md` whole before the first command.
+`references/diagnosis-runtime.md` whole before the first command, in the same turn as `init`, and
+`references/video-method/index.md` with it when the creator asked something specific. Setup is
+three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which starts the fetch.
 
 1. **Whose video.** Use the creator's explicit statement for `own_unpublished`, `own_published` or
    `third_party`; a URL or silence proves none of these. "This is my Short I posted last week" is
@@ -191,44 +193,52 @@ Diagnosis, content read and craft teardown run the same steps. Read
    baseline. Never fetch owner data, claim measured retention or issue source revisions under
    `unknown`. Ask only for a fact an owner-dependent conclusion needs, never holding the public
    analysis or the transcript for it. For a local file, read `references/local-file.md` whole before
-   anything else; it replaces step 4. A content read sets `acquire.owner_metrics` to `skip` and
+   anything else; it replaces step 3. A content read sets `acquire.owner_metrics` to `skip` and
    fetches no baseline; a craft teardown first writes `analysis/craft-request.json`.
-2. **The request.** Prepare `analysis/video-analysis-request.json` with
-   `prepare_link_request.py` (`--url` for a link, `--file-ref` for a `kabo-file:<id>`, `--mode` for
-   the call ceiling), as the runtime reference says; write it by hand only for a local file.
-3. **Choose the method, before fetching.** Write the creator's own words, verbatim, to
-   `analysis/question.txt` (empty for a bare link). Read `references/video-method/index.md` and
-   choose zero to two topic cards that match what they asked; with no specific ask, choose none:
+2. **Choose the method and begin, before fetching.** From `references/video-method/index.md`,
+   choose zero to two topic cards that match what the creator asked; with no specific ask, choose
+   none. Then one command writes the request (`analysis/video-analysis-request.json`, as the
+   runtime reference says), the creator's own words verbatim (`analysis/question.txt`, empty for a
+   bare link), the method (`analysis/method.json`) and the brief's sections 5-7 for it
+   (`analysis/rules.md`), and starts the observation:
+
+   ```sh
+   cd '<run directory>' && python3 <skill directory>/scripts/begin_analysis.py --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis|content_read|craft_teardown|transcript_export> --question '<their words, verbatim>' [--focus <id>[,<id>]] [--ask identify_track] --confirmed-by-user [--duration-s <seconds>]
+   ```
+
+   For a video attached in Kabo, pass `--file-ref 'kabo-file:<id>' --platform <platform>` instead of
+   `--url`; give `--platform` for a link too when the script asks for it. `--question ''` is a bare
+   link; when the words are awkward to quote, write them to a file and pass `--question-file
+   '<file>'` instead. Add `--duration-s` only when the video's duration is already known, and
+   `--confirmed-by-user` only when that confirmation exists. Exit 2 names a card id problem: correct
+   `--focus` once and run the same command again; exit 1 is a failed step. Either way nothing was
+   fetched. The cards decide what the observation needs: the `sound` card adds a
+   whole-video viewing, which hears the audio, where one is possible (a local file is measured
+   instead: `references/local-file.md`); `audience-response` adds the comment summary. A side call
+   that brings nothing is missing evidence, never retried. A local file has no begin step: write
+   the request by hand and the creator's words to `analysis/question.txt`, then choose the method:
 
    ```sh
    cd '<run directory>' && python3 <skill directory>/scripts/select_method.py --mode <diagnosis|content_read|craft_teardown> [--focus <id>[,<id>]] [--ask identify_track] --out analysis/method.json
    ```
-
-   Exit 2 names a card id problem: correct `--focus` once. The cards decide what the observation
-   needs: the `sound` card adds a whole-video viewing, which hears the audio, where one is possible
-   (a local file is measured instead: `references/local-file.md`); `audience-response` adds the
-   comment summary. A side call that brings nothing is missing evidence, never retried.
-4. **Observe.** One command chooses the observation source from
-   `references/observation-order.json` and the cards (server keyframes, a whole-video viewing, or
-   both) and falls back by itself when one fails:
-
-   ```sh
-   cd '<run directory>' && python3 <skill directory>/scripts/observe_video.py --url '<original video url or kabo-file:id>' --mode <diagnosis|content_read|craft_teardown|transcript_export> [--duration-s <seconds>]
-   ```
-
-   Add `--duration-s` only when the video's duration is already known.
-
-   It prints calls and one resume command. Make the calls in the order printed, in one turn, save
-   each result as it says, then run the resume command; repeat while it prints calls (jobs still
-   running: it waits between readings itself, up to one 330-second deadline). The run is not over
-   while it is observing. `status: timed_out`, or a non-empty `timed_out` list, means that part did
+3. **Observe.** `begin_analysis.py` prints what `observe_video.py` prints: it chose the observation
+   source from `references/observation-order.json` and the cards (server keyframes, a whole-video
+   viewing, or both), and falls back by itself when one fails. It prints calls and one resume
+   command (`observe_video.py --url … --placed`). Make the calls in the order printed, in one turn,
+   save each result as it says, then run the resume command; repeat while it prints calls (jobs
+   still running: it waits between readings itself, up to one 330-second deadline). The run is not
+   over while it is observing. In the same turn as those calls, or the next calls you make when the
+   host made them itself, read `analysis/rules.md` whole (sections 5-7 of the brief: the method
+   cards, the judgment rules and the output contract) and `references/evidence-reading.md`:
+   neither depends on the evidence, and reading them then costs no turn of its own.
+   `status: timed_out`, or a non-empty `timed_out` list, means that part did
    not arrive in time: go on with what arrived and say so plainly, as it prints. When it
    prints `status: observed` it has persisted everything in `snapshot/`, names the arguments for the
    evidence builder and prints the `read_research_data_artifacts` calls (at most 15 frames each)
    that bring the frames in; make them all. When a read shows you the images themselves, they are viewed: do not save or stage them.
    Save and fetch a read only when it returns a download link. Fetch and persist every other
    response as *Data tools and complete evidence* says.
-5. **Build the evidence** once, with one `--envelope` for every `snapshot/envelope-*.json` (the
+4. **Build the evidence** once5. **Build the evidence** once, with one `--envelope` for every `snapshot/envelope-*.json` (the
    observation's and any you persisted) plus every other argument `observe_video.py` printed
    (`--viewer`, `--song`, `--comment-summary`, `--deferred-incomplete`; add the per-run flags from the
    runtime reference only here):
@@ -237,9 +247,9 @@ Diagnosis, content read and craft teardown run the same steps. Read
    cd '<run directory>' && python3 <skill directory>/scripts/build_content_evidence.py --request analysis/video-analysis-request.json --envelope snapshot/<file>.json [--envelope ...] [--viewer snapshot/whole-video.json] --snapshot-root snapshot --output analysis/content_evidence.json --reference-index analysis/content_evidence.references.json
    ```
 
-   Read `references/evidence-reading.md` for frames, transcript, metadata and cover, and open the
-   frames or images before any visual claim.
-6. **Prepare the brief.**
+   `references/evidence-reading.md` (read with the rules) covers frames, transcript, metadata and
+   cover; open the frames or images before any visual claim.
+5. **Prepare the brief.**
 
    ```sh
    cd '<run directory>' && python3 <skill directory>/scripts/prepare_analysis.py --run '<run directory>' --mode <diagnosis|content_read|craft_teardown> --question-file analysis/question.txt
@@ -252,7 +262,7 @@ Diagnosis, content read and craft teardown run the same steps. Read
    the evidence and are `analysis/rules.md`; when it says it has just written that file, read it
    whole now. Exit 2 means the mode's own method lacks its evidence, or nothing arrived to analyse:
    do what it prints.
-7. **Write what section 7 asks**, with sections 1-4 as printed and `analysis/rules.md` read whole:
+6. **Write what section 7 asks**, with sections 1-4 as printed and `analysis/rules.md` read whole:
    for a diagnosis the judgment JSON, its reference check (which brings the view contract), the
    creator view, and its check, which finishes the report in the same call once it is ready; for a
    content read `analysis/answer.md`, then the answer in the chat; for a craft teardown
@@ -262,7 +272,7 @@ Diagnosis, content read and craft teardown run the same steps. Read
 
 ## Transcript export
 
-Run analysis steps 1, 2, 4 and 5 with mode `transcript_export`, then:
+Run analysis steps 1 to 4 with mode `transcript_export` (no card), then:
 
 ```sh
 cd '<run directory>' && python3 <skill directory>/scripts/export_transcript.py analysis/content_evidence.json report/ [--stem transcript] [--formats txt,srt]

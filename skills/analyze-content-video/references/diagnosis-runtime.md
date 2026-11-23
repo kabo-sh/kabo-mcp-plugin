@@ -6,10 +6,12 @@ final validated report closes it.
 
 ## 1. The request
 
-Prepare `analysis/video-analysis-request.json` with `prepare_link_request.py` before building
-evidence; it preserves the creator's original link, the chosen ownership state and confirmation, and
-leaves an unresolved post ID null. For a public link, `<platform>` is the link's platform, and
-`--mode` (the mode from *Which question is this*) sets the call ceiling for that mode:
+`begin_analysis.py` (analysis step 2 in `SKILL.md`) writes `analysis/video-analysis-request.json`
+for a link or an attached file exactly as `prepare_link_request.py` does, from the same arguments:
+it preserves the creator's original link, the chosen ownership state and confirmation, and leaves
+an unresolved post ID null. For a public link, `<platform>` is the link's platform (read from the
+link when the support list knows it), and `--mode` (the mode from *Which question is this*) sets
+the call ceiling for that mode. The request on its own, outside a begin step:
 
 ```sh
 cd '<run directory>' && python3 <skill directory>/scripts/prepare_link_request.py --url '<link exactly as given>' --platform <platform> --subject-state <chosen-state> --mode <mode> --confirmed-by-user --output analysis/video-analysis-request.json

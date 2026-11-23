@@ -679,6 +679,83 @@ async function driveFrom(run, out, { viewerSteps = [viewerFixture] } = {}) {
   return { out, handed };
 }
 
+// begin_analysis.py is the four setup steps in one command: the request, the creator's words, the cards and the first
+// observation run. Its output is observe_video.py's own, byte for byte, because the Web host reads the hand-over from
+// it; the files are those the separate steps write, and the brief's sections 5-7 are ready before the fetch.
+test("begin_analysis: one command writes what the separate setup steps write and prints observe_video.py's output unchanged", async (t) => {
+  const question = "is the hook strong enough? it's my first try";
+  const separate = await newRun(t);
+  assert.equal(python("prepare_link_request.py", ["--url", TIKTOK, "--platform", "tiktok", "--subject-state", "unknown", "--mode", "diagnosis",
+    "--confirmed-by-user", "--output", "analysis/video-analysis-request.json"], separate).code, 0);
+  await writeFile(path.join(separate, "analysis/question.txt"), question);
+  await selectFirst(separate, "opening,sound");
+  const before = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], separate);
+  assert.equal(before.code, 0, before.out);
+
+  const run = await newRun(t);
+  // A card problem is refused before anything is written or fetched; the corrected command then goes through.
+  const refused = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--focus", "opening,no-such-card", "--confirmed-by-user"], run);
+  assert.equal(refused.code, 2, refused.out);
+  assert.match(refused.out, /unknown method card id\(s\): no-such-card/);
+  assert.deepEqual((await readdir(path.join(run, "analysis"))).sort(), []);
+  assert.equal(existsSync(path.join(run, "observe-video.json")), false);
+  const begun = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--focus", "opening,sound", "--confirmed-by-user"], run);
+  assert.equal(begun.code, 0, begun.out);
+  // The same output but for the run's own path and the run key derived from it.
+  const same = (out, dir) => out.replaceAll(dir, "<run>").replace(/"run_key": "acv:[0-9a-f]+"/g, '"run_key": "<key>"');
+  assert.equal(same(begun.out, run), same(before.out, separate));
+  assert.ok(begun.out.split("\n").some((line) => line.startsWith("Hand-over: ")));
+  assert.equal(path.basename(hostHandover(begun.out)?.resume.script ?? ""), "observe_video.py");
+  // Another request in the same run is refused before anything is written.
+  const other = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "third_party", "--mode", "diagnosis"], run);
+  assert.equal(other.code, 1, other.out);
+  assert.match(other.out, /already holds another request/);
+
+  const request = await readJson(path.join(run, "analysis/video-analysis-request.json"));
+  const expected = await readJson(path.join(separate, "analysis/video-analysis-request.json"));
+  assert.equal(request.request_id, path.basename(run));
+  assert.deepEqual({ ...request, request_id: null }, { ...expected, request_id: null });
+  assert.equal(await readFile(path.join(run, "analysis/question.txt"), "utf8"), question);
+  assert.deepEqual(await readJson(path.join(run, "analysis/method.json")), await readJson(path.join(separate, "analysis/method.json")));
+  const rules = await readFile(path.join(run, "analysis/rules.md"), "utf8");
+  assert.match(rules, /## 5\. Method[\s\S]*\(`opening`, topic card[\s\S]*\(`sound`, topic card[\s\S]*## 6\. Judgment rules[\s\S]*## 7\. Output contract/);
+
+  // The observation goes on from observe_video.py's resume command, and the brief later finds the rules unchanged.
+  const { out } = await driveFrom(run, begun.out);
+  assert.equal(build(run, flagsOf(out)).code, 0);
+  const prepared = python("prepare_analysis.py", ["--run", run, "--mode", "diagnosis", "--question-file", "analysis/question.txt"], run);
+  assert.equal(prepared.code, 0, prepared.out);
+  assert.match(prepared.out, /Sections 5-7 are analysis\/rules\.md, read while the evidence arrived/);
+  assert.equal(await readFile(path.join(run, "analysis/rules.md"), "utf8"), rules);
+  assert.match(prepared.out, /## 1\. Creator question\n\nis the hook strong enough\? it's my first try/);
+
+  // Run again by mistake: the observation is complete, so nothing starts again.
+  const again = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--focus", "opening,sound", "--confirmed-by-user"], run);
+  assert.equal(again.code, 1, again.out);
+  assert.match(again.out, /already complete: never observe twice/);
+  assert.doesNotMatch(again.out, /^Hand-over: /m);
+});
+
+test("begin_analysis: an attached file and a transcript export need no card, and an unknown link must name its platform", async (t) => {
+  const id = uuid(7);
+  const run = await newRun(t);
+  const begun = python("begin_analysis.py", ["--file-ref", `kabo-file:${id}`, "--platform", "tiktok", "--subject-state", "own_unpublished",
+    "--mode", "transcript_export", "--confirmed-by-user"], run);
+  assert.equal(begun.code, 0, begun.out);
+  assert.deepEqual(callLines(begun.out).map((call) => call.tool), ["collect_video_media"]);
+  assert.equal((await readJson(path.join(run, "analysis/video-analysis-request.json"))).source.url, `kabo-file:${id}`);
+  assert.deepEqual((await readJson(path.join(run, "analysis/method.json"))).cards, []);
+  // A transcript export has no brief, so no rules either.
+  assert.equal(existsSync(path.join(run, "analysis/rules.md")), false);
+  const unknown = await newRun(t);
+  const refused = python("begin_analysis.py", ["--url", "https://example.com/v/1", "--subject-state", "unknown", "--mode", "diagnosis"], unknown);
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /--platform names the platform of the link/);
+});
+
 test("cards first: the pre-fetch selection skips nothing, and the sound card makes the observation combined", async (t) => {
   const run = await newRun(t);
   const method = await selectFirst(run, "sound");
@@ -859,10 +936,14 @@ test("a video attached in Kabo (kabo-file:<id>) goes to the media tool as its ur
     "--max-connector-calls", "1", "--output", path.join(run, "analysis/other.json")], run).code, 1);
 });
 
-test("SKILL.md: cards are chosen before the observation, and an unsupported link stops the run", async () => {
+test("SKILL.md: cards are chosen before the observation, the credit check comes before the fetch, and an unsupported link stops the run", async () => {
   const text = await readFile(path.join(skill, "SKILL.md"), "utf8");
-  assert.ok(text.indexOf("select_method.py") < text.indexOf("observe_video.py --url"), "select_method.py comes before the observation");
-  assert.ok(text.indexOf("observe_video.py --url") < text.indexOf("prepare_analysis.py --run"));
+  // One setup command takes the cards and starts the observation; the run is declared (the credit check) before it.
+  assert.match(text, /begin_analysis\.py --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis\|content_read\|craft_teardown\|transcript_export> --question '<their words, verbatim>' \[--focus <id>\[,<id>\]\] \[--ask identify_track\]/);
+  assert.ok(text.indexOf("start_skill_run` once") < text.indexOf("scripts/begin_analysis.py --url"), "the run is declared before the fetch starts");
+  assert.match(text, /wait for its answer before `begin_analysis\.py`, which starts the observation, and never send them in the same turn/);
+  assert.ok(text.indexOf("scripts/begin_analysis.py --url") < text.indexOf("prepare_analysis.py --run"));
+  assert.match(text, /read `analysis\/rules\.md` whole/);
   assert.match(text, /when a tool says the platform or link is not\s+supported, tell the creator which link could not be read and stop/);
   assert.doesNotMatch(text, /Douyin, Xiaohongshu, Kuaishou, Facebook, Bilibili/);
   assert.match(text, /kabo-file:<id>/);
