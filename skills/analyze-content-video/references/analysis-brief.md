@@ -56,29 +56,24 @@ cd '<run directory>' && python3 <skill directory>/scripts/compose_video_analysis
 ```
 
 Advance only on `status: ready`, with one correction opportunity in total, as
-`references/diagnosis-runtime.md` *The judgment* describes. Then print the view contract, read
-`references/diagnosis-report.md` whole and write `analysis/creator_view.json` once:
+`references/diagnosis-runtime.md` *The judgment* describes. On `ready` the check also prints
+`view_contract`: the creator view's author fields, its canonical observation references and the
+display-column limits. Read it completely, read `references/diagnosis-report.md` whole, and write
+`analysis/creator_view.json` once.
+
+Then check the view and finish in one call. The check runs every gate of the final step on scratch
+copies and lists each violation with its field and limit; only when every gate passes does it run
+the final step in the same call:
 
 ```sh
-cd '<run directory>' && python3 <skill directory>/scripts/build_creator_result.py --print-view-contract --observations-from analysis/video_judgment.json
+cd '<run directory>' && python3 <skill directory>/scripts/finish_diagnosis.py --run-dir '<run directory>' --check --finish-if-ready
 ```
 
-Check the view before the final step. The check runs every gate of the final step on scratch
-copies, writes nothing and prints each violation with its field and limit:
-
-```sh
-cd '<run directory>' && python3 <skill directory>/scripts/finish_diagnosis.py --run-dir '<run directory>' --check
-```
-
-It exits 0 on `ready` and 3 on `needs_correction`, which is the correction signal, not a
-failure. On `needs_correction`, correct `analysis/creator_view.json` once for every violation listed (the
-view's one correction; the judgment stays as saved) and run the check once more. Advance only on
-`status: ready`; if it is still not ready, stop and report the gap. Then finish with the final
-step; its deliverable is `report/VIDEO_DIAGNOSIS.md`, delivered as *Delivery* in `SKILL.md` says:
-
-```sh
-cd '<run directory>' && python3 <skill directory>/scripts/finish_diagnosis.py --run-dir '<run directory>'
-```
+It exits 3 on `needs_correction`, which is the correction signal, not a failure, and writes
+nothing. Correct `analysis/creator_view.json` once for every violation listed together (the view's
+one correction; the judgment stays as saved) and run the same command once more. If it is still
+not ready, stop and report the gap. When it is ready it prints the final report; the deliverable is
+`report/VIDEO_DIAGNOSIS.md`, delivered as *Delivery* in `SKILL.md` says.
 
 Judgment schema:
 <!-- section: output-content-read -->

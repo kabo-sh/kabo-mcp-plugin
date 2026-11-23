@@ -566,7 +566,11 @@ test("a judgment may cite a whole-video note id, and the validator resolves it",
   assert.equal(result.status, "ready", checked.out);
   assert.deepEqual(result.grounding_review.referenced_sources.map((row) => row.kind), ["viewer_observation"]);
   // The long legal-ref list comes last, so the issues and the review are read first.
-  assert.deepEqual(Object.keys(result), ["status", "artifact", "issues", "grounding_review", "legal_source_refs"]);
+  assert.deepEqual(Object.keys(result), ["status", "artifact", "issues", "grounding_review", "view_contract", "legal_source_refs"]);
+  // A ready judgment brings the creator view's contract with it, the same one --print-view-contract prints.
+  const contract = JSON.parse(python("build_creator_result.py", ["--print-view-contract", "--observations-from", "analysis/video_judgment.json"], run).out);
+  assert.deepEqual(result.view_contract, contract);
+  assert.deepEqual(result.view_contract.creator_view.cards.evidence_refs.at_least_one_from, ["observations.obs-1"]);
   assert.ok(checked.out.indexOf('"grounding_review"') < checked.out.indexOf('"legal_source_refs"'));
 });
 
@@ -1277,6 +1281,12 @@ test("finish_diagnosis --check lists every view violation and writes nothing; a 
   assert.equal(existsSync(path.join(run, "analysis/creator-task-result.json")), false);
   assert.ok(!(await readJson(path.join(run, "analysis/timing.json"))).stages.some((stage) => stage.stage === "validate"));
 
+  // --finish-if-ready finishes nothing while the view still needs its correction.
+  const notYet = python("finish_diagnosis.py", ["--run-dir", run, "--check", "--finish-if-ready"], run);
+  assert.equal(notYet.code, 3, notYet.out);
+  assert.match(notYet.out, /"status": "needs_correction"/);
+  assert.equal(existsSync(path.join(run, "report/VIDEO_DIAGNOSIS.md")), false);
+
   const failed = python("finish_diagnosis.py", ["--run-dir", run], run);
   assert.notEqual(failed.code, 0);
   assert.match(failed.out, /no report was written/);
@@ -1288,9 +1298,12 @@ test("finish_diagnosis --check lists every view violation and writes nothing; a 
   assert.equal(ready.code, 0, ready.out);
   assert.match(ready.out, /"status": "ready"/);
   assert.match(python("finish_diagnosis.py", ["--help"], run).out, /3 is\s+needs_correction/);
-  const finished = python("finish_diagnosis.py", ["--run-dir", run], run);
+  // Ready: the same call finishes and prints exactly what the final step prints, nothing of the check's own.
+  const finished = python("finish_diagnosis.py", ["--run-dir", run, "--check", "--finish-if-ready"], run);
   assert.equal(finished.code, 0, finished.out);
+  assert.doesNotMatch(finished.out, /"status": "ready"|Run the final step now/);
   const report = await readFile(path.join(run, "report/VIDEO_DIAGNOSIS.md"), "utf8");
+  assert.ok(finished.out.includes(report + `creator_report: ${path.join(run, "report/VIDEO_DIAGNOSIS.md")}\n`), finished.out);
   assert.match(report, /- \*\*On screen\*\*: Why does this keep happening\?/);
   assert.match(report, /- \*\*Shot\*\*: The burnt pan, close up/);
   assert.match(report, /\*\*How to avoid it\*\*: Keep the result first\./);

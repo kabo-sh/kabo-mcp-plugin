@@ -69,8 +69,9 @@ everything else as one. A cap counted in characters is a different cap in every 
 figures were set on Chinese reports, and read as characters they gave a Latin-script report about
 a third of the room for the same content.
 
-Run `finish_diagnosis.py --check` after writing the view: it reports every field over its cap and
-exits 3 (`needs_correction`) until the view passes, 0 once it is `ready`.
+Run `finish_diagnosis.py --check --finish-if-ready` after writing the view: it reports every field
+over its cap and exits 3 (`needs_correction`) until the view passes; once it is `ready` it finishes
+the report in the same call.
 
 | Field | Columns |
 |---|---:|

@@ -482,7 +482,52 @@ print(json.dumps({
   assert.equal(out["unknown observation"][0], 3, "a card citing a missing observation is the view's to fix");
   assert.equal(out["unknown observation"][1].status, "needs_correction");
   assert.deepEqual(out.view, [3, { status: "needs_correction", step: "build_creator_result.py",
-    violations: ["creator_view.headline runs 90 columns against a 60 limit"] }]);
+    violations: ["creator_view.headline runs 90 columns against a 60 limit"],
+    gates_not_run: ["render_video_report.py", "validate_creator_shape.py", "validate_creator_report.py"] }]);
+});
+
+// One correction should usually be enough: a view gate that fails does not hide the gates after it. Every later gate
+// whose input exists still runs, and the check lists all their violations together.
+test("finish_diagnosis --check: violations from every gate that can run are listed together for the one correction", () => {
+  const out = probe(`
+import contextlib, io, subprocess, tempfile
+from pathlib import Path
+import finish_diagnosis as fd
+def run_with(failing):
+    ran = []
+    def fake(command, **kwargs):
+        step = Path(command[2]).name
+        ran.append(step)
+        if step in failing:
+            return subprocess.CompletedProcess(command, 1, "", failing[step] + "\\n")
+        return subprocess.CompletedProcess(command, 0, "", "")
+    fd.subprocess.run = fake
+    buffer = io.StringIO()
+    with tempfile.TemporaryDirectory() as run, contextlib.redirect_stdout(buffer):
+        code = fd.check(Path(run))
+    text = buffer.getvalue()
+    return [code, json.loads(text[: text.rindex("}") + 1]), ran, text[text.rindex("}") + 1:].strip()]
+print(json.dumps({
+    "render_and_shape": run_with({"render_video_report.py": "ERROR: creator_view.headline is required to render",
+                                  "validate_creator_shape.py": "ERROR: cards[1]: why_for_you runs 600 columns against a 480 limit"}),
+    "shape_and_report": run_with({"validate_creator_shape.py": "ERROR: creator_view.summary runs 400 columns against a 360 limit",
+                                  "validate_creator_report.py": "ERROR: Creator-facing report contains internal field name"}),
+}))`);
+  const [code, verdict, ran, advice] = out.render_and_shape;
+  assert.equal(code, 3);
+  assert.deepEqual(verdict.violations, ["creator_view.headline is required to render",
+    "cards[1]: why_for_you runs 600 columns against a 480 limit"]);
+  assert.equal(verdict.step, "render_video_report.py");
+  assert.deepEqual(Object.keys(verdict.gates), ["render_video_report.py", "validate_creator_shape.py"]);
+  // The report check needs the rendered report, so it waits; the shape gate does not.
+  assert.deepEqual(verdict.gates_not_run, ["validate_creator_report.py"]);
+  assert.ok(!ran.includes("validate_creator_report.py"));
+  assert.match(advice, /for every violation above together/);
+  assert.match(advice, /full-width character is two/);
+  const [code2, verdict2] = out.shape_and_report;
+  assert.equal(code2, 3);
+  assert.equal(verdict2.violations.length, 2);
+  assert.equal(verdict2.gates_not_run, undefined);
 });
 
 // The Web host delivers a printed report itself only when nothing in it is left to translate: the line after

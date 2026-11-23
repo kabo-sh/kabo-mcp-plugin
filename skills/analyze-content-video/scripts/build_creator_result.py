@@ -262,11 +262,19 @@ def build(view_document: dict[str, Any], analysis: dict[str, Any], evidence: dic
     # Named here rather than left to the shape gate three steps later: the gate is correct but it
     # runs after the document has been rendered, so a missing key costs a render and a round trip.
     missing = [key for key in VIEW_REQUIRED if not view.get(key)]
+    problems = []
     if missing:
-        raise SystemExit(
+        problems.append(
             f"the creator view is missing {', '.join(missing)}. It carries the whole delivery: "
             f"{', '.join(VIEW_REQUIRED)}. This script fills the envelope around it, never it")
-    validate_next_actions(view)
+    if "next_actions" not in missing:
+        try:
+            validate_next_actions(view)
+        except SystemExit as error:
+            problems.append(str(error))
+    if problems:
+        # Both problems at once, so the view's one correction fixes them together.
+        raise SystemExit("\n".join(problems))
     ref = record(analysis.get("content_ref")) or record(evidence.get("content_ref"))
     run_id = record(evidence.get("reproducibility")).get("run_id") or "unknown"
     completeness = record(analysis.get("evidence_completeness"))
@@ -296,6 +304,17 @@ def build(view_document: dict[str, Any], analysis: dict[str, Any], evidence: dic
     }
 
 
+def contract_for(observations_from: Path, judgment: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The view contract for a saved judgment (or analysis). The judgment carries no ownership; the run's request
+    beside it decides the allowed decision values. compose_video_analysis.py --check-judgment-refs prints the same
+    contract when the judgment is ready, so the view needs no separate command."""
+    request_path = observations_from.parent / "video-analysis-request.json"
+    subject = None
+    if request_path.is_file():
+        subject = record(load(request_path).get("source")).get("subject_state")
+    return view_contract(load(observations_from) if judgment is None else judgment, subject)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build CreatorTaskResult from the creator view and this run's analysis")
     parser.add_argument("--print-view-contract", action="store_true")
@@ -309,12 +328,7 @@ def main() -> int:
             parser.error("--observations-from is required for --print-view-contract")
         if any(getattr(args, name) is not None for name in ("creator_view", "analysis", "evidence", "request", "output")):
             parser.error("--print-view-contract accepts only --observations-from")
-        # The judgment carries no ownership; the run's request beside it decides the allowed decision values.
-        request_path = args.observations_from.parent / "video-analysis-request.json"
-        subject = None
-        if request_path.is_file():
-            subject = record(load(request_path).get("source")).get("subject_state")
-        print(json.dumps(view_contract(load(args.observations_from), subject), indent=2, ensure_ascii=False))
+        print(json.dumps(contract_for(args.observations_from), indent=2, ensure_ascii=False))
         return 0
     if args.observations_from is not None:
         parser.error("--observations-from requires --print-view-contract")

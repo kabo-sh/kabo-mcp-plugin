@@ -249,7 +249,8 @@ Diagnosis, content read and craft teardown run the same steps. Read
    evidence cannot support is skipped, and the brief says so) and writes `analysis/brief.md`. Exit
    2 means the mode's own method lacks its evidence, or nothing arrived to analyse: do what it prints.
 7. **Read `analysis/brief.md` whole, then write what its section 7 asks**: for a diagnosis the
-   judgment JSON, its reference check, the creator view, its `--check` and `finish_diagnosis.py`;
+   judgment JSON, its reference check (which brings the view contract), the creator view, and its
+   check, which finishes the report in the same call once it is ready;
    for a content read `analysis/answer.md`, then the answer in the chat; for a craft teardown
    `report/craft-teardown.md`. Its rules bind you
    as if they were written here. A content read writes no report and is never called a diagnosis;
