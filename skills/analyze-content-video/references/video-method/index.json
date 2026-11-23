@@ -1,0 +1,347 @@
+{
+  "schema_version": "video-method-index/v1",
+  "library_version": "1.3.0",
+  "cards": [
+    {
+      "id": "diagnosis-default",
+      "file": "diagnosis-default.md",
+      "version": "1.1.0",
+      "title": "Default video diagnosis",
+      "base_for": [
+        "diagnosis",
+        "content_read"
+      ],
+      "topic": false,
+      "use_when": "Every diagnosis and content read; on its own it gives a complete, general diagnosis.",
+      "focus_terms": {
+        "en": [],
+        "zh": []
+      },
+      "needs_evidence": []
+    },
+    {
+      "id": "craft-shot-description",
+      "file": "craft-shot-description.md",
+      "version": "1.0.0",
+      "title": "Shot description for a craft teardown",
+      "base_for": [
+        "craft_teardown"
+      ],
+      "topic": false,
+      "use_when": "Every craft teardown: how a video was made, shot by shot.",
+      "focus_terms": {
+        "en": [
+          "how was this made",
+          "how was this shot",
+          "how was this edited",
+          "shot breakdown"
+        ],
+        "zh": [
+          "怎么拍的",
+          "怎么剪的",
+          "拆解镜头",
+          "分镜"
+        ]
+      },
+      "needs_evidence": [
+        "frames"
+      ],
+      "frames": {
+        "include_shot_starts": true
+      }
+    },
+    {
+      "id": "opening",
+      "file": "opening.md",
+      "version": "1.0.0",
+      "title": "Opening",
+      "base_for": [],
+      "topic": true,
+      "use_when": "The creator asks about the hook, the first seconds, scroll-past, or wants new openings.",
+      "focus_terms": {
+        "en": [
+          "hook",
+          "opening",
+          "first seconds",
+          "intro",
+          "scroll past",
+          "new openings"
+        ],
+        "zh": [
+          "开头",
+          "钩子",
+          "黄金三秒",
+          "前三秒",
+          "划走",
+          "开场"
+        ]
+      },
+      "needs_evidence": [],
+      "frames": {
+        "dense_windows": [
+          {
+            "start_s": 0,
+            "end_s": 5,
+            "interval_s": 0.25
+          }
+        ]
+      }
+    },
+    {
+      "id": "narrative-structure",
+      "file": "narrative-structure.md",
+      "version": "1.0.0",
+      "title": "Narrative structure",
+      "base_for": [],
+      "topic": true,
+      "use_when": "The creator asks about the story, script, flow, a dragging middle, or whether the ending pays off.",
+      "focus_terms": {
+        "en": [
+          "story",
+          "structure",
+          "script",
+          "flow",
+          "drags",
+          "ending",
+          "payoff"
+        ],
+        "zh": [
+          "结构",
+          "叙事",
+          "脚本",
+          "逻辑",
+          "中间拖",
+          "结尾",
+          "反转"
+        ]
+      },
+      "needs_evidence": []
+    },
+    {
+      "id": "editing-pacing",
+      "file": "editing-pacing.md",
+      "version": "1.0.0",
+      "title": "Editing and pacing",
+      "base_for": [],
+      "topic": true,
+      "use_when": "The creator asks about the edit, rhythm, cuts, jump cuts, transitions, or what to trim.",
+      "focus_terms": {
+        "en": [
+          "pacing",
+          "rhythm",
+          "edit",
+          "cuts",
+          "too slow",
+          "too long",
+          "transitions",
+          "trim"
+        ],
+        "zh": [
+          "节奏",
+          "剪辑",
+          "剪切",
+          "太拖",
+          "太长",
+          "转场",
+          "删减"
+        ]
+      },
+      "needs_evidence": [
+        "measure"
+      ],
+      "frames": {
+        "include_shot_starts": true
+      }
+    },
+    {
+      "id": "sound",
+      "file": "sound.md",
+      "version": "1.0.0",
+      "title": "Sound",
+      "base_for": [],
+      "topic": true,
+      "use_when": "The creator asks about the music, voice, mix, sound effects, or whether the sound fits.",
+      "focus_terms": {
+        "en": [
+          "music",
+          "sound",
+          "audio",
+          "song",
+          "voice",
+          "mix",
+          "sound effects",
+          "bgm"
+        ],
+        "zh": [
+          "音乐",
+          "配乐",
+          "声音",
+          "音效",
+          "BGM",
+          "人声",
+          "混音"
+        ]
+      },
+      "needs_evidence": []
+    },
+    {
+      "id": "captions-type",
+      "file": "captions-type.md",
+      "version": "1.0.0",
+      "title": "Captions and on-screen type",
+      "base_for": [],
+      "topic": true,
+      "use_when": "The creator asks about captions, burned-in subtitles, headline text, fonts or readability.",
+      "focus_terms": {
+        "en": [
+          "captions",
+          "subtitles",
+          "text on screen",
+          "font",
+          "headline text",
+          "readability"
+        ],
+        "zh": [
+          "字幕",
+          "花字",
+          "文字",
+          "字体",
+          "标题字",
+          "看不清"
+        ]
+      },
+      "needs_evidence": [
+        "frames"
+      ]
+    },
+    {
+      "id": "visual-color",
+      "file": "visual-color.md",
+      "version": "1.0.0",
+      "title": "Visual and colour",
+      "base_for": [],
+      "topic": true,
+      "use_when": "The creator asks about the look, framing, lighting, colour or grade.",
+      "focus_terms": {
+        "en": [
+          "look",
+          "framing",
+          "lighting",
+          "color",
+          "colour",
+          "grade",
+          "aesthetic",
+          "cinematic"
+        ],
+        "zh": [
+          "画面",
+          "构图",
+          "灯光",
+          "打光",
+          "色调",
+          "调色",
+          "质感",
+          "画质"
+        ]
+      },
+      "needs_evidence": [
+        "frames"
+      ]
+    },
+    {
+      "id": "packaging",
+      "file": "packaging.md",
+      "version": "1.0.0",
+      "title": "Packaging",
+      "base_for": [],
+      "topic": true,
+      "use_when": "The creator asks about the title, caption, cover, thumbnail, hashtags, or why nobody clicked.",
+      "focus_terms": {
+        "en": [
+          "title",
+          "caption",
+          "cover",
+          "thumbnail",
+          "hashtags",
+          "tags",
+          "no views"
+        ],
+        "zh": [
+          "标题",
+          "文案",
+          "封面",
+          "话题",
+          "标签",
+          "没流量",
+          "没人点"
+        ]
+      },
+      "needs_evidence": [
+        "metadata"
+      ]
+    },
+    {
+      "id": "emotion",
+      "file": "emotion.md",
+      "version": "1.0.0",
+      "title": "Emotion",
+      "base_for": [],
+      "topic": true,
+      "use_when": "The creator asks about mood, feeling, tension, why it is moving or funny, or wants work with this video's emotion.",
+      "focus_terms": {
+        "en": [
+          "emotion",
+          "feeling",
+          "mood",
+          "vibe",
+          "tension",
+          "moving",
+          "funny",
+          "same emotion"
+        ],
+        "zh": [
+          "情绪",
+          "情感",
+          "氛围",
+          "感觉",
+          "感染力",
+          "共鸣",
+          "同样情绪"
+        ]
+      },
+      "needs_evidence": []
+    },
+    {
+      "id": "audience-response",
+      "file": "audience-response.md",
+      "version": "1.0.0",
+      "title": "Audience response",
+      "base_for": [],
+      "topic": true,
+      "use_when": "The creator asks why the post performed as it did, how viewers reacted, whether it was controversial, or what to make next from the comments.",
+      "focus_terms": {
+        "en": [
+          "comments",
+          "how did people react",
+          "audience reaction",
+          "what viewers said",
+          "controversial",
+          "backlash",
+          "why did it do well",
+          "what to make next"
+        ],
+        "zh": [
+          "评论",
+          "评论区",
+          "观众反应",
+          "观众怎么说",
+          "争议",
+          "翻车",
+          "为什么火",
+          "下一条拍什么"
+        ]
+      },
+      "needs_evidence": []
+    }
+  ]
+}

@@ -35,8 +35,16 @@ no change belongs in the structured observations; a change answering no stated p
 **When the video is somebody else's**, the sequence stays but the subject moves. This is still a
 diagnosis — it is the case the description calls a teardown of someone else's video, and it is not
 the craft teardown mode. Their published video is not the creator's to repair, so card 2 reads as
-what they would inherit by copying it, and card 3 is what they do differently in their own next
-video — never a repair order for a post that is already out.
+what they would inherit by copying it (its action, labelled "How to avoid it", says how not to
+inherit it), and card 3 is what they do differently in their own next video (labelled "What to do in
+yours") — never a repair order for a post that is already out. On the creator's own video the three
+actions are labelled "How to reuse it", "How to fix it" and "What to change". The renderer adds each
+label: start no `action` with one.
+
+`decision` is one word for the editing decision the report stands on. Own video: `keep` (it works;
+the changes are small), `recut` (re-edit the footage already shot) or `replace` (needs new footage
+or a new version). Someone else's or unknown: `borrow` (use the mechanism in their own next video)
+or `skip` (nothing transfers). The view contract prints the values allowed for this run.
 
 Two of that six-section layout's sections are deliberately not reproduced. A single virality verdict is
 refused for the reason `composite_score` is fixed to null — hook stage and sustain stage were
@@ -61,6 +69,10 @@ everything else as one. A cap counted in characters is a different cap in every 
 figures were set on Chinese reports, and read as characters they gave a Latin-script report about
 a third of the room for the same content.
 
+Run `finish_diagnosis.py --check --finish-if-ready` after writing the view: it reports every field
+over its cap and exits 3 (`needs_correction`) until the view passes; once it is `ready` it finishes
+the report in the same call.
+
 | Field | Columns |
 |---|---:|
 | `summary` | 480 |
@@ -75,20 +87,21 @@ read quickly because each part is one or two sentences; the reason to cap a fiel
 that the sequence is what carries the analysis, and dropping a card would drop a reading.
 
 `data_note` is read-only and derived by `build_creator_result.py`, not authored by the model.
-It is one measurement line within 240 columns — Chinese when `language` starts with `zh`, English
-otherwise: recorded extraction, canonical frame references cited by these cards, transcript
+It is one measurement line within 240 columns, in the view's language (see below): recorded extraction, canonical frame references cited by these cards, transcript
 provenance and owner-metric availability. Requested
 `sampling_plan` intervals and possibly nominal `t_seconds` do not establish actual decoded spacing
 or viewing. Without verified decode records, describe intervals only as planned/requested
 limitations beside the relevant finding. The line states only countable facts; it says nothing
-about viewing, so never add that the frames were not looked at when you opened and cited them. For a
-language other than Chinese or English, the host
-translates the complete line for delivery without changing its quantities or uncertainty.
+about viewing, so never add that the frames were not looked at when you opened and cited them. The
+builder writes it in Chinese, English, Spanish, Portuguese, German, French, Japanese, Korean,
+Indonesian, Vietnamese, Arabic or Hindi by the view's `language`; for any other language, the host translates the complete line
+for delivery without changing its quantities or uncertainty.
 Put claim-specific uncertainty once beside the claim it weakens, not in this measurement line.
 
 ## What a change instruction contains
 
-- `time_range` points into the original cut. Whenever it is present, name what is at that moment —
+- `time_range` points into the original cut, in seconds as the evidence records them: a span
+  `4.03–6.13s` or one moment `5.03s`; the report prints it as m:ss. Whenever it is present, name what is at that moment —
   the on-screen words in `on_screen_text`, or what the shot does in `visual_direction`, or both. A
   bare second is not evidence the creator can check.
 - `spoken_line` is a line the creator can read aloud in their own next video. On their own video
@@ -102,22 +115,9 @@ Put claim-specific uncertainty once beside the claim it weakens, not in this mea
 
 ### When the change is the opening of a short video
 
-`references/hook-core/` is a method for short-video openings: fifteen opening patterns and the
-material each one needs. It is method, not evidence about this video. Reach for it when the change
-card is changing the opening of a short-form video. A long-form hook window runs fifteen to thirty
-seconds; these patterns were drawn from the first one to three, so do not apply them to a
-long-form opening — judge that one from this video's own evidence. Never open the files under
-`references/hook-core/` directly; the script below reads them.
-
-Read the catalogue once with
-`cd '<run directory>' && python3 <skill directory>/scripts/prepare_video_hook.py --platform <platform> --output analysis/hook-catalog.json`,
-then read one to three patterns that fit what this video and this creator already have by adding
-`--pattern-id <id>` for each, with `--output analysis/hook-patterns.json`. Choose by material: a
-pattern whose material the creator does not have is a preparation task, not an opening.
-
-What a pattern adds is that it treats the opening as one decision across picture and sound — what
-the first frame shows, what is first heard (a line, a sound, or a silence chosen on purpose), and
-what the two together make the viewer want to know. Write the new opening as one hook in that shape:
+How to choose and write a new opening is the `opening` card (in the brief when it was selected; it
+reads `references/hook-core/` through `scripts/prepare_video_hook.py`, never directly). Put it in the
+card fields this way:
 
 - `visual_direction`: the first frame and the first sound together, and the question their
   combination raises. Leave `time_range` off: this hook is about the next cut, not a moment in
@@ -126,24 +126,18 @@ what the two together make the viewer want to know. Write the new opening as one
 - The card's `action`: the material to prepare when the creator has not shown they have it — "a
   screenshot of the result you can actually show" — never written as if they already own it.
 
-On their own video the strongest opening usually already exists somewhere in the cut. When it
-does, give it its own hook — the `time_range` and what is on screen there — and let the opening
-hook say how to bring it to the front. On somebody else's video the pattern is the mechanism that
-transfers, and the opening is for the creator's next video.
+When the strongest opening already exists in the creator's own cut, give it its own hook — the
+`time_range` and what is on screen there — and let the opening hook say how to bring it to the front.
 
 `finish_diagnosis.py` runs `validate_creator_shape.py`, which enforces the sequence, the pairing,
 the observation reference, the timestamp binding and the `spoken_line` rule; do not run it yourself.
 
 ## Promise and payoff
 
-`scripts/compute_promise_payoff.py` measures how long the video takes to deliver what its opening
-promised. Both ends are already in the dimension vocabulary — `first_frame_promise` and `payoff` —
-and this reports the distance between them.
-
-It anchors the promise itself: the first thing said inside `frames.sampling_plan.hook_window_s`.
-It will not locate the payoff, because a payoff is a meaning and not a pattern. Name the cue you
-judge pays it off and the script returns the gap; name nothing and it returns the candidate cues
-and says the judgement has not been made. Do not report a distance the script did not compute.
+`scripts/compute_promise_payoff.py` (run by `prepare_analysis.py`, results in section 4 of the brief)
+anchors the promise: the first thing said inside `frames.sampling_plan.hook_window_s`. It will not
+locate the payoff. Name the cue you judge pays it off and the script returns the gap; name nothing
+and it returns the candidate cues. Do not report a distance the script did not compute.
 
 ## What the document does not carry
 

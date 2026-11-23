@@ -83,7 +83,10 @@ test("video analysis media single composite call: hand off one call, resume unti
   assert.match(args.run_key, /^acv:[0-9a-f]{32}$/);
   assert.deepEqual(args.requests.map((r) => r.operation), ["fetch_transcript", "extract_keyframes", "measure_media_signals"]);
   const keyframes = args.requests.find((r) => r.operation === "extract_keyframes");
-  assert.deepEqual(keyframes.parameters, { url: URL_, sampling: "duration_scaled", max_frames: 60 });
+  // The contract's cap, a frame just after each cut (on by default), the default dense window (the first 50s every
+  // 0.5s; no method cards chose windows here) and the overview of every second (applied past 50s).
+  assert.deepEqual(keyframes.parameters, { url: URL_, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true,
+    dense_windows: [{ start_s: 0, end_s: 50, interval_s: 0.5 }], overview: true });
 
   // Jobs are still running: a resume emits the same call again.
   await save(saveOf(first.out), composite(args, new Set(["video/extract_keyframes"])));
@@ -264,10 +267,10 @@ test("transcript-only export: when the request has no content_id, take it from t
   assert.match(await readFile(path.join(run, "report/transcript.txt"), "utf8"), /Here is the one thing you need/);
 });
 
-// Media waits use wall time (about 15 minutes), not 6 rounds: a long video's transcript reasonably takes 5-10
-// minutes. In a dev-box Codex run a 31-minute Bilibili video's transcript finished at 370 seconds, the plugin had
-// stopped at 338 seconds (6 rounds), and the model reported the still-running job as a backend service_unavailable.
-test("collect_media.py: while jobs run it keeps waiting by wall time (past the old 6 rounds), stops only at the cap, and records unfinished jobs as deferred-incomplete, not failed", async (t) => {
+// Media waits use wall time, not a fixed number of rounds, up to the one observation deadline (330 seconds, the same
+// as observe_video.py): Kabo Web ends a turn at 500 seconds. A job still running then is unfinished, not failed: in
+// a dev-box Codex run the model once reported a still-running transcript as a backend service_unavailable.
+test("collect_media.py: while jobs run it keeps waiting by wall time (past the old 6 rounds), stops at the deadline, and records unfinished jobs as deferred-incomplete, not failed", async (t) => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
@@ -279,13 +282,13 @@ test("collect_media.py: while jobs run it keeps waiting by wall time (past the o
     await save(saveOf(out), composite(args, transcriptPending));
     const resumed = shell(resumeOf(out));
     assert.equal(resumed.code, 0, resumed.out);
-    assert.match(resumed.out, /1 media job\(s\) are still running \(\d+ of up to 15 min waited\); keep waiting\./, `round ${round}`);
+    assert.match(resumed.out, /1 media job\(s\) are still running \(\d+ of up to 330 s waited\); keep waiting\./, `round ${round}`);
     assert.deepEqual(calls(resumed.out)[0].arguments, args);
     assert.doesNotMatch(resumed.out, /"status": "collected"/);
     out = resumed.out;
   }
-  // Wall time used up (the first hand-over was 16 minutes ago) and still running: stop, record the transcript as
-  // unfinished, and say plainly that the backend did not fail.
+  // The deadline passed (the first hand-over was 16 minutes ago) and it is still running: stop, record the
+  // transcript as not arrived in time, and say plainly that the backend did not fail.
   const stateFile = path.join(run, "collect-media.json");
   const saved = JSON.parse(await readFile(stateFile, "utf8"));
   saved.started_at = new Date(Date.now() - 16 * 60 * 1000).toISOString();
@@ -296,7 +299,7 @@ test("collect_media.py: while jobs run it keeps waiting by wall time (past the o
   assert.match(last.out, /"status": "collected"/);
   assert.equal(calls(last.out).length, 0);
   assert.match(last.out, /"pending": \["fetch_transcript=00000000-0000-4000-8000-000000000001"\]/);
-  assert.match(last.out, /1 media job\(s\) were still running when waiting stopped after about 16 min \(fetch_transcript\)\. They are unfinished, not failed/);
+  assert.match(last.out, /1 media job\(s\) were still running when waiting stopped after about 9\d\d s \(fetch_transcript\)\. They did not arrive in time and are unfinished, not failed/);
   assert.match(last.out, /never describe it as a backend failure, service_unavailable or a network problem/);
   const flags = last.out.split("\n").find((line) => line.startsWith("Pass these to build_content_evidence.py")).split(": ")[1];
   assert.match(flags, /--deferred-incomplete fetch_transcript=00000000-0000-4000-8000-000000000001/);
@@ -316,6 +319,51 @@ test("collect_media.py: while jobs run it keeps waiting by wall time (past the o
   assert.match(evidence.transcript.status_basis, /was still running when waiting stopped: unfinished, not failed/);
   assert.deepEqual(evidence.acquisition.filter((entry) => entry.operation === "fetch_transcript").map((entry) => entry.status), ["deferred_incomplete"]);
   assert.equal(evidence.frames.status, "available");
+});
+
+// The deadline bounds when the last call ends: each call waits inside the tool (up to 45 s), so a hand-over starts
+// only while what is left covers its waits plus a 15 s margin. On pre, a 45 s poll started just before 330 s held the
+// fetch step for 385 s and the turn died at 500 s. The clock is injected by moving the recorded first hand-over back.
+test("collect_media.py: near the deadline a hand-over makes fewer calls, then a shorter wait_s, then none, and the outcome text is the deadline's", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
+  t.after(() => rm(workspace, { recursive: true, force: true }));
+  const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+  let out = python("collect_media.py", ["--url", URL_, "--operations", "transcript,keyframes"], { cwd: run, run }).out;
+  const args = calls(out)[0].arguments;
+  assert.equal(args.wait_s, undefined, "a full wait is the tool's own");
+  assert.match(out, /or you have made it 6 times/);
+  const stateFile = path.join(run, "collect-media.json");
+  const startedAgo = async (seconds) => {
+    const saved = JSON.parse(await readFile(stateFile, "utf8"));
+    saved.started_at = new Date(Date.now() - seconds * 1000).toISOString();
+    await writeFile(stateFile, JSON.stringify(saved));
+  };
+  const pending = new Set(["video/fetch_transcript"]);
+  const round = async (ago) => {
+    await save(saveOf(out), composite(args, pending));
+    await startedAgo(ago);
+    const resumed = shell(resumeOf(out));
+    assert.equal(resumed.code, 0, resumed.out);
+    out = resumed.out;
+    return resumed.out;
+  };
+  // 260 s in: 70 s left covers one full 45 s call plus the margin, not two.
+  let resumed = await round(260);
+  assert.match(resumed, /or you have made it 1 times/);
+  assert.deepEqual(calls(resumed)[0].arguments, args);
+  // 290 s in: 40 s left covers only a 25 s wait (24 once the resume's own start-up has ticked), so the call says so.
+  resumed = await round(290);
+  assert.match(resumed, /or you have made it 1 times/);
+  const { wait_s: wait, ...rest } = calls(resumed)[0].arguments;
+  assert.deepEqual(rest, args);
+  assert.ok(wait === 25 || wait === 24, `wait_s ${wait}`);
+  // 310 s in, still inside the 330 s deadline: 20 s left cannot cover even a 10 s wait, so no call starts and the
+  // job is recorded exactly as at the deadline.
+  resumed = await round(310);
+  assert.equal(calls(resumed).length, 0);
+  assert.match(resumed, /"status": "collected"/);
+  assert.match(resumed, /1 media job\(s\) were still running when waiting stopped after about 31\d s \(fetch_transcript\)\. They did not arrive in time and are unfinished, not failed/);
+  assert.match(resumed, /--deferred-incomplete fetch_transcript=/);
 });
 
 test("collect_media.py: a hard round cap besides wall time stops endless hand-overs when the host returns at once every time", async (t) => {

@@ -63,6 +63,7 @@ def has_retrieved_evidence(evidence: dict) -> bool:
         # tags and publishes no cover: the run learned something about the video either way,
         # and a run that learned something may not report that it learned nothing.
         or metadata.get("status") == "available"
+        or bool((evidence.get("viewer_observations") or {}).get("items"))
     )
 
 
@@ -103,6 +104,13 @@ def evidence_handles(evidence: dict, analysis: dict | None = None) -> set[str]:
                 for i in range(len(((probed.get("shots") or {}).get("shots")) or []))}
     handles |= {f"media.probed.brightness.per_shot[{i}]"
                 for i in range(len(((probed.get("brightness") or {}).get("per_shot")) or []))}
+    # Local sound measurement: each reported finding is citable by index, and so is each measured block,
+    # exactly as a probed signal is. Only what reached the evidence resolves.
+    audio = (evidence.get("media") or {}).get("audio")
+    if isinstance(audio, dict):
+        handles |= {f"media.audio.findings[{i}]" for i in range(len(audio.get("findings") or []))}
+        handles |= {f"media.audio.{name}" for name, value in audio.items()
+                    if name not in ("findings", "listen_check", "thresholds") and isinstance(value, dict)}
     for index, entry in enumerate(evidence.get("acquisition") or []):
         handles |= {f"acquisition[{index}]"}
         handles |= {f"acquisition[{index}].{field}" for field in entry}
@@ -110,19 +118,36 @@ def evidence_handles(evidence: dict, analysis: dict | None = None) -> set[str]:
         "transcript.text_sha256", "transcript.status", "transcript.language", "transcript.segment_count",
         "transcript.character_count", "transcript.plain_text",
         "media.has_audio", "media.duration_s", "media.frames.scene_detection",
-        "media.probed.mean_volume_db", "audio_attribution.uses_original_audio",
+        "media.probed.mean_volume_db",
         "deterministic.hook_stage", "deterministic.sustain_stage", "deterministic.cohort",
     }
+    # Sound attribution is citable only when the evidence carries it.
+    if isinstance(evidence.get("audio_attribution"), dict):
+        handles.add("audio_attribution.uses_original_audio")
     # Only cues whose text actually reached the evidence object can be cited. Minting these from
     # segment_count let an analysis quote transcript.cue[7] having never read a word of it, and the
     # reference resolved because the index was in range.
     handles |= {f"transcript.cue[{i}]"
                 for i in range(len((evidence.get("transcript") or {}).get("cues") or []))}
+    # A whole-video note is cited by its own id, exactly like a frame id. Only notes that reached the evidence
+    # object resolve; the scores and advice the viewer also returned are never in it, so never citable.
+    handles |= {item["id"] for item in (evidence.get("viewer_observations") or {}).get("items") or []
+                if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    # The comment summary and the song identification, where the run asked for them and they came back.
+    audience = evidence.get("audience_response") or {}
+    if audience.get("status") == "available":
+        handles |= {f"audience_response.{field}" for field in ("summary", "sentiment", "controversy")
+                    if audience.get(field) is not None}
+        for field in ("themes", "questions", "requests"):
+            handles |= {f"audience_response.{field}[{i}]" for i in range(len(audience.get(field) or []))}
+    song = evidence.get("song_identification") or {}
+    handles |= {f"song_identification.{field}" for field in ("song", "platform_audio") if song.get(field)}
     handles |= {f"observations.{o['observation_id']}"
                 for o in (analysis or {}).get("observations") or []}
-    caption = (evidence.get("content_metadata") or {}).get("caption")
-    if isinstance(caption, str) and caption.strip():
-        handles.add("content_metadata.caption")
+    metadata = evidence.get("content_metadata") or {}
+    for field in ("title", "caption"):
+        if isinstance(metadata.get(field), str) and metadata[field].strip():
+            handles.add(f"content_metadata.{field}")
     return handles
 
 
@@ -238,6 +263,10 @@ def validate(analysis: dict, evidence: dict, request: dict | None) -> list[str]:
             if not timed:
                 require(obs.get("t_start_s") is None and obs.get("t_end_s") is None,
                         f"{obs['observation_id']} anchors a plain-text transcript to a timestamp", errors)
+        if obs.get("basis") == "viewer_observation":
+            notes = {i.get("id") for i in (evidence.get("viewer_observations") or {}).get("items") or []}
+            require(bool(notes.intersection(obs.get("evidence_refs") or [])),
+                    f"{obs['observation_id']} rests on a whole-video note but cites none", errors)
         if obs.get("dimension") == "spoken_hook":
             require(transcript_status == "available",
                     f"{obs['observation_id']} describes speech without a transcript", errors)
@@ -251,7 +280,7 @@ def validate(analysis: dict, evidence: dict, request: dict | None) -> list[str]:
         scope_errors = public_only_evidence_errors(evidence)
         errors += scope_errors
         require(completeness.get("account_baseline") == "unavailable",
-                "unknown ownership cannot declare an account baseline", errors)
+                "unknown ownership has no account baseline: evidence_completeness.account_baseline must be \"unavailable\" (leave it out of the judgment and compose_video_analysis.py fills it)", errors)
         if not scope_errors:
             require(deterministic == compute(evidence, None, "unknown"),
                     "unknown ownership must retain the public-only unassessed deterministic block", errors)

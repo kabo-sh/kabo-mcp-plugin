@@ -47,6 +47,7 @@
     "get_for_you_videos",
     "get_kabo_info",
     "get_library_video",
+    "get_new_post_reviews",
     "get_remake_video",
     "get_research_capabilities",
     "get_research_data_download",
@@ -69,7 +70,9 @@
     "upload_file",
     "check_video_plan",
     "make_video",
-    "reply_to_video"
+    "reply_to_video",
+    "identify_video_song",
+    "summarize_video_comments"
   ],
   "optionalTools": [
     "creator_trends_get_instagram_audio_board",

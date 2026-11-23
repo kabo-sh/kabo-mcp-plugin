@@ -7071,6 +7071,430 @@
         "securitySchemes": [
           {
             "scopes": [
+              "workspace:read"
+            ],
+            "type": "oauth2"
+          }
+        ]
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Free numbers for the user's posts past 24h (last 7 days): views vs their earlier posts at 24h (multiple), else share of usual settled views; plus follower change. Reads public data at most hourly; the first call starts tracking. You write the review.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "description": "Needed if several linked.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "get_new_post_reviews",
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "collected_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "provider_unavailable",
+                  "account_not_found"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "followers": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "change": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "count": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "since": {
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "count",
+                  "change",
+                  "since"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_collect_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "content_id": {
+                  "type": "string"
+                },
+                "due_at": {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "type": "string"
+                },
+                "published_at": {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "type": "string"
+                },
+                "title": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "url": {
+                  "format": "uri",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "content_id",
+                "url",
+                "title",
+                "published_at",
+                "due_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "enum": [
+                  "instagram",
+                  "tiktok",
+                  "youtube"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_linked_account",
+                  "unavailable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retry_after_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Seconds before calling again changes anything; null when ready."
+          },
+          "retryable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviews": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "age_hours": {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "baseline_views": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "basis": {
+                  "enum": [
+                    "same_age_24h",
+                    "typical_settled",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                "comments": {
+                  "anyOf": [
+                    {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "content_id": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string"
+                },
+                "late": {
+                  "type": "boolean"
+                },
+                "likes": {
+                  "anyOf": [
+                    {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "measured_at": {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "type": "string"
+                },
+                "multiple": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "published_at": {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "type": "string"
+                },
+                "sample_size": {
+                  "anyOf": [
+                    {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "share_reached": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "title": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "url": {
+                  "format": "uri",
+                  "type": "string"
+                },
+                "views": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "content_id",
+                "url",
+                "title",
+                "format",
+                "published_at",
+                "measured_at",
+                "age_hours",
+                "late",
+                "views",
+                "likes",
+                "comments",
+                "basis",
+                "multiple",
+                "share_reached",
+                "baseline_views",
+                "sample_size"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "generating",
+              "not_eligible",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "tracked_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "account_id",
+          "platform",
+          "reason",
+          "failure_code",
+          "retryable",
+          "retry_after_seconds",
+          "tracked_since",
+          "collected_at",
+          "next_collect_at",
+          "followers",
+          "reviews",
+          "pending"
+        ],
+        "type": "object"
+      },
+      "securitySchemes": [
+        {
+          "scopes": [
+            "workspace:read"
+          ],
+          "type": "oauth2"
+        }
+      ],
+      "title": "Review your new posts at 24 hours"
+    },
+    {
+      "_meta": {
+        "securitySchemes": [
+          {
+            "scopes": [
               "data"
             ],
             "type": "oauth2"
@@ -15085,7 +15509,7 @@
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Save analysis of a public YouTube/Instagram/TikTok URL. Propose first; requires user confirmation. Top-level. No daily data allowance cost. Poll get_analysis_run(id).",
+      "description": "Save analysis of a public YouTube/Instagram/TikTok/Douyin/Xiaohongshu/Kuaishou/Facebook/Bilibili video link or an uploaded kabo-file:id. Propose first; requires user confirmation. Top-level. No daily data allowance cost. Poll get_analysis_run(id).",
       "execution": {
         "taskSupport": "forbidden"
       },
@@ -15093,6 +15517,13 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
+          "delivery": {
+            "enum": [
+              "inline",
+              "download"
+            ],
+            "type": "string"
+          },
           "idempotency_key": {
             "description": "8-128: A-Za-z0-9._:-; reuse only to retry.",
             "maxLength": 128,
@@ -15133,6 +15564,80 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "type": "string"
+          },
+          "download": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "bytes": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "content_type": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "expires_at": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "envelope",
+                      "artifact"
+                    ],
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "status": {
+                    "const": "ready",
+                    "type": "string"
+                  },
+                  "url": {
+                    "format": "uri",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "kind",
+                  "url",
+                  "expires_at",
+                  "sha256",
+                  "bytes",
+                  "content_type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "reason": {
+                    "enum": [
+                      "too_large",
+                      "not_found",
+                      "service_unavailable"
+                    ],
+                    "type": "string"
+                  },
+                  "status": {
+                    "const": "unavailable",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "reason"
+                ],
+                "type": "object"
+              }
+            ]
           },
           "failure": {
             "anyOf": [
@@ -15426,6 +15931,19 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
+          },
+          "delivery": {
+            "enum": [
+              "inline",
+              "download"
+            ],
+            "type": "string"
+          },
+          "wait_s": {
+            "description": "Seconds to wait for a final status.",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -15454,6 +15972,80 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "type": "string"
+          },
+          "download": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "bytes": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "content_type": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "expires_at": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "envelope",
+                      "artifact"
+                    ],
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "status": {
+                    "const": "ready",
+                    "type": "string"
+                  },
+                  "url": {
+                    "format": "uri",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "kind",
+                  "url",
+                  "expires_at",
+                  "sha256",
+                  "bytes",
+                  "content_type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "reason": {
+                    "enum": [
+                      "too_large",
+                      "not_found",
+                      "service_unavailable"
+                    ],
+                    "type": "string"
+                  },
+                  "status": {
+                    "const": "unavailable",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "reason"
+                ],
+                "type": "object"
+              }
+            ]
           },
           "failure": {
             "anyOf": [
@@ -18521,6 +19113,487 @@
         }
       ],
       "title": "Upload a local file"
+    },
+    {
+      "_meta": {
+        "securitySchemes": [
+          {
+            "scopes": [
+              "data"
+            ],
+            "type": "oauth2"
+          }
+        ]
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Song in a public Instagram/YouTube/TikTok video: audio recognition, else the platform's audio tag (source says which). Other sites: unsupported_platform. No quota.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "end_s": {
+            "description": "Clip end, seconds; after start_s.",
+            "exclusiveMinimum": 0,
+            "maximum": 86400,
+            "type": "integer"
+          },
+          "start_s": {
+            "description": "Clip start, seconds.",
+            "maximum": 86400,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "video_url": {
+            "description": "Public Instagram, YouTube or TikTok video.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "video_url"
+        ],
+        "type": "object"
+      },
+      "name": "identify_video_song",
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "platform": {
+            "anyOf": [
+              {
+                "enum": [
+                  "instagram",
+                  "youtube",
+                  "tiktok"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "platform_audio": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "credit": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "original": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "title",
+                  "credit",
+                  "original",
+                  "url"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sample_start_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "song": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "album": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "artist": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "title",
+                  "artist",
+                  "album",
+                  "url"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "recognition",
+                  "platform_tag"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "matched",
+              "platform_metadata",
+              "no_match",
+              "unavailable",
+              "in_progress",
+              "quota_exceeded",
+              "unsupported_platform"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "source",
+          "reason",
+          "platform",
+          "sample_start_s",
+          "song",
+          "platform_audio"
+        ],
+        "type": "object"
+      },
+      "securitySchemes": [
+        {
+          "scopes": [
+            "data"
+          ],
+          "type": "oauth2"
+        }
+      ],
+      "title": "Identify the song in a video"
+    },
+    {
+      "_meta": {
+        "securitySchemes": [
+          {
+            "scopes": [
+              "data"
+            ],
+            "type": "oauth2"
+          }
+        ]
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Audience view from a public YouTube/Instagram/TikTok video's top comments: sentiment, themes, questions, requests, controversy. Paraphrased; no comment text or commenters. Other sites: unsupported_platform. No quota.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "video_url": {
+            "description": "Public YouTube, Instagram or TikTok video.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "video_url"
+        ],
+        "type": "object"
+      },
+      "name": "summarize_video_comments",
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "controversy": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "flagged": {
+                    "type": "boolean"
+                  },
+                  "note": {
+                    "anyOf": [
+                      {
+                        "maxLength": 240,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "flagged",
+                  "note"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "enum": [
+                  "youtube",
+                  "tiktok",
+                  "instagram"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "retrieved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sample_size": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sentiment": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "negative": {
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "neutral": {
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "positive": {
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "positive",
+                  "neutral",
+                  "negative"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "too_few_comments",
+              "unsupported_platform"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "themes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "maxLength": 240,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "label": {
+                  "maxLength": 60,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "share": {
+                  "maximum": 100,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "label",
+                "description",
+                "share"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total_comments": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "platform",
+          "total_comments",
+          "sample_size",
+          "language",
+          "sentiment",
+          "summary",
+          "themes",
+          "questions",
+          "requests",
+          "controversy",
+          "retrieved_at"
+        ],
+        "type": "object"
+      },
+      "securitySchemes": [
+        {
+          "scopes": [
+            "data"
+          ],
+          "type": "oauth2"
+        }
+      ],
+      "title": "Summarize a video's comments"
     },
     {
       "_meta": {
@@ -38840,17 +39913,53 @@
           },
           "parameters": {
             "properties": {
+              "dense_windows": {
+                "description": "duration_scaled: denser windows.",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "end_s": {
+                      "exclusiveMinimum": 0,
+                      "type": "number"
+                    },
+                    "interval_s": {
+                      "minimum": 0.2,
+                      "type": "number"
+                    },
+                    "start_s": {
+                      "minimum": 0,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "start_s",
+                    "end_s",
+                    "interval_s"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
               "fps": {
                 "description": "evenly_spaced.",
                 "maximum": 2,
                 "minimum": 0.05,
                 "type": "number"
               },
+              "include_shot_starts": {
+                "description": "duration_scaled: +1 frame per cut.",
+                "type": "boolean"
+              },
               "max_frames": {
                 "description": "Cap.",
                 "maximum": 120,
                 "minimum": 1,
                 "type": "integer"
+              },
+              "overview": {
+                "description": "duration_scaled: >50s, sheets of every second + change frames.",
+                "type": "boolean"
               },
               "sampling": {
                 "description": "duration_scaled=whole; evenly_spaced=first max_frames/fps seconds.",
@@ -39482,17 +40591,53 @@
           },
           "parameters": {
             "properties": {
+              "dense_windows": {
+                "description": "duration_scaled: denser windows.",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "end_s": {
+                      "exclusiveMinimum": 0,
+                      "type": "number"
+                    },
+                    "interval_s": {
+                      "minimum": 0.2,
+                      "type": "number"
+                    },
+                    "start_s": {
+                      "minimum": 0,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "start_s",
+                    "end_s",
+                    "interval_s"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
               "fps": {
                 "description": "evenly_spaced.",
                 "maximum": 2,
                 "minimum": 0.05,
                 "type": "number"
               },
+              "include_shot_starts": {
+                "description": "duration_scaled: +1 frame per cut.",
+                "type": "boolean"
+              },
               "max_frames": {
                 "description": "Cap.",
                 "maximum": 120,
                 "minimum": 1,
                 "type": "integer"
+              },
+              "overview": {
+                "description": "duration_scaled: >50s, sheets of every second + change frames.",
+                "type": "boolean"
               },
               "sampling": {
                 "description": "duration_scaled=whole; evenly_spaced=first max_frames/fps seconds.",
@@ -40124,17 +41269,53 @@
           },
           "parameters": {
             "properties": {
+              "dense_windows": {
+                "description": "duration_scaled: denser windows.",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "end_s": {
+                      "exclusiveMinimum": 0,
+                      "type": "number"
+                    },
+                    "interval_s": {
+                      "minimum": 0.2,
+                      "type": "number"
+                    },
+                    "start_s": {
+                      "minimum": 0,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "start_s",
+                    "end_s",
+                    "interval_s"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
               "fps": {
                 "description": "evenly_spaced.",
                 "maximum": 2,
                 "minimum": 0.05,
                 "type": "number"
               },
+              "include_shot_starts": {
+                "description": "duration_scaled: +1 frame per cut.",
+                "type": "boolean"
+              },
               "max_frames": {
                 "description": "Cap.",
                 "maximum": 120,
                 "minimum": 1,
                 "type": "integer"
+              },
+              "overview": {
+                "description": "duration_scaled: >50s, sheets of every second + change frames.",
+                "type": "boolean"
               },
               "sampling": {
                 "description": "duration_scaled=whole; evenly_spaced=first max_frames/fps seconds.",

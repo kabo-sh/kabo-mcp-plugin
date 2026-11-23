@@ -13,12 +13,15 @@ forgets is one that treats a real frame as if nobody had looked at it. So this w
 `duration_scaled_v1` frames with the same fields, and the ledger -- not the frame -- records that
 the step ran locally.
 
-**The plan is the same algorithm, not the same floating-point result.** Dense across the opening,
-steady through the body, one frame at the close. Measured against the two shipped fixtures it
-reproduces the frame count, the hook and body counts and the reported body interval exactly, and
-every timestamp to within a millisecond. The last millisecond is not recoverable: the connector
-records its own duration rounded to three decimals, so the value it divided by is not in the
-evidence. Chasing it would mean fitting this script to the rounding of a service it cannot see.
+**The plan is the connector's plan.** The opening three seconds and the closing two every 0.5s, the
+body every second between them and spread out evenly over the frame cap (120, the server's), a frame
+0.05s after each cut the connector's detector finds, the default dense window (the first 50 seconds
+every 0.5s, which the keyframes request always sends) and any dense windows the method cards ask for --
+in the connector's budget order (opening, closing, shot starts, dense windows, body) with its 0.25s dedupe.
+The windows take at most half of what the first three leave unless the body outside them needs less, and
+the body runs only over the time no window covers.
+Each frame records which of those it is (`source`). Timestamps match to the millisecond where the
+cuts match; the cuts themselves come from this machine's ffmpeg, so a borderline cut can differ.
 
 **Reading the file is not the same as trusting it.** A creator's filename can contain a space, a
 quote or a leading dash; a container can lie about its duration or carry no audio at all. Every
@@ -35,10 +38,16 @@ and the frame count and total bytes are capped. The id in the artifact is unchan
 
     python3 extract_local_frames.py --media FILE --out-dir DIR --artifact FILE
                                     [--hook-window-s 3.0] [--base-interval-s 1.0]
-                                    [--hook-multiplier 2] [--budget 600] [--max-frames 90]
-                                    [--max-total-bytes 12582912] [--jpeg-quality 3]
+                                    [--hook-multiplier 2] [--budget 600] [--max-frames 120]
+                                    [--no-shot-starts] [--dense-window START:END:INTERVAL ...]
+                                    [--no-contact-sheets] [--max-total-bytes 12582912] [--jpeg-quality 3]
                                     [--measure-loudness] [--measure-signals] [--dry-run]
                                     [--deadline-s 40]
+
+The frames are also laid out as contact sheets (`sheet-NN.jpg` beside them, four frames to a sheet, two
+by two in time order, each tile at the frame's own width up to 640px and captioned with its second
+where ffmpeg can draw text; `frames.contact_sheets` lists every tile's frame and second either way),
+so the frames are read a quarter as many times with their detail kept.
     python3 extract_local_frames.py --media FILE --artifact FILE --signals-only [--deadline-s 40]
 
 `--measure-signals` measures where the file cuts, where its audio drops below the speech floor and
@@ -64,6 +73,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import subprocess
 import sys
@@ -71,6 +81,10 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # sibling imports must not leave __pycache__ in the Skill
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import select_method  # noqa: E402  (the default dense window, shared with the keyframes request)
+import acv_timing  # noqa: E402  (the overview plan, shared with the connector)
 
 # Every executable this package is allowed to start. Kept identical to the survey script's set and
 # enforced the same way: these two read and decode media, and nothing else here needs a subprocess.
@@ -80,10 +94,8 @@ PROBE_TIMEOUT_S = 60
 FRAME_TIMEOUT_S = 60
 LOUDNESS_TIMEOUT_S = 900
 
-# The connector places its closing frame this far before the end rather than exactly at it: an input
-# seek to the final timestamp lands past the last decodable frame on several containers and writes
-# nothing at all.
-CLOSING_OFFSET_S = 0.1
+# A frame near the end that a seek cannot decode (an input seek close to the final timestamp lands
+# past the last decodable frame on several containers) is tried once more this much earlier.
 CLOSING_RETRY_OFFSET_S = 0.25
 
 # Loudness integrated over less than roughly this much audio is not a measurement of anything.
@@ -95,11 +107,14 @@ FRAME_LONG_EDGE_PX = 720
 FRAME_SCALE_FILTER = (f"scale='if(gte(iw,ih),min({FRAME_LONG_EDGE_PX},iw),-2)'"
                       f":'if(gte(iw,ih),-2,min({FRAME_LONG_EDGE_PX},ih))'")
 
-# A sandboxed host collects every file the step wrote and refuses the whole step past a file count
-# or a total size (in production: 128 files and 16 MiB for the run directory, with the run's other
-# files counted too). Both defaults leave room for those. A host that keeps everything can raise
-# them; the plan then thins the body the same honest way it does for --budget.
-DEFAULT_MAX_FRAMES = 90
+# The frame cap is the server's (120), so a local file is sampled like a link. A sandboxed host that
+# collects every file the step wrote refuses the whole step past a file count or a total size (one host
+# allowed 128 files and 16 MiB for the run directory, the run's other files counted too). At the cap the
+# step writes 150 files, 120 frames and 30 contact sheets of four, and on a file past 50s up to 16 overview
+# sheets more: there, pass a smaller --max-frames (80 frames and 20 sheets leave the run's other files room). The byte cap counts the frames and the sheets
+# together and stops writing before 16 MiB either way; the plan thins the body the same honest way it
+# does for --budget, and a sheet past the cap is not written (its frames are still there to open).
+DEFAULT_MAX_FRAMES = 120
 DEFAULT_MAX_TOTAL_BYTES = 12 * 1024 * 1024
 
 # Measurement thresholds, the connector's defaults verbatim so one video measured on either path gives
@@ -298,61 +313,362 @@ def read_media_facts(payload: dict) -> dict:
     return facts
 
 
+# Body spacing above which a thinned body counts as degraded coverage.
+DEGRADED_ABOVE_S = 1.0
+# The connector's duration_scaled_v1 plan (public-video-media), mirrored: a fixed opening window and a closing
+# window sampled at the hook interval, the body at the base interval between them, and, when asked, a frame just
+# after each cut and denser windows, all inside one frame budget.
+HOOK_DENSE_S = 3.0
+CLOSING_WINDOW_S = 2.0
+SHOT_START_OFFSET_S = 0.05
+DEDUPE_S = 0.25
+MIN_DENSE_INTERVAL_S = 0.2
+MAX_DENSE_WINDOWS = 3
+# Which frames survive when the budget runs short, and the order they are written in when time or bytes do.
+BUDGET_PRIORITY = ("hook", "closing", "shot_start", "dense_window", "body")
+# Shot starts read cuts off a cheap decode: every frame, picture only, 240 lines high, at the measurement's
+# sensitivity. This pass gets at most this share of the time left, so the frames still have most of it.
+SHOT_SCALE_FILTER = "scale=-2:240:flags=fast_bilinear"
+SHOT_TIME_SHARE = 0.35
+
+
+def _ms(seconds: float) -> int:
+    return int(round(seconds * 1000))
+
+
+def _near(seconds: float, others: list[float], within_s: float) -> bool:
+    # Integer milliseconds and a strict "<", as the connector compares them.
+    limit = _ms(within_s)
+    return any(abs(_ms(seconds) - _ms(other)) < limit for other in others)
+
+
+def _even_pick(items: list, keep: int) -> list:
+    """`keep` items spread evenly by index: item floor(i*n/keep)."""
+    if keep <= 0:
+        return []
+    if len(items) <= keep:
+        return list(items)
+    return [items[(index * len(items)) // keep] for index in range(keep)]
+
+
+def parse_dense_window(text: str) -> dict:
+    """`start:end:interval` in seconds, as --dense-window takes it."""
+    parts = text.split(":")
+    if len(parts) != 3:
+        raise ValueError(f"--dense-window takes start:end:interval in seconds; got {text!r}")
+    start, end, interval = (float(part) for part in parts)
+    if start < 0 or end <= start or interval < MIN_DENSE_INTERVAL_S:
+        raise ValueError(f"--dense-window {text!r}: start must be at least 0, end after start, and the interval "
+                         f"at least {MIN_DENSE_INTERVAL_S}s")
+    return {"start_s": start, "end_s": end, "interval_s": interval}
+
+
+def method_frames(artifact: Path) -> dict:
+    """The frame plan select_method.py wrote beside the artifact (analysis/method.json), when there is one."""
+    plan = {"include_shot_starts": True, "dense_windows": []}
+    try:
+        method = json.loads((artifact.expanduser().parent / "method.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return plan
+    frames = method.get("frames") if isinstance(method, dict) else None
+    if not isinstance(frames, dict):
+        return plan
+    plan["include_shot_starts"] = frames.get("include_shot_starts") is not False
+    for window in frames.get("dense_windows") or []:
+        try:
+            plan["dense_windows"].append(parse_dense_window(
+                f"{window['start_s']}:{window['end_s']}:{window['interval_s']}"))
+        except (KeyError, TypeError, ValueError):
+            continue
+    plan["dense_windows"] = plan["dense_windows"][:MAX_DENSE_WINDOWS]
+    return plan
+
+
+def uncovered_stretches(from_ms: int, until_ms: int, windows: list[dict]) -> list[tuple[int, int]]:
+    """The stretches of [from_ms, until_ms) no window covers, in whole milliseconds; a window covers [start, end)."""
+    covered = sorted((_ms(window["start_s"]), _ms(window["end_s"])) for window in windows)
+    stretches: list[tuple[int, int]] = []
+    at = from_ms
+    for start, end in covered:
+        if start > at:
+            stretches.append((at, min(start, until_ms)))
+        at = max(at, end)
+        if at >= until_ms:
+            break
+    if at < until_ms:
+        stretches.append((at, until_ms))
+    return [(since, until) for since, until in stretches if until > since]
+
+
 def plan_frames(duration_s: float, hook_window_s: float, base_interval_s: float,
-                hook_multiplier: int, budget: int) -> dict:
-    """Where to sample, and what to record about the choice.
+                hook_multiplier: int, budget: int, *, cuts: list[float] | None = None,
+                dense_windows: list[dict] | tuple = (), shot_detection: dict | None = None,
+                overview_units: list[tuple[int, int]] | None = None, overview_stride_s: int = 1) -> dict:
+    """Where to sample, and what to record about the choice: the connector's duration_scaled_v1 plan.
 
-    Dense across the opening because that is where a short-form video is decided, steady through the
-    body, and one frame at the close. `body_frames` counts the closing frame, which is why the plan
-    reports one more than the body run contains.
+    The opening three seconds every `base_interval_s / hook_multiplier` (0.5s), a closing window over the last two
+    seconds at the same spacing, and the body between them every `base_interval_s` (1s), spread out evenly when
+    that would pass the budget. `cuts` (None when shot starts were not asked for) add a frame 0.05s after each
+    cut and `dense_windows` add denser stretches; both come out of the body's share. When the budget runs short
+    the order is opening, closing, shot starts, dense windows, body: the opening is never thinned. A frame closer
+    than 0.25s to one of a higher-priority kind is dropped (a dense window closer than half its interval), and
+    a body point that close to a shot start or dense frame is skipped without giving its slot back.
 
-    Timestamps are computed from the unrounded interval and only the reported interval is rounded.
-    Rounding first and stepping by the rounded value walks the whole body track off by a growing
-    amount -- by the end of a minute it is several frames' worth.
+    `hook_window_s` is how far in the hook is judged (3s for a Short, 15-30 for long-form); it is recorded and
+    does not change what is sampled. Timestamps are computed from the unrounded interval and only the reported
+    interval is rounded.
+
+    `overview_units` (the per-second change units of acv_timing.change_units, None without an overview) switch a
+    video longer than acv_timing.OVERVIEW_ABOVE_S to the overview plan: the windows first keep what they need at twice
+    their requested interval (the first 50s at one frame a second) and shot starts get only what is left after that,
+    the windows' body need is the change candidates and anchors outside them, and change frames then anchors take the
+    place of the body grid (acv_timing's docstring). Up to that length the plan is unchanged.
     """
     hook_interval_s = base_interval_s / hook_multiplier
-    hook_dense_window_s = min(hook_window_s, duration_s)
-    hook_frames = int(hook_dense_window_s / hook_interval_s) + 1
-    timestamps = [round(index * hook_interval_s, 3) for index in range(hook_frames)]
+    overview = overview_units is not None and duration_s > acv_timing.OVERVIEW_ABOVE_S
+    shots_requested = cuts is not None
+    dropped_budget = {"shot_start": 0, "dense_window": 0}
+    dropped_duplicate = {"shot_start": 0, "dense_window": 0, "body": 0}
+    window_records: list[dict] = []
+    if duration_s <= HOOK_DENSE_S:
+        count = max(1, min(budget, math.ceil(duration_s / hook_interval_s - 1e-9)))
+        hook = [round(index * hook_interval_s, 3) for index in range(count)]
+        closing: list[float] = []
+        closing_start = None
+        span = 0.0
+    else:
+        hook = [round(index * hook_interval_s, 3)
+                for index in range(min(budget, int(round(HOOK_DENSE_S / hook_interval_s))))]
+        closing_start = max(HOOK_DENSE_S, duration_s - CLOSING_WINDOW_S)
+        count = max(0, min(budget - len(hook), math.ceil((duration_s - closing_start) / hook_interval_s - 1e-9)))
+        closing = [round(closing_start + index * hook_interval_s, 3) for index in range(count)]
+        span = closing_start - HOOK_DENSE_S
+    fixed = hook + closing
+    left = budget - len(fixed)
 
-    remaining_s = duration_s - hook_dense_window_s
-    body_frames = int(remaining_s / base_interval_s) if remaining_s > 0 else 0
-    body_degraded = False
-    if body_frames and hook_frames + body_frames > budget:
-        # Only the body gives way. The hook is a fixed cost: sampling it sparsely to afford more of
-        # the middle trades the part that decides the video for the part that describes it.
-        body_frames = max(1, budget - hook_frames)
-        body_degraded = True
+    shot_frames: list[float] = []
+    # The windows, clipped to the duration; `lay` places them at a whole factor of their intervals, deduped against
+    # the opening, the closing and the shot starts kept so far.
+    clipped = []
+    for window in list(dense_windows)[:MAX_DENSE_WINDOWS]:
+        start, end = round(min(window["start_s"], duration_s), 3), round(min(window["end_s"], duration_s), 3)
+        clipped.append({"start_s": start, "end_s": end, "requested": window["interval_s"],
+                        "clipped": window["end_s"] > duration_s, "usable": end > start})
 
-    body_interval_s = remaining_s / body_frames if body_frames else 0.0
-    timestamps += [round(hook_dense_window_s + index * body_interval_s, 3)
-                   for index in range(1, body_frames)]
-    closing_frame_s = round(max(0.0, duration_s - CLOSING_OFFSET_S), 3)
-    if body_frames:
-        timestamps.append(closing_frame_s)
+    def lay(factor: int) -> list[dict]:
+        accepted: list[float] = []
+        placed = []
+        for window in clipped:
+            if not window["usable"]:
+                placed.append({"interval_s": window["requested"], "skip": 0, "kept": []})
+                continue
+            interval = round(window["requested"] * factor, 3)
+            count = max(1, math.ceil(_ms(window["end_s"] - window["start_s"]) / _ms(interval)))
+            within = min(DEDUPE_S, interval / 2)
+            kept, skip = [], 0
+            for at in (round(window["start_s"] + step * interval, 3) for step in range(count)):
+                if _near(at, fixed + shot_frames, within) or _near(at, accepted, within):
+                    skip += 1
+                else:
+                    kept.append(at)
+                    accepted.append(at)
+            placed.append({"interval_s": interval, "skip": skip, "kept": kept})
+        return placed
 
-    note = (f"Opening {hook_dense_window_s:g}s sampled every {hook_interval_s:g}s, "
-            f"the rest every {round(body_interval_s, 3):g}s, and a closing frame at "
-            f"{closing_frame_s:g}s. Sampled on this machine.")
-    if body_degraded:
+    # On the overview plan the opening comes before the cuts: the windows keep what they need at twice their requested
+    # interval (the default first 50s at one frame a second), and the shot starts get only what is left after that.
+    opening_reserve = min(max(0, left), sum(len(entry["kept"]) for entry in lay(2))) if overview else 0
+    if shots_requested:
+        for cut in sorted({round(cut, 3) for cut in cuts}):  # repeated cuts count once, as the connector counts them
+            at = round(cut + SHOT_START_OFFSET_S, 3)
+            if not (cut > 0 and at < duration_s):
+                continue
+            if _near(at, fixed + shot_frames, DEDUPE_S):
+                dropped_duplicate["shot_start"] += 1
+                continue
+            shot_frames.append(at)
+        kept = _even_pick(shot_frames, max(0, left - opening_reserve))
+        dropped_budget["shot_start"] = len(shot_frames) - len(kept)
+        shot_frames = kept
+    left -= len(shot_frames)
+
+    dense_frames: list[float] = []
+    extras = shots_requested or bool(dense_windows) or overview
+    body_from_ms = _ms(HOOK_DENSE_S)
+    body_to_ms = _ms(closing_start) if closing_start is not None else body_from_ms
+
+    def candidates_outside(windows: list[dict]) -> list[tuple[int, int, str, int]]:
+        return acv_timing.change_candidates(overview_units or [], overview_stride_s,
+                                            uncovered_stretches(body_from_ms, body_to_ms, windows))
+    dense_sparser = False
+    laid: list[dict] = []
+    if dense_windows:
+        # The connector's arithmetic: clipped to the duration; together the windows take at most half of what the
+        # opening, the closing and the shot starts left, unless the body outside them needs less than the other half
+        # at one frame a second (cap = max(half, left - that need)). Over the cap every window's interval is multiplied
+        # by the same whole factor until they fit (or each is down to its first frame), then the windows are taken in
+        # order, each whole or not at all.
+        usable = [window for window in clipped if window["usable"]]
+        outside = uncovered_stretches(body_from_ms, body_to_ms, usable)
+        # On the overview plan the body outside the windows needs its change candidates and one anchor per 10s.
+        body_need = 0 if closing_start is None else (
+            len(candidates_outside(usable)) + sum((until - since) // acv_timing.ANCHOR_GAP_MS for since, until in outside)
+            if overview else sum((until - since) // 1000 for since, until in outside))
+        cap = max(max(0, left) // 2, left - body_need, opening_reserve)
+
+        requested = lay(1)
+        requested_kept = sum(len(entry["kept"]) for entry in requested)
+        placed = requested
+        if requested_kept > cap:
+            max_factor = max([1] + [math.ceil((window["end_s"] - window["start_s"]) / window["requested"]) + 1
+                                    for window in clipped if window["usable"]])
+            factor = 2
+            placed = lay(factor)
+            while sum(len(entry["kept"]) for entry in placed) > cap and factor < max_factor:
+                factor += 1
+                placed = lay(factor)
+        room = cap
+        for window, entry in zip(clipped, placed):
+            fits = 0 < len(entry["kept"]) <= room
+            if fits:
+                room -= len(entry["kept"])
+                dense_frames += entry["kept"]
+                laid.append(window)
+                dense_sparser = dense_sparser or entry["interval_s"] > base_interval_s
+            window_records.append({
+                "start_s": window["start_s"], "end_s": window["end_s"], "requested_interval_s": window["requested"],
+                "interval_s": entry["interval_s"] if fits else window["requested"],
+                "frames": len(entry["kept"]) if fits else 0, "clipped": window["clipped"],
+                "ignored": None if fits else ("outside_duration" if not window["usable"]
+                                              else "duplicate" if not entry["kept"] else "budget")})
+        dropped_budget["dense_window"] = max(0, requested_kept - len(dense_frames))
+        dropped_duplicate["dense_window"] = sum(entry["skip"] for entry in requested)
+    left -= len(dense_frames)
+
+    body: list[float] = []
+    body_interval_s = 0.0
+    body_grid = 0
+    change_frames: list[tuple[int, str, int]] = []
+    anchor_frames: list[int] = []
+    change_found = 0
+    if overview:
+        # The overview plan: no body grid (the overview shows every second); change frames, then anchors, in what the
+        # opening, closing, shot starts and windows left.
+        stretches = [] if closing_start is None else uncovered_stretches(body_from_ms, body_to_ms, laid)
+        found = candidates_outside(laid)
+        change_found = len(found)
+        higher = [_ms(at) for at in fixed + shot_frames + dense_frames]
+        change_frames, dropped_duplicate["change"] = acv_timing.pick_changes(found, higher, stretches, max(0, left))
+        left -= len(change_frames)
+        anchor_frames = acv_timing.pick_anchors(higher + [at for at, _, _ in change_frames], body_from_ms,
+                                                body_to_ms, max(0, left))
+        body_degraded = duration_s > HOOK_DENSE_S and (overview_stride_s > 1 or not closing)
+    elif not extras:
+        # The standard plan, unchanged: one body grid between the opening and the closing.
+        if span > 0 and left > 0:
+            body_interval_s = max(base_interval_s, span / left)
+            body_grid = min(left, int(math.floor(span / body_interval_s + 1e-9)))
+            body = [round(HOOK_DENSE_S + index * body_interval_s, 3) for index in range(body_grid)]
+        body_degraded = duration_s > HOOK_DENSE_S and (body_interval_s > DEGRADED_ABOVE_S or not closing
+                                                         or (span > 0 and not body))
+    else:
+        # With extras, as the connector does it: the body only over the time no laid window covers (the opening and
+        # closing bands excluded), one grid per uncovered stretch, every stretch at one interval of
+        # max(1s, ceil(uncovered ms / frames left)); so no body slot is spent inside a window.
+        stretches = [] if closing_start is None else uncovered_stretches(body_from_ms, body_to_ms, laid)
+        uncovered = sum(until - since for since, until in stretches)
+        interval_ms = max(_ms(base_interval_s), math.ceil(uncovered / left)) if uncovered > 0 and left > 0 else None
+        extra = shot_frames + dense_frames
+        if interval_ms is not None:
+            body_interval_s = interval_ms / 1000
+            for since, until in stretches:
+                frames = math.floor((until - since) / interval_ms)
+                body_grid += frames
+                for index in range(frames):
+                    at = round(since / 1000 + index * body_interval_s, 3)
+                    if extra and _near(at, extra, DEDUPE_S):
+                        dropped_duplicate["body"] += 1
+                        continue
+                    body.append(at)
+        # Degraded only where the video outside the windows is sampled more sparsely than one frame a second (or a
+        # window itself was thinned past it, or the closing band is missing): never for a video the windows cover.
+        body_degraded = duration_s > HOOK_DENSE_S and (
+            (interval_ms is not None and interval_ms > _ms(DEGRADED_ABOVE_S)) or not closing
+            or (any(until - since >= 1000 for since, until in stretches) and not body_grid) or dense_sparser)
+
+    kinds = ([(at, "hook") for at in hook] + [(at, "closing") for at in closing]
+             + [(at, "shot_start") for at in shot_frames] + [(at, "dense_window") for at in dense_frames]
+             + [(at, "body") for at in body] + [(at / 1000, "change") for at, _, _ in change_frames]
+             + [(at / 1000, "anchor") for at in anchor_frames])
+    priority = acv_timing.OVERVIEW_PRIORITY if overview else BUDGET_PRIORITY
+    kinds.sort(key=lambda pair: (pair[0], priority.index(pair[1])))
+    timestamps = [at for at, _ in kinds]
+    reasons = {at / 1000: {"reason": reason, "change_units": score} for at, reason, score in change_frames}
+
+    hook_dense_window_s = min(HOOK_DENSE_S, duration_s)
+    note = (f"Opening {hook_dense_window_s:g}s sampled every {hook_interval_s:g}s"
+            + (f", the body every {round(body_interval_s, 3):g}s" if body else "")
+            + (f", and the closing {CLOSING_WINDOW_S:g}s from {closing_start:g}s every {hook_interval_s:g}s"
+               if closing else "")
+            + (f"; {len(shot_frames)} frame(s) just after a cut" if shots_requested else "")
+            + (f"; {len(dense_frames)} frame(s) in dense windows" if dense_windows else "")
+            + (f"; {len(change_frames)} frame(s) where the picture or on-screen text changes and "
+               f"{len(anchor_frames)} anchor(s); every {overview_stride_s}s of the whole video is in the overview"
+               if overview else "")
+            + ". Sampled on this machine.")
+    if overview:
+        if overview_stride_s > 1:
+            note += (f" The overview shows one frame every {overview_stride_s}s, so a moment shorter than that may "
+                     "fall between its tiles.")
+    elif body_degraded and dense_sparser and body_interval_s <= DEGRADED_ABOVE_S:
+        note += (f" A dense window was thinned to fit a budget of {budget} frames and sampled more sparsely than "
+                 "one frame a second, so a cut shorter than its interval may fall between frames.")
+    elif body_degraded:
         note += (f" The body was thinned to fit a budget of {budget} frames, so a cut shorter than "
                  f"{round(body_interval_s, 3):g}s may fall between frames.")
 
-    return {
+    plan = {
         "base_interval_s": base_interval_s,
         "hook_window_s": hook_window_s,
         "hook_dense_window_s": hook_dense_window_s,
         "hook_interval_s": hook_interval_s,
-        "hook_frames": hook_frames,
-        "body_interval_s": round(body_interval_s, 3),
-        "body_frames": body_frames,
-        "closing_frame_s": closing_frame_s,
+        "hook_frames": len(hook),
+        # null with no body grid, as the connector writes it: there is no body interval to report.
+        "body_interval_s": round(body_interval_s, 3) if body_grid else None,
+        "body_frames": len(body),
+        "closing_frame_s": round(closing_start, 3) if closing_start is not None else round(duration_s, 3),
         "budget": budget,
         "frames": len(timestamps),
         "body_degraded": body_degraded,
         "note": note,
         "_timestamps": timestamps,
+        "_kinds": [kind for _, kind in kinds],
+        "_reasons": [reasons.get(at) for at in timestamps],
     }
+    if overview:
+        plan.update({
+            "overview": True,
+            "overview_stride_s": overview_stride_s,
+            "change_candidates": change_found,
+            "change_frames": len(change_frames),
+            "anchor_frames": len(anchor_frames),
+            "change_threshold_units": acv_timing.CHANGE_UNITS,
+            "anchor_gap_s": acv_timing.ANCHOR_GAP_MS / 1000,
+        })
+    if shots_requested or dense_windows or overview:
+        plan.update({
+            "include_shot_starts": shots_requested,
+            "shot_detection": shot_detection or {"status": "detected" if shots_requested else "not_requested",
+                                                 "cuts": len(cuts or []), "threshold": SHOT_THRESHOLD},
+            "shot_start_frames": len(shot_frames),
+            "dense_window_frames": len(dense_frames),
+            "dense_windows": window_records,
+            "dropped_for_budget": dropped_budget,
+            "dropped_as_duplicate": dropped_duplicate,
+            "dedupe_s": DEDUPE_S,
+            "budget_priority": list(acv_timing.OVERVIEW_PRIORITY if overview else BUDGET_PRIORITY),
+        })
+    return plan
 
 
 def frame_identifier(content_id: str, ordinal: int, seconds: float) -> str:
@@ -378,30 +694,35 @@ def frame_file_name(frame_id: str) -> str:
     return "frame-" + hashlib.sha256(frame_id.encode("utf-8")).hexdigest() + ".jpg"
 
 
-def extraction_order(frame_count: int, hook_frames: int) -> list[int]:
-    """The order frames are written in: the opening, the close, then the body coarse-to-fine.
-
-    Written in time order, a step that runs out of room loses the end of the video -- the ending is
-    one of the four things a creator asks about before posting. Written in this order, running out
-    leaves the hook and the close whole and the body evenly thinner, and the gap the reader has to
-    know about is the widest interval between frames, not a missing final third.
-    """
-    indices = list(range(frame_count))
-    hook = indices[:hook_frames]
-    closing = [frame_count - 1] if frame_count > hook_frames else []
-    body = indices[hook_frames:frame_count - 1] if closing else []
+def coarse_to_fine(indices: list[int]) -> list[int]:
+    """`indices` in an order whose every prefix is spread evenly over them: running out leaves an even thinning."""
     ordered: list[int] = []
     taken: set[int] = set()
     step = 1
-    while step < len(body):
+    while step < len(indices):
         step *= 2
     while step >= 1:
-        for position in range(0, len(body), step):
+        for position in range(0, len(indices), step):
             if position not in taken:
                 taken.add(position)
-                ordered.append(body[position])
+                ordered.append(indices[position])
         step //= 2
-    return hook + closing + ordered
+    return ordered
+
+
+def extraction_order(kinds: list[str]) -> list[int]:
+    """The order frames are written in: the opening, the close, shot starts, dense windows, then the body.
+
+    Written in time order, a step that runs out of room loses the end of the video -- the ending is
+    one of the four things a creator asks about before posting. Written in budget priority, running out
+    leaves the hook and the close whole, and each later kind is written coarse-to-fine, so what is left
+    out is an even thinning, not a missing final third.
+    """
+    ordered: list[int] = []
+    for kind in BUDGET_PRIORITY + ("change", "anchor"):
+        indices = [index for index, value in enumerate(kinds) if value == kind]
+        ordered += indices if kind in ("hook", "closing") else coarse_to_fine(indices)
+    return ordered
 
 
 def extract(media: Path, out_dir: Path, plan: dict, content_id: str, quality: int,
@@ -421,9 +742,12 @@ def extract(media: Path, out_dir: Path, plan: dict, content_id: str, quality: in
     started = started_at = now()
     sample_args: list[str] = []
 
-    for index in extraction_order(len(timestamps), plan["hook_frames"]):
+    kinds = plan["_kinds"]
+    reasons = plan.get("_reasons") or [None] * len(timestamps)
+    last = len(timestamps) - 1
+    for index in extraction_order(kinds):
         ordinal, seconds = index + 1, timestamps[index]
-        is_closing = ordinal == len(timestamps)
+        is_closing = index == last and kinds[index] in ("closing", "body")
         attempts = [seconds]
         if is_closing:
             attempts.append(round(max(0.0, seconds - CLOSING_RETRY_OFFSET_S), 3))
@@ -481,6 +805,8 @@ def extract(media: Path, out_dir: Path, plan: dict, content_id: str, quality: in
             "frame_id": frame_id,
             "_file": target.name,
             "t_seconds": seconds,
+            "source": kinds[index],
+            **(reasons[index] or {}),
             "sha256": file_digest(target),
             "bytes": target.stat().st_size,
             "retained_outside_git": True,
@@ -761,6 +1087,187 @@ def measure_signals(media: Path, duration_s: float, has_audio: bool,
     return data, steps, limitations
 
 
+def detect_cuts(media: Path, duration_s: float, deadline: float) -> tuple[list[float], dict, dict]:
+    """Where the picture cuts, for the shot-start frames: the cuts, the plan's shot_detection record, a ledger step.
+
+    The connector's detector and sensitivity on a cheap decode (picture only, 240 lines high). It gets at most
+    SHOT_TIME_SHARE of the time left, so the frames keep most of the command; stopped early, the cuts it found
+    up to that second are used and the record says how far it read.
+    """
+    left = deadline - time.monotonic()
+    score = max(1, min(99, round(SHOT_THRESHOLD * 100)))
+    args = ["-nostdin", "-hide_banner", "-nostats", "-progress", "pipe:1", "-an", "-sn", "-dn", "-i", str(media),
+            "-map", "0:v:0", "-vf", f"{SHOT_SCALE_FILTER},scdet=threshold={score}", "-f", "null", "-"]
+    started = now()
+    status, log, reached, note = run_pass(args, time.monotonic() + max(0.0, left * SHOT_TIME_SHARE))
+    step = {"step": "local_extraction", "operation": "detect_shot_starts", "tool": "ffmpeg",
+            "tool_version": tool_version("ffmpeg"), "invocation_sha256": invocation_digest(args, media),
+            "started_at": started, "status": status}
+    if note:
+        step["note"] = note
+    cuts = sorted({round(float(hit), 3) for hit in re.findall(r"lavfi\.scd\.time:\s*([\d.]+)", log)})
+    record = {"status": "failed" if status == "failed" else "detected", "cuts": len(cuts), "threshold": SHOT_THRESHOLD,
+              # The cut times themselves, at full frame rate: the audio measurement lines cuts up with onsets
+              # (measure_audio_local.py), which the 0.1s grid of `media.signals` is too coarse for.
+              "cuts_at_s": cuts}
+    if status == "completed_partial" and reached is not None:
+        record["status"] = "partial"
+        record["read_until_s"] = round(min(duration_s, reached), 3)
+    return cuts, record, step
+
+
+# The overview (acv_timing's docstring): one decode at one frame a second writes the 64x64 luma grid the change
+# frames are chosen from and the low-resolution sheets of every second. It gets at most this share of the time left.
+OVERVIEW_TIME_SHARE = 0.35
+OVERVIEW_LUMA_FILE = ".overview-luma.gray"
+
+
+def overview_pass(media: Path, duration_s: float, out_dir: Path, quality: int,
+                  deadline: float) -> tuple[list[tuple[int, int]] | None, dict, dict]:
+    """The change units per overview second (None when the pass failed), the artifact's `overview` record and a
+    ledger step. Stopped at its time share, it keeps the seconds and sheets it finished and says how far it read."""
+    layout = acv_timing.overview_layout(duration_s)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    luma = out_dir / OVERVIEW_LUMA_FILE
+    for old in out_dir.glob("overview-*.jpg"):
+        old.unlink()
+    args = ["-nostdin", "-hide_banner", "-nostats", "-progress", "pipe:1", "-an", "-sn", "-dn", "-i", str(media),
+            "-filter_complex", acv_timing.overview_filter(layout),
+            "-map", "[g]", "-f", "rawvideo", "-y", str(luma),
+            "-map", "[s]", "-q:v", str(max(quality, 4)), "-start_number", "1", "-y", str(out_dir / "overview-%02d.jpg")]
+    started = now()
+    left = deadline - time.monotonic()
+    status, _, reached, note = run_pass(args, time.monotonic() + max(0.0, left * OVERVIEW_TIME_SHARE))
+    step = {"step": "local_extraction", "operation": "overview", "tool": "ffmpeg",
+            "tool_version": tool_version("ffmpeg"), "invocation_sha256": invocation_digest(args, media),
+            "started_at": started, "status": status}
+    try:
+        grids = luma.read_bytes() if luma.is_file() else b""
+    except OSError:
+        grids = b""
+    luma.unlink(missing_ok=True)
+    units = acv_timing.change_units(grids, layout["tiles"]) if status != "failed" else []
+    record: dict = {"status": "available" if units else "failed", "selection": "overview_v1",
+                    **{key: layout[key] for key in ("columns", "rows", "tile_long_edge_px", "stride_s", "padding_px")},
+                    "seconds": len(units), "sheets": [],
+                    "change": {"grid_px": acv_timing.LUMA_GRID_PX, "threshold_units": acv_timing.CHANGE_UNITS,
+                               "picture_units": [picture for picture, _ in units],
+                               "text_units": [text for _, text in units]}}
+    per_sheet = layout["columns"] * layout["rows"]
+    for number in range(1, layout["sheets"] + 1):
+        target = out_dir / f"overview-{number:02d}.jpg"
+        first = (number - 1) * per_sheet
+        tiles = min(per_sheet, len(units) - first)
+        if tiles <= 0 or not target.is_file() or target.stat().st_size == 0:
+            break
+        record["sheets"].append({"_file": target.name, "path": None, "sha256": file_digest(target),
+                                 "bytes": target.stat().st_size, "from_s": first * layout["stride_s"],
+                                 "to_s": (first + tiles - 1) * layout["stride_s"], "tiles": tiles})
+    if status == "completed_partial" and reached is not None:
+        record["read_until_s"] = round(min(duration_s, reached), 3)
+    if not units:
+        record["status"] = "failed"
+    step["note"] = note or f"{len(units)} second(s) on {len(record['sheets'])} overview sheet(s)"
+    return (units or None), record, step
+
+
+# Contact sheets: frames in time order, four to a sheet (two by two), each tile at the frame's own width capped at
+# 640px (so a sheet is at most 1280px wide) with its aspect ratio kept, captioned with its second where this ffmpeg
+# can draw text. A three-by-three sheet shrank each frame to a ninth and lost on-screen text, small objects and the
+# exact moment: in a blind review frames read one at a time beat it 12 to 2. Two by two keeps near-full detail and
+# still halves the reads to the frames themselves; a single frame is opened where a detail stays unclear.
+SHEET_COLUMNS = 2
+SHEET_ROWS = 2
+SHEET_TILE_MAX_WIDTH_PX = 640
+SHEET_TIMEOUT_S = 30
+
+
+def contact_sheets(items: list[dict], out_dir: Path, quality: int, deadline: float,
+                   byte_room: int | None = None) -> tuple[list[dict], dict | None]:
+    """Write the sheets for the written frames; the sheet list (path set by the caller) and a ledger step.
+
+    A sheet carries about the bytes of its four frames, so the sheets share the step's byte cap with the frames
+    (`byte_room` is what the frames left): a sheet that would pass it is not kept, and the frames after it are
+    read one at a time.
+
+    Tiles are scaled in the filter graph from the written frames (`min(640, iw)` wide, even height), not from the
+    probed size, so a file whose stream size and displayed size differ (a rotated phone clip) is not stretched."""
+    if not items:
+        return [], None
+    per_sheet = SHEET_COLUMNS * SHEET_ROWS
+    sheets: list[dict] = []
+    captioned = True
+    status, note = "completed", ""
+    started = now()
+    sample_args: list[str] = []
+    used = 0
+    for number, first in enumerate(range(0, len(items), per_sheet), start=1):
+        group = items[first:first + per_sheet]
+        left = deadline - time.monotonic()
+        if left <= 0.5:
+            status, note = "completed_partial" if sheets else "failed", TIME_BUDGET_REASON
+            break
+        target = out_dir / f"sheet-{number:02d}.jpg"
+        tiles = [{"frame_id": item["frame_id"], "t_seconds": item["t_seconds"], "row": position // SHEET_COLUMNS,
+                  "col": position % SHEET_COLUMNS} for position, item in enumerate(group)]
+        written = False
+        for draw in ([True, False] if captioned else [False]):
+            inputs: list[str] = []
+            chains = []
+            for position, item in enumerate(group):
+                inputs += ["-i", str(out_dir / item["_file"])]
+                chain = f"[{position}:v]scale='min({SHEET_TILE_MAX_WIDTH_PX},iw)':-2"
+                if draw:
+                    chain += (f",drawtext=text='{item['t_seconds']:.2f}s':x=8:y=8:fontsize=28:fontcolor=white"
+                              ":box=1:boxcolor=black@0.6:boxborderw=6")
+                chains.append(chain + f"[t{position}]")
+            if len(group) == 1:
+                graph = chains[0].replace("[t0]", f",pad=iw*{SHEET_COLUMNS}:ih:0:0:black[out]")
+            else:
+                # Every tile of one video has the same size, so the first tile's width and height place the rest.
+                layout = "|".join(("0" if position % SHEET_COLUMNS == 0 else "w0") + "_"
+                                  + ("0" if position // SHEET_COLUMNS == 0 else "h0")
+                                  for position in range(len(group)))
+                graph = (";".join(chains) + ";" + "".join(f"[t{position}]" for position in range(len(group)))
+                         + f"xstack=inputs={len(group)}:layout={layout}:fill=black[out]")
+            args = ["-nostdin", "-hide_banner", "-loglevel", "error", "-y", *inputs, "-filter_complex", graph,
+                    "-map", "[out]", "-frames:v", "1", "-update", "1", "-q:v", str(quality), str(target)]
+            if not sample_args:
+                sample_args = args
+            try:
+                result = run_tool("ffmpeg", args, max(0.5, min(SHEET_TIMEOUT_S, deadline - time.monotonic())))
+            except (OSError, subprocess.SubprocessError) as error:
+                note = str(error)[:300]
+                break
+            if result.returncode == 0 and target.exists() and target.stat().st_size > 0:
+                written = True
+                break
+            target.unlink(missing_ok=True)
+            if draw:
+                # No text drawing in this ffmpeg (no drawtext filter or no font): plain tiles, and the
+                # tile-to-second list in the artifact carries the times.
+                captioned = False
+        if not written:
+            status = "completed_partial" if sheets else "failed"
+            note = note or "ffmpeg wrote no contact sheet"
+            break
+        used += target.stat().st_size
+        if byte_room is not None and used > byte_room:
+            target.unlink(missing_ok=True)
+            status, note = "completed_partial" if sheets else "failed", BYTE_BUDGET_REASON
+            break
+        sheets.append({"_file": target.name, "path": None, "captioned": draw, "columns": SHEET_COLUMNS,
+                       "rows": SHEET_ROWS, "from_s": group[0]["t_seconds"], "to_s": group[-1]["t_seconds"],
+                       "tiles": tiles})
+    step = {"step": "local_extraction", "operation": "contact_sheets", "tool": "ffmpeg",
+            "tool_version": tool_version("ffmpeg"),
+            "invocation_sha256": invocation_digest([Path(part).name if "/" in part else part
+                                                    for part in sample_args], Path("-")),
+            "started_at": started, "status": status,
+            "note": note or f"{len(sheets)} sheet(s) of up to {per_sheet} frames"}
+    return sheets, step
+
+
 def earlier_artifact(path: Path, input_sha256: str) -> tuple[dict | None, str]:
     """The artifact a frame command wrote for this same file, for `--signals-only` to add to.
 
@@ -804,6 +1311,15 @@ def add_signals(artifact: dict, signals: dict, steps: list, notes: list) -> None
     artifact["generated_at"] = now()
 
 
+def run_relative(artifact: Path, path: str) -> str:
+    """A path the artifact stores relative to its own folder, printed relative to the run folder (the working
+    directory) as every other path the Skill prints is; the artifact keeps its own form."""
+    try:
+        return str((artifact.expanduser().resolve().parent / path).relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return path
+
+
 def main() -> int:
     started_at = time.monotonic()
     parser = argparse.ArgumentParser(description="Sample frames from a video on this machine.")
@@ -818,7 +1334,7 @@ def main() -> int:
     parser.add_argument("--max-frames", type=int, default=DEFAULT_MAX_FRAMES,
                         help="Cap on frames written; the body is thinned to fit, the hook never is.")
     parser.add_argument("--max-total-bytes", type=int, default=DEFAULT_MAX_TOTAL_BYTES,
-                        help="Stop writing frames once this many bytes are on disk.")
+                        help="Stop writing frames, and then contact sheets, once this many bytes are on disk.")
     parser.add_argument("--jpeg-quality", type=int, default=3)
     parser.add_argument("--measure-loudness", action="store_true")
     parser.add_argument("--measure-signals", action="store_true",
@@ -829,9 +1345,39 @@ def main() -> int:
     parser.add_argument("--deadline-s", type=float, default=DEFAULT_DEADLINE_S,
                         help="Stop every step this many seconds after the command started and write "
                              "what it has.")
+    parser.add_argument("--no-shot-starts", action="store_true",
+                        help="Do not add a frame just after each detected cut (added by default, as on the server).")
+    parser.add_argument("--dense-window", action="append", default=[], metavar="START:END:INTERVAL",
+                        help="A denser stretch, in seconds (interval at least 0.2); up to three, repeatable.")
+    parser.add_argument("--no-contact-sheets", action="store_true", help="Write the frames only.")
+    parser.add_argument("--no-overview", action="store_true",
+                        help="Keep the body grid instead of the overview of every second and the change frames "
+                             "(the overview runs by default on a video longer than 50s, as on the server).")
     parser.add_argument("--dry-run", action="store_true", help="Probe and plan, write no frames.")
     args = parser.parse_args()
+    try:
+        windows = [parse_dense_window(text) for text in args.dense_window]
+    except ValueError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
+    if len(windows) > MAX_DENSE_WINDOWS:
+        print(f"ERROR: at most {MAX_DENSE_WINDOWS} --dense-window values", file=sys.stderr)
+        return 2
+    hint = method_frames(args.artifact)
+    if not args.dense_window:
+        # The method cards' windows (select_method.py), the same ones a link's keyframes request carries.
+        windows = hint["dense_windows"]
+    # And the default window, the first 50s every 0.5s, merged in exactly as the keyframes request merges it.
+    windows = select_method.with_default_window(windows)
+    if hint["include_shot_starts"] is False:
+        args.no_shot_starts = True
     deadline = started_at + args.deadline_s
+    if not args.dry_run:
+        # Reading the file is this run's observation; the evidence builder ends the stage.
+        sys.dont_write_bytecode = True  # sibling imports must not leave __pycache__ in the Skill
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import acv_timing
+        acv_timing.open_for_artifact(args.artifact)
 
     media = args.media.expanduser()
     if not media.is_absolute():
@@ -878,20 +1424,58 @@ def main() -> int:
 
     if artifact is None:
         content_id = media.stem
+        cuts, detection = None, None
+        if not args.no_shot_starts and not args.signals_only:
+            if args.dry_run:
+                cuts, detection = [], {"status": "not_requested", "cuts": 0, "threshold": SHOT_THRESHOLD}
+            else:
+                cuts, detection, shot_step = detect_cuts(media, duration, deadline)
+                steps.append(shot_step)
+                if detection["status"] == "failed":
+                    limitations.append("Cuts could not be detected on this machine, so no frame was placed just "
+                                       "after a cut; the frames follow the standard plan.")
+                elif detection["status"] == "partial":
+                    limitations.append(f"Cuts were detected over the first {detection['read_until_s']:g}s only, so "
+                                       "shot-start frames stop there.")
+        units, overview = None, None
+        if (not args.no_overview and not args.signals_only and not args.dry_run
+                and duration > acv_timing.OVERVIEW_ABOVE_S):
+            units, overview, overview_step = overview_pass(media, duration, args.out_dir, args.jpeg_quality, deadline)
+            steps.append(overview_step)
+            if units is None:
+                limitations.append("The overview of every second could not be made on this machine, so the body "
+                                   "follows the standard grid and no frame was chosen where the picture changes.")
+            elif overview.get("read_until_s") is not None:
+                limitations.append(f"The overview reached {overview['read_until_s']:g}s only: past it there is no "
+                                   "low-resolution view of each second and no change frame.")
         plan = plan_frames(duration, args.hook_window_s, args.base_interval_s,
-                           args.hook_multiplier, min(args.budget, args.max_frames))
+                           args.hook_multiplier, min(args.budget, args.max_frames),
+                           cuts=cuts, dense_windows=windows, shot_detection=detection,
+                           overview_units=units, overview_stride_s=(overview or {}).get("stride_s", 1))
         timestamps = plan.pop("_timestamps")
+        kinds = plan.pop("_kinds")
+        reasons = plan.pop("_reasons")
 
         items: list[dict] = []
         skipped: list[dict] = []
+        sheets: list[dict] = []
         if args.dry_run or args.signals_only:
             frames_status = "not_attempted"
         else:
-            plan["_timestamps"] = timestamps
+            plan["_timestamps"], plan["_kinds"], plan["_reasons"] = timestamps, kinds, reasons
+            overview_bytes = sum(sheet["bytes"] for sheet in (overview or {}).get("sheets") or [])
             extract_step, items, skipped = extract(media, args.out_dir, plan, content_id, args.jpeg_quality,
-                                                   args.max_total_bytes, deadline)
+                                                   max(1, args.max_total_bytes - overview_bytes), deadline)
             plan.pop("_timestamps")
+            plan.pop("_kinds")
+            plan.pop("_reasons")
             steps.append(extract_step)
+            if not args.no_contact_sheets:
+                frame_bytes = sum((args.out_dir / item["_file"]).stat().st_size for item in items)
+                sheets, sheet_step = contact_sheets(items, args.out_dir, args.jpeg_quality, deadline,
+                                                    args.max_total_bytes - frame_bytes - overview_bytes)
+                if sheet_step:
+                    steps.append(sheet_step)
             frames_status = "available" if items else "unavailable"
             artifact_parent = args.artifact.expanduser().resolve().parent
             for item in items:
@@ -902,6 +1486,12 @@ def main() -> int:
                     item["path"] = str((args.out_dir.resolve() / file_name).relative_to(artifact_parent))
                 except ValueError:
                     item["path"] = str(Path(args.out_dir.name) / file_name)
+            for sheet in sheets + ((overview or {}).get("sheets") or []):
+                file_name = sheet.pop("_file")
+                try:
+                    sheet["path"] = str((args.out_dir.resolve() / file_name).relative_to(artifact_parent))
+                except ValueError:
+                    sheet["path"] = str(Path(args.out_dir.name) / file_name)
             out_of_room = [entry for entry in skipped
                            if entry["reason"] in (BYTE_BUDGET_REASON, TIME_BUDGET_REASON)]
             unreadable = len(skipped) - len(out_of_room)
@@ -913,9 +1503,8 @@ def main() -> int:
                 widest = max((later - earlier for earlier, later in zip(seen, seen[1:])), default=0.0)
                 # Only claim what was actually written: a budget used up inside the opening leaves
                 # part of the hook, and the closing frame, unseen.
-                missing = {entry["ordinal"] for entry in skipped}
-                whole = (not any(ordinal <= plan["hook_frames"] for ordinal in missing)
-                         and len(timestamps) not in missing)
+                missing = {kinds[entry["ordinal"] - 1] for entry in skipped}
+                whole = not missing & {"hook", "closing"}
                 coverage = ("The opening and the closing frame are whole; the body is thinner"
                             if whole else
                             "Not all of the opening and closing frames were written, so do not describe "
@@ -954,6 +1543,8 @@ def main() -> int:
                 "requested_timestamps": timestamps,
                 "items": items,
                 "skipped": skipped,
+                "contact_sheets": sheets,
+                **({"overview": overview} if overview else {}),
             },
             "limitations": limitations,
         }
@@ -976,7 +1567,25 @@ def main() -> int:
         "written": len(frames["items"]),
         "skipped": len(frames["skipped"]),
         "frames_status": frames["status"],
+        "frame_sources": {kind: sum(1 for item in frames["items"] if item.get("source") == kind)
+                          for kind in BUDGET_PRIORITY + ("change", "anchor")},
+        # Read every sheet (they are the frames, four a read, in time order); open a single frame where a
+        # detail (small text, a number, a face) is unclear.
+        "contact_sheets": [{"path": run_relative(args.artifact, sheet["path"]), "from_s": sheet["from_s"], "to_s": sheet["to_s"],
+                            "captioned": sheet["captioned"]} for sheet in frames.get("contact_sheets") or []],
     }
+    if (frames.get("overview") or {}).get("sheets"):
+        # Read the overview first (every second of the video, low resolution, tiles left to right and top to bottom,
+        # one per stride_s from from_s), then the high-resolution sheets.
+        overview = frames["overview"]
+        summary["overview"] = {"stride_s": overview["stride_s"], "columns": overview["columns"],
+                               "rows": overview["rows"],
+                               "sheets": [{"path": run_relative(args.artifact, sheet["path"]), "from_s": sheet["from_s"],
+                                           "to_s": sheet["to_s"]} for sheet in overview["sheets"]]}
+    on_sheets = sum(len(sheet.get("tiles") or []) for sheet in frames.get("contact_sheets") or [])
+    if frames.get("contact_sheets") and on_sheets < len(frames["items"]):
+        # The byte cap or the deadline stopped the sheets early: these frames are on no sheet; open them one by one.
+        summary["frames_not_on_a_sheet"] = len(frames["items"]) - on_sheets
     if "signals" in artifact["media"]:
         signals = artifact["media"]["signals"]
         summary["signals"] = {

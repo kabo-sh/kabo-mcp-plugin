@@ -19,6 +19,7 @@ OAuth 通过 `securitySchemes` 与 `_meta.securitySchemes` 同值声明。下表
 | update_content_preferences | workspace:write | false | true | false | 改本人对已绑定账号的画像偏好，remove / merge / reset 会去掉已有修改；必填 expected_version，改主打内容另带 basis。重放时版本已变必回 409、不会重复生效，所以不带幂等键（待目录面负责人确认）。不访问第三方、不启动生成、不扣 credits。 |
 | get_for_you_videos | workspace:read | false | false | false | 读本人账号已生成的推荐；首次读取把该账号纳入后台每日推荐，没有当日结果时让既有调度生成（平台承担费用、每账号每天至多一次、不扣 credits）。请求内不访问第三方、不调模型。 |
 | prepare_creator_profile | workspace:write | false | false | true | 账号还没有可用画像时，经产品复盘用例创建一次账号复盘（与网页同一路径，平台承担费用、不扣 credits）；有在途复盘就复用，24 小时内已结束的不重跑。账号没有赛道时先用创作者给的 niche，否则复用网页诊断分析器从公开内容推断一次（访问公开数据并调一次模型，平台承担；同账号在途复用、失败冷却 24 小时），推断出带目录 id 的赛道才写入。 |
+| get_new_post_reviews | workspace:read | false | false | true | 读本人已绑定账号的公开帖子与粉丝数并记一笔读数（平台承担费用、不扣 credits、同一账号 60 分钟内至多取一次，冷却内只读已存读数），返回满 24 小时新帖的同龄对比。不调模型、不写复盘文案。 |
 | start_skill_run | data | false | false | false | 宿主声明一次 skill 运行：按 (用户, run_id) 幂等记一笔 Regular credits（价格读价表）。额度用完先拦；开关关闭、内部或审核账号不记。不访问第三方、不改产品数据。 |
 | get_credit_balances | workspace:read | true | false | false | 读取当前账号的 Regular 与 Video credits，与网页 GET /v1/credits 同一条 present()。用量已达标时会把当日任务奖励入账，这是网页打开额度时就会做的结算；不扣费、不发起充值。 |
 | get_credit_tasks | workspace:read | true | false | false | 读取当前账号的任务墙。每日任务若今天已完成，这次读取会把奖励入账，与网页打开额度时同一条结算；不领取一次性任务、不扣费。 |
@@ -40,6 +41,8 @@ OAuth 通过 `securitySchemes` 与 `_meta.securitySchemes` 同值声明。下表
 | make_video | video | false | false | true | 把账号自己的项目交给后台制作方按已确认的分镜生成（调用视频、配音、图像供应商），按实际花费计费；同键同入参只回当前状态、不重复启动。 |
 | reply_to_video | video | false | false | true | 把创作者的回答或修改要求原话转给该任务的后台制作方，可能据此按创作者的要求继续付费生成；同键同入参只受理一次。 |
 | upload_file | video | false | false | false | 在账号自己的文件空间登记待上传文件并签发短期上传地址，或核对刚传完的文件（大小、类型、内容）并标记可用；同键同文件重放同一结果；不访问第三方、不占额度。 |
+| identify_video_song | data | true | false | true | 读取第三方公开数据；不占账号额度、不创建账号记录（服务端调用审计与证据副本不算）。 |
+| summarize_video_comments | data | true | false | true | 读取第三方公开数据；不占账号额度、不创建账号记录（服务端调用审计与证据副本不算）。 |
 | get_research_capabilities | data | true | false | false | 只读 Kabo 自有状态（任务、制品、快照或目录），不访问第三方、不占额度。 |
 | youtube_search_videos | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |
 | youtube_search_channels | data | false | false | true | 读取第三方公开数据，并占账号每日取数额度或创建账号拥有的任务/候选集；不修改上游内容。 |

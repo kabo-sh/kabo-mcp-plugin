@@ -246,24 +246,24 @@ test("job-call: the same run, tool, arguments and attempt number yield the same 
   }
 });
 
-test("job-call: frame-extraction requests of ACV and deep get max_frames 60 added, an explicit smaller value is kept, and more than 60 is rejected", async (t) => {
+test("job-call: frame-extraction requests get the Skill's max_frames cap added (ACV 120, the contract's maximum; deep 60), an explicit smaller value is kept, and more is rejected", async (t) => {
   const url = "https://www.youtube.com/watch?v=abc";
-  for (const skill of ["analyze-content-video", "review-creator-account-deep"]) {
+  for (const [skill, cap] of [["analyze-content-video", 120], ["review-creator-account-deep", 60]]) {
     const run = await newRun(t, skill);
     const host = path.join(scripts(skill), "static_host.py");
     const call = (tool, parameters) => attempt([host, "job-call", "--tool", tool, "--parameters", parameters], { cwd: run, run });
     for (const tool of ["public_video_extract_keyframes", "public_video_extract_keyframes_hosted_media", "public_video_extract_keyframes_hosted_stream"]) {
       const capped = call(tool, JSON.stringify({ url }));
       assert.equal(capped.exit, 0, capped.stderr);
-      assert.deepEqual(JSON.parse(capped.stdout).arguments.parameters, { url, max_frames: 60 });
+      assert.deepEqual(JSON.parse(capped.stdout).arguments.parameters, { url, max_frames: cap });
     }
     assert.equal(JSON.parse(call("public_video_extract_keyframes", JSON.stringify({ url, max_frames: 30 })).stdout).arguments.parameters.max_frames, 30);
     // The frame-count cap belongs to frame extraction only; the arguments of other media calls are unchanged.
     assert.deepEqual(JSON.parse(call("public_video_fetch_transcript", JSON.stringify({ url })).stdout).arguments.parameters, { url });
-    for (const frames of [120, 0, "60", true]) {
+    for (const frames of [cap + 1, 0, "60", true]) {
       const refused = call("public_video_extract_keyframes", JSON.stringify({ url, max_frames: frames }));
       assert.equal(refused.exit, 1);
-      assert.match(refused.stderr, /max_frames must be an integer from 1 to 60/);
+      assert.match(refused.stderr, new RegExp(`max_frames must be an integer from 1 to ${cap}`));
     }
   }
   // The planned arguments of deep must pass job-call: a planned value over the cap would make every frame
@@ -502,4 +502,34 @@ test("profile edits: the read switch and the write tool are both in the pinned t
     assert.match(text, /"effective": true/, skill);
     assert.match(text, /`references\/profile-edits\.md`/, skill);
   }
+});
+
+// identify_video_song and summarize_video_comments (kabo mcp-pub, 2026-11-21): pinned from the backend's
+// directory audit export, declared by analyze-content-video, and every status their pinned output schemas allow is
+// one the evidence builder reads.
+test("video insight tools: both are pinned with their contract, the pin digests hold, and analyze-content-video declares and reads them", async () => {
+  const pin = JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/pin.json"), "utf8"));
+  for (const [name, { sha256: expected }] of Object.entries(pin.files))
+    assert.equal(sha256(await readFile(path.join(root, "contracts/directory-mcp", name))), expected, name);
+  const bindings = JSON.parse(await readFile(path.join(root, "contracts/directory-mcp/data-tool-bindings.json"), "utf8"));
+  const song = pinned.get("identify_video_song"), comments = pinned.get("summarize_video_comments");
+  for (const tool of [song, comments]) {
+    assert.ok(tool, "pinned");
+    assert.deepEqual(tool._meta.securitySchemes[0].scopes, ["data"]);
+    assert.equal(tool.annotations.readOnlyHint, true);
+    assert.deepEqual(tool.inputSchema.required, ["video_url"]);
+    assert.equal(tool.inputSchema.additionalProperties, false);
+    assert.ok(bindings.requiredTools.includes(tool.name), tool.name);
+  }
+  assert.deepEqual(Object.keys(song.inputSchema.properties).sort(), ["end_s", "start_s", "video_url"]);
+  assert.deepEqual(Object.keys(comments.inputSchema.properties), ["video_url"]);
+  const allowed = (await readFile(path.join(root, "skills/analyze-content-video/SKILL.md"), "utf8")).match(/^allowed-tools: (.*)$/m)[1].split(" ");
+  for (const name of ["identify_video_song", "summarize_video_comments"]) assert.ok(allowed.includes(name), name);
+  for (const name of allowed) assert.ok(pinned.has(name), `${name} is not in the pinned tools/list`);
+  const read = JSON.parse(python(["-c", "import json, sys; sys.path.insert(0, sys.argv[1]); import build_content_evidence as b, "
+    + "observation_order as o; print(json.dumps([sorted(b.SONG_STATUSES), sorted(b.COMMENT_STATUSES), o.SIDE_CALLS]))",
+  scripts("analyze-content-video")]));
+  assert.deepEqual(read[0], [...song.outputSchema.properties.status.enum].sort());
+  assert.deepEqual(read[1], [...comments.outputSchema.properties.status.enum].sort());
+  assert.deepEqual(read[2], { song: "identify_video_song", comment_summary: "summarize_video_comments" });
 });

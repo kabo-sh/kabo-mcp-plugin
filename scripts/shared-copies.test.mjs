@@ -45,3 +45,18 @@ test("the handoff block of connector_driver.py (resume_command and hand_over) is
   assert.ok(withBlock.length >= 2, "at least two copies of connector_driver.py with a handoff block");
   for (const { skill, block } of withBlock) assert.equal(block, withBlock[0].block, `${skill} differs from ${withBlock[0].skill}`);
 });
+
+// The analyze-content-video method library is shipped as a verbatim copy in every Skill that uses it.
+//   Today there is one copy; with more than one, any differing file fails.
+test("references/video-method/ is identical across the Skills that carry it", () => {
+  const holders = skills.filter((skill) => existsSync(path.join(root, "skills", skill, "references/video-method/index.json")));
+  assert.ok(holders.length >= 1, "at least one copy of the video method library");
+  const files = (skill) => readdirSync(path.join(root, "skills", skill, "references/video-method")).sort();
+  for (const skill of holders) {
+    assert.deepEqual(files(skill), files(holders[0]), `${skill} has a different file list from ${holders[0]}`);
+    for (const name of files(holders[0])) {
+      const read = (owner) => readFileSync(path.join(root, "skills", owner, "references/video-method", name), "utf8");
+      assert.equal(read(skill), read(holders[0]), `${skill}/references/video-method/${name} differs from ${holders[0]}`);
+    }
+  }
+});

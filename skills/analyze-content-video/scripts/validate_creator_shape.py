@@ -14,7 +14,8 @@ What this decides:
   * that a line offered for the creator to say is not lifted from the video being torn down;
   * that a figure inside such a line came from the evidence;
   * that the card proposing the change actually carries the instruction;
-  * that no field runs long enough to make the report something to read rather than act on.
+  * that no field runs long enough to make the report something to read rather than act on;
+  * that no field names a Skill id, a script or an evidence field path the creator does not know.
 
 What this does not decide: whether the columns actually pair. Line N of card 3 answering line N of
 card 2 is a claim about meaning, and an earlier rule that tried to pin the first card to the
@@ -40,7 +41,8 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from creator_measurement_basis import note_matches
+from creator_measurement_basis import note_language, note_matches
+from report_locale import listen_note
 
 
 # Strengths, then what holds it back, then what to do — the benchmarked three-card shape, three
@@ -68,6 +70,23 @@ CHANGE_HOOK_MAX = 2
 
 OBSERVATION_REF = re.compile(r"^observations\.(.+)$")
 
+# details.decision: the one editing decision the report stands on; own and someone else's videos take different values.
+DECISIONS = {
+    "own": {
+        "keep": "It works: keep this cut (or this format next time); the changes in card 3 are small.",
+        "recut": "Re-edit the footage already shot, as card 3 says; no new shooting.",
+        "replace": "The change needs new footage or a new version: reshoot or replace what card 3 names.",
+    },
+    "others": {
+        "borrow": "Use the mechanism card 3 describes in the creator's own next video.",
+        "skip": "Nothing here transfers to the creator's own videos; card 3 says what to do instead.",
+    },
+}
+
+
+def decisions_for(subject: str | None) -> dict[str, str]:
+    return DECISIONS["own" if subject in ("own_published", "own_unpublished") else "others"]
+
 # A card that has to be read twice has not saved the creator any time. Three runs of the V3 shape
 # put a median of 613 characters into a single `why_for_you` — three times the whole report's
 # thesis — while every other field stayed short on its own. These caps hold each field to the
@@ -83,6 +102,55 @@ FIELD_LIMITS = {
     "card.why_for_you": 480, "card.action": 320,
     "hook.purpose": 160, "hook.visual_direction": 240,
 }
+
+# Names the creator never reads. A pre-release run sent a creator to `create-script-and-packaging` and quoted
+# `media.probed.*` paths: ids and paths belong in `evidence_refs`, the prose says what they are in plain words. The
+# Skill ids are this repository's (skills.lock.json; a test keeps the two in step), since the Skill ships alone.
+SKILL_IDS = (
+    "analyze-content-video", "analyze-creator-competitors", "analyze-tiktok-competitors",
+    "create-script-and-packaging", "develop-content-ideas", "diagnose-reach-drop", "optimize-creator-brand",
+    "pick-daily-viral-videos", "plan-content-calendar", "plan-platform-monetization", "price-creator-brand-deals",
+    "recommend-publish-timing", "remake-viral-video", "research-instagram-trends", "research-tiktok-trends",
+    "research-youtube-trends", "review-creator-account", "review-creator-account-deep", "review-new-posts",
+    "review-thumbnail", "start-with-kabo", "verify-platform-rule",
+)
+EVIDENCE_ROOTS = ("media", "transcript", "content_metadata", "content_ref", "public_metrics", "derived",
+                  "viewer_observations", "frames", "images", "observations", "owner_metrics", "evidence_completeness",
+                  "deterministic")
+EVIDENCE_FIELDS = ("audio_attribution", "source_unavailable", "data_note", "listen_note", "evidence_refs",
+                   "sampling_plan", "hook_window_s", "why_for_you", "next_actions", "audience_response",
+                   "song_identification")
+# ASCII edges, not \b: in Chinese or Japanese prose a name sits right against the text around it.
+INTERNAL_NAME = re.compile(
+    r"(?<![A-Za-z0-9_-])(?:" + "|".join(re.escape(name) for name in SKILL_IDS) + r")(?![A-Za-z0-9_-])"
+    r"|(?<![A-Za-z0-9_])[A-Za-z_][A-Za-z0-9_]*\.py(?![A-Za-z0-9_])"
+    r"|(?<![A-Za-z0-9_])(?:" + "|".join(EVIDENCE_ROOTS) + r")(?:\.[a-z_*][A-Za-z0-9_*]*|\[\d+\])+"
+    r"|(?<![A-Za-z0-9_])(?:" + "|".join(EVIDENCE_FIELDS) + r")(?![A-Za-z0-9_])")
+# Fields the builder derives or that are not prose.
+NOT_PROSE = {"evidence_refs", "data_note", "listen_note", "language"}
+
+
+def internal_name_errors(view: dict) -> list[str]:
+    errors: list[str] = []
+
+    def walk(node, path: str) -> None:
+        if isinstance(node, dict):
+            for key, child in node.items():
+                if key not in NOT_PROSE:
+                    walk(child, f"{path}.{key}")
+        elif isinstance(node, list):
+            for index, child in enumerate(node):
+                walk(child, f"{path}[{index}]")
+        elif isinstance(node, str):
+            for found in dict.fromkeys(match.group(0) for match in INTERNAL_NAME.finditer(node)):
+                errors.append(
+                    f"{path} names {found!r}, an internal Skill, script or evidence field name the creator "
+                    "does not know. Say what it is in plain words (the caption, the measured loudness, a review "
+                    "of the whole account); ids go in evidence_refs only")
+
+    walk(view, "creator_view")
+    return errors
+
 
 # Digits only. Chinese numerals in "前三秒" ("the first three seconds") are prose, not a claim about a measured quantity.
 NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
@@ -180,9 +248,14 @@ MAGNITUDES = {
     "m": 1_000_000, "million": 1_000_000,
     "b": 1_000_000_000, "bn": 1_000_000_000, "billion": 1_000_000_000,
 }
+# A unit letter followed by a superscript or a digit is a unit of measure, not a scale: "600 m²" is six hundred
+# square metres read off a frame, not six hundred million.
 FIGURE = re.compile(
-    r"(\d+(?:[.,]\d+)*|(?<![A-Za-z0-9.])\.\d+)\s*(万亿|千万|百万|万|亿|千(?![米克瓦卡])|thousand|million|billion|bn|[kmb](?![a-z]))?",
+    r"(\d+(?:[.,]\d+)*|(?<![A-Za-z0-9.])\.\d+)\s*(万亿|千万|百万|万|亿|千(?![米克瓦卡])|thousand|million|billion|bn|[kmb](?![a-z0-9\u00b2\u00b3]))?",
     re.IGNORECASE)
+# A dot between groups of three digits is a thousands separator in many locales: "3.430 views" in a pt-BR
+# report is 3430, and "1.234.567" is a count, never a decimal.
+DOT_THOUSANDS = re.compile(r"^\d{1,3}(?:\.\d{3})+$")
 # A clock is not a figure the creator stands behind, and splitting one produces two that nobody
 # wrote: `14:00` yields `14` and `00`. Hours are governed by the block rules above, which already
 # know a time range from a UTC offset, so times are lifted out before figures are read.
@@ -243,7 +316,12 @@ def source_values(*objects) -> set:
 
 def is_grounded(token: str, unit: str, values: set) -> bool:
     """True when the object holds this figure, or holds something it rounds from at this scale."""
+    if DOT_THOUSANDS.match(token) and is_grounded(token.replace(".", ""), unit, values):
+        return True
     plain = token.replace(",", "")
+    if plain.count(".") > 1:
+        # Only a thousands-separated count has two dots; it was not grounded as one above.
+        return False
     try:
         target = float(plain)
     except ValueError:
@@ -357,7 +435,7 @@ def envelope_errors(result: dict, task: str) -> list[str]:
     return errors
 
 
-def check(result: dict, analysis: dict, evidence: dict) -> list[str]:
+def check(result: dict, analysis: dict, evidence: dict, computed: list | None = None) -> list[str]:
     errors: list[str] = []
     errors.extend(envelope_errors(result, "analyze_content_video"))
     view = result.get("creator_view") or {}
@@ -382,10 +460,16 @@ def check(result: dict, analysis: dict, evidence: dict) -> list[str]:
         if not scope_errors and analysis.get("deterministic") != compute(evidence, None, "unknown"):
             errors.append("unknown ownership must retain the public-only unassessed deterministic block")
         if (analysis.get("evidence_completeness") or {}).get("account_baseline") != "unavailable":
-            errors.append("unknown ownership cannot declare an account baseline")
+            errors.append("unknown ownership has no account baseline: evidence_completeness.account_baseline must be \"unavailable\" (leave it out of the judgment and compose_video_analysis.py fills it)")
         if analysis.get("revisions"):
             errors.append("unknown ownership carries no source revisions")
     cues = ((evidence.get("transcript") or {}).get("cues")) or []
+
+    decision = (result.get("details") or {}).get("decision")
+    if decision is not None and decision not in decisions_for(subject):
+        errors.append(
+            f"details.decision is {decision!r}; for this video it is one of "
+            f"{', '.join(decisions_for(subject))}")
 
     for field in ("summary", "data_note"):
         limit = FIELD_LIMITS[field]
@@ -402,6 +486,12 @@ def check(result: dict, analysis: dict, evidence: dict) -> list[str]:
                 errors.append("creator_view.data_note disagrees with the recorded measurement basis")
         except ValueError as error:
             errors.append(str(error))
+
+    # The listen line is derived from the evidence like data_note: present only as the builder writes it. A result
+    # from before it existed carries none, and replays.
+    if "listen_note" in view and view.get("listen_note") != listen_note(evidence, note_language(view)):
+        errors.append("creator_view.listen_note is derived from the evidence's sound measurement; omit it and let "
+                      "the builder write it")
 
     # The one line saying how far to trust the report must not repeat the report.
     note = view.get("data_note") or ""
@@ -514,7 +604,9 @@ def check(result: dict, analysis: dict, evidence: dict) -> list[str]:
         # Its exact canonical value was checked above; do not add derived counts to the
         # source-number pool available to unrelated model-authored claims.
         authored_view.pop("data_note", None)
-    errors.extend(figure_errors(authored_view, source_values(analysis, evidence)))
+    authored_view.pop("listen_note", None)
+    errors.extend(figure_errors(authored_view, source_values(analysis, evidence, *(computed or []))))
+    errors.extend(internal_name_errors(view))
     return errors
 
 
@@ -525,7 +617,10 @@ def main() -> int:
     parser.add_argument("evidence", type=Path)
     args = parser.parse_args()
 
-    errors = check(load(args.result), load(args.analysis), load(args.evidence))
+    # The promise-payoff gap is computed beside the evidence (compute_promise_payoff.py): a figure taken from it is
+    # computed, not invented.
+    computed = [load(path) for path in (args.evidence.parent / "promise_payoff.json",) if path.is_file()]
+    errors = check(load(args.result), load(args.analysis), load(args.evidence), computed)
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)

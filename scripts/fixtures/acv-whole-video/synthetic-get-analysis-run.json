@@ -1,0 +1,52 @@
+{
+  "id": "6f1c2a4e-3b5d-4c7e-9a8b-0d1e2f3a4b5c",
+  "status": "completed",
+  "progress": 100,
+  "result": {
+    "contentTitle": "SENTINEL-TITLE a synthetic title the viewer invented",
+    "overallScore": 87,
+    "verdict": "SENTINEL-VERDICT strong video with room to grow",
+    "summary": "SENTINEL-SUMMARY the viewer's own overall summary",
+    "dimensions": [
+      {
+        "key": "hook",
+        "score": 91,
+        "summary": "SENTINEL-DIMSUMMARY the hook is great",
+        "evidence": [
+          { "startMs": 0, "endMs": 2500, "note": "A burnt pan fills the frame while a voice says 'I ruined it again'." },
+          { "startMs": 2500, "endMs": 4000, "note": "Bold white text 'WHY THIS HAPPENS' appears over the pan." }
+        ]
+      },
+      {
+        "key": "audio",
+        "score": 74,
+        "summary": "SENTINEL-DIMSUMMARY music fits",
+        "evidence": [
+          { "startMs": 0, "endMs": 30000, "note": "Soft acoustic music runs under the voice throughout; the voice stays clear." }
+        ]
+      },
+      {
+        "key": "payoff",
+        "score": 80,
+        "summary": "SENTINEL-DIMSUMMARY payoff lands",
+        "evidence": [
+          { "startMs": 21000, "endMs": 26000, "note": "She lowers the heat and the second pan comes out golden; she smiles at the camera." }
+        ]
+      }
+    ],
+    "strengths": ["SENTINEL-STRENGTH result before explanation"],
+    "improvements": ["SENTINEL-IMPROVEMENT tighten the middle"],
+    "hooks": ["SENTINEL-HOOK what if your pan is the problem"],
+    "titleIdeas": ["SENTINEL-TITLEIDEA stop burning pans"],
+    "viralPotential": { "level": "high", "explanation": "SENTINEL-VIRAL relatable failure" }
+  },
+  "transcript": [
+    { "startMs": 0, "endMs": 2400, "text": "I ruined it again." },
+    { "startMs": 2400, "endMs": 9000, "text": "Here is why your pan keeps burning." },
+    { "startMs": 21000, "endMs": 26000, "text": "Lower heat, and look at that." }
+  ],
+  "failure": null,
+  "createdAt": "2026-11-16T10:00:00.000Z",
+  "updatedAt": "2026-11-16T10:01:30.000Z",
+  "completedAt": "2026-11-16T10:01:30.000Z"
+}

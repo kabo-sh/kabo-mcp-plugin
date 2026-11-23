@@ -48,6 +48,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import tempfile
 import time
 from collections import Counter
@@ -56,6 +57,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
+
+# Its sibling static_host is imported lazily; a cached .pyc beside the scripts would carry a local path.
+sys.dont_write_bytecode = True
 
 # When the host records a tool result into the rollout, the body is wrapped in this tag, so it does not start
 #   with "{".

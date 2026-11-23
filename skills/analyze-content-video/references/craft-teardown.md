@@ -1,19 +1,18 @@
 # Craft teardown
 
 Read this file whole when the creator asks how a video was made — see *Which question is this* in
-`SKILL.md`. It is this mode's workflow, how to judge sound, what it may not claim, and what it
-writes.
+`SKILL.md`. It is this mode's workflow and what it may not claim; the shot method itself is the
+`craft-shot-description` card in `references/video-method/`, which the analysis brief carries.
 
 A creator watched something and wants to know how it was made. Answer the question they asked, in
 the shape that question has. Everything `SKILL.md` and `references/evidence-reading.md` say about
-evidence holds here: frame sampling, transcript handling, when to stop waiting and *Output
-boundary* in `SKILL.md` are shared. What
+evidence holds here: frame sampling, transcript handling and when to stop waiting are shared. What
 differs is what the evidence is read *for*, and that there is no fixed layout waiting at the end.
 
 **The diagnosis pipeline does not belong to this path.** A teardown writes no `video_analysis.json`,
-no `VIDEO_DIAGNOSIS.md` and no `CreatorTaskResult`. Its only fixed steps are staging and persisting
-envelopes and building the evidence. Write `report/craft-teardown.md` yourself; there is no
-renderer to look for.
+no `VIDEO_DIAGNOSIS.md` and no `CreatorTaskResult`. Its fixed steps are observing, building the
+evidence and preparing the brief. Write `report/craft-teardown.md` yourself; there is no renderer
+to look for.
 
 ## Workflow
 
@@ -21,9 +20,9 @@ renderer to look for.
    `references/craft-request.schema.json`. It carries the creator's question verbatim and whether
    a video was named. Written first, it records what this run was asked; written last, that can
    only be guessed from what the run produced.
-2. **Get the evidence before forming an opinion.** Frames and transcript, the same way a
-   diagnosis gets them. A video whose transcript never arrived is a video whose argument was never
-   read.
+2. **Get the evidence before forming an opinion**, with the observation and evidence steps of
+   *Analysis* in `SKILL.md` (mode `craft_teardown`). A video whose transcript never arrived is a
+   video whose argument was never read.
 
    For a public URL with no ownership statement, record `subject.whose=unknown` in the craft
    request and `source.subject_state=unknown` in its evidence request. Keep `owner_data` null,
@@ -37,83 +36,24 @@ renderer to look for.
    shows you, or the fetched files you open. Framing, shot size, camera movement, type, colour and where the eye
    goes all live in the picture. Read only the words and you have written what the video *said*,
    filed under a question about how it was *made*.
-3. **Measure before you claim.** Put what can be counted on the page, each with the timecode it
-   came from, before any judgement about why something works.
-
-   The media call's `measure` operation measures in one job: shot boundaries and how long each
-   runs, per-shot brightness, where the track goes quiet, loudness every tenth of a second, held
-   frames including a trailing still, and the real frame size with its bars and the share of a
-   phone screen actually filled.
-
-   Measurement is its own readiness question, answered by the run's one
-   `get_research_capabilities` check. When it is not available, say the numbers were unavailable
-   and carry on from frames and transcript. A teardown without measurements is thinner; a teardown
-   that waits for an operation this deployment does not have is nothing at all.
-4. **Describe each shot that matters on the same five points**: what is in it, how the subject
-   moves, where it happens, how it is framed (shot size and angle), and what the camera does.
-   Mark a point as not visible rather than skipping it silently. Use the precise names — a
-   medium close-up, a push-in, a match cut — instead of "a nice shot".
-5. **Organise the answer around the question, not the timeline.** A question about what to reuse
-   wants a ranked list of reusable things. A question about a look wants the passes that produce
-   it, in order. A question about pacing wants the measurements first and the judgement after.
-   Walking the timeline from second zero answers none of them.
-
-   **Rank when ranking is possible**, and say what you ranked by. "These three are the big ones,
-   because a three-minute video has seven times the captions" is worth more than seven items of
-   equal weight.
-
-   **When the reference does not match the creator's situation, say so and redirect.** A
-   27-second ad and a three-minute vlog do not have the same time sinks. Noticing that is the most
-   valuable thing a teardown does; burying it in closing caveats wastes it.
-6. **Answer "which of this can I do alone".** It is the question under almost every one of these
-   asks. A creator told a video used motion tracking and colour separation, and not told which of
-   those they can do without hiring anybody, has been handed a list of reasons to feel behind.
-   Name the condition when it is conditional: "you can, if" with no "if" is "yes" with extra
-   words.
-7. **Say what each claim stands on.** Two levels, kept distinguishable in the prose:
-
-   - **Read off this video** — cite the frame, the cue or the measurement. "The captions sit at
-     73% of frame height" belongs here only if you looked.
-   - **General practice** — not from this video. You may still give the number, but it must be
-     visibly unsourced: "a common starting point is…", never stated flat like a measurement.
-
-   The failure this prevents is the one that makes a teardown untrustworthy: a setting nobody
-   measured, printed in the same voice as a figure read off the frame.
-
-## Judging sound
-
-Sound questions are answered inside whichever mode applies. A sound's title and author are
-metadata: they say which track was used, never how it sounds.
-
-**What the evidence can carry.** A video analysis that listened to the soundtrack gives a broad
-impression: whether there is music, its general character, how its energy develops, whether speech
-is present and whether the music drowns it, whether sound effects are used. It cannot reliably say
-whether a cut lands on the beat, what the lyrics are, or the exact second the energy changes — two
-runs on the same video disagree on all three. Measurements (loudness over time, where the track
-goes quiet) can say some of that; a listening impression cannot.
-
-**Six questions worth asking.**
-
-1. Original sound or an existing track — and what is it buying? An existing track can borrow
-   recognition; an original one can carry the creator's voice. Whether a track is trending needs
-   usage data, not a listen.
-2. Is sound doing work in the first second? Silence or a slow ramp at frame zero leaves the
-   opening to the picture alone.
-3. Does the music's energy rise where the video pays off? A broad match or mismatch is judgeable;
-   an exact beat is not.
-4. When speech carries the point, does the music stay under it? If the music drowns the speech,
-   that is the fix, whatever the track is.
-5. Do sung words compete with on-screen text? Only when the words were actually transcribed.
-6. Does the end sound like the start, on a video meant to loop? Only when it was heard clearly.
-
-**Signs a judgement did not come from listening**: it would be equally true of any video using a
-track with that title; it names a genre or mood the evidence never described; it places a cut on
-or off the beat from an impression alone; it recommends swapping the music without naming the
-problem the swap solves.
-
-With no heard or measured sound for this video, say the sound was not analysed. A pattern's
-`sound` line from `scripts/prepare_video_hook.py` is a proposal for the next video, not a reading
-of this one.
+3. **Measure before you claim.** The media call's `measure` operation measures in one job: shot
+   boundaries and how long each runs, per-shot brightness, where the track goes quiet, loudness
+   every tenth of a second, held frames including a trailing still, and the real frame size with
+   its bars and the share of a phone screen actually filled. Measurement is its own readiness
+   question, answered by the run's one `get_research_capabilities` check. When it is not
+   available, say the numbers were unavailable and carry on from frames and transcript.
+4. **Prepare the brief and write.** The brief's sections 5-7, `analysis/rules.md`, carry the shot
+   method (the `craft-shot-description` card: the five points per shot, organising around the
+   question, ranking, what one person can do alone, and the two levels of sourcing), any topic card
+   such as `sound`, and the rules below; read it whole while the evidence arrives.
+   `prepare_analysis.py --mode craft_teardown` prints sections 1-4 from the evidence. Then write the
+   report.
+5. **Check and deliver.** End the report with one line, in the creator's language, saying what it
+   rests on: how many frames and at what spacing, whether the transcript and the measurements
+   were there, and whether the sound was heard. Then run
+   `python3 <skill directory>/scripts/validate_creator_report.py report/craft-teardown.md --emit-report`
+   from the run directory: it refuses internal names and prints the report to deliver; on an
+   error, fix the report and run it again.
 
 ## What may not be claimed in a teardown
 
@@ -123,7 +63,8 @@ of this one.
 - **Give the craft whole: the tool, the setting and the command.** Encoding, bitrate, loudness
   target, frame size, the program that does it — these are the trade, not incidental detail.
   `H.264 at 10–12 Mbps, audio 192 kbps AAC, loudness to -14 LUFS` is what a creator needs to act;
-  "export at a good bitrate" helps no one. Source every figure as in step 7.
+  "export at a good bitrate" helps no one. Source every figure: read off this video, or visibly
+  general practice.
 - **Name the feature; do not invent the click path.** "CapCut calls these text templates" is
   stable. Which tab or sub-menu is not known here and moves between versions.
 - **Admit the gaps.** Gear to buy, phone shooting technique and editor presets have no source in
@@ -148,4 +89,5 @@ and no number is stated about this creator's own results that nobody measured.
 ## What this mode writes
 
 `analysis/craft-request.json` before retrieval and `report/craft-teardown.md` at the end. The
-answer is the prose, shaped by the question rather than by a schema.
+answer is the prose, shaped by the question rather than by a schema, closed by the one line on
+what it rests on and checked by `validate_creator_report.py` before it is delivered.
