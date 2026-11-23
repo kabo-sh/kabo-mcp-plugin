@@ -4,7 +4,7 @@ description: "Have Kabo make a finished MP4: remake a reference video with the c
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
 metadata:
-  version: "1.0.16"
+  version: "1.0.17"
   platform_agnostic: "true"
 allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
@@ -26,6 +26,8 @@ are in the plugin: you plan the video and Kabo's producer makes it -- follow
 `references/host-plugin.md`, with "Choose what to make" below and `references/steps/plan.md` for
 the plan; the rest of this Skill is what the producer follows. If no tool a request needs is
 available, say that this kind of video is not available here and stop.
+
+**Approved words on Kabo Web.** If the host supplied an existing production job, read its status and continue that job with its selected presenter, voice and picture inputs. An approved explainer goes directly from rendering to delivery. Follow the picture review procedure only if an older job explicitly returns that checkpoint. If the creator is starting a video from approved words and the Web material-draft tools are available, first follow `references/generation-assets.md` to select or confirm the missing material and continue through its quote. Use the input routes below when those tools are unavailable.
 
 ## Choose what to make
 
