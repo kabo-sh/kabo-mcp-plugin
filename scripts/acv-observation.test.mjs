@@ -1496,6 +1496,28 @@ test("a refused download: frames and words empty but the post's metadata in, the
   assert.match(brief, /The video is not deleted or private/);
 });
 
+test("a refused download as the backend reports it: frames completed_partial and empty, the transcript failed, the metadata complete", async (t) => {
+  const blocked = (args) => {
+    const value = composite(args);
+    for (const call of value.calls) {
+      const op = call.result.operation;
+      if (op === "extract_keyframes") {
+        call.result.status = "completed_partial";
+        call.result.data = { frame_count: 0, selection: "none", duration_s: null, sampling_plan: null, frames: [], artifacts: [] };
+      } else if (op === "fetch_transcript") {
+        call.result = { ...call.result, status: "failed", data: undefined, limitations: ["The audio could not be retrieved."] };
+      }
+    }
+    return value;
+  };
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", "https://www.bilibili.com/video/BV1V9W96uEVa", "--mode", "craft_teardown"], run);
+  assert.equal(first.code, 0, first.out);
+  const { out } = await driveWith(run, first.out, { media: blocked,
+    viewerSteps: [JSON.stringify({ code: "unsupported_source", message: "This source is not supported.", retryable: false })] });
+  assert.match(out, /"status": "metadata_only"/);
+});
+
 test("a limitation recorded twice in one observation is passed to the builder once", async (t) => {
   const { out } = await observe(t, null, { afterRound: async (dir) => {
     const file = path.join(dir, "observe-video.json");
