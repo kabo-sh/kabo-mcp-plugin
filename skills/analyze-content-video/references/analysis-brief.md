@@ -124,7 +124,16 @@ command, which records when the teardown was finished and how long it is, and de
 cd '<run directory>' && python3 <skill directory>/scripts/acv_timing.py answer --run '<run directory>' --answer report/craft-teardown.md
 ```
 
-Then deliver the file's content to the creator.
+The report ends with one line, in the creator's language, saying what it rests on: how many frames
+and at what spacing, whether the transcript and the measurements were there, and whether the sound
+was heard. Then check it; this prints the report to deliver and refuses internal names:
+
+```sh
+cd '<run directory>' && python3 <skill directory>/scripts/validate_creator_report.py report/craft-teardown.md --emit-report
+```
+
+On an error, fix the report and run the check again. Deliver what it printed: at most one short
+sentence of your own before it, nothing after it.
 
 The rules for what a teardown may claim, from `references/craft-teardown.md`:
 <!-- section: output-identify-track -->

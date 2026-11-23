@@ -552,4 +552,10 @@ test("a craft teardown ends with the line on what it rests on and is checked bef
   const craft = readFileSync(new URL("../skills/analyze-content-video/references/craft-teardown.md", import.meta.url), "utf8");
   assert.match(craft, /End the report with one line, in the creator's language, saying what it\s+rests on/);
   assert.match(craft, /scripts\/validate_creator_report\.py report\/craft-teardown\.md --emit-report/);
+  // The brief is what the model reads at the end; on Kabo Web a teardown delivered without the check was followed by the
+  // host's own basis note, which contradicted the report. The brief's craft section must end on the same check.
+  const brief = readFileSync(new URL("../skills/analyze-content-video/references/analysis-brief.md", import.meta.url), "utf8");
+  const section = brief.split("<!-- section: output-craft-teardown -->")[1].split("<!-- section:")[0];
+  assert.match(section, /validate_creator_report\.py report\/craft-teardown\.md --emit-report/);
+  assert.match(section, /what it rests on/);
 });
