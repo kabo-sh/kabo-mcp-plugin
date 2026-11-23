@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kabo",
-  "version": "1.0.56",
+  "version": "1.0.58",
   "description": "Public creator research with bundled workflows and Kabo MCP evidence.",
   "author": {
     "name": "Dealism",
@@ -37,7 +37,7 @@
         ]
       },
       "publication": {
-        "release_notes": "Kabo 1.0.56 makes remake-viral-video one Skill for Kabo Web and the plugin: in the plugin it writes and checks the storyboard and quote with the creator, then hands the video to Kabo's producer, relaying its questions and answers until delivery. The older step-by-step remake tools are retired, and plugins older than 1.0.56 are asked to update. Includes all twenty-two Skills. OpenAI marketplace review remains separate."
+        "release_notes": "Kabo 1.0.58 rebuilds analyze-content-video as one analysis flow for Kabo Web and the plugin: it picks method cards from the request, observes the video (server frames by default, a whole-video viewing as fallback), builds timestamped evidence and judges it from one brief, with fewer model rounds per analysis. It can name the song and summarize the comment section, and answers from the post's metadata when the platform refuses the download. Includes all twenty-two Skills. OpenAI marketplace review remains separate."
       }
     }
   }

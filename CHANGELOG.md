@@ -2,6 +2,25 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.58
+
+- analyze-content-video: one analysis flow for diagnosis, content read and craft teardown, shared by Kabo Web and
+  the plugin. It picks method cards from the creator's request (`references/video-method/`), observes the video,
+  builds timestamped evidence and assembles one brief (`prepare_analysis.py`) the host model judges from.
+  - Observation sources come from `references/observation-order.json`: server frames by default, a whole-video
+    viewing (`analyze_content_video` + `get_analysis_run`) as the fallback, local frames for local files. One
+    330-second observation deadline on every host.
+  - Long videos: a low-resolution overview of every second plus high-resolution frames where the picture or
+    on-screen text changes.
+  - New tools: `identify_video_song` for "what song is this", `summarize_video_comments` for audience reaction (a
+    summary only, never comment text).
+  - Fewer model rounds: `begin_analysis.py` sets up and starts observing in one command; the brief's rules are
+    written before the fetch; `finish_diagnosis.py --check --finish-if-ready` checks and finishes in one call.
+  - When the platform refuses the download but the post's metadata arrives, the run answers from the metadata and
+    says the picture and sound could not be fetched, instead of calling the video deleted or private.
+  - Report labels for Vietnamese, Arabic and Hindi; no internal names or interim notes in the creator's reply.
+- 1.0.57 was a pre test build of this change only and was never a formal release.
+
 ## 1.0.56
 
 - remake-viral-video: one Skill for Kabo Web and the plugin. In the plugin it plans the video
