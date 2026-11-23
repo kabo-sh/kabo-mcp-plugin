@@ -1,0 +1,5 @@
+interface:
+  display_name: "Kabo Animations"
+  short_description: "Render an approved Studio episode with its selected animation template"
+policy:
+  allow_implicit_invocation: false
