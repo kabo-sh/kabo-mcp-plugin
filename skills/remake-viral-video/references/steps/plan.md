@@ -213,6 +213,12 @@ have. Make it in the plan, before the shots, never ask the creator for it:
   `first_frame` (`kling/v4/reference-to-video`). A `refvideo` without the new first frame copies
   the reference's room.
 
+A one-line change ("make the cats foxes", "set it at night in the rain") is the creator's whole
+brief: work out yourself everything it touches and change only that. Go module by module -- the
+cards (look, and the voice or sounds of a changed character: meows become a fox's yips), the words
+and on-screen text that name or describe the old thing, the props and places tied to it, the light,
+the music and effects -- and say in the analysis which modules change and why; everything else
+(shots, timing, camera, actions, the rest of the cast) stays as the reference has it.
 The new script is part of the plan, not a question: save it with the storyboard and go on making
 the video in the same turn; never stop to show it for approval (11-22 pre: "change the story to …"
 got only a script back and needed a second message). A row whose words are a voice-over (nobody
