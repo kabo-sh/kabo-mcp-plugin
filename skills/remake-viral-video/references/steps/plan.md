@@ -157,7 +157,11 @@ picture). Captions follow the reference: when it has captions, `form` and each r
 `form.captions` names the mode by its word: `phrase`, `word`, `highlight` or `reveal` (captions
 that grow a word at a time as it is said are `reveal`, never `highlight`); `none` only
 when the reference has none or the creator asked for none. Every line of the script has a picture that
-shows what it says. A storyboard written before the material is broken down is not the plan.
+shows what it says. A storyboard written before the material is broken down is not the plan. One shot is one
+place and one picture: a row whose picture or motion cuts to another place ("hard cut to the
+stage", "then we see the bread wink", a closing card after the scene) is two rows, each with its
+own `location`, `on_screen_cast`, `props`, `prompt` and `how`, since a step makes only what its
+own row names (a final stage written into the bakery row was never made, 11-23).
 Each shot is its own picture; a shot whose reference moves (a person or thing acting, a camera
 move) is made to move (`animate`, `refvideo`, `talking`, a code animation), and only a shot over
 a held picture in the reference becomes `still_video`. One action per shot: a generated shot
