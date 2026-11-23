@@ -91,7 +91,7 @@ passes `source.subject_state` from the request to `compute_deterministic.py`: `o
 
 ## 3. The judgment
 
-The judgment schema in section 7 of `analysis/brief.md` projects the model-authored fields from
+The judgment schema in section 7 of the brief (`analysis/rules.md`) projects the model-authored fields from
 the final analysis schema. Read it whole and write only this partial judgment, using its shapes and
 enums. Keep `revisions` empty for `third_party` and `unknown`, and cite exact refs from the reference
 index. The composer supplies evidence lineage, completeness and the unchanged `deterministic.json`
@@ -118,8 +118,9 @@ After this review, keep the saved judgment unchanged.
 The ready reference check's `view_contract` holds the author fields, the current canonical
 observation references and the display-column limits (`build_creator_result.py
 --print-view-contract --observations-from analysis/video_judgment.json` prints the same contract
-on its own; it is not a step of a run). Read it completely, then read
-`references/diagnosis-report.md` whole for what the fields should say. Omit the read-only `data_note` and `listen_note`. Every figure in the view, including
+on its own; it is not a step of a run). Read it completely; what the fields should say is
+`references/diagnosis-report.md`, which section 7 of the brief (`analysis/rules.md`) already
+carries whole, so it needs no read of its own. Omit the read-only `data_note` and `listen_note`. Every figure in the view, including
 next-edit timings, must trace to the composed analysis or evidence; rounding and magnitude notation
 are allowed and clock times are not numeric claims. For a new duration that is editorial advice,
 give a qualitative instruction anchored to a verified moment. Never add observations or alter the

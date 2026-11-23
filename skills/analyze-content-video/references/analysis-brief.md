@@ -1,6 +1,7 @@
-<!-- The fixed texts prepare_analysis.py places in the analysis brief, one section per marker line.
-     Each section runs from its marker to the next marker or the end of the file and is copied into the
-     brief as is. They live in one file because Kabo Web delivers at most 64 files per Skill. -->
+<!-- The fixed texts prepare_analysis.py places in sections 6 and 7 of the analysis brief (analysis/rules.md, written
+     before the fetch), one section per marker line. Each section runs from its marker to the next marker or the end
+     of the file and is copied into the brief as is. They live in one file because Kabo Web delivers at most 64 files
+     per Skill. -->
 <!-- section: judgment-rules -->
 These rules hold in every mode, whatever the method cards above say.
 
@@ -58,8 +59,8 @@ cd '<run directory>' && python3 <skill directory>/scripts/compose_video_analysis
 Advance only on `status: ready`, with one correction opportunity in total, as
 `references/diagnosis-runtime.md` *The judgment* describes. On `ready` the check also prints
 `view_contract`: the creator view's author fields, its canonical observation references and the
-display-column limits. Read it completely, read `references/diagnosis-report.md` whole, and write
-`analysis/creator_view.json` once.
+display-column limits. Read it completely with the creator view reference at the end of this
+section (already read with these rules), and write `analysis/creator_view.json` once.
 
 Then check the view and finish in one call. The check runs every gate of the final step on scratch
 copies and lists each violation with its field and limit; only when every gate passes does it run

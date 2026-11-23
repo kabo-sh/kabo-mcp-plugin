@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
-"""Assemble the one analysis brief the model reads before it writes a judgment.
+"""Assemble the analysis brief the model reads before it writes a judgment, in two files.
 
     python3 prepare_analysis.py --run <run dir> --mode <diagnosis|content_read|craft_teardown>
         --question-file <file with the creator's words> [--focus id1,id2]
 
-Reads `analysis/content_evidence.json` (whatever observation source produced it), runs the existing
-deterministic steps, re-checks the method cards chosen before the fetch against the evidence that arrived (the
-topic cards in `analysis/method.json`, or `--focus` when given), and writes `analysis/method.json` and
-`analysis/brief.md` with seven fixed sections:
+The brief has seven fixed sections:
 
     ## 1. Creator question / ## 2. Mode / ## 3. Evidence index / ## 4. Deterministic results /
     ## 5. Method / ## 6. Judgment rules / ## 7. Output contract
 
-Sections 1, 2, 6 and 7 depend only on the mode, the question and the focus, never on which source observed the
-video. Section 5 depends on the cards selected: a requested topic card the evidence cannot support is skipped
-(section 3 names the skip), so section 5 is byte-identical across sources whenever the same cards are selected.
-Everything else source-dependent lives in sections 3 and 4. This is the only place a brief is assembled.
+Sections 5-7 depend only on the mode, the kind of request and the method cards chosen from the request before the
+fetch, never on the evidence, so they live in `analysis/rules.md`, written before the fetch (begin_analysis.py calls
+`write_rules`) and read while the evidence arrives: the cards as requested, the judgment rules, the output contract
+with the judgment schema and, for a diagnosis, the creator-view reference. That file is byte-identical across
+observation sources for the same request.
+
+This script reads `analysis/content_evidence.json` (whatever observation source produced it), runs the existing
+deterministic steps, re-checks the cards chosen before the fetch against the evidence that arrived (the topic cards
+in `analysis/method.json`, or `--focus` when given), writes `analysis/method.json` and `analysis/brief.md` with
+sections 1-4 and prints that brief, so it needs no separate read. A requested topic card the evidence cannot support
+is skipped: section 3 says so, and its text in section 5 does not apply. When `analysis/rules.md` is missing or no
+longer matches the request (a local file, which has no begin step, or a different `--focus`), it is written again
+here and the output says to read it. This is the only place a brief is assembled.
 """
 from __future__ import annotations
 
@@ -67,10 +73,13 @@ ASK_TEXT = {"identify_track": "Find the track: which song or sound the video use
                               "recognition's match when there is one, otherwise only from the metadata, on-screen "
                               "text and speech. No sound card and no whole-video viewing."}
 NEXT = {
-    "diagnosis": "write analysis/video_judgment.json as its section 7 says",
-    "content_read": "answer the creator in the chat as its section 7 says",
-    "craft_teardown": "write report/craft-teardown.md as its section 7 says",
+    "diagnosis": "write analysis/video_judgment.json as section 7 says",
+    "content_read": "answer the creator in the chat as section 7 says",
+    "craft_teardown": "write report/craft-teardown.md as section 7 says",
 }
+# Sections 5-7 of the brief, written before the fetch; sections 1-4 are analysis/brief.md.
+RULES = "rules.md"
+DIAGNOSIS_REPORT = SKILL / "references" / "diagnosis-report.md"
 # The measured signals worth a line in the index; the rest of media.probed stays in the evidence file.
 PROBED_SUMMARY = ("shots", "silence", "freeze", "framing")
 # A sound cue in a transcript: a bracketed tag such as [Music] (in any language) or a music note.
@@ -234,7 +243,11 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
     for skipped in method.get("skipped") or []:
         lines.append(f"Method card `{skipped['id']}` was skipped: {skipped['reason']}.")
     if method.get("skipped"):
-        lines.append("")
+        ids = [item["id"] for item in method["skipped"]]
+        lines += ["The requested topic card" + ("s " if len(ids) > 1 else " ") + ", ".join(f"`{item}`" for item in ids)
+                  + (" were" if len(ids) > 1 else " was") + " skipped for missing evidence: answer that part of the "
+                  "question from the other cards in section 5 and name the missing evidence instead of applying the "
+                  "skipped method; " + ("their" if len(ids) > 1 else "its") + " text in section 5 does not apply.", ""]
     ref = evidence.get("content_ref") or {}
     content = f"`{ref['content_id']}`" if ref.get("content_id") else "id unresolved (short link)"
     lines += ["### Post", "", f"- platform {ref.get('platform')}, content {content}, format "
@@ -519,16 +532,11 @@ def nested(text: str) -> str:
 
 
 def method_section(method: dict[str, Any], library: Path, index: dict[str, Any]) -> list[str]:
+    """Section 5: the cards chosen from the request before the fetch. A card the evidence later cannot support is
+    named in section 3, never removed here, so this section never changes once the evidence arrives."""
     lines = []
-    skipped = [item["id"] for item in method.get("skipped") or []]
     if method.get("default_only"):
         lines += ["No topic card was asked for: the base card alone gives the default analysis.", ""]
-    elif skipped:
-        lines += ["The requested topic card" + ("s " if len(skipped) > 1 else " ")
-                  + ", ".join(f"`{item}`" for item in skipped)
-                  + (" were" if len(skipped) > 1 else " was") + " skipped for missing evidence (see the skip notice "
-                  "in section 3): answer that part of the question from the cards below and name the missing "
-                  "evidence instead of applying the skipped method.", ""]
     for card in method["cards"]:
         text = select_method.card_text(library, index, card["id"]).lstrip()
         if text.startswith("# "):
@@ -552,6 +560,9 @@ def output_section(mode: str, ask: str | None = None) -> list[str]:
         if done.returncode != 0:
             raise RuntimeError("compose_video_analysis.py --print-judgment-schema failed")
         lines += ["```json", done.stdout.rstrip(), "```", ""]
+        # What the creator view's fields should say, read here with the rest so the view needs no read of its own.
+        lines += ["Creator view reference (`references/diagnosis-report.md`), for `analysis/creator_view.json`:", "",
+                  nested(DIAGNOSIS_REPORT.read_text(encoding="utf-8")), ""]
     elif mode == "craft_teardown":
         text = (SKILL / "references" / "craft-teardown.md").read_text(encoding="utf-8")
         start = text.index("## What may not be claimed")
@@ -560,9 +571,41 @@ def output_section(mode: str, ask: str | None = None) -> list[str]:
     return lines
 
 
-def brief(question: str, mode: str, focus: list[str], method: dict[str, Any], library: Path,
-          index: dict[str, Any], evidence_lines: list[str], deterministic_lines: list[str],
-          subject_state: str = "unknown") -> str:
+def rules(mode: str, method: dict[str, Any], library: Path, index: dict[str, Any]) -> str:
+    """Sections 5-7: everything in the brief that does not depend on the evidence."""
+    sections = [
+        ("5. Method", method_section(method, library, index)),
+        ("6. Judgment rules", [nested(brief_text("judgment-rules")), ""]),
+        ("7. Output contract", output_section(mode, method.get("ask"))),
+    ]
+    out = ["# Analysis rules", "", "Sections 5-7 of this run's analysis brief: the method cards chosen from the "
+           "creator's request, the judgment rules and the output contract. They do not depend on the evidence; "
+           "`prepare_analysis.py` prints sections 1-4 once the evidence is built. Read this whole before writing "
+           "anything: its rules bind you as if they were written in SKILL.md.", ""]
+    for title, lines in sections:
+        out += [f"## {title}", "", *lines]
+    return "\n".join(out).rstrip() + "\n"
+
+
+def write_rules(analysis: Path, mode: str, focus: list[str], ask: str | None = None,
+                library: Path = select_method.LIBRARY) -> bool | None:
+    """Write `analysis/rules.md` for this request (the cards as requested, before any evidence). True when it was
+    written or changed, False when it already held exactly this text, None for a mode that has no brief."""
+    if mode not in MODES:
+        return None
+    index = select_method.load_index(library)
+    text = rules(mode, select_method.select(index, mode, focus, None, ask), library, index)
+    target = analysis / RULES
+    if target.is_file() and target.read_text(encoding="utf-8") == text:
+        return False
+    analysis.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    return True
+
+
+def brief(question: str, mode: str, focus: list[str], method: dict[str, Any], evidence_lines: list[str],
+          deterministic_lines: list[str], subject_state: str = "unknown") -> str:
+    """Sections 1-4: the request and what the evidence holds."""
     ask = method.get("ask")
     sections = [
         ("1. Creator question", [question.strip() or "(no words beyond the link: a default analysis)", ""]),
@@ -573,12 +616,10 @@ def brief(question: str, mode: str, focus: list[str], method: dict[str, Any], li
                                "`unknown` and `third_party` get no source revisions and no owner metrics).", "",
                                *evidence_lines]),
         ("4. Deterministic results", deterministic_lines),
-        ("5. Method", method_section(method, library, index)),
-        ("6. Judgment rules", [nested(brief_text("judgment-rules")), ""]),
-        ("7. Output contract", output_section(mode, ask)),
     ]
-    out = ["# Analysis brief", "", "Read this whole before writing anything. It is the only analysis "
-           "instruction for this run.", ""]
+    out = ["# Analysis brief", "", "Sections 1-4, from this run's evidence. Sections 5-7 (method, judgment rules, "
+           f"output contract) are `analysis/{RULES}`. Together they are the only analysis instruction for this run.",
+           ""]
     for title, lines in sections:
         out += [f"## {title}", "", *lines]
     return "\n".join(out).rstrip() + "\n"
@@ -622,17 +663,25 @@ def main(argv: list[str] | None = None) -> int:
     try:
         (analysis / "method.json").write_text(json.dumps(method, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         source = acv_timing.load(analysis).get("observation_source")
-        text = brief(question, args.mode, focus, method, args.library, index,
+        text = brief(question, args.mode, focus, method,
                      evidence_index(evidence, source, method, request), deterministic(run, args.mode, evidence, request),
                      subject_state=str((request.get("source") or {}).get("subject_state") or "unknown"))
         (analysis / "brief.md").write_text(text, encoding="utf-8")
+        rewritten = write_rules(analysis, args.mode, focus, ask, args.library)
     except (ValueError, OSError, KeyError, TypeError, RuntimeError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}, ensure_ascii=False))
         return 1
     acv_timing.append(analysis, "prepare", started)
-    print(json.dumps({"status": "ready", "brief": "analysis/brief.md", "cards": [card["id"] for card in method["cards"]],
-                      "skipped": method["skipped"]}, ensure_ascii=False))
-    print(f"Read analysis/brief.md whole now, then {NEXT[args.mode]}.")
+    print(json.dumps({"status": "ready", "brief": "analysis/brief.md", "rules": f"analysis/{RULES}",
+                      "cards": [card["id"] for card in method["cards"]], "skipped": method["skipped"]},
+                     ensure_ascii=False))
+    # The brief itself, so it needs no read of its own.
+    print(text, end="")
+    print(f"(End of analysis/brief.md; read the file only if the text above is cut off.) "
+          + (f"Sections 5-7 were just written to analysis/{RULES}: read it whole now, then {NEXT[args.mode]}."
+             if rewritten else
+             f"Sections 5-7 are analysis/{RULES}, read while the evidence arrived (read it whole now if you have "
+             f"not). Now {NEXT[args.mode]}."))
     return 0
 
 

@@ -175,7 +175,7 @@ on-screen text and speech, never by ear.
 observe it, including one paid whole-video viewing where the observation order calls for it (a
 fallback, or a question about the sound, never Find the track): do not ask again. `observe_video.py` starts at most one whole-video viewing per run and never a second;
 never call `analyze_content_video` or `get_analysis_run` except as it prints them. Their raw result on
-screen also carries scores and advice: never use or repeat them; only `analysis/brief.md` informs the
+screen also carries scores and advice: never use or repeat them; only the brief informs the
 judgment.
 
 ## Analysis
@@ -246,15 +246,19 @@ Diagnosis, content read and craft teardown run the same steps. Read
    ```
 
    It runs the deterministic steps, checks the chosen cards against the evidence (a card the
-   evidence cannot support is skipped, and the brief says so) and writes `analysis/brief.md`. Exit
-   2 means the mode's own method lacks its evidence, or nothing arrived to analyse: do what it prints.
-7. **Read `analysis/brief.md` whole, then write what its section 7 asks**: for a diagnosis the
-   judgment JSON, its reference check (which brings the view contract), the creator view, and its
-   check, which finishes the report in the same call once it is ready;
-   for a content read `analysis/answer.md`, then the answer in the chat; for a craft teardown
-   `report/craft-teardown.md`. Its rules bind you
-   as if they were written here. A content read writes no report and is never called a diagnosis;
-   offer a diagnosis or craft teardown once at the end when the creator may want one.
+   evidence cannot support is skipped, and section 3 says so), writes `analysis/brief.md` and prints
+   it: the brief's sections 1-4, from the evidence. Read the file only when the printed text is cut
+   off. Sections 5-7 (the method cards, the judgment rules and the output contract) do not depend on
+   the evidence and are `analysis/rules.md`; when it says it has just written that file, read it
+   whole now. Exit 2 means the mode's own method lacks its evidence, or nothing arrived to analyse:
+   do what it prints.
+7. **Write what section 7 asks**, with sections 1-4 as printed and `analysis/rules.md` read whole:
+   for a diagnosis the judgment JSON, its reference check (which brings the view contract), the
+   creator view, and its check, which finishes the report in the same call once it is ready; for a
+   content read `analysis/answer.md`, then the answer in the chat; for a craft teardown
+   `report/craft-teardown.md`. The brief's rules bind you as if they were written here.
+   A content read writes no report and is never called a diagnosis; offer a diagnosis or craft
+   teardown once at the end when the creator may want one.
 
 ## Transcript export
 
