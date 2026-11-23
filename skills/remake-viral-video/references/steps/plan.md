@@ -212,6 +212,14 @@ have. Make it in the plan, before the shots, never ask the creator for it:
   and light), then `refvideo` with the shot's `trim` as `ref_video` and that still as
   `first_frame` (`kling/v4/reference-to-video`). A `refvideo` without the new first frame copies
   the reference's room.
+- **Swapping a subject that is not the creator** (an animal, a drawn or invented character, an
+  object): `replace`, `lipsync` and `motion` work on the creator's own footage only and are refused
+  without it -- never ask the creator to film themselves for this. Make the new subject's sheet
+  with `still`, then per shot the new first picture from the shot's own `frame` (`still` with the
+  frame and the sheet as refs: same pose, place and camera, only that subject changed), then
+  `refvideo` with the shot's `trim` as `ref_video` and that still as `first_frame`
+  (11-23: "swap the left cat for a Shiba" went to `replace` and stopped to ask for the creator's
+  video).
 
 A one-line change ("make the cats foxes", "set it at night in the rain") is the creator's whole
 brief: work out yourself everything it touches and change only that. Go module by module -- the
