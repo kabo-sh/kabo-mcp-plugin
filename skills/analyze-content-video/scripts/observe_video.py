@@ -116,8 +116,9 @@ MODE_OPERATIONS = {
     "craft_teardown": ["transcript", "keyframes", "measure"],
     "transcript_export": ["transcript"],
 }
-# Modes whose answer reads the post's own metadata (title, counts, caption, tags).
-METADATA_MODES = {"diagnosis", "content_read"}
+# Modes whose answer reads the post's own metadata (title, counts, caption, tags). A craft teardown asks for it too: it
+# rides in the same media call for free, and without it a refused download could not be told from a deleted video.
+METADATA_MODES = {"diagnosis", "content_read", "craft_teardown"}
 SAVE_RULE = (
     f"Save each {START_TOOL} / {POLL_TOOL} / " + " / ".join(observation_order.SIDE_CALLS.values()) + " result whole, "
     "as returned (its download link or an error included), to "
