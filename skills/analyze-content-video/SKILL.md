@@ -238,7 +238,7 @@ three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which sta
    that bring the frames in; make them all. When a read shows you the images themselves, they are viewed: do not save or stage them.
    Save and fetch a read only when it returns a download link. Fetch and persist every other
    response as *Data tools and complete evidence* says.
-4. **Build the evidence** once5. **Build the evidence** once, with one `--envelope` for every `snapshot/envelope-*.json` (the
+4. **Build the evidence** once, with one `--envelope` for every `snapshot/envelope-*.json` (the
    observation's and any you persisted) plus every other argument `observe_video.py` printed
    (`--viewer`, `--song`, `--comment-summary`, `--deferred-incomplete`; add the per-run flags from the
    runtime reference only here):
