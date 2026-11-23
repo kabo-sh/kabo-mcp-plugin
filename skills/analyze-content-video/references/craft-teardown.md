@@ -42,10 +42,11 @@ to look for.
    its bars and the share of a phone screen actually filled. Measurement is its own readiness
    question, answered by the run's one `get_research_capabilities` check. When it is not
    available, say the numbers were unavailable and carry on from frames and transcript.
-4. **Prepare the brief and write.** `prepare_analysis.py --mode craft_teardown` puts the shot
+4. **Prepare the brief and write.** The brief's sections 5-7, `analysis/rules.md`, carry the shot
    method (the `craft-shot-description` card: the five points per shot, organising around the
    question, ranking, what one person can do alone, and the two levels of sourcing), any topic card
-   such as `sound`, and the rules below into `analysis/brief.md`. Read it whole, then write the
+   such as `sound`, and the rules below; read it whole while the evidence arrives.
+   `prepare_analysis.py --mode craft_teardown` prints sections 1-4 from the evidence. Then write the
    report.
 5. **Check and deliver.** End the report with one line, in the creator's language, saying what it
    rests on: how many frames and at what spacing, whether the transcript and the measurements

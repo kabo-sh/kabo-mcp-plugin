@@ -635,7 +635,7 @@ def finish_media(mode: str) -> dict[str, Any]:
             calls[str(call["group"]).rsplit("/", 1)[-1]] = call
     media_state = collect_media.state()
     placed = media_state.setdefault("placed", {})
-    envelopes, pending, usable, gone, duration = [], [], False, False, None
+    envelopes, pending, usable, gone, duration, metadata = [], [], False, False, None, False
     read, frames_note, overview_legend = None, None, []
     for operation, call in calls.items():
         body = json.loads(Path(call["path"]).read_text())
@@ -646,6 +646,10 @@ def finish_media(mode: str) -> dict[str, Any]:
         data = body.get("data") if isinstance(body.get("data"), dict) else {}
         gone = gone or data.get("source_unavailable") is True
         done = body.get("status") in {"completed", "completed_partial"}
+        if (body.get("status") == "completed"
+                and (body.get("operation") or operation) == collect_media.OPERATIONS["metadata"]
+                and isinstance(data.get("video"), dict) and data["video"]):
+            metadata = True
         if done and (
                 (operation == "fetch_transcript" and (mode == "transcript_export" or data.get("cues")
                                                       or data.get("plain_text")))
@@ -679,6 +683,7 @@ def finish_media(mode: str) -> dict[str, Any]:
         if operation not in placed and job.get("job_id") and job.get("status") in static_host.PENDING:
             pending.append(f"{operation}={job['job_id']}")
     return {"envelopes": envelopes, "pending": pending, "usable": usable, "source_unavailable": gone, "read": read,
+            "metadata": metadata,
             "duration_s": duration, "frames_note": frames_note, "overview_legend": overview_legend}
 
 
@@ -755,6 +760,13 @@ def settle(current: dict[str, Any]) -> int:
         moved = fall_back(current, "whole_video", code)
         if moved is not None:
             return moved
+    # Nothing seen or heard, the video not reported gone and no deadline in the way, but the post's metadata arrived: the
+    # platform refused the download (a public Bilibili video answered 403 to every fetch), so the run answers from the
+    # metadata and says what was not fetched, instead of telling the creator the video may be deleted or private.
+    blocked = (media is not None and media["metadata"] and not media["source_unavailable"]
+               and not current.get("timed_out") and not observed_anything(current, media))
+    if blocked:
+        current.setdefault("limitations", []).append(observation_order.MEDIA_BLOCKED_TEXT)
     # The builder requires the run's request; the hint names it so the passed flags are a complete set.
     flags = ["--request analysis/video-analysis-request.json"]
     if media is not None:
@@ -782,7 +794,8 @@ def settle(current: dict[str, Any]) -> int:
     # and one statement for both, so a deleted or private video ends the same way on every run.
     gone = bool(media and media["source_unavailable"])
     status = ("observed" if not nothing
-              else "timed_out" if late and not gone else observation_order.SOURCE_UNAVAILABLE)
+              else "timed_out" if late and not gone
+              else "metadata_only" if blocked else observation_order.SOURCE_UNAVAILABLE)
     say(json.dumps({"status": status, "source": current["source"], "tried": current["tried"],
                     "whole_video": viewer.get("status") if viewer.get("active") else None,
                     "media_pending": media["pending"] if media else [], "timed_out": late}, ensure_ascii=False))
@@ -800,6 +813,12 @@ def settle(current: dict[str, Any]) -> int:
             "send the creator this statement, in their language, and nothing more, then stop: "
             + observation_order.SOURCE_UNAVAILABLE_REPLY)
         return 0
+    if blocked:
+        say("Only the post's metadata arrived: the platform did not let Kabo download this video's picture and sound "
+            "this time. Build the evidence and go on from the title, caption and public counts. The first lines of the "
+            "report or answer must say plainly that the video's picture and sound could not be fetched this time, so "
+            "nothing in it was seen or heard; never say the video is deleted, private or unavailable, and never "
+            "describe what it shows or says.")
     if late:
         say(f"The observation stopped at its {observation_order.OBSERVE_DEADLINE_S}-second deadline: "
             + joined(late) + " did not arrive in time. Do not wait or call again. Build the evidence and go on "

@@ -2,7 +2,7 @@
 // Each probe runs the Skill's Python with -I -B and prints JSON; nothing touches the network.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile, mkdir } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -482,7 +482,91 @@ print(json.dumps({
   assert.equal(out["unknown observation"][0], 3, "a card citing a missing observation is the view's to fix");
   assert.equal(out["unknown observation"][1].status, "needs_correction");
   assert.deepEqual(out.view, [3, { status: "needs_correction", step: "build_creator_result.py",
-    violations: ["creator_view.headline runs 90 columns against a 60 limit"] }]);
+    violations: ["creator_view.headline runs 90 columns against a 60 limit"],
+    gates_not_run: ["render_video_report.py", "validate_creator_shape.py", "validate_creator_report.py"] }]);
+});
+
+// One correction should usually be enough: a view gate that fails does not hide the gates after it. Every later gate
+// whose input exists still runs, and the check lists all their violations together.
+test("finish_diagnosis --check: violations from every gate that can run are listed together for the one correction", () => {
+  const out = probe(`
+import contextlib, io, subprocess, tempfile
+from pathlib import Path
+import finish_diagnosis as fd
+def run_with(failing):
+    ran = []
+    def fake(command, **kwargs):
+        step = Path(command[2]).name
+        ran.append(step)
+        if step in failing:
+            return subprocess.CompletedProcess(command, 1, "", failing[step] + "\\n")
+        return subprocess.CompletedProcess(command, 0, "", "")
+    fd.subprocess.run = fake
+    buffer = io.StringIO()
+    with tempfile.TemporaryDirectory() as run, contextlib.redirect_stdout(buffer):
+        code = fd.check(Path(run))
+    text = buffer.getvalue()
+    return [code, json.loads(text[: text.rindex("}") + 1]), ran, text[text.rindex("}") + 1:].strip()]
+print(json.dumps({
+    "render_and_shape": run_with({"render_video_report.py": "ERROR: creator_view.headline is required to render",
+                                  "validate_creator_shape.py": "ERROR: cards[1]: why_for_you runs 600 columns against a 480 limit"}),
+    "shape_and_report": run_with({"validate_creator_shape.py": "ERROR: creator_view.summary runs 400 columns against a 360 limit",
+                                  "validate_creator_report.py": "ERROR: Creator-facing report contains internal field name"}),
+}))`);
+  const [code, verdict, ran, advice] = out.render_and_shape;
+  assert.equal(code, 3);
+  assert.deepEqual(verdict.violations, ["creator_view.headline is required to render",
+    "cards[1]: why_for_you runs 600 columns against a 480 limit"]);
+  assert.equal(verdict.step, "render_video_report.py");
+  assert.deepEqual(Object.keys(verdict.gates), ["render_video_report.py", "validate_creator_shape.py"]);
+  // The report check needs the rendered report, so it waits; the shape gate does not.
+  assert.deepEqual(verdict.gates_not_run, ["validate_creator_report.py"]);
+  assert.ok(!ran.includes("validate_creator_report.py"));
+  assert.match(advice, /for every violation above together/);
+  assert.match(advice, /full-width character is two/);
+  const [code2, verdict2] = out.shape_and_report;
+  assert.equal(code2, 3);
+  assert.equal(verdict2.violations.length, 2);
+  assert.equal(verdict2.gates_not_run, undefined);
+});
+
+// The Web host delivers a printed report itself only when nothing in it is left to translate: the line after
+// creator_report says so. A diagnosis renders its own words in 12 languages; a view in any other language still
+// needs the model, and a craft teardown is written in the creator's language from the start.
+test("emit-report: report_delivery follows creator_report, as_is for a rendered language or a teardown, translate otherwise", async () => {
+  const run = await realpath(await mkdtemp(path.join(os.tmpdir(), "acv-delivery-")));
+  try {
+    await mkdir(path.join(run, "report"), { recursive: true });
+    await mkdir(path.join(run, "analysis"), { recursive: true });
+    const diagnosis = path.join(run, "report", "VIDEO_DIAGNOSIS.md");
+    const teardown = path.join(run, "report", "craft-teardown.md");
+    await writeFile(diagnosis, "# Report\n\nBody.\n");
+    await writeFile(teardown, "# Wie es gemacht wurde\n\nText.\n");
+    const emit = (report) => {
+      const result = spawnSync("python3", ["-I", "-B", path.join(scripts, "validate_creator_report.py"), report, "--emit-report"],
+        { encoding: "utf8", env });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout;
+    };
+    const delivered = async (language) => {
+      await writeFile(path.join(run, "analysis", "creator-task-result.json"), JSON.stringify({ creator_view: { language } }));
+      return /\nreport_delivery: (\S+)\n/.exec(emit(diagnosis))[1];
+    };
+    assert.equal(await delivered("zh-CN"), "as_is");
+    assert.equal(await delivered("en"), "as_is");
+    assert.equal(await delivered("pt-BR"), "as_is");
+    assert.equal(await delivered("hi"), "as_is");
+    assert.equal(await delivered("it"), "translate");
+    assert.equal(await delivered("ru-RU"), "translate");
+    const out = emit(diagnosis);
+    // The report bytes, then creator_report, then report_delivery, then the instruction: earlier lines unchanged.
+    assert.ok(out.startsWith("# Report\n\nBody.\n" + `creator_report: ${diagnosis}\nreport_delivery: translate\nYour reply is this report`), out);
+    await rm(path.join(run, "analysis", "creator-task-result.json"));
+    assert.match(emit(diagnosis), /\nreport_delivery: translate\n/, "without the delivered result the model checks it");
+    assert.match(emit(teardown), new RegExp(`\ncreator_report: ${teardown.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\nreport_delivery: as_is\n`));
+  } finally {
+    await rm(run, { recursive: true, force: true });
+  }
 });
 
 // A pre-release report printed "## 你的下一条怎么做" ("what to do in yours") and, under it, the action labelled

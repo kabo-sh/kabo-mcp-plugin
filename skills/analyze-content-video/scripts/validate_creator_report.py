@@ -9,9 +9,17 @@ than a localized phrase blacklist.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import report_locale  # noqa: E402
+
+# The diagnosis report finish_diagnosis.py renders; its delivered result sits in the run's analysis/ folder.
+DIAGNOSIS_REPORT = "VIDEO_DIAGNOSIS.md"
 
 
 FORBIDDEN = {
@@ -51,6 +59,22 @@ def validate(text: str) -> list[str]:
     return [label for label, pattern in FORBIDDEN.items() if pattern.search(text)]
 
 
+def delivery(report: Path) -> str:
+    """`as_is` when the printed report can reach the creator unchanged, `translate` when part of it is still in
+    English for a creator whose language the renderer does not cover. Only a rendered diagnosis can need it: its
+    labels and derived lines come from the renderer, in the creator view's language only for the languages
+    report_locale.py renders. A craft teardown is written by the model in the creator's language: always as is."""
+    if report.name != DIAGNOSIS_REPORT:
+        return "as_is"
+    result = report.resolve().parent.parent / "analysis" / "creator-task-result.json"
+    try:
+        view = json.loads(result.read_text(encoding="utf-8")).get("creator_view")
+    except (OSError, ValueError, AttributeError):
+        # Without the delivered result the language is unknown: leave the check to the model.
+        return "translate"
+    return "as_is" if report_locale.rendered(view) else "translate"
+
+
 def main() -> int:
     """Validate the report, optionally returning its original UTF-8 bytes."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -69,8 +93,10 @@ def main() -> int:
         sys.stdout.buffer.write(raw)
         # In real runs the final reply to a short question ("why did it go viral") is often summarized by the model into a few lines: the end of the report states directly how to deliver it.
         print(("" if raw.endswith(b"\n") else "\n") + f"creator_report: {args.report.resolve()}")
-        # SKILL.md delivery forbids file paths in the reply: the creator_report line is for the run's record only.
-        print('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says). The creator_report line is for this run\'s record: leave it, and every file path, out of the reply.')
+        # Read by the host: as_is lets it deliver the printed report itself; translate leaves the reply to the model.
+        print(f"report_delivery: {delivery(args.report)}")
+        # SKILL.md delivery forbids file paths in the reply: both lines above are for the run's record only.
+        print('Your reply is this report, even when the question was short: at most one short sentence of your own, then the report above complete and unchanged (translated only where the Skill says). The creator_report and report_delivery lines are for this run\'s record: leave them, and every file path, out of the reply.')
     else:
         print("OK: Creator-facing video report contains no forbidden internal identifiers or metadata")
     return 0

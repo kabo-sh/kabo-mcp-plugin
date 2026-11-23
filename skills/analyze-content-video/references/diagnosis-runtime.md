@@ -6,10 +6,12 @@ final validated report closes it.
 
 ## 1. The request
 
-Prepare `analysis/video-analysis-request.json` with `prepare_link_request.py` before building
-evidence; it preserves the creator's original link, the chosen ownership state and confirmation, and
-leaves an unresolved post ID null. For a public link, `<platform>` is the link's platform, and
-`--mode` (the mode from *Which question is this*) sets the call ceiling for that mode:
+`begin_analysis.py` (analysis step 2 in `SKILL.md`) writes `analysis/video-analysis-request.json`
+for a link or an attached file exactly as `prepare_link_request.py` does, from the same arguments:
+it preserves the creator's original link, the chosen ownership state and confirmation, and leaves
+an unresolved post ID null. For a public link, `<platform>` is the link's platform (read from the
+link when the support list knows it), and `--mode` (the mode from *Which question is this*) sets
+the call ceiling for that mode. The request on its own, outside a begin step:
 
 ```sh
 cd '<run directory>' && python3 <skill directory>/scripts/prepare_link_request.py --url '<link exactly as given>' --platform <platform> --subject-state <chosen-state> --mode <mode> --confirmed-by-user --output analysis/video-analysis-request.json
@@ -91,7 +93,7 @@ passes `source.subject_state` from the request to `compute_deterministic.py`: `o
 
 ## 3. The judgment
 
-The judgment schema in section 7 of `analysis/brief.md` projects the model-authored fields from
+The judgment schema in section 7 of the brief (`analysis/rules.md`) projects the model-authored fields from
 the final analysis schema. Read it whole and write only this partial judgment, using its shapes and
 enums. Keep `revisions` empty for `third_party` and `unknown`, and cite exact refs from the reference
 index. The composer supplies evidence lineage, completeness and the unchanged `deterministic.json`
@@ -103,36 +105,44 @@ only those citations once and rerun the check once. If still not ready, stop and
 Never guess aliases, fetch to fill a citation or reopen a closed run. Index, hash, I/O and
 execution errors are fatal, not input corrections.
 
-On `ready`, read `grounding_review` through `packet_end`. It places the referenced frames, images
+On `ready`, read `grounding_review` through `packet_end`; the same output carries `view_contract`
+for the creator view (section 4). It places the referenced frames, images
 and literal speech beside the authored judgment; it does not certify pixel interpretation. Compare
 each objective observation and report-bearing judgment with the images already displayed. A cue
 start does not establish first visual appearance; a legal frame ID does not prove the described
 object. If a statement is unsupported, use the **same one correction opportunity** to narrow or
-remove it and rerun the check once — never a separate loop. If that opportunity is spent, stop or
-keep the gap explicit rather than invent a claim. After this review, keep the saved judgment
-unchanged. The view-contract command reads the saved file, so never run it before the file exists
-or in the same call as the check it depends on.
+remove it and rerun the check once — never a separate loop; use the `view_contract` of that last
+check. If that opportunity is spent, stop or keep the gap explicit rather than invent a claim.
+After this review, keep the saved judgment unchanged.
 
 ## 4. The creator view
 
-`--print-view-contract` prints the author fields, the current canonical observation references and
-the display-column limits. Read it completely, then read `references/diagnosis-report.md` whole for
-what the fields should say. Omit the read-only `data_note` and `listen_note`. Every figure in the view, including
+The ready reference check's `view_contract` holds the author fields, the current canonical
+observation references and the display-column limits (`build_creator_result.py
+--print-view-contract --observations-from analysis/video_judgment.json` prints the same contract
+on its own; it is not a step of a run). Read it completely; what the fields should say is
+`references/diagnosis-report.md`, which section 7 of the brief (`analysis/rules.md`) already
+carries whole, so it needs no read of its own. Omit the read-only `data_note` and `listen_note`. Every figure in the view, including
 next-edit timings, must trace to the composed analysis or evidence; rounding and magnitude notation
 are allowed and clock times are not numeric claims. For a new duration that is editorial advice,
 give a qualitative instruction anchored to a verified moment. Never add observations or alter the
 saved judgment to manufacture grounding. Write `analysis/creator_view.json`, then run
-`finish_diagnosis.py --check`: it runs every gate of the final step on scratch copies, writes nothing
-and lists each violation with its field and limit. It exits 0 on `ready` and 3 on
-`needs_correction` (not a failure), so never chain it to the final step with `&&` and read the
-status. Correct the view once for all of them and check once more; advance only on `status: ready`. This is the view's one correction, separate from the
-judgment's; the judgment stays as saved. A failure no view edit can fix (a derived line that
-cannot be derived from the evidence, a disagreeing measurement basis) is `failed` with exit 1: report
-it as a failed step and do not spend the correction on it.
+`finish_diagnosis.py --check --finish-if-ready`: it runs every gate of the final step on scratch
+copies and lists each violation with its field and limit. A gate that fails does not hide the
+gates after it: every later gate whose input exists still runs, and `gates_not_run` names any that
+could not, so the one correction sees everything at once. It exits 3 on `needs_correction` (not a
+failure) and writes nothing; never chain it to another command with `&&`. Correct the view once
+for all of the violations and run the same command once more. This is the view's one correction,
+separate from the judgment's; the judgment stays as saved. On `ready` the same call runs the final
+step (section 5) and prints what it prints. A failure no view edit can fix (a derived line that
+cannot be derived from the evidence, a disagreeing measurement basis) is `failed` with exit 1:
+report it as a failed step and do not spend the correction on it. `--check` alone checks without
+finishing and says `ready`; the final step alone is the same command without `--check`.
 
 ## 5. Finishing
 
-`finish_diagnosis.py` runs these six commands in order and stops at the first failure. It renders
+`finish_diagnosis.py` (run by the ready `--check --finish-if-ready`) runs these six commands in
+order and stops at the first failure. It renders
 the report beside its final name and moves it into `report/` only after every gate passed, so a
 failed finish leaves no report file. Do not run them yourself, and do not call the result builder
 on its own after writing the view:

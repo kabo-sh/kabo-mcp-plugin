@@ -74,7 +74,9 @@ function composite(args, { failed = false, duration, emptyTranscript, frameTimes
   args.requests.forEach((request) => {
     const group = `${request.content_id}/${request.operation}`;
     const jobId = uuid(JOB_NUMBER[request.operation]);
-    const lost = failed && request.operation !== "collect_public_metadata";
+    // `failed: "all"` loses the post's metadata too, as a deleted video does; `true` keeps it, as a public video whose
+    // download the platform refused does.
+    const lost = failed === "all" || (failed && request.operation !== "collect_public_metadata");
     jobs.push({ group, content_id: request.content_id, operation: request.operation, attempt: 1, job_id: jobId, status: lost ? "failed" : "completed" });
     list.push({ tool: TOOLS[request.operation], parameters: request.parameters, group, attempts: 1,
       result: mediaEnvelope(request.operation, jobId, { failed: lost, duration, emptyTranscript, frameTimes, measuredDuration, cues }) });
@@ -119,7 +121,7 @@ const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
 // Drive one public-link observation to the end with the given tool answers; returns the run, its final output and
 // every call handed over, in order. `mediaFailed` fails the media call's observing jobs (true, or a function of the
 // media call's number in this run); `afterRound` runs after each round's results are saved, before the resume.
-const OBSERVED = /"status": "(?:observed|timed_out|source_unavailable)"/;
+const OBSERVED = /"status": "(?:observed|timed_out|metadata_only|source_unavailable)"/;
 async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed = false, mode = "diagnosis", duration,
   emptyTranscript, afterRound, frameTimes, args = [], cues, url = TIKTOK, measuredDuration } = {}) {
   const run = await newRun(t);
@@ -361,9 +363,9 @@ for (const [name, options, code, failure] of [
 test("a duration the media call returned keeps an over-long video from starting a viewing", async (t) => {
   const { out, handed } = await observe(t, null, { mediaFailed: true, duration: 900 });
   assert.equal(handed.filter((call) => call.tool === "analyze_content_video").length, 0, out);
-  // Every source came back empty: the run says so instead of "observed".
-  assert.match(out, /"status": "source_unavailable"/);
-  assert.match(out, /Follow \*Stops and gaps\*/);
+  // Frames and words came back empty but the post's metadata arrived: the run goes on from it, never "observed".
+  assert.match(out, /"status": "metadata_only"/);
+  assert.match(out, /Only the post's metadata arrived/);
   assert.match(out, /Fallback: server_frames failed \(media_unavailable\); the video runs 900s, past the whole-video limit of 600s/);
 });
 
@@ -458,6 +460,9 @@ const section = (brief, number) => {
   const end = brief.indexOf("\n## ", start + 4);
   return brief.slice(start, end === -1 ? undefined : end);
 };
+// The whole brief: sections 1-4 (analysis/brief.md, from the evidence) and 5-7 (analysis/rules.md, from the request).
+const readBrief = async (run) => (await readFile(path.join(run, "analysis/brief.md"), "utf8")) + "\n"
+  + (await readFile(path.join(run, "analysis/rules.md"), "utf8"));
 async function prepare(run, args, question = "why did this flop?") {
   await writeFile(path.join(run, "analysis/question.txt"), question);
   return python("prepare_analysis.py", ["--run", run, "--question-file", path.join(run, "analysis/question.txt"), ...args], run);
@@ -467,14 +472,19 @@ async function prepare(run, args, question = "why did this flop?") {
 // support is skipped, and section 5 then says so (see the method-selection test).
 test("one brief from any source: sections 1, 2, 5, 6 and 7 are byte-identical when the same cards are selected; discarded viewer fields never reach it", async (t) => {
   const briefs = {};
+  const rules = {};
   for (const source of ["server_frames", "whole_video", "combined"]) {
     const { run, out } = await observe(t, source);
     await writeRequest(run);
     assert.equal(build(run, flagsOf(out)).code, 0);
     const prepared = await prepare(run, ["--mode", "diagnosis", "--focus", "opening"]);
     assert.equal(prepared.code, 0, prepared.out);
-    assert.match(prepared.out, /Read analysis\/brief\.md whole now/);
-    briefs[source] = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+    // The brief comes printed, and the rules file (written here: no begin step ran) is to be read now.
+    assert.match(prepared.out, /## 3\. Evidence index/);
+    assert.match(prepared.out, /Sections 5-7 were just written to analysis\/rules\.md: read it whole now/);
+    briefs[source] = await readBrief(run);
+    rules[source] = await readFile(path.join(run, "analysis/rules.md"), "utf8");
+    assert.ok(prepared.out.includes(await readFile(path.join(run, "analysis/brief.md"), "utf8")), "the printed brief is the file");
     assert.doesNotMatch(briefs[source], SENTINEL, source);
     const method = await readJson(path.join(run, "analysis/method.json"));
     assert.deepEqual(method.cards.map((card) => [card.id, card.role]), [["diagnosis-default", "base"], ["opening", "topic"]]);
@@ -482,17 +492,26 @@ test("one brief from any source: sections 1, 2, 5, 6 and 7 are byte-identical wh
     const timing = await readJson(path.join(run, "analysis/timing.json"));
     assert.deepEqual(timing.stages.map((stage) => stage.stage), ["observe", "prepare"]);
     assert.ok(existsSync(path.join(run, "analysis/deterministic.json")));
+    // Unchanged on a second run: nothing new to read.
+    const again = await prepare(run, ["--mode", "diagnosis", "--focus", "opening"]);
+    assert.match(again.out, /Sections 5-7 are analysis\/rules\.md, read while the evidence arrived/);
   }
   if (hasFfmpeg) {
     const run = await localRun(t);
     assert.equal(shell(`cd '${run}' && python3 -B '${path.join(scripts, "build_content_evidence.py")}' --request analysis/video-analysis-request.json `
       + "--local-media analysis/local-media.json --output analysis/content_evidence.json --reference-index analysis/content_evidence.references.json").code, 0);
     assert.equal((await prepare(run, ["--mode", "diagnosis", "--focus", "opening"])).code, 0);
-    briefs.local_frames = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+    briefs.local_frames = await readBrief(run);
   }
   const headings = briefs.server_frames.split("\n").filter((line) => line.startsWith("## "));
   assert.deepEqual(headings, ["## 1. Creator question", "## 2. Mode", "## 3. Evidence index", "## 4. Deterministic results",
     "## 5. Method", "## 6. Judgment rules", "## 7. Output contract"]);
+  // Sections 5-7 depend on the request alone: the rules file is the same whichever source observed the video.
+  for (const [source, text] of Object.entries(rules)) assert.equal(text, rules.server_frames, source);
+  assert.match(rules.server_frames, /^# Analysis rules\n/);
+  // The creator view's reference rides with the diagnosis rules, so the view needs no read of its own.
+  assert.match(section(briefs.server_frames, 7), /Creator view reference \(`references\/diagnosis-report\.md`\)/);
+  assert.match(section(briefs.server_frames, 7), /#### Result shape/);
   for (const [source, brief] of Object.entries(briefs))
     for (const number of [1, 2, 5, 6, 7]) assert.equal(section(brief, number), section(briefs.server_frames, number), `${source} section ${number}`);
   assert.match(section(briefs.whole_video, 3), /`V01` 0–2\.5s \[hook\]/);
@@ -510,7 +529,7 @@ test("method selection: no focus is the base card only; unknown or excess focus 
   const method = await readJson(path.join(run, "analysis/method.json"));
   assert.deepEqual(method.cards.map((card) => card.id), ["diagnosis-default"]);
   assert.equal(method.default_only, true);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(section(brief, 1), /no words beyond the link/);
   assert.match(section(brief, 2), /Focus: none \(default analysis\)/);
 
@@ -527,9 +546,9 @@ test("method selection: no focus is the base card only; unknown or excess focus 
   assert.equal((await readJson(path.join(run, "analysis/m.json"))).default_only, false);
   const focused = await prepare(run, ["--mode", "diagnosis", "--focus", "editing-pacing"], "is the pacing too slow?");
   assert.equal(focused.code, 0, focused.out);
-  const focusedBrief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const focusedBrief = await readBrief(run);
   assert.match(section(focusedBrief, 3), /Method card `editing-pacing` was skipped: evidence_missing:measure/);
-  assert.match(section(focusedBrief, 5), /The requested topic card `editing-pacing` was skipped for missing evidence \(see the skip notice in section 3\)/);
+  assert.match(section(focusedBrief, 3), /The requested topic card `editing-pacing` was skipped for missing evidence: answer that part of the question from the other cards in section 5/);
   assert.doesNotMatch(section(focusedBrief, 5), /No topic card was asked for/);
   // ...and a craft teardown, whose base card needs frames, is refused rather than run without them.
   const craft = select("--mode", "craft_teardown");
@@ -566,7 +585,11 @@ test("a judgment may cite a whole-video note id, and the validator resolves it",
   assert.equal(result.status, "ready", checked.out);
   assert.deepEqual(result.grounding_review.referenced_sources.map((row) => row.kind), ["viewer_observation"]);
   // The long legal-ref list comes last, so the issues and the review are read first.
-  assert.deepEqual(Object.keys(result), ["status", "artifact", "issues", "grounding_review", "legal_source_refs"]);
+  assert.deepEqual(Object.keys(result), ["status", "artifact", "issues", "grounding_review", "view_contract", "legal_source_refs"]);
+  // A ready judgment brings the creator view's contract with it, the same one --print-view-contract prints.
+  const contract = JSON.parse(python("build_creator_result.py", ["--print-view-contract", "--observations-from", "analysis/video_judgment.json"], run).out);
+  assert.deepEqual(result.view_contract, contract);
+  assert.deepEqual(result.view_contract.creator_view.cards.evidence_refs.at_least_one_from, ["observations.obs-1"]);
   assert.ok(checked.out.indexOf('"grounding_review"') < checked.out.indexOf('"legal_source_refs"'));
 });
 
@@ -658,6 +681,83 @@ async function driveFrom(run, out, { viewerSteps = [viewerFixture] } = {}) {
   return { out, handed };
 }
 
+// begin_analysis.py is the four setup steps in one command: the request, the creator's words, the cards and the first
+// observation run. Its output is observe_video.py's own, byte for byte, because the Web host reads the hand-over from
+// it; the files are those the separate steps write, and the brief's sections 5-7 are ready before the fetch.
+test("begin_analysis: one command writes what the separate setup steps write and prints observe_video.py's output unchanged", async (t) => {
+  const question = "is the hook strong enough? it's my first try";
+  const separate = await newRun(t);
+  assert.equal(python("prepare_link_request.py", ["--url", TIKTOK, "--platform", "tiktok", "--subject-state", "unknown", "--mode", "diagnosis",
+    "--confirmed-by-user", "--output", "analysis/video-analysis-request.json"], separate).code, 0);
+  await writeFile(path.join(separate, "analysis/question.txt"), question);
+  await selectFirst(separate, "opening,sound");
+  const before = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], separate);
+  assert.equal(before.code, 0, before.out);
+
+  const run = await newRun(t);
+  // A card problem is refused before anything is written or fetched; the corrected command then goes through.
+  const refused = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--focus", "opening,no-such-card", "--confirmed-by-user"], run);
+  assert.equal(refused.code, 2, refused.out);
+  assert.match(refused.out, /unknown method card id\(s\): no-such-card/);
+  assert.deepEqual((await readdir(path.join(run, "analysis"))).sort(), []);
+  assert.equal(existsSync(path.join(run, "observe-video.json")), false);
+  const begun = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--focus", "opening,sound", "--confirmed-by-user"], run);
+  assert.equal(begun.code, 0, begun.out);
+  // The same output but for the run's own path and the run key derived from it.
+  const same = (out, dir) => out.replaceAll(dir, "<run>").replace(/"run_key": "acv:[0-9a-f]+"/g, '"run_key": "<key>"');
+  assert.equal(same(begun.out, run), same(before.out, separate));
+  assert.ok(begun.out.split("\n").some((line) => line.startsWith("Hand-over: ")));
+  assert.equal(path.basename(hostHandover(begun.out)?.resume.script ?? ""), "observe_video.py");
+  // Another request in the same run is refused before anything is written.
+  const other = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "third_party", "--mode", "diagnosis"], run);
+  assert.equal(other.code, 1, other.out);
+  assert.match(other.out, /already holds another request/);
+
+  const request = await readJson(path.join(run, "analysis/video-analysis-request.json"));
+  const expected = await readJson(path.join(separate, "analysis/video-analysis-request.json"));
+  assert.equal(request.request_id, path.basename(run));
+  assert.deepEqual({ ...request, request_id: null }, { ...expected, request_id: null });
+  assert.equal(await readFile(path.join(run, "analysis/question.txt"), "utf8"), question);
+  assert.deepEqual(await readJson(path.join(run, "analysis/method.json")), await readJson(path.join(separate, "analysis/method.json")));
+  const rules = await readFile(path.join(run, "analysis/rules.md"), "utf8");
+  assert.match(rules, /## 5\. Method[\s\S]*\(`opening`, topic card[\s\S]*\(`sound`, topic card[\s\S]*## 6\. Judgment rules[\s\S]*## 7\. Output contract/);
+
+  // The observation goes on from observe_video.py's resume command, and the brief later finds the rules unchanged.
+  const { out } = await driveFrom(run, begun.out);
+  assert.equal(build(run, flagsOf(out)).code, 0);
+  const prepared = python("prepare_analysis.py", ["--run", run, "--mode", "diagnosis", "--question-file", "analysis/question.txt"], run);
+  assert.equal(prepared.code, 0, prepared.out);
+  assert.match(prepared.out, /Sections 5-7 are analysis\/rules\.md, read while the evidence arrived/);
+  assert.equal(await readFile(path.join(run, "analysis/rules.md"), "utf8"), rules);
+  assert.match(prepared.out, /## 1\. Creator question\n\nis the hook strong enough\? it's my first try/);
+
+  // Run again by mistake: the observation is complete, so nothing starts again.
+  const again = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--focus", "opening,sound", "--confirmed-by-user"], run);
+  assert.equal(again.code, 1, again.out);
+  assert.match(again.out, /already complete: never observe twice/);
+  assert.doesNotMatch(again.out, /^Hand-over: /m);
+});
+
+test("begin_analysis: an attached file and a transcript export need no card, and an unknown link must name its platform", async (t) => {
+  const id = uuid(7);
+  const run = await newRun(t);
+  const begun = python("begin_analysis.py", ["--file-ref", `kabo-file:${id}`, "--platform", "tiktok", "--subject-state", "own_unpublished",
+    "--mode", "transcript_export", "--confirmed-by-user"], run);
+  assert.equal(begun.code, 0, begun.out);
+  assert.deepEqual(callLines(begun.out).map((call) => call.tool), ["collect_video_media"]);
+  assert.equal((await readJson(path.join(run, "analysis/video-analysis-request.json"))).source.url, `kabo-file:${id}`);
+  assert.deepEqual((await readJson(path.join(run, "analysis/method.json"))).cards, []);
+  // A transcript export has no brief, so no rules either.
+  assert.equal(existsSync(path.join(run, "analysis/rules.md")), false);
+  const unknown = await newRun(t);
+  const refused = python("begin_analysis.py", ["--url", "https://example.com/v/1", "--subject-state", "unknown", "--mode", "diagnosis"], unknown);
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /--platform names the platform of the link/);
+});
+
 test("cards first: the pre-fetch selection skips nothing, and the sound card makes the observation combined", async (t) => {
   const run = await newRun(t);
   const method = await selectFirst(run, "sound");
@@ -675,7 +775,7 @@ test("cards first: the pre-fetch selection skips nothing, and the sound card mak
   assert.equal(build(run, flagsOf(out)).code, 0);
   const prepared = await prepare(run, ["--mode", "diagnosis"], "does the music fit?");
   assert.equal(prepared.code, 0, prepared.out);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(section(brief, 2), /Focus: `sound`/);
   assert.match(section(brief, 5), /\(`sound`, topic card/);
   assert.deepEqual((await readJson(path.join(run, "analysis/method.json"))).cards.map((card) => card.id), ["diagnosis-default", "sound"]);
@@ -699,9 +799,11 @@ test("cards first: a chosen card the evidence cannot support is skipped by prepa
   assert.equal(prepared.code, 0, prepared.out);
   const method = await readJson(path.join(run, "analysis/method.json"));
   assert.deepEqual(method.skipped, [{ id: "editing-pacing", reason: "evidence_missing:measure" }]);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(section(brief, 2), /Focus: `editing-pacing`/);
-  assert.match(section(brief, 5), /The requested topic card `editing-pacing` was skipped for missing evidence/);
+  assert.match(section(brief, 3), /The requested topic card `editing-pacing` was skipped for missing evidence/);
+  // Section 5 is what was asked for before the fetch: the skipped card's text stays, and section 3 says it does not apply.
+  assert.match(section(brief, 5), /\(`editing-pacing`, topic card/);
   // Run again (a corrected attempt): the skipped card is still the request, not forgotten.
   assert.equal((await prepare(run, ["--mode", "diagnosis"], "is the pacing too slow?")).code, 0);
   assert.deepEqual((await readJson(path.join(run, "analysis/method.json"))).skipped, [{ id: "editing-pacing", reason: "evidence_missing:measure" }]);
@@ -836,10 +938,14 @@ test("a video attached in Kabo (kabo-file:<id>) goes to the media tool as its ur
     "--max-connector-calls", "1", "--output", path.join(run, "analysis/other.json")], run).code, 1);
 });
 
-test("SKILL.md: cards are chosen before the observation, and an unsupported link stops the run", async () => {
+test("SKILL.md: cards are chosen before the observation, the credit check comes before the fetch, and an unsupported link stops the run", async () => {
   const text = await readFile(path.join(skill, "SKILL.md"), "utf8");
-  assert.ok(text.indexOf("select_method.py") < text.indexOf("observe_video.py --url"), "select_method.py comes before the observation");
-  assert.ok(text.indexOf("observe_video.py --url") < text.indexOf("prepare_analysis.py --run"));
+  // One setup command takes the cards and starts the observation; the run is declared (the credit check) before it.
+  assert.match(text, /begin_analysis\.py --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis\|content_read\|craft_teardown\|transcript_export> --question '<their words, verbatim>' \[--focus <id>\[,<id>\]\] \[--ask identify_track\]/);
+  assert.ok(text.indexOf("start_skill_run` once") < text.indexOf("scripts/begin_analysis.py --url"), "the run is declared before the fetch starts");
+  assert.match(text, /wait for its answer before `begin_analysis\.py`, which starts the observation, and never send them in the same turn/);
+  assert.ok(text.indexOf("scripts/begin_analysis.py --url") < text.indexOf("prepare_analysis.py --run"));
+  assert.match(text, /read `analysis\/rules\.md` whole/);
   assert.match(text, /when a tool says the platform or link is not\s+supported, tell the creator which link could not be read and stop/);
   assert.doesNotMatch(text, /Douyin, Xiaohongshu, Kuaishou, Facebook, Bilibili/);
   assert.match(text, /kabo-file:<id>/);
@@ -1034,7 +1140,7 @@ test("kabo-file: the uploaded-file envelopes go through collect_media.py, the ev
   assert.ok(evidence.limitations.some((line) => /uploaded video file, not a platform post/.test(line)), evidence.limitations.join(" | "));
   const prepared = await prepare(run, ["--mode", "diagnosis"], "is this draft ready?");
   assert.equal(prepared.code, 0, prepared.out);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(section(brief, 3), new RegExp(`content \`${fileId}\``));
   assert.match(section(brief, 3), /`frame-0001` 0s/);
 
@@ -1211,7 +1317,7 @@ test("the brief's Sound lines: attribution unavailable, sound markers in the cue
   evidence.transcript.cues[1].text = "[Music] here is why ♪";
   await writeFile(file, JSON.stringify(evidence));
   assert.equal((await prepare(run, ["--mode", "content_read"], "what does it say?")).code, 0);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   const sound = brief.slice(brief.indexOf("### Sound"), brief.indexOf("### Frames"));
   assert.match(sound, /`audio_attribution` unavailable/);
   assert.match(sound, /`transcript\.cue\[1\]` \[Music\] ♪/);
@@ -1277,6 +1383,12 @@ test("finish_diagnosis --check lists every view violation and writes nothing; a 
   assert.equal(existsSync(path.join(run, "analysis/creator-task-result.json")), false);
   assert.ok(!(await readJson(path.join(run, "analysis/timing.json"))).stages.some((stage) => stage.stage === "validate"));
 
+  // --finish-if-ready finishes nothing while the view still needs its correction.
+  const notYet = python("finish_diagnosis.py", ["--run-dir", run, "--check", "--finish-if-ready"], run);
+  assert.equal(notYet.code, 3, notYet.out);
+  assert.match(notYet.out, /"status": "needs_correction"/);
+  assert.equal(existsSync(path.join(run, "report/VIDEO_DIAGNOSIS.md")), false);
+
   const failed = python("finish_diagnosis.py", ["--run-dir", run], run);
   assert.notEqual(failed.code, 0);
   assert.match(failed.out, /no report was written/);
@@ -1288,13 +1400,18 @@ test("finish_diagnosis --check lists every view violation and writes nothing; a 
   assert.equal(ready.code, 0, ready.out);
   assert.match(ready.out, /"status": "ready"/);
   assert.match(python("finish_diagnosis.py", ["--help"], run).out, /3 is\s+needs_correction/);
-  const finished = python("finish_diagnosis.py", ["--run-dir", run], run);
+  // Ready: the same call finishes and prints exactly what the final step prints, nothing of the check's own.
+  const finished = python("finish_diagnosis.py", ["--run-dir", run, "--check", "--finish-if-ready"], run);
   assert.equal(finished.code, 0, finished.out);
+  assert.doesNotMatch(finished.out, /"status": "ready"|Run the final step now/);
   const report = await readFile(path.join(run, "report/VIDEO_DIAGNOSIS.md"), "utf8");
+  assert.ok(finished.out.includes(report + `creator_report: ${path.join(run, "report/VIDEO_DIAGNOSIS.md")}\n`), finished.out);
   assert.match(report, /- \*\*On screen\*\*: Why does this keep happening\?/);
   assert.match(report, /- \*\*Shot\*\*: The burnt pan, close up/);
   assert.match(report, /\*\*How to avoid it\*\*: Keep the result first\./);
-  assert.match(finished.out, /leave it, and every file path, out of the reply/);
+  assert.match(finished.out, /leave them, and every file path, out of the reply/);
+  // The host reads the line after creator_report: an English view renders whole, so the report goes as it is.
+  assert.match(finished.out, /\ncreator_report: [^\n]+VIDEO_DIAGNOSIS\.md\nreport_delivery: as_is\nYour reply is this report/);
   const timing = await readJson(path.join(run, "analysis/timing.json"));
   assert.equal(timing.reply.file, "report/VIDEO_DIAGNOSIS.md");
   assert.equal(timing.reply.chars, report.trim().length);
@@ -1341,7 +1458,7 @@ const transcriptEnvelope = (cues, extra = {}) => ({ ...mediaEnvelope("fetch_tran
 
 test("a gone video: every source empty prints source_unavailable and no build arguments, and a brief from no evidence is refused with the stop rule", async (t) => {
   const { out } = await observe(t, null, {
-    mediaFailed: true, viewerSteps: [JSON.stringify({ code: "not_found", message: "The video could not be fetched.", retryable: false })] });
+    mediaFailed: "all", viewerSteps: [JSON.stringify({ code: "not_found", message: "The video could not be fetched.", retryable: false })] });
   assert.match(out, /"status": "source_unavailable"/);
   assert.doesNotMatch(out, /"status": "observed"/);
   assert.doesNotMatch(out, /Pass these to build_content_evidence\.py/);
@@ -1355,6 +1472,28 @@ test("a gone video: every source empty prints source_unavailable and no build ar
   assert.match(refused.out, /"status": "refused"/);
   assert.match(refused.out, /Stops and gaps/);
   assert.equal(existsSync(path.join(run, "analysis/brief.md")), false);
+});
+
+test("a refused download: frames and words empty but the post's metadata in, the run answers from the metadata and never calls the video deleted or private", async (t) => {
+  const { run, out } = await observe(t, null, {
+    mediaFailed: true, viewerSteps: [JSON.stringify({ code: "not_found", message: "The video could not be fetched.", retryable: false })] });
+  assert.match(out, /"status": "metadata_only"/);
+  assert.doesNotMatch(out, /Follow \*Stops and gaps\*/);
+  assert.doesNotMatch(out, /deleted, made private/);
+  assert.match(out, /never say the video is deleted, private or unavailable/);
+  const flags = allFlags(out);
+  assert.match(flags, /--limitation 'media_not_fetched: the platform did not let Kabo download/);
+  await writeRequest(run);
+  const built = build(run, flags);
+  assert.equal(built.code, 0, built.out);
+  const evidence = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assertValidEvidence(evidence);
+  assert.equal(evidence.content_metadata.status, "available");
+  const prepared = await prepare(run, ["--mode", "diagnosis"]);
+  assert.equal(prepared.code, 0, prepared.out);
+  const brief = await readBrief(run);
+  assert.match(brief, /### Picture and sound not fetched\n\n- media_not_fetched:/);
+  assert.match(brief, /The video is not deleted or private/);
 });
 
 test("a limitation recorded twice in one observation is passed to the builder once", async (t) => {
@@ -1383,7 +1522,7 @@ test("whole-video notes past the end are dropped and named, with the minutes-rea
   assert.match(line, /minutes:seconds read as seconds \(637s as 6:37, 658s as 6:58\)/);
   assert.match(line, /No time was converted/);
   assert.equal((await prepare(run, ["--mode", "diagnosis"])).code, 0);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(brief, /The sketch becomes the finished drawing\. \(measured cut at 5\.03s, 1\.03s after the note's start\)/);
   // An "Audio Integration" note is heard sound.
   assert.match(brief, /Music and mix evidence: whole-video sound note `V01`/);
@@ -1402,7 +1541,7 @@ test("transcript sources: a lone invented line over music is flagged against the
   const promise = await readJson(path.join(run, "analysis/promise_payoff.json"));
   assert.equal(promise.promise.status, "unavailable");
   assert.match(promise.promise.reason, /cue 0 there is a sound marker or a line speech recognition invents/);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(brief, /- Fetched transcript \(kept\): available, 1 cues/);
   assert.match(brief, /- Whole-video viewer's transcript \(not kept\): no_speech_heard, 0 cues/);
   assert.match(brief, /On-screen text in the frames: yours to read/);
@@ -1677,7 +1816,7 @@ test("overview: the sheets are read first with their seconds, reach the evidence
   assert.equal(evidence.frames.sampling_plan.change_frames, 1);
   const prepared = await prepare(run, ["--mode", "diagnosis", "--focus", "opening"]);
   assert.equal(prepared.code, 0, prepared.out);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(brief, /Overview: every 1s of the whole video at low resolution, 6 tiles a row and 5 rows a sheet/);
   assert.match(brief, /- overview `overview-03` 60s–89s `creator-media\/job\/overview-03\.jpg`/);
   assert.match(brief, /`frame-0004` 12s change \(text_change\)/);
@@ -1813,7 +1952,7 @@ test("observation deadline: frames and transcript still running at 330 s stop th
   // The metadata arrived: the analysis goes on from it, and the brief says first what did not arrive.
   const prepared = await prepare(run, ["--mode", "diagnosis"]);
   assert.equal(prepared.code, 0, prepared.out);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(brief, /### Did not arrive in time\n\n- Observation deadline reached \(330s\)/);
   assert.match(brief, /Say this plainly in the first lines of what the creator reads/);
 });
@@ -1947,7 +2086,7 @@ test("find the track: the brief answers from metadata, on-screen text and speech
   assert.equal(build(run, allFlags(out)).code, 0);
   const prepared = await prepare(run, ["--mode", "content_read"], "what song is this?");
   assert.equal(prepared.code, 0, prepared.out);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(brief, /Find the track: which song or sound the video uses/);
   assert.match(brief, /This is a find-the-song request/);
   assert.match(brief, /Never name a song, artist or remix from your own impression of the sound/);
@@ -1970,7 +2109,7 @@ test("source unavailable: one marker and one statement, from the observation, th
   };
   const flagged = await newRun(t);
   const flaggedOut = await driveWith(flagged, python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], flagged).out, { media: gone });
-  const empty = await observe(t, null, { mediaFailed: true, viewerSteps: [JSON.stringify({ code: "not_found", message: "gone", retryable: false })] });
+  const empty = await observe(t, null, { mediaFailed: "all", viewerSteps: [JSON.stringify({ code: "not_found", message: "gone", retryable: false })] });
   for (const out of [flaggedOut.out, empty.out]) {
     assert.match(out, /"status": "source_unavailable"/);
     assert.ok(out.includes(`Evidence: ${marker}`), out);
@@ -2060,7 +2199,7 @@ test("find the track, matched: one identify_video_song call beside the media cal
   assert.ok(refs.includes("song_identification.song") && refs.includes("song_identification.platform_audio"));
   const prepared = await prepare(run, ["--mode", "content_read"], "what song is this?");
   assert.equal(prepared.code, 0, prepared.out);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(section(brief, 3), /recognised from the video's audio .*"Golden Hour" by Example Artist.*listen link https:\/\/music\.example\.com\/track\/1/);
   assert.match(section(brief, 3), /marked as the creator's original sound/);
   assert.match(section(brief, 7), /A song recognition match .* comes first: give the title and artist, and its listen link/s);
@@ -2073,7 +2212,7 @@ test("find the track, no match: the platform's sound label is the fallback, and 
   assert.equal(evidence.song_identification.platform_audio.title, "Golden Hour (sped up)");
   assert.ok(evidence.limitations.includes("The song recognition found no match in the video's audio."), evidence.limitations.join(" | "));
   assert.equal((await prepare(run, ["--mode", "content_read"], "what song is this?")).code, 0);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(section(brief, 3), /Song recognition: no_match \(the recognition found no match in the video's audio\)/);
   assert.match(section(brief, 3), /the platform's sound label\): "Golden Hour \(sped up\)", credited to Example Artist/);
   assert.match(section(brief, 7), /the track can't be identified from this\s+video's data/);
@@ -2092,7 +2231,7 @@ test("find the track, unsupported or missing: the tool's unsupported answer, an 
     assert.equal(evidence.song_identification.status, status);
     assert.equal(evidence.song_identification.failure?.code ?? null, code);
     assert.equal((await prepare(run, ["--mode", "content_read"], "what song is this?")).code, 0);
-    assert.match(section(await readFile(path.join(run, "analysis/brief.md"), "utf8"), 3), new RegExp(`Song recognition: ${status}`));
+    assert.match(section(await readBrief(run), 3), new RegExp(`Song recognition: ${status}`));
   }
 });
 
@@ -2104,7 +2243,7 @@ test("find the track, uploaded file: no recognition call; the evidence says it w
   assert.deepEqual([evidence.song_identification.status, evidence.song_identification.reason], ["not_attempted", "uploaded_file"]);
   assert.equal(evidence.acquisition.some((entry) => entry.operation === "identify_video_song"), false);
   assert.equal((await prepare(run, ["--mode", "content_read"], "what song is this?")).code, 0);
-  assert.match(section(await readFile(path.join(run, "analysis/brief.md"), "utf8"), 3), /an uploaded file is not sent to the recognition/);
+  assert.match(section(await readBrief(run), 3), /an uploaded file is not sent to the recognition/);
 });
 
 test("audience-response: choosing the card adds one summarize_video_comments call; the summary becomes citable evidence and a brief section", async (t) => {
@@ -2122,7 +2261,7 @@ test("audience-response: choosing the card adds one summarize_video_comments cal
   for (const ref of ["audience_response.summary", "audience_response.sentiment", "audience_response.controversy",
     "audience_response.themes[1]", "audience_response.questions[0]", "audience_response.requests[0]"]) assert.ok(refs.includes(ref), ref);
   assert.equal((await prepare(run, ["--mode", "diagnosis"], "why did this do so well?")).code, 0);
-  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const brief = await readBrief(run);
   assert.match(section(brief, 3), /### Audience response \(comment summary\)/);
   assert.match(section(brief, 3), /A paraphrased summary of 48 top comments, mostly in en.*No comment text: never quote or invent a comment/);
   assert.match(section(brief, 3), /`audience_response\.themes\[0\]` Which pan \(40% of the sample\)/);
@@ -2147,7 +2286,7 @@ test("audience-response without a summary (tool missing on this host, an error, 
     assert.deepEqual(evidence.audience_response.themes, []);
     assert.ok(evidence.limitations.some((line) => line.startsWith("The comments were not read")), evidence.limitations.join(" | "));
     assert.equal((await prepare(run, ["--mode", "diagnosis"], "what are people saying about this?")).code, 0);
-    const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+    const brief = await readBrief(run);
     assert.match(section(brief, 3), new RegExp(`The comments were not read: ${why.source}\\. Work from the public comment count \\(\`public_metrics\\.comment_count\` = 4\\)`));
     const refs = (await readJson(path.join(run, "analysis/content_evidence.references.json"))).evidence_refs;
     assert.equal(refs.some((ref) => ref.startsWith("audience_response.")), false);

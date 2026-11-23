@@ -80,6 +80,13 @@ MIN_LEFT_S = {"whole_video": 120, "combined": 120, "server_frames": 60}
 DEADLINE_MARK = "Observation deadline reached"
 DEADLINE_TEXT = (DEADLINE_MARK + " ({deadline}s): {what} did not arrive in time, so the analysis uses only what had "
                  "arrived.")
+# The limitation left when the platform refused the video's picture and sound but the post's metadata arrived: a public
+# video Kabo could not download this time is not a deleted or private one, and its title, caption and counts are still
+# something to answer from.
+MEDIA_BLOCKED_MARK = "media_not_fetched"
+MEDIA_BLOCKED_TEXT = (MEDIA_BLOCKED_MARK + ": the platform did not let Kabo download this video's picture and sound "
+                      "this time, so no frame was seen and no word was heard; only the post's public metadata (title, "
+                      "caption, counts) arrived.")
 # Requests that never start a whole-video viewing, whatever the mode and cards.
 NO_VIEWER_ASKS = {"identify_track"}
 ASKS = ("identify_track",)

@@ -443,7 +443,8 @@ def main() -> int:
     parser.add_argument("--print-judgment-schema", action="store_true",
                         help="Print the author schema; optionally bind it to exact evidence and reference index")
     parser.add_argument("--check-judgment-refs", action="store_true",
-                        help="Read-only preflight of authored references before the final pipeline")
+                        help="Read-only preflight of authored references before the final pipeline; on ready it also "
+                             "prints the grounding review and the creator view's author contract")
     parser.add_argument("--reference-index", type=Path)
     for name in ("judgment", "evidence", "deterministic", "request", "output"):
         parser.add_argument(f"--{name}", type=Path)
@@ -473,6 +474,15 @@ def main() -> int:
                   "artifact": str(args.judgment), "issues": issues}
         if not issues:
             result["grounding_review"] = grounding_review(judgment, evidence)
+            # The creator view's author contract comes with a ready judgment, so writing the view needs no command
+            # of its own. A judgment whose observation ids cannot be cited exactly is the judgment's to correct.
+            import build_creator_result
+            try:
+                result["view_contract"] = build_creator_result.contract_for(args.judgment, judgment)
+            except SystemExit as error:
+                del result["grounding_review"]
+                result["status"] = "needs_correction"
+                result["issues"] = [{"field": "observations", "message": str(error)}]
         # The long list of legal refs goes last, so it never hides the issues or the review above it.
         result["legal_source_refs"] = refs
         print(json.dumps(result, ensure_ascii=False))
