@@ -1294,7 +1294,9 @@ test("finish_diagnosis --check lists every view violation and writes nothing; a 
   assert.match(report, /- \*\*On screen\*\*: Why does this keep happening\?/);
   assert.match(report, /- \*\*Shot\*\*: The burnt pan, close up/);
   assert.match(report, /\*\*How to avoid it\*\*: Keep the result first\./);
-  assert.match(finished.out, /leave it, and every file path, out of the reply/);
+  assert.match(finished.out, /leave them, and every file path, out of the reply/);
+  // The host reads the line after creator_report: an English view renders whole, so the report goes as it is.
+  assert.match(finished.out, /\ncreator_report: [^\n]+VIDEO_DIAGNOSIS\.md\nreport_delivery: as_is\nYour reply is this report/);
   const timing = await readJson(path.join(run, "analysis/timing.json"));
   assert.equal(timing.reply.file, "report/VIDEO_DIAGNOSIS.md");
   assert.equal(timing.reply.chars, report.trim().length);

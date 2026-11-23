@@ -30,6 +30,14 @@ def report_language(view: Any) -> str:
     return primary if primary in LOCALES else "en"
 
 
+def rendered(view: Any) -> bool:
+    """Whether the report comes out in the view's own language: Chinese, English or a listed language. Any other
+    language renders the report's own words in English, which the reply still has to translate."""
+    tag = str(record(view).get("language") or "").strip().lower().replace("_", "-")
+    primary = tag.split("-")[0]
+    return primary in ("zh", "en") or primary in LOCALES
+
+
 def labels(language: str) -> dict | None:
     return record(LOCALES.get(language)).get("labels")
 
