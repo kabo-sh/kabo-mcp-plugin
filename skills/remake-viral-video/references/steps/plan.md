@@ -120,6 +120,15 @@ When the user states the output itself -- a size (`720x1280`), a shape (16:9, la
 frame rate (24 fps) or a limit ("under 60 s") -- write it at the top as `output: {aspect, width,
 height, fps, max_s}` (only what was said, in numbers): the delivery is made to it. Without one the
 video keeps the reference's shape; a platform word (TikTok, Reels, Shorts) means 9:16.
+**The storyboard is the template: every module gets a value**, even when nothing changes --
+`target_s` (the reference's length unless another was asked), `skeleton` (its segments, each
+with its job, share and shots), `form` naming the spoken language and the voices, `style` with
+2-3 frames of the reference as `refs` (the look is shown, not only described), `characters`
+with their non-speech `sounds` (meows, laughs) when they make any, every object that matters in
+`props`, and in each row what is done and how it ends (who holds what, what ends up where).
+One row per shot of the reference: a single continuous take stays one row (up to 30 s). The save
+checks the plan against the reference (length, shot count, language) and names what is off --
+fix it and save again.
 `total_s` follows the reference when there is one. Without one (the creator's request and
 material only) and with no length asked for, plan the length the format needs, not the fewest
 seconds the material fills: a product or brand promo runs about 20-30 s, an explainer or a story as
