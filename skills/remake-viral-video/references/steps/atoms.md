@@ -34,13 +34,13 @@ line edit takes. Look at these before asking the creator for material.
   the same job together -- the extra ones are refused (`in_flight`), which is not a limit.
   Pictures for the same video go in one batch step instead: one `still` with `prompts` (2-8) or
   one `animate` with `images` (2-8) makes them all at the same time, each into its own new handle
-  (`last_step.handles`, in order), which is much faster than one step per picture. If some items
+  (`last_step.handles`, in order), much faster than one step per picture. If some items
   fail, the made ones are kept and the notes say which failed -- send only those again.
   Other single steps that do not depend on each other go together as `op: "batch"` with
   `params.steps` (2-8 `{op, inputs, params}`; `inputs` of the batch itself empty): the per-shot
   `trim` / `retime` / `mux`, one `talking` per line, one `tts` per voice, the `motion_graphics`
-  shots. Each step is checked as a single call would be and they run one after another in one
-  call, far faster than one call each. A step cannot use another step's output from the same
+  shots. Each step is checked as a single call would be; they run in order in one call, far
+  faster than one call each. A step cannot use another step's output from the same
   batch -- chain those in the next call. `refvideo`, `motion`, `replace`, `persona`,
   `face_check` and `transcribe` stay single calls; `still` / `animate` batch with their own
   `prompts` / `images`.
@@ -83,7 +83,7 @@ line edit takes. Look at these before asking the creator for material.
 | A picture or screen over a time range | `overlay` | `t0`, `t1`, optional `box`. |
 | Replace a time range with another clip | `splice` | `audio:"base"` keeps the base's sound and length; `"clip"` takes the clip's sound. |
 | Join clips, or join sounds into one track | `concat` | 2-20 videos, or 2-20 sounds (all of one kind); a dialogue's lines in order become one track. |
-| A transition between joined clips | `concat` with `transition` | `transition`: `cut` (default), `dissolve`, `fade_black` or `slide`; `transition_s` 0.2-1.5 (default 0.5). Picture and sound cross together; each seam shortens the total by `transition_s`, and every clip must be longer than it. Use the reference's own seams: dissolve where it dissolves, fade through black where it fades, cut where it cuts. |
+| A transition between joined clips | `concat` with `transition` | `transition`: `cut` (default), `dissolve`, `fade_black` or `slide`; `transition_s` 0.2-1.5 (default 0.5). Picture and sound cross together; each seam shortens the total by `transition_s`, and every clip must be longer than it. Use the reference's own seams: dissolve where it dissolves, fade through black where it fades, cut where it cuts. A cut to black is a black `still_video` clip of its own (`plan.md`). |
 | Paragraphs, lists or quotes on screen | `text_cards` | up to 10 cards of up to 600 characters, each with `t0` / `t1`; placed in the lower half below the face, the font shrinks to fit; `style:"creator"` or `"plain"`. Words that must be read go here, never into a generated picture. |
 | Code animation: diagrams, charts, maps, UI walkthroughs, text in motion, photos in motion, callouts over a video | `motion_graphics` | `inputs`: optional `base` (a video; the animation is laid over it at its own size and aspect, sound kept) and optional `refs` (0-4 images, available to the markup as `ref_1.<ext>` ... in the order given, and by their own names). `params`: `duration` (0.5-120 s) and `spec`, one of: (A) your own HyperFrames composition `{"markup", "style" (CSS), "script" (GSAP on the paused timeline `tl`), "palette"?}`; (B) a built-in component `{"component", "fields", "style"?}`; (C) an exemplar page `{"exemplar", "fields", "style"?}`. `style` in B and `palette` in A take a motion style id or a colour object `{bg, fg, accent, secondary?, muted?, font_display?, font_body?}`; leave them out for a neutral look. How to plan and call it: `motion-graphics.md`. |
 | Camera shake, flash transition or impact zoom on a video | `shake`, `flash`, `impact_zoom` | `inputs.video`; `params`: optional `t0`, `t1` (or `at` + `duration`), `intensity` (or `zoom` 1.05-1.8 for `impact_zoom`). Beat effects on the picture, audio preserved. |

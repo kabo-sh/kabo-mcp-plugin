@@ -1,6 +1,6 @@
 ---
 name: create-script-and-packaging
-description: "Write a specific next Reel or video proposal from a stated topic, reference post or creator evidence: titles, opening frames, on-screen text, beat plans, scripts, captions and cover copy. Continue or complete an earlier script or story, plan a sequel to a previous post, or adapt a specified video into written clips or carousel copy. Not for selectable topic lists, including candidate titles and hooks, or for competitor discovery and account comparisons."
+description: "Write a specific next Reel or video proposal from a stated topic, reference post or creator evidence: titles, opening frames, on-screen text, beat plans, scripts, captions and cover copy. Continue or complete an earlier script or story, plan a sequel to a previous post, or adapt a video into written clips or carousel copy. Not for a reference video to be remade with changes as a video, selectable topic lists (including candidate titles and hooks), competitor discovery or account comparisons."
 license: MIT
 compatibility: "Requires Python 3 and read and write access to a local workspace. Optional saved-script access requires the Kabo MCP at https://kabo.sh/mcp-pub. Source-video facts and channel samples come from the creator or existing evidence. Optional image operations need host image download, resize and preview. Kabo permissions, saved scripts only: workspace:read to read, workspace:write to save or replace on request."
 metadata:
