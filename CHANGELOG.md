@@ -2,6 +2,12 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.59
+
+- remake-viral-video 1.0.19: the content live on Kabo Web (1.0.15) is now in main (#208), so a release can publish
+  to Web again; 1.0.58's Web publish stopped because main's remake (1.0.3) was below the live version.
+- No other Skill changes since 1.0.58; this release carries 1.0.58's analyze-content-video rebuild to Kabo Web.
+
 ## 1.0.58
 
 - analyze-content-video: one analysis flow for diagnosis, content read and craft teardown, shared by Kabo Web and
