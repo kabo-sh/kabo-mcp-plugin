@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const scripts = fileURLToPath(new URL("../skills/review-creator-account/scripts", import.meta.url));
 
 function python(code) {
-  const result = spawnSync("python3", ["-c", code, scripts], { encoding: "utf8" });
+  const result = spawnSync("python3", ["-B", "-c", code, scripts], { encoding: "utf8", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
   assert.equal(result.status, 0, result.stderr + result.stdout);
   return result.stdout;
 }
