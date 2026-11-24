@@ -3,6 +3,8 @@ name: analyze-content-video
 description: "Diagnose one video or still-image post from its own timestamped evidence and say what to keep, recut or replace next; or break down how a video was made into steps one person can follow. Also exports a video's transcript as TXT or SRT and reports its cover and tags. Use for what a video is about or says, why it flopped or took off, hook and retention review, a re-edit plan, an unpublished local cut, how was this edited, whether its music or sound fits, or getting a video's subtitles."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, a writable workspace, and script network access to kabo.sh and the signed storage.googleapis.com links Kabo tool results return (or a host that saves a tool's complete result to a file). Local video files need ffmpeg and ffprobe; optional local speech recognition needs faster-whisper and its small model, installed by the user. Kabo permissions: data; video for the whole-video viewing (analyze_content_video, get_analysis_run)."
+metadata:
+  platform_agnostic: "true"
 allowed-tools: get_research_capabilities get_research_data_download read_research_data_artifacts collect_video_media analyze_content_video get_analysis_run identify_video_song summarize_video_comments youtube_get_video youtube_get_channel youtube_list_channel_uploads lookup_instagram_post instagram_get_transcript instagram_resolve_profile instagram_list_posts instagram_list_reels tiktok_search_get_video tiktok_search_get_transcript tiktok_search_list_profile_videos start_skill_run
 ---
 
@@ -149,6 +151,12 @@ supported, tell the creator which link could not be read and stop. A video attac
   for `youtube_get_video`; for `lookup_instagram_post` the route that answered (`instagram-discovery`
   or `instagram-detail-proxy`, operation `get_post`). Never persist a response twice or write an
   envelope yourself.
+
+## Platform
+
+A link or the creator's own account settles the platform; it shapes format expectations, not
+whether the video can be read. Never stop to ask which platform first: for a file with none named,
+follow *Platform of a file* in `references/diagnosis-runtime.md`.
 
 ## Which question is this
 

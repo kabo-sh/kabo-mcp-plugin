@@ -33,9 +33,17 @@ cd '<run directory>' && python3 <skill directory>/scripts/prepare_link_request.p
 Omit `--confirmed-by-user` unless that confirmation exists. Do not manufacture a linked-media
 packet from connector fields.
 
+**Platform of a file.** An attached or local file names no platform, and its platform only shapes
+format expectations (how long the opening has, short-form or long-form pacing). When the creator has
+not named one, never stop to ask: use the one the conversation already establishes (the selected
+account, an earlier link or answer); without one, choose the platform whose format fits the file (a
+short vertical clip as short-form, a long horizontal video as YouTube long-form). Say in one
+sentence, before the report or answer, which platform's format the analysis assumed and that the
+creator can name another.
+
 A video the creator attached in Kabo chat (`kabo-file:<id>`) has no packet; the media tool reads the
-stored file. `<platform>` is the one it was posted on or is made for, as the creator says; any
-ownership state may apply:
+stored file. `<platform>` is the one it was posted on or is made for, as the creator says, else as
+*Platform of a file* above says; any ownership state may apply:
 
 ```sh
 cd '<run directory>' && python3 <skill directory>/scripts/prepare_link_request.py --file-ref 'kabo-file:<id>' --platform <platform> --subject-state <chosen-state> --mode <mode> --confirmed-by-user --output analysis/video-analysis-request.json
@@ -70,7 +78,8 @@ Per-run flags, on the evidence-building command only:
 - `--limitation` for a gap the envelopes do not show.
 - On a local file, `--local-media analysis/local-media.json` and, where the creator supplied one,
   `--local-transcript analysis/local-transcript.json`. An unpublished draft is read by the local
-  scripts, never by a tool, and the request must still name the platform it is made for.
+  scripts, never by a tool, and the request must still name the platform it is made for
+  (*Platform of a file* above).
 
 Never write or edit `ContentEvidence` fields yourself. The builder derives the read-only
 `data_note` from recorded source, sampling and citation facts; it never treats extraction or
