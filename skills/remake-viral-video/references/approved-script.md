@@ -25,7 +25,7 @@ script"). Never send a reference with `input_kind:"script"`.
 
 **Nobody on camera.** Route by the video the creator asks for. When they want no face, this is not
 a talking-video job: build it from steps (`steps/plan.md`) -- `tts` of the exact approved words
-(the creator's voice from a recording of them speaking, or a preset voice they pick), pictures
+(the creator's voice from a recording of them speaking, or a preset voice chosen by the role), pictures
 from their material or made with `still` / `animate`, `mux` the narration onto them, then
 `captions` or `text_cards`, `music`, and deliver. Keep every word. Clips that plainly are not the
 creator talking (nobody on camera, gameplay, scenery, a screen or hands-only tutorial) are not

@@ -2,7 +2,7 @@
 
 For a video made mostly of code animation (an explainer, a chart or data piece, product photos in
 motion, an illustrated story, callouts over a clip). The step's inputs and params are in
-`atoms.md`; style cards, components and exemplar pages are in `../motion-catalog.md`.
+`atoms.md`; motion styles, components and exemplar pages are in `../motion-catalog.md`.
 
 **Marks on a moving subject in a clip** (a reticle on a knee, a label on a hand, a line between
 two joints): first take `frame` of the clip with `grid: true` at the moment the marks start and
@@ -24,21 +24,21 @@ only for things that stay put.
    not 3D). Each shot of the list: `dimension` (flat, 3D or mixed), `shot` (size and camera
    angle), `layout`, `palette`, `type` (font and how much text), `elements` (axes, charts, icons,
    characters, photos, UI) and `motion` (in the frame and the camera). Everything after follows
-   it: the style card is the one whose `medium` matches, every `still` prompt carries the
+   it: the motion style is the one whose `medium` matches, every `still` prompt carries the
    medium, light and `avoid` (and the card's `prompt words`), and components are chosen by
    whether they can draw the shot's dimension, layout and elements. After each shot renders, put
    a frame of it beside the reference's frame at the same moment: a different medium, look, cast,
    dimension, layout or elements is re-made (once); the rest is a note.
 1. **Shot list first, then shot by shot.** Before any call, write one row per shot: its time
    span, the component or exemplar page (or own markup), the content of its fields or what the
-   markup shows, where the picture comes from (`code`, `still`, or `animate`), and the style
-   card. One style card for the whole video. When there is a voice, make it first (`tts`) and
+   markup shows, where the picture comes from (`code`, `still`, or `animate`), and the motion
+   style. One motion style for the whole video. When there is a voice, make it first (`tts`) and
    take the spans from its timing. Then make each shot with its own `motion_graphics` call and
    join them with `concat`: a video of several ideas is several shots (a contrast, a curve, a
    flow, a closing line), never one long page of titles and labels.
-2. **Style.** Read the style card table in `../motion-catalog.md` and choose by its
+2. **Style.** Read the motion style table in `../motion-catalog.md` and choose by its
    `medium` column first (the reference's medium), then light and texture, then `suits`. A style
-   the creator names comes first. When no card fits, write the colours
+   the creator names comes first. When no motion style fits, write the colours
    from the creator's description as a colour object.
 3. **Components first.** Read the component table in the same file; it lists each component's
    required and optional fields and whether it needs `refs` or `base` (each component's fields in
