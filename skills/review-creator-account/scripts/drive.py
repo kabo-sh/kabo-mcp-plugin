@@ -731,6 +731,18 @@ def preflight_report_sources(analysis: dict[str, Any], snapshot: dict[str, Any],
                           Path(QUESTION).read_text(encoding="utf-8"))
 
 
+def final_report_delivery(report: Path) -> str:
+    """`as_is` when the validated report is wholly in the synthesis language, `translate` otherwise."""
+    from compose_review import report_delivery
+    try:
+        bound = json.loads((report.parent / "account_review.json").read_text(encoding="utf-8"))
+        language = json.loads(Path(SYNTHESIS).read_text(encoding="utf-8"))["output_language"]
+        return report_delivery(bound, language)
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+        # Without the bound report or its language, leave the check to the model.
+        return "translate"
+
+
 def emit_final_report(report: Path) -> None:
     """Hand the whole validated report to the host at the existing final step."""
     # Put truncation recovery before the body, so that if the host truncates the tail of the output the
@@ -743,11 +755,14 @@ def emit_final_report(report: Path) -> None:
     say("KABO_FINAL_REPLY_BEGIN")
     say(body)
     say("KABO_FINAL_REPLY_END")
+    # Read by the host: as_is lets it deliver this file itself instead of a model retyping it.
+    say(f"report_delivery: {final_report_delivery(report)}")
     say("Delivery: the entire body between these markers is your final answer, not material for a summary. "
         "Preserve every paragraph, section, cited example, metric and adjacent limitation, and every "
         "recommendation's success criterion. Translate only the fixed labels/metric descriptions "
         "that are not in the creator's language; do not rewrite the authored prose. "
-        "Check each section and citation is present before sending. Omit the markers, then end with:")
+        "Check each section and citation is present before sending. Omit the markers and the "
+        "report_delivery line, then end with:")
     say(f"creator_report: {report}")
 
 

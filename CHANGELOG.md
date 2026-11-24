@@ -2,6 +2,16 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.60
+
+- review-creator-account: the report's fixed words (section titles, scope line, citation facts, the public bio and
+  follower line, success-criterion labels) now render in the synthesis language for Spanish, Portuguese, German,
+  French, Italian, Japanese, Korean, Indonesian, Vietnamese, Arabic and Hindi
+  (`references/report-locales.json`); before, every language but Chinese got them in English, and Chinese reports
+  still had English public-review section titles and age notes.
+- review-creator-account: the final step prints `report_delivery: as_is` when the whole report is in the creator's
+  language, so a host can deliver the file itself instead of the model retyping it; `translate` otherwise.
+
 ## 1.0.59
 
 - remake-viral-video 1.0.19: the content live on Kabo Web (1.0.15) is now in main (#208), so a release can publish

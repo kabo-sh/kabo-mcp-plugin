@@ -184,6 +184,7 @@ const LOCALIZED_SKILL_DATA = [
   "skills/research-youtube-trends/scripts/render_creator_report.py",
   "skills/research-youtube-trends/scripts/render_short_window_report.py",
   "skills/review-creator-account-deep/scripts/compose_deep_review.py",
+  "skills/review-creator-account/references/report-locales.json",
   "skills/review-creator-account/scripts/compose_review.py",
   "skills/review-creator-account/scripts/estimate_growth.py",
   "skills/review-creator-account/scripts/validate_creator_report.py",

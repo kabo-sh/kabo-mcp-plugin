@@ -52,6 +52,11 @@ TEXT = {
     "maturity_unavailable": "no comparable age baseline; cumulative counts only",
     "identity_bio": "The public bio reads \"{bio}\".",
     "identity_followers": "About {followers} public followers.",
+    "identity_joiner": " ",
+    # A public cumulative snapshot does not prove a piece of content is better or worse, so public
+    # reviews use these neutral section titles instead of works/hurts.
+    "public_works": "Public content observations",
+    "public_hurts": "Questions to test",
 }
 
 ZH_TEXT = {
@@ -69,18 +74,49 @@ ZH_TEXT = {
     "evidence_interact": "互动数 / 播放量 {value:.2f}%",
     "multiple": "本人同格式快照中位数的 {value:.2f} 倍；累计量比例，不是同发布时长的表现比较",
     "provisional_format": "短/长视频格式按时长推断，并非平台标记",
-    "published_at": TEXT["published_at"],
-    "too_recent": TEXT["too_recent"],
-    "maturity_unavailable": TEXT["maturity_unavailable"],
+    "published_at": "发布于 {value}",
+    "too_recent": "发布时间晚于基线截止 {value}；累计数据不能按同发布时长比较",
+    "maturity_unavailable": "没有可比的同发布时长基线，只有累计数据",
     "identity_bio": "公开主页写着「{bio}」。",
     "identity_followers": "公开粉丝约 {followers}。",
+    "identity_joiner": "",
+    "public_works": "公开内容观察",
+    "public_hurts": "待验证的问题",
+}
+
+ZH_TAGS = {"zh", "zh-cn", "zh-sg", "zh-hans", "zh-hans-cn", "zh-hans-sg"}
+
+# Every other language the report renders in full: references/report-locales.json, keyed by the
+# primary BCP-47 subtag. Pair values (singular, plural) are stored as JSON arrays.
+_LOCALE_CATALOG = json.loads(
+    (Path(__file__).resolve().parents[1] / "references" / "report-locales.json").read_text(encoding="utf-8")
+)["languages"]
+LOCALE_TEXT = {
+    code: {**TEXT, **{key: tuple(value) if isinstance(value, list) else value for key, value in entry.items()}}
+    for code, entry in _LOCALE_CATALOG.items()
 }
 
 
+def _tag(language: str) -> str:
+    return str(language or "").strip().lower().replace("_", "-")
+
+
 def language_text(language: str) -> dict[str, Any]:
-    # Other valid BCP-47 tags retain English artifact labels; delivery may translate
-    # fixed descriptions only, preserving all analytical strings and evidence.
-    return ZH_TEXT if language.lower() in {"zh", "zh-cn", "zh-sg", "zh-hans", "zh-hans-cn", "zh-hans-sg"} else TEXT
+    """Fixed report words in the synthesis language: Chinese, English or a catalog language.
+
+    Any other BCP-47 tag keeps English labels; its delivery then translates those fixed words only,
+    preserving all analytical strings and evidence.
+    """
+    tag = _tag(language)
+    if tag in ZH_TAGS:
+        return ZH_TEXT
+    return LOCALE_TEXT.get(tag.split("-")[0], TEXT)
+
+
+def language_rendered(language: str) -> bool:
+    """Whether every fixed word of a plain review comes out in this language."""
+    tag = _tag(language)
+    return tag in ZH_TAGS or tag.split("-")[0] == "en" or tag.split("-")[0] in LOCALE_TEXT
 
 
 # Creator-facing names from the platform's public account-research capability catalog.
@@ -326,7 +362,7 @@ def identity_line(identity: dict[str, Any], text: dict[str, Any] = TEXT) -> str:
     followers = identity.get("followers")
     if followers is not None:
         parts.append(text["identity_followers"].format(followers=compact_count(followers)))
-    return ("" if text is ZH_TEXT else " ").join(parts)
+    return text["identity_joiner"].join(parts)
 
 
 def render_action(item: dict[str, Any], prefix: str, text: dict[str, Any] = TEXT) -> str:
@@ -493,7 +529,7 @@ def render_markdown(report: dict[str, Any], output_language: str = "en") -> str:
     # A public cumulative snapshot does not prove a piece of content is better or worse; the fixed section titles
     # must obey the same boundary too.
     if report["scope"].get("source_mode", "").startswith("public"):
-        headings = (("Public content observations", "what_works"), ("Questions to test", "what_hurts"))
+        headings = ((text["public_works"], "what_works"), (text["public_hurts"], "what_hurts"))
     else:
         headings = ((text["works"], "what_works"), (text["hurts"], "what_hurts"))
     for title, key in headings:
@@ -510,6 +546,20 @@ def render_markdown(report: dict[str, Any], output_language: str = "en") -> str:
         lines += render_growth(report["growth_estimate"], output_language)
     lines += render_next_section(report, text)
     return "\n".join(lines).rstrip() + "\n"
+
+
+def report_delivery(report: dict[str, Any], output_language: str) -> str:
+    """`as_is` when the rendered Markdown is entirely in the synthesis language, so a host may deliver the
+    file itself; `translate` when fixed English words remain for the reply to translate (a language outside
+    the catalog, or a growth / platform-status section, which only English and Chinese render)."""
+    tag = _tag(output_language)
+    if tag in ZH_TAGS or tag.split("-")[0] == "en":
+        return "as_is"
+    if not language_rendered(output_language):
+        return "translate"
+    if report.get("growth_estimate") is not None or should_show_platform_status(report):
+        return "translate"
+    return "as_is"
 
 
 def report_scope(analysis: dict[str, Any]) -> dict[str, Any]:
