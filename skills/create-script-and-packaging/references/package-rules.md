@@ -8,7 +8,7 @@ interaction gate, the optional thumbnail capability and the package boundaries.
 1. **Native package SelectedIdea first**: for a native package, accept only a selected, frozen idea. An unchosen candidate list is blocked. A literal topic/direction is valid only when the user explicitly selects it by asking to script that direction; normalize it only with `build_direct_selected_idea.py`, with no fabricated evidence or constraints. Creative drafts follow `references/topic-drafts.md` without requiring a SelectedIdea.
 2. **Evidence basis before claims**: preserve `source_backed`, `brief_based`, or `hypothesis` in the input snapshot. Empty evidence is valid for the latter two, but every factual sentence must remain qualified until proof is supplied.
 3. **Mode isolation**: `script_only`, `packaging_only`, and `full_package` are mutually exclusive output shapes. Packaging-only revises a supplied package; it never silently regenerates a script.
-4. **Production gates are explicit**: missing proof, assets, permissions, voice, or non-inferable production constraints affecting feasibility produce `draft_needs_user_input` plus one structured question batch. An omitted target duration alone uses `script_duration.py` automatic duration planning; ask only when platform/form is unclear or a non-inferable constraint affects feasibility. They cannot be represented as "easy to shoot" without minutes, assets, and effort assumptions.
+4. **Production gates are explicit**: missing proof, assets, permissions, voice, or non-inferable production constraints affecting feasibility produce `draft_needs_user_input` plus one structured question batch. An omitted target duration alone uses `script_duration.py` automatic duration planning, and an unnamed platform or form takes the default in *Platform shapes format only* in `SKILL.md`; ask only when a non-inferable constraint affects feasibility. They cannot be represented as "easy to shoot" without minutes, assets, and effort assumptions.
 5. **Hook-to-payoff traceability**: every Hook option must state its mechanism, payoff, evidence/claim status, and the scene or packaging surface where it is used. Hook options must be materially distinct.
 6. **Packaging safety**: title, caption, thumbnail/cover text, CTA, and on-screen copy share the same claim ledger. Unsupported guarantees, fabricated metrics, competitor wording, and publish-time advice are rejected.
 7. **Approval is external**: `ready_for_review` is the highest automatic status. `approved_for_production` requires an independent approval event; the Skill does not approve its own output.
@@ -20,7 +20,7 @@ Do not re-ask facts already confirmed in `SelectedIdea`. Ask once only for missi
 - actual product/customer proof and which claims may be published;
 - available UI, footage, locations, people, and likeness permissions;
 - Creator voice examples or prohibited language when the profile does not supply them;
-- platform-specific packaging inputs that cannot be inferred from the script.
+- platform-specific packaging inputs that cannot be inferred from the script (the platform itself is not one: it takes the default in `SKILL.md`).
 
 Missing proof does not block a draft. It blocks unsupported sentences and `ready_for_review` / `approved_for_production` status.
 

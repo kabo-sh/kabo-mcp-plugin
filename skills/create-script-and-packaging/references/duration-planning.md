@@ -45,9 +45,9 @@ integer target and reproducible `duration_plan`; ordinary explicit requests
 remain compatible. The helper combines comparable median with an explicit
 content-workload estimate. Without usable channel data it uses a transparent
 short/long-form content estimate, never a fabricated platform average. Explain
-that estimate briefly in the creator's language and allow adjustment. Only an
-unclear platform/form that changes the task needs clarification; missing duration
-alone does not. If requested time cannot hold necessary content, explain the
+that estimate briefly in the creator's language and allow adjustment. Neither a
+missing duration nor an unnamed platform/form needs clarification: an unnamed one
+takes the default in *Platform shapes format only* in `SKILL.md`. If requested time cannot hold necessary content, explain the
 tradeoff instead of silently changing the explicit target.
 
 Write substantive spoken copy and actual production actions to fit the target.

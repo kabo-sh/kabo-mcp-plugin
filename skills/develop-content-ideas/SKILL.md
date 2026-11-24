@@ -3,6 +3,8 @@ name: develop-content-ideas
 description: "Generate one or more selectable content ideas, including candidate titles and hooks, from creator research, a stated topic or prior conversation. Use for next-topic directions, more ideas in the style of a selected earlier example, first topics for a new account, production-budget ideas or ideas from video comments. Not for a concrete next Reel draft, copy edits for an identified direction, competitor discovery or account comparisons."
 license: MIT
 compatibility: "Requires Python 3 and read and write access to a local workspace. Fetching a video's comments also requires the Kabo MCP server at https://kabo.sh/mcp-pub and network access from scripts to kabo.sh and to the signed storage.googleapis.com download links that Kabo tool results return (without it, a host that can save a tool's complete result to a file). Kabo permission, for comments only: data."
+metadata:
+  platform_agnostic: "true"
 allowed-tools: get_research_capabilities get_research_data_job get_research_data_download youtube_list_comments tiktok_discovery_list_comments tiktok_discovery_list_comment_replies start_skill_run
 ---
 
@@ -86,6 +88,14 @@ itself proof that a usable topic exists. Never parse Creator-facing Markdown, se
 competitor outputs as hidden criteria, or infer a business domain or topic from a handle,
 account/display name, URL, platform or another Skill's description. Do not create a SelectedIdea
 until the creator explicitly chooses or edits an idea.
+
+**Platform shapes format only.** Here the platform (`platform_targets`) decides format, length and
+copy style, not which evidence exists: platform-specific trend or competitor evidence comes from the
+Skill that produces it, which settles its own platform. Never stop to ask which platform before
+ideating. When the creator names none, use the one the conversation already establishes (the
+selected account, a supplied link, an earlier answer); without one, target a common short-form
+vertical format. In the one short sentence that may accompany the list, say which platform's format
+the ideas assume and that the creator can name another.
 
 ## Running commands
 
