@@ -18,10 +18,10 @@ incomplete.
   they talk facing the camera; or, when the request does not need them on camera (an approved
   script, a tutorial, a before/after, a product or scenery video), the same words as a narrated
   video built from steps -- their clips as the pictures, the voice from a recording of theirs or a
-  preset voice they pick (`steps/project.md`, "No voice to clone"). Never only ask for a face.
+  preset voice chosen by the role (`steps/project.md`, "No voice to clone"). Never only ask for a face.
   When the reason is that nobody talks to the camera in the reference (a product demo, scenes,
-  footage without a speaker), offer to build it from steps instead (`steps/atoms.md`, "A reference
-  nobody talks in"); start it only after the creator agrees to the plan. In every `out_of_scope`
+  footage without a speaker), build it from steps instead (`steps/atoms.md`, "A reference nobody
+  talks in"), saying in one line that you are, and go on without waiting. In every `out_of_scope`
   case nothing was charged and the daily limit is not used; say so.
 - `failed` with a likeness reason: the generated person did not look like the creator, so the
   video was stopped or not delivered. Say so plainly and ask for clearer footage of the creator
@@ -30,8 +30,9 @@ incomplete.
   video was produced. These jobs ran paid steps and count toward the daily limit; do not say
   otherwise. Do not resubmit on your own; offer to start a new remake if the creator wants one.
 - Refused because of the limit: when the daily limit is reached, say no new remake was started,
-  nothing was charged and they can start another tomorrow. When another remake is still running,
-  say one remake runs at a time and look at that job if this conversation has its `job_id`.
+  nothing was charged and they can start another tomorrow. When the account already has 3
+  remakes running, say up to 3 run at the same time and this one waits for one of them to finish;
+  look at those jobs if this conversation has their `job_id`.
 - Any other failure: relay its reason and the reported spend; do not guess whether it was charged.
 - A status call that fails: try once more; if it still fails, say the job is preserved and can be
   checked later with its job id. Never start a replacement job for an unknown outcome.

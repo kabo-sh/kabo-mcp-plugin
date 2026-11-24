@@ -22,8 +22,8 @@ gives as a file on this machine is sent first with `local-files.md` and passed a
 are public JPEG or PNG. It returns the `job_id`; `fetching_inputs` means the files are still being
 fetched: say so in one line and call again with the same arguments after `retry_after_s` seconds.
 Use only material the user gave in this conversation; never reuse one video for two roles. A voice
-the creator has not recorded is asked for as `steps/project.md` says ("No voice to clone"), before
-the project starts.
+the creator has not recorded is a preset you choose by the role, as `steps/project.md` says ("No
+voice to clone"); never stop to ask about it.
 
 ## 2. Look before you plan
 
@@ -38,9 +38,11 @@ say in the storyboard's `picture` only what the row must show.
 
 Write the analysis (plain text) and the storyboard (one JSON object) exactly as
 `steps/plan.md` says ("The plan: analysis and storyboard"): `form`, `total_s` and, for recurring
-characters, `characters` (`{name, look}` each, no `sheet`) at the top, then one row per shot with
+characters, places and objects, `characters`, `environments` and `props` (`{name, look}` each, no
+`sheet`) at the top, then one row per shot with
 `shot`, `t0`, `t1`, `words`, `picture`, `sources`, `keep_change`, `motion`, `on_screen_text`, and
-optionally `on_screen_cast`, `speaker`, `how`, `prompt`, `captions`, `sound`, `transition`.
+optionally `on_screen_cast`, `location`, `camera`, `positions`, `props`, `speaker`, `how`,
+`prompt`, `captions`, `sound`, `transition`.
 Keep the reference's form (`steps/plan.md`, "Break the reference down first"): one picture per
 shot, motion where it moves, the voices and talking shots it has. For an approved script, put
 every word of it, unchanged and in order, into the rows' `words`. Leave `how` and `prompt` out
@@ -92,8 +94,9 @@ Call `get_remake_video` with `{"job_id": "<id>", "project": true, "producer": tr
 
 A remake takes 30 min to 3 hours, mostly waiting. Do not promise a finish time.
 
-One video is made at a time per account: start another `make_video` only after the one in progress
-is `done` (or the creator cancels it). When the producer says it is waiting for another video, tell
+Each video runs one step at a time, and an account can have up to 3 videos in progress at once:
+start another `make_video` while fewer than 3 are in progress; with 3 running, wait until one is
+`done` (or the creator cancels one). When the producer says it is waiting for another video, tell
 the creator so; once that video is `done`, send `reply_to_video` with the creator's go-on (for
 example "The other video is finished now, please continue.") -- it does not resume by itself.
 

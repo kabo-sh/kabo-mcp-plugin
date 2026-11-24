@@ -4,7 +4,7 @@ description: "Have Kabo make a finished MP4: remake a reference video with the c
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
 metadata:
-  version: "1.0.3"
+  version: "1.0.19"
   platform_agnostic: "true"
 allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
@@ -45,7 +45,8 @@ that, not by how the request is worded ("remake" included):
    a line what you chose. When they ask for a video, the deliverable is the video: write any
    script, prompts or captions they also asked for, show them in your reply, and go on to make the
    video in the same flow. Never stop at a script or prompts, and never answer that a video cannot
-   be made here while the tools are listed.
+   be made here while the tools are listed. Captions they asked for are always in the cut (placed
+   clear of on-screen text, never dropped for it), with names from their words in `terms`.
 5. The whole remake is the shortcut for "the same structure again, with me": a reference of one
    of the four kinds below, or an approved script. It is not the fallback, and a reference plus
    the creator's footage does not make a request one; the creator's own video is footage to keep,
@@ -59,22 +60,39 @@ that, not by how the request is worded ("remake" included):
    montage, a live-video HUD callout overlay, a re-edit of their own video, or a silent or
    out-of-scope reference that the whole remake refuses): build it from steps (project, steps,
    deliver); never ask for their face. For a code-animated video (an explainer, a chart, product
-   photos, an illustrated story), write a shot list first and pick one style card and the
+   photos, an illustrated story), write a shot list first and pick one motion style and the
    components from `references/motion-catalog.md`; with a reference to make it like, first write
-   its style in two layers (`references/steps/motion-graphics.md`, step 0), choose the card by its
+   its style in two layers (`references/steps/motion-graphics.md`, step 0), choose the motion style by its
    `medium`, carry the medium and `avoid` into every `still` prompt, and re-make once a shot whose
    medium, look, cast, dimension, layout or elements differ from the reference frame; one
    `motion_graphics` call per shot (a component when one fits, else an exemplar page by name --
-   spec C; content stays out of the bottom-fifth caption band).
+   spec C; its content stays out of the bottom-fifth caption band). That band is for code
+   animation only: a `still`, `animate` or narration picture prompt never asks for empty space,
+   a safe area or room for captions -- pictures fill the whole frame and captions are placed
+   over them by the captions step.
    **Whenever a narrated reference video IS provided (a screen walkthrough, UI tutorial, animated
    or drawn explainer, map or chart narration), always run the whole remake
    (`references/formats/narration.md`), never project steps** -- except when the creator has
    nothing of their own to give (no clip, photo or recording; nobody on camera and a preset voice)
    or the reference is a dialogue between characters, a song or a silent piece: then build it from
    steps, taking the reference's look, characters, pacing and sound as the model and their script
-   or lines as the words (characters that act or talk: `still` then `animate`; one `tts` call per
-   voice). Needing a voice they have not recorded: ask once for a recording or a preset voice, as
-   `references/steps/project.md` ("No voice to clone") says, and wait.
+   or lines as the words, and follow its workflow stage by stage: a voice over pictures,
+   `references/workflows/narration.md`; characters who speak their lines,
+   `references/workflows/character-drama.md`. Needing a voice they have not recorded: choose a preset voice by the role yourself and go on,
+   as `references/steps/project.md` ("No voice to clone") says; never stop to ask about the voice.
+7. **Read what you were given before you plan.** Run `transcribe` on every clip the creator sent
+   that has sound before deciding which clip is which language, speaker or role -- never by upload
+   order or file name. If it differs from what they described, say in a line what you heard and
+   make what they asked for: a missing language version gets its own voice and captions, not their
+   clips cut together again. A screenshot or screen capture sent as an example is a reference to
+   draw from, never a shot. When the creator will not appear, no shot has a person in it (hands,
+   product, places, illustration), and every picture prompt says "no person". More in
+   `references/steps/plan.md` ("Read what you were given first").
+8. **End on the outcome.** When the story ends on a result (the dish plated, the box opened, the
+   thing finished), the last shot is that result alone: its still already shows it (the food on
+   the plate), and the step before it is its own shot. A clip asked to do "plate it, then smile"
+   often stops halfway, and the video then ends without its payoff. Everything the creator asked
+   to see goes in `storyboard.asked` (short phrases), each with its own shot.
 
 | Keep | Change | Step | Redraws the face |
 |---|---|---|---|
@@ -148,7 +166,8 @@ script read over pictures with nobody on camera is built from steps instead (`tt
 words, pictures from their material or `still` / `animate`, `mux`, `captions`, `music`, deliver)
 -- and so is a script the creator wants made in a reference's form when they have no footage of
 their own: plan it from the reference as `references/steps/plan.md` ("Plan first, then make it") says, with their words as the lines, never
-the script or narration whole remake.
+the script or narration whole remake. Such a video, read over pictures or acted by characters,
+follows the matching workflow in `references/workflows/`.
 
 ## 1. Collect the inputs (whole remake only)
 

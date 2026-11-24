@@ -51,7 +51,7 @@ and preview again before `start`.
    the neighbouring looks it must not drift into (a reference that looked like a game render was
    once made as cinematic photoreal CG because nothing named its medium). Every picture is made
    in it: a generated still's prompt names the medium and light and what to avoid; a component or
-   composition takes the style card whose `medium` matches (`../motion-catalog.md`). When the
+   composition takes the motion style whose `medium` matches (`../motion-catalog.md`). When the
    brief's `pictures.look` is the creator's own drawn look, the cut follows that look -- say so
    in `picture_system`. Left out, the run writes placeholders and says so in the delivery notes;
    it does not stop.
@@ -99,8 +99,8 @@ picture have words in it that must read?**
 
 - **A ready-made diagram -- `kind: "component"`.** Vectors on a grid, a bar chart, numbered
   steps, a route on a street grid, a headline with points, a before/after split, a number over a
-  curve: `{"kind": "component", "component": "<id>", "fields": {...}, "style": <style card id or
-  colour object>}`, with the ids, fields and style cards of `../motion-catalog.md` (the same
+  curve: `{"kind": "component", "component": "<id>", "fields": {...}, "style": <motion style id or
+  colour object>}`, with the ids, fields and motion styles of `../motion-catalog.md` (the same
   components as the `motion_graphics` step; nothing else is accepted). The component draws the
   geometry itself -- every arrow of a `vector_diagram` starts at one shared origin, bars are
   measured from their values -- and you give only the content. Choose the style (a card id or

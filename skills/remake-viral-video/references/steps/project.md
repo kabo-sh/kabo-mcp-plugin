@@ -18,7 +18,7 @@ added to a `ready` project later.
 
 **Without the creator.** No face is needed; never ask for it. A project with no creator footage or
 photos uses only steps that draw no face (`still`, `animate`, `motion_graphics`, `text_cards`,
-`music`, `tts` with a preset voice the creator picks, and editing); a face step is refused with
+`music`, `tts` with a preset voice, and editing); a face step is refused with
 `no_creator`. Never present a generated person as the creator or as any real person.
 
 **An invented AI presenter (`persona`).** Only when the creator has no footage or photos of
@@ -27,7 +27,7 @@ make one `persona` step first, for example
 `{"op": "persona", "inputs": {}, "params": {"description": "an invented woman in her thirties, short dark hair, warm smile, casual denim shirt", "count": 3}}`.
 It makes two to four portraits of the same invented person (`creator/persona_NN.png`); after that
 the face steps work as usual and are checked against those pictures, and the voice is a preset
-voice the creator picks. `inputs.seed_images` may add up to four style pictures (handles of
+voice ("No voice to clone" below). `inputs.seed_images` may add up to four style pictures (handles of
 pictures that show no real person, never `creator/...`). The project then reports `persona: true`.
 
 - The persona is always fictional. Never describe, name or imitate a real, identifiable person (a
@@ -39,15 +39,14 @@ pictures that show no real person, never `creator/...`). The project then report
 
 **No voice to clone** (no creator material, or no speech in it, or a picture of anyone or
 anything that should speak). `tts` reads lines in the creator's cloned voice by default; with
-nothing to clone it is refused with `no_voice`. Before the first paid step -- and before starting
-the project, since the creator's videos cannot be added later -- ask once, in one
-message, offering both choices together -- a 10-30 s recording of the voice they want, or one of
-the preset voices listed by number and name -- and wait. If they say they have no recording, or
-just want the picture to speak, they have chosen a preset: show the list again only if they have
-not seen it, and let them pick by number. Never pick one for them -- unless they already said what
-voice they want ("a professional male voice", "go with your recommendation"): then take the
-closest preset, say which, and go on. Pass the pick as `tts` `voice`, and say at delivery that a
-preset voice was used.
+nothing to clone it is refused with `no_voice`. Never stop to ask about the voice. A voice the
+creator named (a recording they sent, a preset number, "a calm male voice") is used as given.
+Otherwise -- they said to use a preset, or said nothing about the voice -- choose the preset
+yourself by the role: the narrator's or character's gender, age and tone, and the reference's
+voice when there is one (a story told calmly: a calm, professional voice; an upbeat young host: a
+young, energetic or bright one). Pass it as `tts` `voice` (or the character's card `voice`), say
+in one line which voice you chose and that a 10-30 s recording of theirs or another preset switches
+it, and go on in the same reply. Say at delivery that a preset voice was used.
 
 ## The face
 
