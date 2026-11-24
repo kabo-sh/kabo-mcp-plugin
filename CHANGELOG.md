@@ -2,13 +2,15 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
-## Unreleased
+## 1.0.61
 
 - analyze-content-video, develop-content-ideas, create-script-and-packaging: declare `metadata.platform_agnostic`.
   In these Skills the platform only shapes format (opening length, short-form or long-form, packaging surfaces,
   copy style), or is already settled by a link or the creator's account, so a host need not confirm a platform
   before loading them. With no platform named, each uses the one the conversation establishes, else a common
-  default, and says in one sentence which platform's format it followed; none stops to ask first.
+  default, and says in one sentence which platform's format it followed; none stops to ask first (#212).
+- Web publish: a host-gated Skill (default `remake-viral-video`) publishes only content the target host has
+  registered; otherwise it keeps its current Web version and the run warns (#211).
 
 ## 1.0.60
 
