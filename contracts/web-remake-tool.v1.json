@@ -1,6 +1,6 @@
 {
  "source": "kabo-agent-service",
- "commit": "0c3ef9f915a600d5407efe37a09651325c8f0d85",
+ "commit": "6c94a63a45029dc25ef2ec8338097a37e38ba915",
  "atom": {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
@@ -5411,6 +5411,35 @@
       "look"
      ],
      "additionalProperties": {}
+    }
+   },
+   "output": {
+    "type": "object",
+    "properties": {
+     "aspect": {
+      "type": "string",
+      "maxLength": 20
+     },
+     "width": {
+      "type": "integer",
+      "minimum": 240,
+      "maximum": 4096
+     },
+     "height": {
+      "type": "integer",
+      "minimum": 240,
+      "maximum": 4096
+     },
+     "fps": {
+      "type": "number",
+      "minimum": 12,
+      "maximum": 60
+     },
+     "max_s": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 600
+     }
     }
    },
    "series": {

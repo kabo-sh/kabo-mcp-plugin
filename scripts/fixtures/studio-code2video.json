@@ -1,0 +1,18 @@
+[
+  {
+    "templateId": "archive-story",
+    "version": 1,
+    "episodes": [
+      {"title":"Lunar footprint","script":"A boot pressed into the dust on the Moon. The tread left sharp ridges. With no wind to sweep them away, the marks can outlast the explorer who made them.","subjects":["boot","tread","lunar dust"]},
+      {"title":"A message beneath the paint","script":"A restorer lifted the frame from the painting. Under its edge, an earlier stripe of blue appeared. The hidden stripe showed where the painter had moved the horizon.","subjects":["painting","blue stripe","horizon"]}
+    ]
+  },
+  {
+    "templateId": "mechanism-board",
+    "version": 1,
+    "episodes": [
+      {"title":"Saturn's rings","script":"From far away, Saturn’s rings look solid. Look closer and they break into countless pieces of ice and rock. Each piece travels in its own orbit around Saturn.","subjects":["Saturn","ice and rock","orbits"]},
+      {"title":"A bent straw","script":"A straw looks bent where it enters water. Light changes direction as it crosses between water and air. Your eye follows that light back in a straight line, placing the submerged straw in a different spot.","subjects":["straw","water surface","light rays"]}
+    ]
+  }
+]
