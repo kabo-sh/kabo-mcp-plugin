@@ -256,9 +256,11 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
   // The test target is shared by several people: entries this plugin commit cannot produce (skills that other
   //   branches released under an alias, etc.) are kept as is,
   // otherwise every release's incidental refresh of test would wipe out versions others are testing.
+  // A publish limited with --skills keeps every other skill's test entry too (2026-11-25: publishing one skill to
+  //   test dropped the 18 others the shared test overlay was carrying).
   if (targetName === 'test')
     for (const [id, entry] of Object.entries(current?.skills ?? {}))
-      if (!available.includes(id) && !hold.includes(id) && !kept[id]) kept[id] = entry;
+      if (!wanted.includes(id) && !hold.includes(id) && !kept[id]) kept[id] = entry;
   for (const bundle of bundles) {
     const objectName = bundleObjectName(bundle);
     const bytes = Buffer.from(stableJson(bundle));
