@@ -4,7 +4,7 @@ Generated from the Web host's own schema (`contracts/web-remake-tool.v1.json`, k
 `scripts/remake-skill-schema.ts` at 6c94a63a45029dc25ef2ec8338097a37e38ba915) by `scripts/remake-params-gen.mjs`.
 These are the exact shapes the host accepts; where any other file in this Skill reads
 differently, this file is right. A field not listed under a step is refused on that step.
-`?` / (optional) = may be left out; `a | b` = one of; `[x, ...] (2-8 items)` = a list;
+`?` / (optional) = may be left out; `a | b` = one of; `[x, ...] (2-16 items)` = a list;
 `{<name>: x}` = an object keyed by name (never a list).
 
 ## Storyboard (`plan`)
@@ -99,12 +99,12 @@ Each entry of `props`:
 ### `still`
 
 - inputs: `refs` (optional): [handle, ...] (0-4 items)
-- params: `prompt` (optional): text (<= 2000); `prompts` (optional): [text (<= 2000), ...] (2-8 items); `aspect` (optional): "9:16" | "3:4" | "4:5" | "1:1" | "4:3" | "16:9"; `sheet_for` (optional): text (<= 60) | {kind?: "character" | "environment" | "prop"; name: text (<= 60); as?: "sheet" | "ref"; view?: text (<= 30)} | [text (<= 60) | {kind?: "character" | "environment" | "prop"; name: text (<= 60); as?: "sheet" | "ref"; view?: text (<= 30)} | null, ...] (2-8 items); `on_screen_cast` (optional): [] (empty) | [text (<= 60), ...] (1-4 items) | [[] (empty) | [text (<= 60), ...] (1-4 items) | null, ...] (2-8 items); `location` (optional): text (<= 60) | [text (<= 60) | null, ...] (2-8 items); `props` (optional): [] (empty) | [text (<= 60), ...] (1-4 items) | [[] (empty) | [text (<= 60), ...] (1-4 items) | null, ...] (2-8 items); `positions` (optional): {<name>: "left" | "center" | "right"} | [{<name>: "left" | "center" | "right"} | null, ...] (2-8 items); `camera` (optional): text (<= 30) | [text (<= 30) | null, ...] (2-8 items); `shot` (optional): integer 0..9999 | [integer 0..9999, ...] (2-8 items); `storyboard_hash` (optional): text
+- params: `prompt` (optional): text (<= 2000); `prompts` (optional): [text (<= 2000), ...] (2-16 items); `aspect` (optional): "9:16" | "3:4" | "4:5" | "1:1" | "4:3" | "16:9"; `sheet_for` (optional): text (<= 60) | {kind?: "character" | "environment" | "prop"; name: text (<= 60); as?: "sheet" | "ref"; view?: text (<= 30)} | [text (<= 60) | {kind?: "character" | "environment" | "prop"; name: text (<= 60); as?: "sheet" | "ref"; view?: text (<= 30)} | null, ...] (2-16 items); `on_screen_cast` (optional): [] (empty) | [text (<= 60), ...] (1-4 items) | [[] (empty) | [text (<= 60), ...] (1-4 items) | null, ...] (2-16 items); `location` (optional): text (<= 60) | [text (<= 60) | null, ...] (2-16 items); `props` (optional): [] (empty) | [text (<= 60), ...] (1-4 items) | [[] (empty) | [text (<= 60), ...] (1-4 items) | null, ...] (2-16 items); `positions` (optional): {<name>: "left" | "center" | "right"} | [{<name>: "left" | "center" | "right"} | null, ...] (2-16 items); `camera` (optional): text (<= 30) | [text (<= 30) | null, ...] (2-16 items); `shot` (optional): integer 0..9999 | [integer 0..9999, ...] (2-16 items); `storyboard_hash` (optional): text
 
 ### `animate`
 
-- inputs: `image` (optional): handle; `images` (optional): [handle, ...] (2-8 items)
-- params: `prompt` (optional): text (<= 2000); `prompts` (optional): [text (<= 2000), ...] (2-8 items); `duration` (optional): 5 | 10; `on_screen_cast` (optional): [] (empty) | [text (<= 60), ...] (1-4 items) | [[] (empty) | [text (<= 60), ...] (1-4 items) | null, ...] (2-8 items); `location` (optional): text (<= 60) | [text (<= 60) | null, ...] (2-8 items); `props` (optional): [] (empty) | [text (<= 60), ...] (1-4 items) | [[] (empty) | [text (<= 60), ...] (1-4 items) | null, ...] (2-8 items); `positions` (optional): {<name>: "left" | "center" | "right"} | [{<name>: "left" | "center" | "right"} | null, ...] (2-8 items); `camera` (optional): text (<= 30) | [text (<= 30) | null, ...] (2-8 items); `shot` (optional): integer 0..9999 | [integer 0..9999, ...] (2-8 items); `storyboard_hash` (optional): text
+- inputs: `image` (optional): handle; `images` (optional): [handle, ...] (2-16 items)
+- params: `prompt` (optional): text (<= 2000); `prompts` (optional): [text (<= 2000), ...] (2-16 items); `duration` (optional): 5 | 10; `on_screen_cast` (optional): [] (empty) | [text (<= 60), ...] (1-4 items) | [[] (empty) | [text (<= 60), ...] (1-4 items) | null, ...] (2-16 items); `location` (optional): text (<= 60) | [text (<= 60) | null, ...] (2-16 items); `props` (optional): [] (empty) | [text (<= 60), ...] (1-4 items) | [[] (empty) | [text (<= 60), ...] (1-4 items) | null, ...] (2-16 items); `positions` (optional): {<name>: "left" | "center" | "right"} | [{<name>: "left" | "center" | "right"} | null, ...] (2-16 items); `camera` (optional): text (<= 30) | [text (<= 30) | null, ...] (2-16 items); `shot` (optional): integer 0..9999 | [integer 0..9999, ...] (2-16 items); `storyboard_hash` (optional): text
 
 ### `bg`
 
@@ -234,7 +234,7 @@ Each entry of `props`:
 ### `batch`
 
 - inputs: none
-- params: `steps`: [{op: "trim" | "retime" | "mux" | "crop" | "grade" | "still_video" | "concat" | "captions" | "overlay" | "splice" | "layout" | "text_cards" | "motion_graphics" | "talking" | "lipsync" | "tts" | "frame" | "extract_audio" | "sfx" | "music" | "audio_edit" | "voice_change" | "inpaint_text" | "first_frame" | "bg"; inputs?: {<name>: any}; params?: {<name>: any}}, ...] (2-8 items)
+- params: `steps`: [{op: "trim" | "retime" | "mux" | "crop" | "grade" | "still_video" | "concat" | "captions" | "overlay" | "splice" | "layout" | "text_cards" | "motion_graphics" | "talking" | "lipsync" | "tts" | "frame" | "extract_audio" | "sfx" | "music" | "audio_edit" | "voice_change" | "inpaint_text" | "first_frame" | "bg"; inputs?: {<name>: any}; params?: {<name>: any}}, ...] (2-16 items)
 
 ### `cast`
 

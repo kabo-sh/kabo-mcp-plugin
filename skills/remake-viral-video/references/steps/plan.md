@@ -167,7 +167,11 @@ move) is made to move (`animate`, `refvideo`, `talking`, a code animation), and 
 a held picture in the reference becomes `still_video`. One action per shot: a generated shot
 shows a single action of about 5 s at most. Never ask one shot to move food or an object from one
 container to another (pouring, plating, scooping, handing over); cut from the action to its result
-instead (stir-frying in the pan -> cut -> the finished dish on the plate). Animate each shot about as long
+instead (stir-frying in the pan -> cut -> the finished dish on the plate). A generated shot cannot
+keep an exact number of things while they move or appear: when the point is how many there are
+(counting along, a set that grows item by item, a total), give each count its own row with the
+right number already in its picture, or make the counted things an overlay or motion graphic over
+the shot, never one moving shot that has to add items one by one. Animate each shot about as long
 as its line (5 s unless the line is longer); a shot `mux` trims the picture to its line. Then make it row by row -- every row, in
 batches -- without redesigning the look, the characters or the shot structure, and before
 delivering count the rows made against the rows planned; times may follow the real voice, the

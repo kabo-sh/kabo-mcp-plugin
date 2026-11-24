@@ -560,7 +560,7 @@
        },
        "prompts": {
         "minItems": 2,
-        "maxItems": 8,
+        "maxItems": 16,
         "type": "array",
         "items": {
          "type": "string",
@@ -626,7 +626,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -708,7 +708,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -752,7 +752,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -796,7 +796,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -851,7 +851,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -888,7 +888,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -914,7 +914,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "type": "integer",
@@ -971,7 +971,7 @@
        },
        "images": {
         "minItems": 2,
-        "maxItems": 8,
+        "maxItems": 16,
         "type": "array",
         "items": {
          "type": "string",
@@ -991,7 +991,7 @@
        },
        "prompts": {
         "minItems": 2,
-        "maxItems": 8,
+        "maxItems": 16,
         "type": "array",
         "items": {
          "type": "string",
@@ -1038,7 +1038,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -1082,7 +1082,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -1126,7 +1126,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -1181,7 +1181,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -1218,7 +1218,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -1244,7 +1244,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "type": "integer",
@@ -3463,7 +3463,7 @@
       "properties": {
        "steps": {
         "minItems": 2,
-        "maxItems": 8,
+        "maxItems": 16,
         "type": "array",
         "items": {
          "type": "object",
