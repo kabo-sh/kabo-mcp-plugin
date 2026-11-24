@@ -1,10 +1,10 @@
 ---
 name: remake-viral-video
-description: "Have Kabo make a finished MP4: remake a reference video (talking, screens, product or narrated; up to 10 min), turn an approved script into a video, build one from steps (new words on their own video, B-roll, a product ad, faceless animation), or change a delivered one. A reference plus a one-line change (story, words, voice, look) means make it. Use only when the user wants the video itself made or changed; not for writing or adapting a script, breaking down a video, or reviewing an account."
+description: "Have Kabo make a finished MP4: remake a reference video (talking, screens, product or narrated; up to 10 min), turn an approved script into a video, build one from steps (new words on their own video, B-roll, a product ad, faceless animation), or change a delivered one. A reference video plus a change to its story, dialogue, lines, voice or look means make that video, not a script. Not when only a written script is wanted, or for breaking down a video or reviewing an account."
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
 metadata:
-  version: "1.0.18"
+  version: "1.0.20"
   platform_agnostic: "true"
 allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---

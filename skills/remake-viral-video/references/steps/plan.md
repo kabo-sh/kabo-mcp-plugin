@@ -200,6 +200,12 @@ the creator wrote it). Then choose the steps yourself, row by row, from the tabl
 - **Sound and joins**: `tts` per voice before the pictures that follow it, `concat` with the
   row's `transition`, `mux`, `music` (`duck` under speech), `sfx`, then `captions` as the row or
   `form` says.
+- **Black** (a cut to black, a black screen, an ending on black, in the reference or asked for):
+  its own storyboard row with its length (0.3-1 s unless the reference holds it longer),
+  `picture` black and `how` "still (plain black) -> still_video". Writing it only into a row's
+  `transition` does nothing: `concat` takes one transition per call, never one per row. A hard
+  cut to black joins the black clip with `cut`; a fade to black joins it alone in a last `concat`
+  with `fade_black` and a `transition_s` shorter than the black clip (the rest joined first).
 
 Write the prompt yourself from `picture`, `form` (`avoid`), the `look` of each
 character in the row's `on_screen_cast`, and the style
