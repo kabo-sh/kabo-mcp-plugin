@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { stableJson } from './web-publish/bundle.mjs';
 import { MemoryObjectStore } from './web-publish/store.mjs';
-import { TARGETS, TEST_ACCOUNTS_OBJECT, VERSIONS_OBJECT, clear, debutVersion, publish, restore, testAccounts, versionFor } from './web-publish/plugin-web.mjs';
+import { TARGETS, TEST_ACCOUNTS_OBJECT, VERSIONS_OBJECT, clear, debutVersion, hostPolicyHold, publish, readHostPolicies, restore, testAccounts, versionFor } from './web-publish/plugin-web.mjs';
 
 const COMMIT = 'c'.repeat(40);
 
@@ -216,4 +216,34 @@ test('debutVersion: requires a declared x.y.z above every used version', () => {
   assert.throws(() => debutVersion('a', null), /no metadata\.version/);
   assert.throws(() => debutVersion('a', '0.2'), /must be x\.y\.z/);
   assert.throws(() => debutVersion('a', '0.2.0', ['0.2.0']), /must be above 0\.2\.0/);
+});
+
+test('publish with host policies: a host-gated skill publishes only content the host registered; otherwise it keeps its current entry and is reported', async () => {
+  const { store } = await liveStore();
+  const root = pluginRepo({ 'alpha-skill': '# a1', 'beta-skill': '# b1' });
+  // beta-skill is host-gated and the host has not registered this content: it is held, alpha publishes as usual.
+  const held = await publish({ store, pluginRoot: root, pluginCommit: COMMIT, hostPolicies: { 'beta-skill': [{ content_checksum: 'sha256:' + 'f'.repeat(64) }] } });
+  assert.deepEqual(Object.keys(held.skills), ['alpha-skill']);
+  assert.ok(held.skipped.some((s) => s.id === 'beta-skill' && /host has not registered/.test(s.reason)));
+  // Once the host registers that exact content, the same release publishes it.
+  const probe = JSON.parse((await store.read(TARGETS.index)).bytes).skills['alpha-skill'];
+  assert.ok(probe);
+  const betaChecksum = held.skipped.find((s) => s.id === 'beta-skill').reason.match(/sha256:[0-9a-f]{64}/)[0];
+  const allowed = await publish({ store, pluginRoot: root, pluginCommit: 'd'.repeat(40), hostPolicies: { 'beta-skill': [{ content_checksum: betaChecksum }] } });
+  assert.ok(Object.keys(allowed.skills).includes('beta-skill'));
+});
+
+test('hostPolicyHold and readHostPolicies: only the listed skills are gated; a gated skill without reviewed releases is an error', async () => {
+  assert.equal(hostPolicyHold('x', 'sha256:a', null), false);
+  assert.equal(hostPolicyHold('x', 'sha256:a', { y: [] }), false);
+  assert.equal(hostPolicyHold('x', 'sha256:a', { x: [{ content_checksum: 'sha256:a' }] }), false);
+  assert.equal(hostPolicyHold('x', 'sha256:b', { x: [{ content_checksum: 'sha256:a' }] }), true);
+  const health = (body) => async () => ({ ok: true, status: 200, json: async () => body });
+  const merged = await readHostPolicies('https://h/health', ['x'], health({ skill_channels: {
+    production: { runtime: { host_policy_releases: { x: [{ content_checksum: 'sha256:a' }] } } },
+    internal: { runtime: { host_policy_releases: { x: [{ content_checksum: 'sha256:b' }], other: [{ content_checksum: 'sha256:c' }] } } } } }));
+  assert.deepEqual(Object.keys(merged), ['x'], 'only listed skills are gated');
+  assert.deepEqual(merged.x.map((r) => r.content_checksum), ['sha256:a', 'sha256:b']);
+  await assert.rejects(readHostPolicies('https://h/health', ['x'], health({ skill_channels: {} })), /no reviewed release for gated skill x/);
+  await assert.rejects(readHostPolicies('https://h/health', ['x'], async () => ({ ok: false, status: 503 })), /returned 503/);
 });

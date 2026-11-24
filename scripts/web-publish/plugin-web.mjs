@@ -17,7 +17,7 @@
 //   goes back to any historical version by digest.
 //
 // Subcommands:
-//   publish      --plugin-root <dir> --plugin-commit <sha> [--target index|test] [--skills a,b] [--hold a,b]
+//   publish      --plugin-root <dir> --plugin-commit <sha> [--target index|test] [--skills a,b] [--hold a,b] [--host-health <url> --host-gated a,b]
 //                [--debut a,b]
 //   restore      --sha <history digest> [--target index|test]
 //   clear        [--target index|test]          write an empty overlay (Web goes back to reading only the live
@@ -156,7 +156,38 @@ export const RELEASE_OBJECT = `${OVERLAY_PREFIX}release.json`;
  * `bundleStore` writes bundles/ (in CI this is the Internal publishing identity, the only one that can write bundles/); `store` reads channels and writes
  * the overlay (in CI this is the Production publishing identity, which can write channels/production/ but not bundles/). Locally both are the same.
  */
-export async function publish({ store, bundleStore = store, pluginRoot, pluginCommit, pluginTag = null, targetName = 'index', skills, hold = [], debut = [], now = new Date() }) {
+/**
+ * Skills the Kabo Web host only serves at content it has reviewed: the host's /health lists them under
+ * `host_policy_releases` (id -> [{content_checksum}]). Publishing content the host has not registered would make
+ * Web drop that skill (it does not fall back to an older package), so such a skill keeps its current overlay entry
+ * this time and is reported as held. Skills absent from the map are not host-gated.
+ */
+export function hostPolicyHold(id, checksum, hostPolicies) {
+  if (!hostPolicies || !Object.hasOwn(hostPolicies, id)) return false;
+  const releases = Array.isArray(hostPolicies[id]) ? hostPolicies[id] : [];
+  return !releases.some((release) => release?.content_checksum === checksum);
+}
+
+export async function readHostPolicies(url, gated, fetchImpl = fetch) {
+  const response = await fetchImpl(url, { headers: { accept: 'application/json' } });
+  if (!response.ok) fail(`host health ${url} returned ${response.status}`);
+  const health = await response.json();
+  const channels = health?.skill_channels ?? {};
+  const merged = {};
+  for (const channel of Object.values(channels))
+    for (const [id, releases] of Object.entries(channel?.runtime?.host_policy_releases ?? {}))
+      merged[id] = [...(merged[id] ?? []), ...(Array.isArray(releases) ? releases : [])];
+  // Only the listed skills are gated: the host also keeps policies for Registry packages (e.g. an older
+  //   recommend-publish-timing) that do not gate the plugin overlay.
+  const result = {};
+  for (const id of gated) {
+    if (!merged[id]?.length) fail(`host health ${url} lists no reviewed release for gated skill ${id}`);
+    result[id] = merged[id];
+  }
+  return result;
+}
+
+export async function publish({ store, bundleStore = store, pluginRoot, pluginCommit, pluginTag = null, targetName = 'index', skills, hold = [], debut = [], hostPolicies = null, now = new Date() }) {
   if (!COMMIT.test(pluginCommit ?? '')) fail('plugin commit must be 40 lowercase hex characters');
   const object = target(targetName);
   const readChannel = async (channel) => {
@@ -206,6 +237,11 @@ export async function publish({ store, bundleStore = store, pluginRoot, pluginCo
     // Content unchanged: reuse the existing overlay entry as is (the package is already in the bucket, and
     //   source.commit records the commit that first released it).
     if (existing && existing.content_checksum === probe.content_checksum) { kept[id] = existing; continue; }
+    if (hostPolicyHold(id, probe.content_checksum, hostPolicies)) {
+      if (existing) kept[id] = existing;
+      skipped.push({ id, reason: `host has not registered content ${probe.content_checksum}; kept ${existing?.version ?? 'no entry'}` });
+      continue;
+    }
     const twin = others.map((index) => index?.skills?.[id]).find((entry) => entry?.content_checksum === probe.content_checksum);
     if (twin && (await bundleStore.read(twin.object))) { kept[id] = twin; continue; }
     const used = [...others.map((index) => index?.skills?.[id]?.version), highwater.skills?.[id]].filter(Boolean);
@@ -329,7 +365,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
         : store;
       const hold = (option('--hold') ?? '').split(',').map((item) => item.trim()).filter(Boolean);
       const debut = (option('--debut') ?? '').split(',').map((item) => item.trim()).filter(Boolean);
-      result = await publish({ store, bundleStore, pluginRoot: option('--plugin-root'), pluginCommit: option('--plugin-commit'), pluginTag: option('--plugin-tag') ?? null, targetName, skills, hold, debut });
+      const hostHealth = option('--host-health');
+      const hostGated = (option('--host-gated') ?? '').split(',').map((item) => item.trim()).filter(Boolean);
+      const hostPolicies = hostHealth && hostGated.length ? await readHostPolicies(hostHealth, hostGated) : null;
+      result = await publish({ store, bundleStore, pluginRoot: option('--plugin-root'), pluginCommit: option('--plugin-commit'), pluginTag: option('--plugin-tag') ?? null, targetName, skills, hold, debut, hostPolicies });
     } else if (command === 'released') {
       // For the scheduled task: print the plugin commit the production overlay currently corresponds to (empty
       //   string if none).

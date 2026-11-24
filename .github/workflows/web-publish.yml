@@ -129,14 +129,19 @@ jobs:
           PROD_HOLD: ${{ vars.PLUGIN_WEB_HOLD }}
           TEST_HOLD: ${{ vars.PLUGIN_WEB_TEST_HOLD }}
           DEBUT: ${{ vars.PLUGIN_WEB_DEBUT }}
+          HOST_GATED: ${{ vars.PLUGIN_WEB_HOST_GATED }}
         run: |
           set -euo pipefail
           if [[ "$TARGET" == "test" ]]; then HOLD="$TEST_HOLD"; else HOLD="$PROD_HOLD"; fi
           test "$(git -C release-source rev-parse HEAD)" = "$COMMIT"
           [[ -z "$HOLD" ]] || echo "holding back: $HOLD"
           [[ -z "$DEBUT" ]] || echo "may debut: $DEBUT"
+          # Host-gated skills (e.g. remake-viral-video) publish only content the target host has registered.
+          if [[ "$TARGET" == "test" ]]; then HOST_HEALTH=https://pre-agent.kabo.sh/health; else HOST_HEALTH=https://agent.kabo.sh/health; fi
           node scripts/web-publish/plugin-web.mjs publish --plugin-root release-source --plugin-commit "$COMMIT" \
-            --plugin-tag "$TAG" --target "$TARGET" ${HOLD:+--hold "$HOLD"} ${DEBUT:+--debut "$DEBUT"} | tee "$RUNNER_TEMP/web-publish-result.json"
+            --plugin-tag "$TAG" --target "$TARGET" ${HOLD:+--hold "$HOLD"} ${DEBUT:+--debut "$DEBUT"} \
+            --host-health "$HOST_HEALTH" --host-gated "${HOST_GATED:-remake-viral-video}" | tee "$RUNNER_TEMP/web-publish-result.json"
+          node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));for(const s of r.skipped??[])if(/host has not registered/.test(s.reason))console.log(`::warning::${s.id}: ${s.reason}`)' "$RUNNER_TEMP/web-publish-result.json" || true
       - uses: actions/upload-artifact@v4
         if: steps.fresh.outputs.publish == 'true'
         with:

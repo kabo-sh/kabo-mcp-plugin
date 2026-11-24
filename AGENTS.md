@@ -60,5 +60,7 @@
   (`scripts/web-publish/plugin-web.mjs`; it never writes a channel index) when the `web-publish` environment
   variable `PLUGIN_WEB_AUTO` is `on`; `PLUGIN_WEB_HOLD` keeps listed Skills on their Registry version in production (the pre test target ignores it; `PLUGIN_WEB_TEST_HOLD` is its own list). A Skill on no channel and not yet on the overlay is skipped unless it is in `PLUGIN_WEB_DEBUT` (both targets), in which case it debuts at its SKILL.md `metadata.version` (required); hold wins over debut, and listing an already-live Skill has no effect. To
   publish by hand, or to the pre test accounts, run `gh workflow run web-publish.yml -f tag=<tag> -f target=index|test`
-  (idempotent; a no-op when Web is already on the release). Check with
+  (idempotent; a no-op when Web is already on the release). Host-gated Skills (`PLUGIN_WEB_HOST_GATED`, default `remake-viral-video`) publish only content the
+  target host already lists under `host_policy_releases` in its `/health`; otherwise they keep their current Web
+  version and the run warns, so register the new checksum in kabo-agent-service and deploy it first. Check with
   `curl -s https://agent.kabo.sh/health | jq '.skill_channels.production.runtime.plugin_overlay'`.
