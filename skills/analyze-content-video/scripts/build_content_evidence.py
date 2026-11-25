@@ -1819,6 +1819,19 @@ def observation_source(evidence: dict[str, Any]) -> str:
     return "whole_video" if "viewer_observations" in evidence and not asked else "server_frames"
 
 
+def own_earlier_pair(output: Path, reference_path: Path) -> bool:
+    """Whether the evidence and reference index already at these paths are a pair this builder wrote: both regular
+    files, the index naming the evidence's exact sha256. Only such a pair may be built over (`--replace`)."""
+    try:
+        if output.is_symlink() or reference_path.is_symlink() or not output.is_file() or not reference_path.is_file():
+            return False
+        index = json.loads(reference_path.read_text(encoding="utf-8"))
+        return (isinstance(index, dict) and index.get("schema_version") == "content-evidence-references.v1"
+                and index.get("evidence_sha256") == hashlib.sha256(output.read_bytes()).hexdigest())
+    except (OSError, ValueError):
+        return False
+
+
 def write_evidence_with_reference_index(output: Path, evidence_bytes: bytes,
                                         reference_path: Path, reference_bytes: bytes) -> None:
     """Stage both files before committing the index, then atomically replace evidence."""
@@ -1880,7 +1893,11 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--reference-index", type=Path,
                         help="optional same-source structural reference index for the judgment")
+    parser.add_argument("--replace", action="store_true",
+                        help="build again over this run's earlier evidence and reference index (a pair this builder "
+                             "wrote), after another envelope or a per-run flag came in")
     args = parser.parse_args()
+    replacing = False
     try:
         reference_path = args.reference_index
         if reference_path is not None:
@@ -1895,7 +1912,12 @@ def main() -> int:
                             or (output.exists() and source.exists() and output.samefile(source))):
                         raise ValueError("evidence and reference outputs must not overwrite an input")
             if reference_path.exists() or reference_path.is_symlink():
-                raise ValueError("the reference sidecar already exists; no input or output was overwritten")
+                if not args.replace:
+                    raise ValueError("the reference sidecar already exists; no input or output was overwritten")
+                if not own_earlier_pair(args.output, reference_path):
+                    raise ValueError("--replace builds again only over this builder's own evidence and reference "
+                                     "index; no input or output was overwritten")
+                replacing = True
         request = load_json(args.request)
         run_id = args.run_id
         if not run_id and not request.get("request_id"):
@@ -1941,6 +1963,11 @@ def main() -> int:
         if reference_path is None:
             args.output.write_text(evidence_bytes.decode("utf-8"), encoding="utf-8")
         else:
+            if replacing:
+                # Checked again right before the write: still the same pair, so nothing else is removed.
+                if not own_earlier_pair(args.output, reference_path):
+                    raise ValueError("the evidence or reference index changed during the build; nothing was replaced")
+                reference_path.unlink()
             write_evidence_with_reference_index(args.output, evidence_bytes, reference_path, reference_bytes)
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
         print(json.dumps({"status": "failed", "error": f"{type(error).__name__}: {error}"}, ensure_ascii=False))

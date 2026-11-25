@@ -60,6 +60,16 @@ itself. A fallback starts only while enough of the deadline is left for it to fi
 (`observation_order.MIN_LEFT_S`), and the run goes on with what arrived.
 The status line says how it ended: `observed`, `timed_out` (nothing to look at arrived in time) or
 `source_unavailable` (the video itself could not be read: a result said so, or every source came back empty).
+
+Once it ends with something to analyse (`observed`, `timed_out` or `metadata_only`) in a run whose request and the
+creator's words are written (begin_analysis.py writes both), the same command also runs the next two steps itself:
+build_content_evidence.py with the arguments it would otherwise print plus every `snapshot/envelope-*.json` the run
+holds, then prepare_analysis.py, whose output (the brief) it prints after the frame reads, so the model goes from the
+observation straight to the frames and the judgment. It names the envelopes it included and the two commands that
+build them again (`--replace`) when another envelope or a per-run flag comes in later. It does not build while the
+post's metadata still has to come from another tool (YouTube's `youtube_get_video`): it prints the arguments instead,
+as it does in a run that has no request yet. The early build needs no frame bytes: the evidence lists frames from the
+keyframe envelope, and a frame fetched to `snapshot/` later only adds a local copy that no later step reads.
 """
 from __future__ import annotations
 
@@ -67,6 +77,7 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -96,6 +107,15 @@ SIDE_SCHEMA = "acv-side-call/v1"
 SIDE_TOOLS = set(observation_order.SIDE_CALLS.values())
 # At most this many frames per read: hosts cap the images one tool result may show.
 READ_CHUNK = 15
+# What the evidence build reads and writes in the run (the request and the creator's words come from begin_analysis.py).
+REQUEST = "analysis/video-analysis-request.json"
+QUESTION = "analysis/question.txt"
+BUILD_OUTPUTS = ["--snapshot-root", "snapshot", "--output", "analysis/content_evidence.json",
+                 "--reference-index", "analysis/content_evidence.references.json"]
+BRIEF_MODES = ("diagnosis", "content_read", "craft_teardown")
+# Hosts keep at most 64 KiB of one command's output: past this much, the brief is left in analysis/brief.md.
+PRINT_LIMIT = 56 * 1024
+PRINTED = [0]
 # A reading waits inside the call for a final status (`wait_s`), the way collect_video_media waits for its jobs.
 # 45 seconds (observation_order.CALL_WAIT_S), the same budget as collect_media.py: it keeps the call inside the
 # 60-second tool timeout some hosts (Codex) apply. Near the observation deadline it is shortened to what is left. The submission itself does not wait (docs/skills-spec.md KS8, decision of 2026-10-20). Where a reading still comes back sooner (a host or server that does not
@@ -130,6 +150,7 @@ SAVE_RULE = (
 
 
 def say(text: str) -> None:
+    PRINTED[0] += len(text.encode("utf-8")) + 1
     print(text, flush=True)
 
 
@@ -795,13 +816,13 @@ def settle(current: dict[str, Any]) -> int:
     if blocked:
         current.setdefault("limitations", []).append(observation_order.MEDIA_BLOCKED_TEXT)
     # The builder requires the run's request; the hint names it so the passed flags are a complete set.
-    flags = ["--request analysis/video-analysis-request.json"]
+    flags = [("--request", REQUEST)]
     if media is not None:
-        flags += [f"--envelope {path}" for path in media["envelopes"]]
-        flags += [f"--deferred-incomplete {item}" for item in media["pending"]]
+        flags += [("--envelope", path) for path in media["envelopes"]]
+        flags += [("--deferred-incomplete", item) for item in media["pending"]]
     if viewer.get("active") and viewer.get("persisted"):
-        flags.append(f"--viewer {viewer['persisted']}")
-    flags += [f"{SIDE_FLAGS[name]} {entry['persisted']}" for name, entry in (current.get("side") or {}).items()
+        flags.append(("--viewer", viewer["persisted"]))
+    flags += [(SIDE_FLAGS[name], entry["persisted"]) for name, entry in (current.get("side") or {}).items()
               if entry.get("persisted")]
     duration = current.get("duration_s")
     if duration is None and media is not None:
@@ -809,9 +830,9 @@ def settle(current: dict[str, Any]) -> int:
     if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration > 0:
         # Given with --duration-s or read from a result: the evidence records it even when no envelope passed to the
         # builder carries it (a whole-video run needs it for the hook window and the promise).
-        flags.append(f"--duration-s {duration:g}")
+        flags.append(("--duration-s", f"{duration:g}"))
     # One line per limitation, however many times a round recorded it.
-    flags += [f"--limitation {collect_media.quote(text)}" for text in dict.fromkeys(current.get("limitations") or [])]
+    flags += [("--limitation", text) for text in dict.fromkeys(current.get("limitations") or [])]
     current["done"] = True
     save_state(current)
     nothing = not observed_anything(current, media)
@@ -858,19 +879,30 @@ def settle(current: dict[str, Any]) -> int:
     if media and media["pending"]:
         say("Some media jobs were still running when waiting stopped. They are unfinished, not failed: say that "
             "step was still running, never a backend failure.")
-    say("Pass these to build_content_evidence.py, plus one --envelope for each other snapshot/envelope-*.json this "
-        "run persisted: " + " ".join(flags))
-    if media and media["read"]:
-        reads = media["read"]
+    waiting_for = metadata_elsewhere(current)
+    build = (static_host.run_dir() / REQUEST).is_file() and waiting_for is None
+    if build:
+        flags = with_every_envelope(flags)
+        code = build_evidence(current, flags)
+        if code:
+            return code
+    else:
+        say("Pass these to build_content_evidence.py, plus one --envelope for each other snapshot/envelope-*.json "
+            "this run persisted: " + flag_text(flags))
+        if waiting_for is not None:
+            say(f"The post's metadata comes from {waiting_for}, which is not in this run yet: persist its result as "
+                "the Skill says, then build the evidence with every envelope and prepare the brief (steps 4 and 5).")
+    reads = media["read"] if media and media["read"] else []
+    if reads:
         for line in media.get("overview_legend") or []:
             say(line)
         say(("Frames: make this one read now. " if len(reads) == 1 else
              f"Frames: make these {len(reads)} reads now, one after another, each at most {READ_CHUNK} frames so "
              "the host shows every image. ")
             + "If a result shows you the images, they are viewed: do not save or stage them, and go on to "
-            "build_content_evidence.py after the last read. Only if a read returns a download link instead, save "
-            "and fetch it the way the Skill says for read_research_data_artifacts, then open each image's path "
-            "before any visual claim:")
+            + ("the brief below" if build else "build_content_evidence.py") + " after the last read. Only if a read "
+            "returns a download link instead, save and fetch it the way the Skill says for read_research_data_artifacts, "
+            "then open each image's path before any visual claim:")
         for item in reads:
             say("read: " + json.dumps(item, ensure_ascii=False))
     elif viewer_ok:
@@ -881,6 +913,105 @@ def settle(current: dict[str, Any]) -> int:
             "say the video has no speech to export, never that fetching it failed.")
     else:
         say("No frames arrived: keep the missing-visual-evidence limit and read the transcript and measurements only.")
+    if not build:
+        return 0
+    return next_step(current, bool(reads))
+
+
+def flag_text(flags: list[tuple[str, str]]) -> str:
+    """The builder flags as one shell line; only a limitation's free text needs quoting."""
+    return " ".join(f"{flag} {collect_media.quote(value) if flag == '--limitation' else value}"
+                    for flag, value in flags)
+
+
+def metadata_elsewhere(current: dict[str, Any]) -> str | None:
+    """The tool the post's metadata still has to come from before the evidence can be built (YouTube's
+    youtube_get_video), or None when it rides in the media call or its envelope is already in the run."""
+    route = (public_video_sources.source(current.get("platform")) or {}).get("metadata_route")
+    if current["mode"] not in METADATA_MODES or route in (None, "media_call"):
+        return None
+    wanted = {tuple(key.split("/", 1)) for key, tool in static_host.CONNECTOR_TOOLS.items() if tool == route}
+    for path in (static_host.run_dir() / "snapshot").glob("envelope-*.json"):
+        try:
+            body = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(body, dict) and (body.get("connector_id"), body.get("operation")) in wanted:
+            return None
+    return route
+
+
+def with_every_envelope(flags: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """The builder flags with one --envelope for every snapshot/envelope-*.json the run holds (the observation's and
+    any the model persisted beside it), each once, after the observation's own."""
+    known = {value for flag, value in flags if flag == "--envelope"}
+    others = sorted(f"snapshot/{path.name}" for path in (static_host.run_dir() / "snapshot").glob("envelope-*.json"))
+    extra = [("--envelope", path) for path in others if path not in known]
+    position = max((index for index, (flag, _) in enumerate(flags) if flag in {"--request", "--envelope"}), default=0)
+    return flags[:position + 1] + extra + flags[position + 1:]
+
+
+def step(script: str, argv: list[str]) -> tuple[int, str]:
+    """Run one of this Skill's scripts in the run directory, as the model would; its exit code and output."""
+    done = subprocess.run([sys.executable, "-B", str(SCRIPTS / script), *argv], cwd=static_host.run_dir(),
+                          capture_output=True, text=True)
+    return done.returncode, (done.stdout + (done.stderr if done.returncode else "")).rstrip("\n")
+
+
+def command(script: str, argv: list[str]) -> str:
+    """One complete command line for a script of this Skill, run in this run's directory."""
+    return (f"cd {collect_media.quote(str(static_host.run_dir()))} && python3 "
+            + " ".join(collect_media.quote(part) for part in [str(SCRIPTS / script), *argv]))
+
+
+def build_evidence(current: dict[str, Any], flags: list[tuple[str, str]]) -> int:
+    """Step 4, run here: the evidence from every envelope the run holds. 0 when built."""
+    argv = [part for pair in flags for part in pair] + BUILD_OUTPUTS
+    replace = (static_host.run_dir() / BUILD_OUTPUTS[-1]).exists()
+    code, out = step("build_content_evidence.py", argv + (["--replace"] if replace else []))
+    envelopes = [value for flag, value in flags if flag == "--envelope"]
+    say("Evidence (step 4) built here, with: " + flag_text(flags))
+    say("Envelopes included: " + (", ".join(envelopes) if envelopes else "none"))
+    say(out)
+    if code:
+        say("The evidence build failed: that step failed; report it as the Skill says.")
+        return 1
+    current["built"] = {"envelopes": envelopes}
+    save_state(current)
+    rebuild = command("build_content_evidence.py", argv + ["--replace"])
+    after = ("export_transcript.py as the Skill says" if current["mode"] not in BRIEF_MODES
+             else command("prepare_analysis.py", prepare_argv(current)))
+    say("If another envelope is persisted after this (a post row, a baseline, metadata from another tool) or a "
+        "per-run flag applies (--owner-metrics, --published-at, --limitation for a failed call), run steps 4 and 5 "
+        "once more, with it added: " + rebuild + " then " + after)
+    return 0
+
+
+def prepare_argv(current: dict[str, Any]) -> list[str]:
+    return ["--run", str(static_host.run_dir()), "--mode", current["mode"], "--question-file", QUESTION]
+
+
+def next_step(current: dict[str, Any], reads: bool) -> int:
+    """Step 5, run here: the brief, printed as prepare_analysis.py prints it (a transcript export has none)."""
+    if current["mode"] not in BRIEF_MODES:
+        say("A transcript export has no brief: now run export_transcript.py as the Skill says.")
+        return 0
+    if not (static_host.run_dir() / QUESTION).is_file():
+        say("The creator's words are not in analysis/question.txt: write them there, then prepare the brief (step 5).")
+        return 0
+    code, out = step("prepare_analysis.py", prepare_argv(current))
+    lines = out.split("\n")
+    if code == 0 and PRINTED[0] + len(out.encode("utf-8")) > PRINT_LIMIT:
+        # Too long to print beside the observation: the brief stays in its file.
+        tail = lines[-1].split(") ", 1)[1] if lines[-1].startswith("(End of") else lines[-1]
+        say(lines[0])
+        say("The brief is too long to print with the observation: read analysis/brief.md whole now. " + tail)
+    else:
+        say(out)
+    if code == 1:
+        return 1
+    if code == 0 and reads:
+        say("Make the frame reads above before writing anything.")
     return 0
 
 
@@ -889,7 +1020,10 @@ def resume(args: argparse.Namespace) -> int:
     if not current:
         raise ValueError("no observation was started in this run; run observe_video.py without --placed first")
     if current.get("done"):
-        say("This observation is already complete; build the evidence with the arguments printed before.")
+        say("This observation is already complete; "
+            + ("its evidence and brief were built: go on from the brief (analysis/brief.md), and to add an envelope "
+               "run steps 4 and 5 once more as printed before." if current.get("built") else
+               "build the evidence with the arguments printed before."))
         return 0
     awaiting = current.get("awaiting") or []
     for entry in awaiting:

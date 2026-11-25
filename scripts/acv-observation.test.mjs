@@ -706,7 +706,7 @@ async function selectFirst(run, focus, mode = "diagnosis") {
   assert.equal(chosen.code, 0, chosen.out);
   return readJson(path.join(run, "analysis/method.json"));
 }
-async function driveFrom(run, out, { viewerSteps = [viewerFixture] } = {}) {
+async function driveFrom(run, out, { viewerSteps = [viewerFixture], media = {} } = {}) {
   const steps = [...viewerSteps];
   const handed = [];
   for (let round = 0; round < 8 && !/"status": "observed"/.test(out); round += 1) {
@@ -715,7 +715,7 @@ async function driveFrom(run, out, { viewerSteps = [viewerFixture] } = {}) {
     for (const [index, call] of calls.entries()) {
       handed.push(call);
       // A diagnosis also asks for the song: answer it with no match, leaving the viewer steps to the viewing.
-      await writeFile(files[index], call.tool === "collect_video_media" ? mcp(composite(call.arguments))
+      await writeFile(files[index], call.tool === "collect_video_media" ? mcp(composite(call.arguments, media))
         : call.tool === "identify_video_song" ? mcp(SONG.noMatch)
         : typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
     }
@@ -796,14 +796,15 @@ test("begin_analysis: one command writes what the separate setup steps write and
   const rules = await readFile(path.join(run, "analysis/rules.md"), "utf8");
   assert.match(rules, /## 5\. Method[\s\S]*\(`opening`, topic card[\s\S]*\(`sound`, topic card[\s\S]*## 6\. Judgment rules[\s\S]*## 7\. Output contract/);
 
-  // The observation goes on from observe_video.py's resume command, and the brief later finds the rules unchanged.
+  // The observation goes on from observe_video.py's resume command, which builds the evidence and prints the brief
+  // itself once the observation ends; the brief finds the rules unchanged.
   const { out } = await driveFrom(run, begun.out);
-  assert.equal(build(run, flagsOf(out)).code, 0);
-  const prepared = python("prepare_analysis.py", ["--run", run, "--mode", "diagnosis", "--question-file", "analysis/question.txt"], run);
-  assert.equal(prepared.code, 0, prepared.out);
-  assert.match(prepared.out, /Sections 5-7 are analysis\/rules\.md, read while the evidence arrived/);
+  assert.doesNotMatch(out, /^Pass these to build_content_evidence\.py/m);
+  assert.match(out, /^Evidence \(step 4\) built here, with: --request analysis\/video-analysis-request\.json --envelope snapshot\/envelope-01\.json/m);
+  assert.match(out, /Sections 5-7 are analysis\/rules\.md, read while the evidence arrived/);
   assert.equal(await readFile(path.join(run, "analysis/rules.md"), "utf8"), rules);
-  assert.match(prepared.out, /## 1\. Creator question\n\nis the hook strong enough\? it's my first try/);
+  assert.match(out, /## 1\. Creator question\n\nis the hook strong enough\? it's my first try/);
+  assert.ok(out.includes(await readFile(path.join(run, "analysis/brief.md"), "utf8")), "the printed brief is the file");
 
   // Run again by mistake: the observation is complete, so nothing starts again.
   const again = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
@@ -811,6 +812,106 @@ test("begin_analysis: one command writes what the separate setup steps write and
   assert.equal(again.code, 1, again.out);
   assert.match(again.out, /already complete: never observe twice/);
   assert.doesNotMatch(again.out, /^Hand-over: /m);
+});
+
+// Where the host has no start_skill_run, one command opens the run, and the observation's last command builds the
+// evidence and prints the brief: a default diagnosis goes from the link to the frames and the judgment in two
+// commands. Sections 5-7 are the shipped references/diagnosis-rules.md, which a host may already have preloaded.
+async function beginInWorkspace(t, args) {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-begin-"));
+  if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
+  const begun = python("begin_analysis.py", ["--workspace", workspace, ...args], workspace);
+  assert.equal(begun.code, 0, begun.out);
+  const run = /^Run directory: (\/.+)$/m.exec(begun.out)[1];
+  return { run, begun };
+}
+test("begin --workspace, default diagnosis: the observation ends with the evidence built and the brief printed, well under the 64 KiB output cap", async (t) => {
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis", "--question", "", "--confirmed-by-user"]);
+  assert.equal(begun.out.split("\n")[1], "Sections 5-7 are references/diagnosis-rules.md (this run's analysis/rules.md is the same text): "
+    + "no read when it is already in your context, otherwise read it whole while the evidence arrives.");
+  // A typical short video: 30 seconds, 60 frames (every half second), 20 spoken lines.
+  const frameTimes = Array.from({ length: 60 }, (_, i) => i / 2);
+  const cues = Array.from({ length: 20 }, (_, i) => ({ text: `Line ${i + 1}: here is one more reason your pan keeps burning on a high flame.`,
+    start_ms: i * 1500, end_ms: i * 1500 + 1400 }));
+  const { out } = await driveFrom(run, begun.out, { media: { frameTimes, cues } });
+  const bytes = Buffer.byteLength(out);
+  t.diagnostic(`final observation output: ${bytes} bytes (brief ${Buffer.byteLength(await readFile(path.join(run, "analysis/brief.md")))} bytes)`);
+  assert.ok(bytes < 56 * 1024, `${bytes} bytes`);
+  assert.match(out, /^Envelopes included: snapshot\/envelope-01\.json, snapshot\/envelope-02\.json, snapshot\/envelope-03\.json, snapshot\/envelope-04\.json$/m);
+  assert.match(out, /^\{"status": "ok", "output": "analysis\/content_evidence\.json"/m);
+  // The frame reads come before the brief, the brief is the file, and the last line says to read the frames first.
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.ok(out.indexOf("read: {") < out.indexOf(brief) && out.includes(brief), out);
+  assert.match(brief, /are `references\/diagnosis-rules\.md`/);
+  assert.match(out, /"rules": "references\/diagnosis-rules\.md"/);
+  assert.match(out, /Sections 5-7 are references\/diagnosis-rules\.md \(this run's analysis\/rules\.md is the same text\): no read when it is already in your context, otherwise read it whole now\. Then write analysis\/video_judgment\.json/);
+  assert.equal(out.trimEnd().split("\n").at(-1), "Make the frame reads above before writing anything.");
+  assertValidEvidence(await readJson(path.join(run, "analysis/content_evidence.json")));
+  // A second resume by mistake neither observes nor builds again.
+  const again = shell(resumeOf(begun.out));
+  assert.match(again.out, /already complete; its evidence and brief were built/);
+  // Past the output budget (hosts keep 64 KiB of a command's output) the brief stays in its file and the output says so.
+  const long = spawnSync("python3", ["-B", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import observe_video as o; "
+    + "o.PRINTED[0] = o.PRINT_LIMIT; sys.exit(o.next_step({'mode': 'diagnosis'}, True))", scripts], { cwd: run, encoding: "utf8", env });
+  assert.equal(long.status, 0, long.stderr);
+  const [status, note, last] = long.stdout.trimEnd().split("\n");
+  assert.equal(JSON.parse(status).status, "ready");
+  assert.match(note, /^The brief is too long to print with the observation: read analysis\/brief\.md whole now\. Sections 5-7 are references\/diagnosis-rules\.md/);
+  assert.equal(last, "Make the frame reads above before writing anything.");
+  assert.doesNotMatch(long.stdout, /# Analysis brief/);
+
+  // A per-run flag that comes in later: the printed rebuild command, with it added, builds over the run's own pair,
+  // and the printed step 5 prints the brief again.
+  const line = out.split("\n").find((item) => item.startsWith("If another envelope is persisted after this"));
+  const [rebuild, again5] = line.slice(line.indexOf("cd '")).split(" then ");
+  const rebuilt = shell(`${rebuild} --limitation 'The creator says the audio was replaced after posting.'`);
+  assert.equal(rebuilt.code, 0, rebuilt.out);
+  const evidence = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assert.ok(JSON.stringify(evidence).includes("the audio was replaced after posting"));
+  const index = await readJson(path.join(run, "analysis/content_evidence.references.json"));
+  assert.equal(index.evidence_sha256, createHash("sha256").update(await readFile(path.join(run, "analysis/content_evidence.json"))).digest("hex"));
+  const reprepared = shell(again5);
+  assert.equal(reprepared.code, 0, reprepared.out);
+  assert.match(reprepared.out, /## 3\. Evidence index/);
+  // --replace builds only over the builder's own pair: an evidence file edited by hand is refused, and kept.
+  await writeFile(path.join(run, "analysis/content_evidence.json"), "{}\n");
+  const refused = shell(rebuild);
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /--replace builds again only over this builder's own evidence and reference index/);
+  assert.equal(await readFile(path.join(run, "analysis/content_evidence.json"), "utf8"), "{}\n");
+});
+
+test("the observation builds nothing while the post's metadata still has to come from youtube_get_video, and builds once it is in the run", async (t) => {
+  const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+  const youtubeEnvelope = { schema_version: "1.0", connector_id: "youtube-public", operation: "get_video", status: "completed",
+    data: { rows: [{ id: "dQw4w9WgXcQ", title: "Why your pan burns", duration_seconds: 30 }] } };
+  const args = ["--url", YT, "--subject-state", "unknown", "--mode", "diagnosis", "--question", "", "--confirmed-by-user", "--duration-s", "30"];
+  const waiting = await beginInWorkspace(t, args);
+  const { out } = await driveFrom(waiting.run, waiting.begun.out);
+  assert.match(out, /^Pass these to build_content_evidence\.py/m);
+  assert.match(out, /The post's metadata comes from youtube_get_video, which is not in this run yet/);
+  assert.doesNotMatch(out, /# Analysis brief/);
+  assert.equal(existsSync(path.join(waiting.run, "analysis/content_evidence.json")), false);
+
+  const ready = await beginInWorkspace(t, args);
+  await writeFile(path.join(ready.run, "snapshot/envelope-01.json"), JSON.stringify(youtubeEnvelope));
+  const built = await driveFrom(ready.run, ready.begun.out);
+  assert.doesNotMatch(built.out, /^Pass these/m);
+  assert.match(built.out, /^Envelopes included: snapshot\/envelope-02\.json, snapshot\/envelope-03\.json, snapshot\/envelope-04\.json, snapshot\/envelope-01\.json$/m);
+  assert.match(built.out, /# Analysis brief/);
+});
+
+test("a transcript export builds the evidence at the end of the observation and goes straight to the export", async (t) => {
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "transcript_export", "--confirmed-by-user"]);
+  // No brief, so no rules line: the run directory is the only line before observe_video.py's output.
+  assert.match(begun.out.split("\n")[1], /^Observation source: /);
+  const { out } = await driveFrom(run, begun.out);
+  assert.match(out, /^Envelopes included: snapshot\/envelope-01\.json$/m);
+  assert.match(out, /A transcript export has no brief: now run export_transcript\.py as the Skill says\./);
+  assert.match(out, /then export_transcript\.py as the Skill says/);
+  const exported = shell(`cd '${run}' && python3 -B '${path.join(scripts, "export_transcript.py")}' analysis/content_evidence.json report/`);
+  assert.equal(exported.code, 0, exported.out);
+  assert.match(await readFile(path.join(run, "report/transcript.txt"), "utf8"), /Here is why your pan keeps burning/);
 });
 
 test("begin_analysis: an attached file and a transcript export need no card, and an unknown link must name its platform", async (t) => {
