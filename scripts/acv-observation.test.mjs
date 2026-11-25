@@ -526,6 +526,43 @@ test("one brief from any source: sections 1, 2, 5, 6 and 7 are byte-identical wh
   assert.match(section(briefs.server_frames, 7), /"title": "Video judgment"/);
 });
 
+// A default diagnosis (no topic card, no special ask) always has the same sections 5-7. They ship as
+// references/diagnosis-rules.md, which a host may preload (SKILL.md metadata.preload), so the run names that file
+// instead of its own byte-identical analysis/rules.md and the model reads nothing it already holds.
+const REGENERATE_RULES = "python3 -B -c \"import sys; sys.path.insert(0, 'skills/analyze-content-video/scripts'); "
+  + "import prepare_analysis as p; p.DEFAULT_RULES.write_text(p.default_rules(), encoding='utf-8')\"";
+test("references/diagnosis-rules.md is exactly the default diagnosis rules, and SKILL.md preloads it with the runtime and the card index", async () => {
+  const generated = spawnSync("python3", ["-B", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import prepare_analysis; "
+    + "sys.stdout.buffer.write(prepare_analysis.default_rules().encode('utf-8'))", scripts], { encoding: "utf8", env });
+  assert.equal(generated.status, 0, generated.stderr);
+  const shipped = await readFile(path.join(skill, "references/diagnosis-rules.md"), "utf8");
+  assert.ok(generated.stdout === shipped, `references/diagnosis-rules.md drifted from prepare_analysis.default_rules(); regenerate it from the repository root: ${REGENERATE_RULES}`);
+  assert.match(shipped, /^# Analysis rules\n[\s\S]*## 5\. Method[\s\S]*`diagnosis-default`, base card[\s\S]*## 6\. Judgment rules[\s\S]*## 7\. Output contract/);
+  const body = await readFile(path.join(skill, "SKILL.md"), "utf8");
+  const preload = /^metadata:\n(?:  .*\n)*?  preload: "([^"]*)"$/m.exec(body.split("\n---\n")[0] + "\n");
+  assert.ok(preload, "SKILL.md declares metadata.preload");
+  assert.deepEqual(preload[1].split(" "), ["references/diagnosis-runtime.md", "references/video-method/index.md", "references/diagnosis-rules.md"]);
+  for (const file of preload[1].split(" ")) assert.ok(existsSync(path.join(skill, file)), file);
+});
+
+test("prepare_analysis.py names references/diagnosis-rules.md for a default diagnosis, and analysis/rules.md otherwise", async (t) => {
+  const { run, out } = await observe(t, "server_frames");
+  await writeRequest(run);
+  assert.equal(build(run, flagsOf(out)).code, 0);
+  const prepared = await prepare(run, ["--mode", "diagnosis"]);
+  assert.equal(prepared.code, 0, prepared.out);
+  assert.equal(await readFile(path.join(run, "analysis/rules.md"), "utf8"), await readFile(path.join(skill, "references/diagnosis-rules.md"), "utf8"));
+  assert.equal(JSON.parse(prepared.out.split("\n")[0]).rules, "references/diagnosis-rules.md");
+  assert.match(prepared.out, /Sections 5-7 are references\/diagnosis-rules\.md \(this run's analysis\/rules\.md is the same text\): no read when it is already in your context, otherwise read it whole now\. Then write analysis\/video_judgment\.json/);
+  assert.match(await readFile(path.join(run, "analysis/brief.md"), "utf8"), /Sections 5-7 \(method, judgment rules, output contract\) are `references\/diagnosis-rules\.md`/);
+  // A topic card changes sections 5-7: the run's own file is named, and was just written.
+  const focused = await prepare(run, ["--mode", "diagnosis", "--focus", "opening"]);
+  assert.equal(focused.code, 0, focused.out);
+  assert.equal(JSON.parse(focused.out.split("\n")[0]).rules, "analysis/rules.md");
+  assert.match(focused.out, /Sections 5-7 were just written to analysis\/rules\.md: read it whole now/);
+  assert.doesNotMatch(focused.out, /references\/diagnosis-rules\.md/);
+});
+
 test("method selection: no focus is the base card only; unknown or excess focus exits 2; missing evidence skips or refuses", async (t) => {
   // The duration is given, so the viewing needs no measurement and the run has none.
   const { run, out } = await observe(t, "whole_video", { args: ["--duration-s", "30"] });

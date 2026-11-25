@@ -5,6 +5,7 @@ license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub, Python 3, a writable workspace, and script network access to kabo.sh and the signed storage.googleapis.com links Kabo tool results return (or a host that saves a tool's complete result to a file). Local video files need ffmpeg and ffprobe; optional local speech recognition needs faster-whisper and its small model, installed by the user. Kabo permissions: data; video for the whole-video viewing (analyze_content_video, get_analysis_run)."
 metadata:
   platform_agnostic: "true"
+  preload: "references/diagnosis-runtime.md references/video-method/index.md references/diagnosis-rules.md"
 allowed-tools: get_research_capabilities get_research_data_download read_research_data_artifacts collect_video_media analyze_content_video get_analysis_run identify_video_song summarize_video_comments youtube_get_video youtube_get_channel youtube_list_channel_uploads lookup_instagram_post instagram_get_transcript instagram_resolve_profile instagram_list_posts instagram_list_reels tiktok_search_get_video tiktok_search_get_transcript tiktok_search_list_profile_videos start_skill_run
 ---
 

@@ -22,6 +22,11 @@ sections 1-4 and prints that brief, so it needs no separate read. A requested to
 is skipped: section 3 says so, and its text in section 5 does not apply. When `analysis/rules.md` is missing or no
 longer matches the request (a local file, which has no begin step, or a different `--focus`), it is written again
 here and the output says to read it. This is the only place a brief is assembled.
+
+A default diagnosis (no topic card, no special ask) always gets the same sections 5-7. That text ships as
+`references/diagnosis-rules.md` (generated from `default_rules()`; a test fails when it drifts), which a host may
+preload into the model's context. When a run's `analysis/rules.md` is byte-identical to it, the output names that
+reference instead (`rules_source`), so the model reads nothing it already holds.
 """
 from __future__ import annotations
 
@@ -79,6 +84,9 @@ NEXT = {
 }
 # Sections 5-7 of the brief, written before the fetch; sections 1-4 are analysis/brief.md.
 RULES = "rules.md"
+# Sections 5-7 of a default diagnosis, shipped with the Skill so a host can preload them (default_rules()).
+DEFAULT_RULES = SKILL / "references" / "diagnosis-rules.md"
+DEFAULT_RULES_NAME = "references/diagnosis-rules.md"
 DIAGNOSIS_REPORT = SKILL / "references" / "diagnosis-report.md"
 # The measured signals worth a line in the index; the rest of media.probed stays in the evidence file.
 PROBED_SUMMARY = ("shots", "silence", "freeze", "framing")
@@ -618,8 +626,36 @@ def write_rules(analysis: Path, mode: str, focus: list[str], ask: str | None = N
     return True
 
 
+def default_rules(library: Path = select_method.LIBRARY) -> str:
+    """Sections 5-7 of a default diagnosis: no topic card and no special ask. `references/diagnosis-rules.md` is
+    exactly this text."""
+    index = select_method.load_index(library)
+    return rules("diagnosis", select_method.select(index, "diagnosis", [], None, None), library, index)
+
+
+def rules_source(analysis: Path) -> str:
+    """Where this run's sections 5-7 are to be read: `references/diagnosis-rules.md` when `analysis/rules.md` is
+    byte-identical to it (a default diagnosis), otherwise `analysis/rules.md`."""
+    try:
+        if (analysis / RULES).read_bytes() == DEFAULT_RULES.read_bytes():
+            return DEFAULT_RULES_NAME
+    except OSError:
+        pass
+    return f"analysis/{RULES}"
+
+
+def rules_line(source: str, *, now: bool) -> str:
+    """One sentence naming where sections 5-7 are and whether they still need a read."""
+    if source == DEFAULT_RULES_NAME:
+        return (f"Sections 5-7 are {DEFAULT_RULES_NAME} (this run's analysis/{RULES} is the same text): no read "
+                "when it is already in your context, otherwise read it whole " + ("now" if now else
+                                                                                  "while the evidence arrives") + ".")
+    return (f"Sections 5-7 are analysis/{RULES}: read it whole " + ("now" if now else "while the evidence arrives")
+            + ".")
+
+
 def brief(question: str, mode: str, focus: list[str], method: dict[str, Any], evidence_lines: list[str],
-          deterministic_lines: list[str], subject_state: str = "unknown") -> str:
+          deterministic_lines: list[str], subject_state: str = "unknown", rules_path: str = f"analysis/{RULES}") -> str:
     """Sections 1-4: the request and what the evidence holds."""
     ask = method.get("ask")
     sections = [
@@ -633,7 +669,7 @@ def brief(question: str, mode: str, focus: list[str], method: dict[str, Any], ev
         ("4. Deterministic results", deterministic_lines),
     ]
     out = ["# Analysis brief", "", "Sections 1-4, from this run's evidence. Sections 5-7 (method, judgment rules, "
-           f"output contract) are `analysis/{RULES}`. Together they are the only analysis instruction for this run.",
+           f"output contract) are `{rules_path}`. Together they are the only analysis instruction for this run.",
            ""]
     for title, lines in sections:
         out += [f"## {title}", "", *lines]
@@ -678,26 +714,35 @@ def main(argv: list[str] | None = None) -> int:
     try:
         (analysis / "method.json").write_text(json.dumps(method, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         source = acv_timing.load(analysis).get("observation_source")
+        rewritten = write_rules(analysis, args.mode, focus, ask, args.library)
+        where = rules_source(analysis)
         text = brief(question, args.mode, focus, method,
                      evidence_index(evidence, source, method, request), deterministic(run, args.mode, evidence, request),
-                     subject_state=str((request.get("source") or {}).get("subject_state") or "unknown"))
+                     subject_state=str((request.get("source") or {}).get("subject_state") or "unknown"),
+                     rules_path=where)
         (analysis / "brief.md").write_text(text, encoding="utf-8")
-        rewritten = write_rules(analysis, args.mode, focus, ask, args.library)
     except (ValueError, OSError, KeyError, TypeError, RuntimeError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}, ensure_ascii=False))
         return 1
     acv_timing.append(analysis, "prepare", started)
-    print(json.dumps({"status": "ready", "brief": "analysis/brief.md", "rules": f"analysis/{RULES}",
+    print(json.dumps({"status": "ready", "brief": "analysis/brief.md", "rules": where,
                       "cards": [card["id"] for card in method["cards"]], "skipped": method["skipped"]},
                      ensure_ascii=False))
     # The brief itself, so it needs no read of its own.
     print(text, end="")
-    print(f"(End of analysis/brief.md; read the file only if the text above is cut off.) "
-          + (f"Sections 5-7 were just written to analysis/{RULES}: read it whole now, then {NEXT[args.mode]}."
-             if rewritten else
-             f"Sections 5-7 are analysis/{RULES}, read while the evidence arrived (read it whole now if you have "
-             f"not). Now {NEXT[args.mode]}."))
+    print(end_line(args.mode, where, rewritten))
     return 0
+
+
+def end_line(mode: str, where: str, rewritten: bool | None) -> str:
+    """The line after the printed brief: where sections 5-7 are, and what to write next."""
+    head = "(End of analysis/brief.md; read the file only if the text above is cut off.) "
+    if where == DEFAULT_RULES_NAME:
+        return head + rules_line(where, now=True) + f" Then {NEXT[mode]}."
+    if rewritten:
+        return head + f"Sections 5-7 were just written to analysis/{RULES}: read it whole now, then {NEXT[mode]}."
+    return (head + f"Sections 5-7 are analysis/{RULES}, read while the evidence arrived (read it whole now if you have "
+            f"not). Now {NEXT[mode]}.")
 
 
 if __name__ == "__main__":
