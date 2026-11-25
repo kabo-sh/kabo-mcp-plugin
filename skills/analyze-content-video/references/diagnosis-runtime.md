@@ -109,12 +109,12 @@ passes `source.subject_state` from the request to `compute_deterministic.py`: `o
 
 ## 3. The judgment
 
-The judgment schema in section 7 of the brief (the rules file the run names: `analysis/rules.md`, or
-`references/diagnosis-rules.md` for a default diagnosis) projects the model-authored fields from
-the final analysis schema. Read it whole and write only this partial judgment, using its shapes and
-enums. Keep `revisions` empty for `third_party` and `unknown`, and cite exact refs from the reference
-index. The composer supplies evidence lineage, completeness and the unchanged `deterministic.json`
-block.
+The judgment schema in section 7 of the brief (the rules the run names: `references/diagnosis-rules.md`
+for a diagnosis, with any topic cards the brief prints, otherwise `analysis/rules.md`) projects the
+model-authored fields from the final analysis schema. Read it whole and write only this partial
+judgment, using its shapes and enums. Keep `revisions` empty for `third_party` and `unknown`, and
+cite exact refs from the reference index. The composer supplies evidence lineage, completeness and
+the unchanged `deterministic.json` block.
 
 After saving `analysis/video_judgment.json`, run `--check-judgment-refs` (a read-only step).
 Advance only on `status: ready`. For `needs_correction`, read the named evidence values, correct

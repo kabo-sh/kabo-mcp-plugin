@@ -26,7 +26,12 @@ here and the output says to read it. This is the only place a brief is assembled
 A default diagnosis (no topic card, no special ask) always gets the same sections 5-7. That text ships as
 `references/diagnosis-rules.md` (generated from `default_rules()`; a test fails when it drifts), which a host may
 preload into the model's context. When a run's `analysis/rules.md` is byte-identical to it, the output names that
-reference instead (`rules_source`), so the model reads nothing it already holds.
+reference instead (`rules_source`), so the model reads nothing it already holds. A diagnosis with topic cards differs
+from it only in section 5, where the cards take the place of the default's opening line ("No topic card was asked
+for: ..."); when that is the whole difference, checked on the text itself (`topic_cards`), the brief ends with those
+cards exactly as `analysis/rules.md` holds them and the output names the reference plus those cards, so such a run
+needs no read of `analysis/rules.md` either. Any other difference (another mode, a special ask) keeps the run's own
+file.
 """
 from __future__ import annotations
 
@@ -88,6 +93,10 @@ RULES = "rules.md"
 # Sections 5-7 of a default diagnosis, shipped with the Skill so a host can preload them (default_rules()).
 DEFAULT_RULES = SKILL / "references" / "diagnosis-rules.md"
 DEFAULT_RULES_NAME = "references/diagnosis-rules.md"
+# Sections 5-7 of a diagnosis with topic cards that differ from DEFAULT_RULES only by those cards (topic_cards()).
+CARDS_SOURCE = DEFAULT_RULES_NAME + " + topic cards"
+# The line section 5 of a default diagnosis opens with (method_section); with topic cards it is not there.
+DEFAULT_ONLY = "No topic card was asked for: the base card alone gives the default analysis."
 DIAGNOSIS_REPORT = SKILL / "references" / "diagnosis-report.md"
 # The measured signals worth a line in the index; the rest of media.probed stays in the evidence file.
 PROBED_SUMMARY = ("shots", "silence", "freeze", "framing")
@@ -605,7 +614,7 @@ def method_section(method: dict[str, Any], library: Path, index: dict[str, Any])
     named in section 3, never removed here, so this section never changes once the evidence arrives."""
     lines = []
     if method.get("default_only"):
-        lines += ["No topic card was asked for: the base card alone gives the default analysis.", ""]
+        lines += [DEFAULT_ONLY, ""]
     for card in method["cards"]:
         text = select_method.card_text(library, index, card["id"]).lstrip()
         if text.startswith("# "):
@@ -679,30 +688,69 @@ def default_rules(library: Path = select_method.LIBRARY) -> str:
     return rules("diagnosis", select_method.select(index, "diagnosis", [], None, None), library, index)
 
 
+def topic_cards(analysis: Path) -> str | None:
+    """This run's topic cards in section 5, exactly as `analysis/rules.md` holds them, when that file is
+    `references/diagnosis-rules.md` with only the default's opening line of section 5 (DEFAULT_ONLY) left out and
+    these cards added after the base card, every other byte the same (the base card, sections 6-7, the head).
+    None when the file is missing, is the default itself or differs in any other way."""
+    try:
+        text = (analysis / RULES).read_text(encoding="utf-8")
+        default = DEFAULT_RULES.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    cut = default.find("\n## 6. Judgment rules\n")
+    line = "\n" + DEFAULT_ONLY + "\n\n"
+    if cut < 0 or default.count(line) != 1 or default.index(line) > cut:
+        return None
+    head, tail = default[:cut + 1].replace(line, "\n", 1), default[cut + 1:]
+    if text == default or len(text) <= len(head) + len(tail) or not (text.startswith(head) and text.endswith(tail)):
+        return None
+    cards = text[len(head):len(text) - len(tail)]
+    return cards.rstrip("\n") if cards.startswith("### ") else None
+
+
 def rules_source(analysis: Path) -> str:
     """Where this run's sections 5-7 are to be read: `references/diagnosis-rules.md` when `analysis/rules.md` is
-    byte-identical to it (a default diagnosis), otherwise `analysis/rules.md`."""
+    byte-identical to it (a default diagnosis), that file plus the topic cards the brief prints (CARDS_SOURCE) when
+    they are the only difference (topic_cards), otherwise `analysis/rules.md`."""
     try:
         if (analysis / RULES).read_bytes() == DEFAULT_RULES.read_bytes():
             return DEFAULT_RULES_NAME
     except OSError:
         pass
+    if topic_cards(analysis) is not None:
+        return CARDS_SOURCE
     return f"analysis/{RULES}"
 
 
 def rules_line(source: str, *, now: bool) -> str:
     """One sentence naming where sections 5-7 are and whether they still need a read."""
+    when = "now" if now else "while the evidence arrives"
     if source == DEFAULT_RULES_NAME:
         return (f"Sections 5-7 are {DEFAULT_RULES_NAME} (this run's analysis/{RULES} is the same text): no read "
-                "when it is already in your context, otherwise read it whole " + ("now" if now else
-                                                                                  "while the evidence arrives") + ".")
-    return (f"Sections 5-7 are analysis/{RULES}: read it whole " + ("now" if now else "while the evidence arrives")
-            + ".")
+                f"when it is already in your context, otherwise read it whole {when}.")
+    if source == CARDS_SOURCE:
+        return (f"Sections 5-7 are {DEFAULT_RULES_NAME} plus this run's topic cards, which the brief prints at its "
+                "end (in section 5 they follow the base card, in place of the line \"No topic card was asked "
+                f"for\"): do not read analysis/{RULES}; read {DEFAULT_RULES_NAME} whole {when} only when it is not "
+                "already in your context.")
+    return f"Sections 5-7 are analysis/{RULES}: read it whole {when}."
+
+
+def cards_block(cards: str) -> list[str]:
+    """The end of the brief when sections 5-7 are CARDS_SOURCE: the topic cards, exactly as analysis/rules.md holds
+    them in its section 5."""
+    return ["## Topic cards for section 5", "",
+            f"This run's topic cards, exactly as section 5 of analysis/{RULES} holds them. In section 5 of "
+            f"`{DEFAULT_RULES_NAME}` they follow the base card, and its line \"{DEFAULT_ONLY}\" does not apply.", "",
+            cards, ""]
 
 
 def brief(question: str, mode: str, focus: list[str], method: dict[str, Any], evidence_lines: list[str],
-          deterministic_lines: list[str], subject_state: str = "unknown", rules_path: str = f"analysis/{RULES}") -> str:
-    """Sections 1-4: the request and what the evidence holds."""
+          deterministic_lines: list[str], subject_state: str = "unknown", rules_path: str = f"analysis/{RULES}",
+          cards: str | None = None) -> str:
+    """Sections 1-4: the request and what the evidence holds; with `cards` (sections 5-7 are CARDS_SOURCE), the
+    topic cards after them."""
     ask = method.get("ask")
     sections = [
         ("1. Creator question", [question.strip() or "(no words beyond the link: a default analysis)", ""]),
@@ -714,11 +762,15 @@ def brief(question: str, mode: str, focus: list[str], method: dict[str, Any], ev
                                *evidence_lines]),
         ("4. Deterministic results", deterministic_lines),
     ]
+    where = (f"`{DEFAULT_RULES_NAME}`, with this run's topic cards (at the end of this brief) in its section 5"
+             if cards is not None else f"`{rules_path}`")
     out = ["# Analysis brief", "", "Sections 1-4, from this run's evidence. Sections 5-7 (method, judgment rules, "
-           f"output contract) are `{rules_path}`. Together they are the only analysis instruction for this run.",
+           f"output contract) are {where}. Together they are the only analysis instruction for this run.",
            ""]
     for title, lines in sections:
         out += [f"## {title}", "", *lines]
+    if cards is not None:
+        out += cards_block(cards)
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -765,7 +817,7 @@ def main(argv: list[str] | None = None) -> int:
         text = brief(question, args.mode, focus, method,
                      evidence_index(evidence, source, method, request), deterministic(run, args.mode, evidence, request),
                      subject_state=str((request.get("source") or {}).get("subject_state") or "unknown"),
-                     rules_path=where)
+                     rules_path=where, cards=topic_cards(analysis) if where == CARDS_SOURCE else None)
         (analysis / "brief.md").write_text(text, encoding="utf-8")
     except (ValueError, OSError, KeyError, TypeError, RuntimeError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}, ensure_ascii=False))
@@ -783,7 +835,7 @@ def main(argv: list[str] | None = None) -> int:
 def end_line(mode: str, where: str, rewritten: bool | None) -> str:
     """The line after the printed brief: where sections 5-7 are, and what to write next."""
     head = "(End of analysis/brief.md; read the file only if the text above is cut off.) "
-    if where == DEFAULT_RULES_NAME:
+    if where in (DEFAULT_RULES_NAME, CARDS_SOURCE):
         return head + rules_line(where, now=True) + f" Then {NEXT[mode]}."
     if rewritten:
         return head + f"Sections 5-7 were just written to analysis/{RULES}: read it whole now, then {NEXT[mode]}."

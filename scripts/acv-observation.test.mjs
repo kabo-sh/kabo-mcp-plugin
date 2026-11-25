@@ -467,6 +467,10 @@ const section = (brief, number) => {
   const end = brief.indexOf("\n## ", start + 4);
   return brief.slice(start, end === -1 ? undefined : end);
 };
+// A diagnosis with topic cards: sections 5-7 are the shipped default rules plus the cards the brief prints at its end.
+const cardsLine = (when) => "Sections 5-7 are references/diagnosis-rules.md plus this run's topic cards, which the brief prints at its end "
+  + "(in section 5 they follow the base card, in place of the line \"No topic card was asked for\"): do not read analysis/rules.md; "
+  + `read references/diagnosis-rules.md whole ${when} only when it is not already in your context.`;
 const CREDIT_LINE = /^Credit check: where the Kabo tool start_skill_run exists, call it now \(skill_id analyze-content-video, run_id \d{8}T\d{6}Z-[0-9a-f]{12}\) and wait for its answer before making any call printed below; if it fails with credits_exhausted, tell the creator and stop\. This command fetched nothing itself\.$/;
 // The whole brief: sections 1-4 (analysis/brief.md, from the evidence) and 5-7 (analysis/rules.md, from the request).
 const readBrief = async (run) => (await readFile(path.join(run, "analysis/brief.md"), "utf8")) + "\n"
@@ -487,9 +491,10 @@ test("one brief from any source: sections 1, 2, 5, 6 and 7 are byte-identical wh
     assert.equal(build(run, flagsOf(out)).code, 0);
     const prepared = await prepare(run, ["--mode", "diagnosis", "--focus", "opening"]);
     assert.equal(prepared.code, 0, prepared.out);
-    // The brief comes printed, and the rules file (written here: no begin step ran) is to be read now.
+    // The brief comes printed; the rules file (written here: no begin step ran) is the default plus the topic card,
+    // which the brief prints, so it needs no read.
     assert.match(prepared.out, /## 3\. Evidence index/);
-    assert.match(prepared.out, /Sections 5-7 were just written to analysis\/rules\.md: read it whole now/);
+    assert.ok(prepared.out.includes(cardsLine("now")), prepared.out);
     briefs[source] = await readBrief(run);
     rules[source] = await readFile(path.join(run, "analysis/rules.md"), "utf8");
     assert.ok(prepared.out.includes(await readFile(path.join(run, "analysis/brief.md"), "utf8")), "the printed brief is the file");
@@ -502,7 +507,7 @@ test("one brief from any source: sections 1, 2, 5, 6 and 7 are byte-identical wh
     assert.ok(existsSync(path.join(run, "analysis/deterministic.json")));
     // Unchanged on a second run: nothing new to read.
     const again = await prepare(run, ["--mode", "diagnosis", "--focus", "opening"]);
-    assert.match(again.out, /Sections 5-7 are analysis\/rules\.md, read while the evidence arrived/);
+    assert.ok(again.out.includes(cardsLine("now")), again.out);
   }
   if (hasFfmpeg) {
     const run = await localRun(t);
@@ -513,7 +518,7 @@ test("one brief from any source: sections 1, 2, 5, 6 and 7 are byte-identical wh
   }
   const headings = briefs.server_frames.split("\n").filter((line) => line.startsWith("## "));
   assert.deepEqual(headings, ["## 1. Creator question", "## 2. Mode", "## 3. Evidence index", "## 4. Deterministic results",
-    "## 5. Method", "## 6. Judgment rules", "## 7. Output contract"]);
+    "## Topic cards for section 5", "## 5. Method", "## 6. Judgment rules", "## 7. Output contract"]);
   // Sections 5-7 depend on the request alone: the rules file is the same whichever source observed the video.
   for (const [source, text] of Object.entries(rules)) assert.equal(text, rules.server_frames, source);
   assert.match(rules.server_frames, /^# Analysis rules\n/);
@@ -546,7 +551,7 @@ test("references/diagnosis-rules.md is exactly the default diagnosis rules, and 
   for (const file of preload[1].split(" ")) assert.ok(existsSync(path.join(skill, file)), file);
 });
 
-test("prepare_analysis.py names references/diagnosis-rules.md for a default diagnosis, and analysis/rules.md otherwise", async (t) => {
+test("prepare_analysis.py names references/diagnosis-rules.md for a default diagnosis, that file plus the printed topic cards for a diagnosis with cards, and analysis/rules.md otherwise", async (t) => {
   const { run, out } = await observe(t, "server_frames");
   await writeRequest(run);
   assert.equal(build(run, flagsOf(out)).code, 0);
@@ -556,12 +561,36 @@ test("prepare_analysis.py names references/diagnosis-rules.md for a default diag
   assert.equal(JSON.parse(prepared.out.split("\n")[0]).rules, "references/diagnosis-rules.md");
   assert.match(prepared.out, /Sections 5-7 are references\/diagnosis-rules\.md \(this run's analysis\/rules\.md is the same text\): no read when it is already in your context, otherwise read it whole now\. Then write analysis\/video_judgment\.json/);
   assert.match(await readFile(path.join(run, "analysis/brief.md"), "utf8"), /Sections 5-7 \(method, judgment rules, output contract\) are `references\/diagnosis-rules\.md`/);
-  // A topic card changes sections 5-7: the run's own file is named, and was just written.
-  const focused = await prepare(run, ["--mode", "diagnosis", "--focus", "opening"]);
+  // Topic cards change only section 5: the default rules plus the cards, printed at the end of the brief, exactly
+  // as analysis/rules.md holds them, so the run's own file needs no read.
+  const shipped = await readFile(path.join(skill, "references/diagnosis-rules.md"), "utf8");
+  const focused = await prepare(run, ["--mode", "diagnosis", "--focus", "opening,narrative-structure"]);
   assert.equal(focused.code, 0, focused.out);
-  assert.equal(JSON.parse(focused.out.split("\n")[0]).rules, "analysis/rules.md");
-  assert.match(focused.out, /Sections 5-7 were just written to analysis\/rules\.md: read it whole now/);
-  assert.doesNotMatch(focused.out, /references\/diagnosis-rules\.md/);
+  assert.equal(JSON.parse(focused.out.split("\n")[0]).rules, "references/diagnosis-rules.md + topic cards");
+  assert.equal(focused.out.trimEnd().split("\n").at(-1), "(End of analysis/brief.md; read the file only if the text above is cut off.) "
+    + cardsLine("now") + " Then write analysis/video_judgment.json as section 7 says.");
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.ok(focused.out.includes(brief), "the printed brief is the file, cards included");
+  assert.match(brief, /are `references\/diagnosis-rules\.md`, with this run's topic cards \(at the end of this brief\) in its section 5\./);
+  const cards = brief.slice(brief.indexOf("\n### ", brief.indexOf("## Topic cards for section 5")) + 1).trimEnd();
+  assert.match(cards, /^### Opening \(`opening`, topic card[\s\S]*\n### Narrative structure \(`narrative-structure`, topic card/);
+  assert.doesNotMatch(cards, /diagnosis-default|^## /m);
+  // Exact: the default with its opening line of section 5 left out and the printed cards after the base card is
+  // byte for byte the run's own rules file.
+  const DEFAULT_ONLY = "No topic card was asked for: the base card alone gives the default analysis.\n\n";
+  const rebuilt = shipped.replace(DEFAULT_ONLY, "").replace("\n## 6. Judgment rules\n", `\n${cards}\n\n## 6. Judgment rules\n`);
+  assert.ok(rebuilt === await readFile(path.join(run, "analysis/rules.md"), "utf8"), "default rules + printed cards = analysis/rules.md");
+  // Any other difference keeps the run's own file: a content read has no shipped default.
+  const read = await prepare(run, ["--mode", "content_read", "--focus", "opening"]);
+  assert.equal(read.code, 0, read.out);
+  assert.equal(JSON.parse(read.out.split("\n")[0]).rules, "analysis/rules.md");
+  assert.match(read.out, /Sections 5-7 were just written to analysis\/rules\.md: read it whole now/);
+  assert.doesNotMatch(read.out, /references\/diagnosis-rules\.md|## Topic cards for section 5/);
+  // A rules file that differs from the default anywhere else is never taken for default plus cards.
+  await writeFile(path.join(run, "analysis/rules.md"), rebuilt.replace("## 6. Judgment rules\n", "## 6. Judgment rules\n\nOne more rule.\n"));
+  const odd = spawnSync("python3", ["-B", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import prepare_analysis as p; from pathlib import Path; "
+    + "print(p.rules_source(Path(sys.argv[2])), p.topic_cards(Path(sys.argv[2])))", scripts, path.join(run, "analysis")], { encoding: "utf8", env });
+  assert.equal(odd.stdout.trim(), "analysis/rules.md None", odd.stderr);
 });
 
 test("method selection: no focus is the base card only; unknown or excess focus exits 2; missing evidence skips or refuses", async (t) => {
@@ -753,11 +782,11 @@ test("begin_analysis: one command writes what the separate setup steps write and
   const begun = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
     "--question", question, "--focus", "opening,sound", "--confirmed-by-user"], run);
   assert.equal(begun.code, 0, begun.out);
-  // The same output but for the run's own path and the run key derived from it, after one leading line: a topic card
-  // makes sections 5-7 this run's own file.
+  // The same output but for the run's own path and the run key derived from it, after one leading line: with topic
+  // cards, sections 5-7 are the shipped default plus those cards, which the brief prints.
   const same = (out, dir) => out.replaceAll(dir, "<run>").replace(/"run_key": "acv:[0-9a-f]+"/g, '"run_key": "<key>"');
   const [rulesLine, ...observed] = begun.out.split("\n");
-  assert.equal(rulesLine, "Sections 5-7 are analysis/rules.md: read it whole while the evidence arrives.");
+  assert.equal(rulesLine, cardsLine("while the evidence arrives"));
   assert.equal(same(observed.join("\n"), run), same(before.out, separate));
   assert.ok(begun.out.split("\n").some((line) => line.startsWith("Hand-over: ")));
   assert.equal(path.basename(hostHandover(begun.out)?.resume.script ?? ""), "observe_video.py");
@@ -805,7 +834,8 @@ test("begin_analysis: one command writes what the separate setup steps write and
   const { out } = await driveFrom(run, begun.out);
   assert.doesNotMatch(out, /^Pass these to build_content_evidence\.py/m);
   assert.match(out, /^Evidence \(step 4\) built here, with: --request analysis\/video-analysis-request\.json --envelope snapshot\/envelope-01\.json/m);
-  assert.match(out, /Sections 5-7 are analysis\/rules\.md, read while the evidence arrived/);
+  assert.ok(out.includes(cardsLine("now")), out);
+  assert.match(out, /## Topic cards for section 5\n[\s\S]*\(`opening`, topic card[\s\S]*\(`sound`, topic card/);
   assert.equal(await readFile(path.join(run, "analysis/rules.md"), "utf8"), rules);
   assert.match(out, /## 1\. Creator question\n\nis the hook strong enough\? it's my first try/);
   assert.ok(out.includes(await readFile(path.join(run, "analysis/brief.md"), "utf8")), "the printed brief is the file");
@@ -884,6 +914,32 @@ test("begin --workspace, default diagnosis: the observation ends with the eviden
   assert.equal(refused.code, 1, refused.out);
   assert.match(refused.out, /--replace builds again only over this builder's own evidence and reference index/);
   assert.equal(await readFile(path.join(run, "analysis/content_evidence.json"), "utf8"), "{}\n");
+});
+
+test("begin --workspace, diagnosis with the two largest topic cards: the brief ends with the cards, no rules file to read, still under the output cap", async (t) => {
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", "how are my hook and my music?", "--focus", "opening,sound", "--confirmed-by-user"]);
+  assert.equal(begun.out.split("\n")[2], cardsLine("while the evidence arrives"));
+  const frameTimes = Array.from({ length: 60 }, (_, i) => i / 2);
+  const cues = Array.from({ length: 20 }, (_, i) => ({ text: `Line ${i + 1}: here is one more reason your pan keeps burning on a high flame.`,
+    start_ms: i * 1500, end_ms: i * 1500 + 1400 }));
+  const { out } = await driveFrom(run, begun.out, { media: { frameTimes, cues } });
+  const bytes = Buffer.byteLength(out);
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const cards = brief.slice(brief.indexOf("## Topic cards for section 5"));
+  t.diagnostic(`final observation output: ${bytes} bytes (brief ${Buffer.byteLength(brief)} bytes, of which topic cards ${Buffer.byteLength(cards)})`);
+  assert.ok(bytes < 56 * 1024, `${bytes} bytes`);
+  assert.ok(out.includes(brief), "the brief, cards included, is printed whole");
+  assert.match(out, /"rules": "references\/diagnosis-rules\.md \+ topic cards"/);
+  assert.ok(out.includes(cardsLine("now") + " Then write analysis/video_judgment.json as section 7 says."), out);
+  assert.doesNotMatch(out, /analysis\/rules\.md: read it whole|(?<!not )read analysis\/rules\.md/);
+  assert.equal(out.trimEnd().split("\n").at(-1), "Make the frame reads above before writing anything.");
+  // Past the output budget the brief stays in its file, which holds the cards too.
+  const long = spawnSync("python3", ["-B", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import observe_video as o; "
+    + "o.PRINTED[0] = o.PRINT_LIMIT; sys.exit(o.next_step({'mode': 'diagnosis'}, True))", scripts], { cwd: run, encoding: "utf8", env });
+  assert.equal(long.status, 0, long.stderr);
+  const note = long.stdout.trimEnd().split("\n")[1];
+  assert.ok(note.startsWith("The brief is too long to print with the observation: read analysis/brief.md whole now. " + cardsLine("now")), note);
 });
 
 // The opening on every host: where start_skill_run exists, the model calls it after begin_analysis.py printed the run
