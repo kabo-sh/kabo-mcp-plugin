@@ -110,6 +110,17 @@ test('publish --hold: a held skill stays out of the overlay (Web uses the origin
   assert.deepEqual(Object.keys(overlay.skills), ['alpha-skill']);
 });
 
+test('test target with --skills: every other skill already on test stays as it was (only the named one is republished)', async () => {
+  const { store } = await liveStore();
+  const root = pluginRepo({ 'alpha-skill': '# a1', 'beta-skill': '# b1' });
+  await publish({ store, pluginRoot: root, pluginCommit: COMMIT, targetName: 'test' });
+  const before = JSON.parse((await store.read(TARGETS.test)).bytes).skills;
+  const root2 = pluginRepo({ 'alpha-skill': '# a2', 'beta-skill': '# b2' });
+  const result = await publish({ store, pluginRoot: root2, pluginCommit: 'd'.repeat(40), targetName: 'test', skills: ['alpha-skill'] });
+  assert.deepEqual(result.skills['beta-skill'], before['beta-skill']);
+  assert.notDeepEqual(result.skills['alpha-skill'], before['alpha-skill']);
+});
+
 test('test target: entries this plugin cannot produce (published via an alias) are preserved as-is; the production target does not preserve them', async () => {
   const { store } = await liveStore();
   const foreign = { version: '0.1.52', object: `bundles/creator-remake-web/0.1.52/${'b'.repeat(64)}.json`, content_checksum: `sha256:${'b'.repeat(64)}` };
