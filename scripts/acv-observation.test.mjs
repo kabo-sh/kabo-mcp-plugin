@@ -1119,7 +1119,14 @@ test("SKILL.md: cards are chosen before the observation, the credit check comes 
   assert.ok(text.indexOf("start_skill_run` once") < text.indexOf("scripts/begin_analysis.py --url"), "the run is declared before the fetch starts");
   assert.match(text, /wait for its answer before `begin_analysis\.py`, which starts the observation, and never send them in the same turn/);
   assert.ok(text.indexOf("scripts/begin_analysis.py --url") < text.indexOf("prepare_analysis.py --run"));
-  assert.match(text, /read `analysis\/rules\.md` whole/);
+  assert.match(text, /read the rules file it named whole \(sections 5-7 of the brief/);
+  // Without start_skill_run there is no declaration to wait for: begin_analysis.py --workspace is the one setup command.
+  assert.match(text, /Setup is one turn without `start_skill_run`\s+\(`begin_analysis\.py --workspace`, which starts the fetch\) and three with it/);
+  assert.match(text, /begin_analysis\.py --workspace '<user-workspace>'` and the same arguments\. It\s+reserves the run; never pass `--workspace` again/);
+  // The observation's last command builds and prepares; an envelope or per-run flag that comes later means one rebuild.
+  assert.match(text, /the\s+same command also runs steps 4 and 5/);
+  assert.match(text, /If you persist an envelope after that \(YouTube metadata, a post row, a\s+baseline\) or a per-run flag applies, run steps 4 and 5 once more/);
+  assert.match(text, /A file this\s+Skill's `metadata\.preload` lists \(those two and `references\/diagnosis-rules\.md`\) that the host already\s+put in your context needs no read/);
   assert.match(text, /when a tool says the platform or link is not\s+supported, tell the creator which link could not be read and stop/);
   assert.doesNotMatch(text, /Douyin, Xiaohongshu, Kuaishou, Facebook, Bilibili/);
   assert.match(text, /kabo-file:<id>/);

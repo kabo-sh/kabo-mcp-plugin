@@ -58,7 +58,11 @@ short-link ID. A summary of the video written by someone else is not a frame set
 Every response this request produced must be staged and persisted into this run's `snapshot/`
 before the builder runs. With `--snapshot-root`, the builder binds this run's staged images to
 canonical frame IDs by SHA256 and writes matching copies under portable filenames in `analysis/`.
-Read the paths in `ContentEvidence`, not the staging filenames. Build the evidence once.
+Read the paths in `ContentEvidence`, not the staging filenames. Build the evidence once: in a run
+begun with `begin_analysis.py` the observation's last command builds it from every envelope then in
+`snapshot/` and prints the brief. It builds again only with `--replace` (as the observation prints
+it), when an envelope or a per-run flag below comes in after that build; then prepare the brief
+again.
 
 Per-run flags, on the evidence-building command only:
 

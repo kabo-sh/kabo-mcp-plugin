@@ -47,14 +47,16 @@ unconfirmed.
 
 ## Running commands
 
-`<skill directory>` is the folder holding this `SKILL.md`. Reserve exactly one run per request:
+`<skill directory>` is the folder holding this `SKILL.md`. Reserve exactly one run per request.
+Where the Kabo tool `start_skill_run` is available, and for a local file, reserve it with:
 
 ```sh
 python3 '<skill directory>/scripts/static_host.py' init --workspace '<user-workspace>'
 ```
 
-It prints the run directory. Every later command carries it, because hosts keep neither environment
-variables nor the working directory between commands:
+Otherwise `begin_analysis.py --workspace` reserves it (analysis step 2). Both print the run
+directory. Every later command carries it, because hosts keep neither environment variables nor the
+working directory between commands:
 `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/…' …`.
 `snapshot/…`, `analysis/…` and `report/…` are relative to the run directory. Every command here is
 complete: do not probe scripts with `--help` or read their source. Quote paths and use `grep` rather
@@ -64,7 +66,7 @@ completed retrieval or rewrite a judgment to get past a validator. A check that 
 `needs_correction` is not a failure (`finish_diagnosis.py --check` exits 3 for it): the brief
 allows its one correction.
 
-**Declare the run.** Right after the run directory is reserved, call the Kabo tool `start_skill_run` once with `skill_id` `analyze-content-video` and `run_id` set to the last path segment of the run directory. It records the run once, so never call it again for the same run. If it fails with `credits_exhausted`, tell the user their credits are used up, give them the link in the error, and stop. If the tool is not available, continue without it. It is the credit check, so it comes before the first fetch: wait for its answer before `begin_analysis.py`, which starts the observation, and never send them in the same turn. `get_research_capabilities` may go in the same turn as `start_skill_run`.
+**Declare the run.** Where it is available, call the Kabo tool `start_skill_run` once right after `init`, with `skill_id` `analyze-content-video` and `run_id` set to the last path segment of the run directory. It records the run once, so never call it again for the same run. If it fails with `credits_exhausted`, tell the user their credits are used up, give them the link in the error, and stop. It is the credit check, so it comes before the first fetch: wait for its answer before `begin_analysis.py`, which starts the observation, and never send them in the same turn. `get_research_capabilities` may go in the same turn as `start_skill_run`.
 
 ## Data tools and complete evidence
 
@@ -190,9 +192,12 @@ judgment.
 ## Analysis
 
 Diagnosis, content read and craft teardown run the same steps. Read
-`references/diagnosis-runtime.md` whole before the first command, in the same turn as `init`, and
-`references/video-method/index.md` with it when the creator asked something specific. Setup is
-three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which starts the fetch.
+`references/diagnosis-runtime.md` whole before the first command, in the same turn as it, and
+`references/video-method/index.md` with it when the creator asked something specific. A file this
+Skill's `metadata.preload` lists (those two and `references/diagnosis-rules.md`) that the host already
+put in your context needs no read. Setup is one turn without `start_skill_run`
+(`begin_analysis.py --workspace`, which starts the fetch) and three with it: `init`, then
+`start_skill_run`, then `begin_analysis.py`.
 
 1. **Whose video.** Use the creator's explicit statement for `own_unpublished`, `own_published` or
    `third_party`; a URL or silence proves none of these. "This is my Short I posted last week" is
@@ -209,11 +214,15 @@ three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which sta
    none. Then one command writes the request (`analysis/video-analysis-request.json`, as the
    runtime reference says), the creator's own words verbatim (`analysis/question.txt`, empty for a
    bare link), the method (`analysis/method.json`) and the brief's sections 5-7 for it
-   (`analysis/rules.md`), and starts the observation:
+   (`analysis/rules.md`; its first lines name the file to read for them), and starts the observation:
 
    ```sh
    cd '<run directory>' && python3 <skill directory>/scripts/begin_analysis.py --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis|content_read|craft_teardown|transcript_export> --question '<their words, verbatim>' [--focus <id>[,<id>]] [--ask identify_track] --confirmed-by-user [--duration-s <seconds>]
    ```
+
+   Without `start_skill_run` it is the first command, from any directory: `python3 <skill
+   directory>/scripts/begin_analysis.py --workspace '<user-workspace>'` and the same arguments. It
+   reserves the run; never pass `--workspace` again for this request.
 
    For a video attached in Kabo, pass `--file-ref 'kabo-file:<id>' --platform <platform>` instead of
    `--url`; give `--platform` for a link too when the script asks for it. `--question ''` is a bare
@@ -240,18 +249,20 @@ three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which sta
    save each result as it says, then run the resume command; repeat while it prints calls (jobs
    still running: it waits between readings itself, up to one 330-second deadline). The run is not
    over while it is observing. In the same turn as those calls, or the next calls you make when the
-   host made them itself, read `analysis/rules.md` whole (sections 5-7 of the brief: the method
-   cards, the judgment rules and the output contract): it does not depend on the evidence, and
-   reading it then costs no turn of its own.
+   host made them itself, read the rules file it named whole (sections 5-7 of the brief: the method
+   cards, the judgment rules and the output contract) unless it is already in your context.
    `status: timed_out`, or a non-empty `timed_out` list, means that part did
    not arrive in time: go on with what arrived and say so plainly, as it prints; `status: metadata_only`
-   means only the post's metadata arrived: go on from it as it prints. When it
-   prints `status: observed` it has persisted everything in `snapshot/`, names the arguments for the
-   evidence builder and prints the `read_research_data_artifacts` calls (at most 15 frames each)
-   that bring the frames in; make them all. When a read shows you the images themselves, they are viewed: do not save or stage them.
+   means only the post's metadata arrived: go on from it as it prints. When it ends it has persisted
+   everything in `snapshot/` and prints the `read_research_data_artifacts` calls (at most 15 frames
+   each) that bring the frames in; make them all. When a read shows you the images themselves, they are viewed: do not save or stage them.
    Save and fetch a read only when it returns a download link. Fetch and persist every other
-   response as *Data tools and complete evidence* says.
-4. **Build the evidence** once, with one `--envelope` for every `snapshot/envelope-*.json` (the
+   response as *Data tools and complete evidence* says. In a run begun with `begin_analysis.py` the
+   same command also runs steps 4 and 5: it names the envelopes it built from, then prints the
+   brief; go on to step 6. If you persist an envelope after that (YouTube metadata, a post row, a
+   baseline) or a per-run flag applies, run steps 4 and 5 once more with the two commands it
+   printed, the flag added. When it prints the builder's arguments instead, run steps 4 and 5.
+4. **Build the evidence** (unless step 3 did) once, with one `--envelope` for every `snapshot/envelope-*.json` (the
    observation's and any you persisted) plus every other argument `observe_video.py` printed
    (`--viewer`, `--song`, `--comment-summary`, `--deferred-incomplete`; add the per-run flags from the
    runtime reference only here):
@@ -262,7 +273,7 @@ three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which sta
 
    Part 2 of `references/diagnosis-runtime.md` covers frames, transcript, metadata and cover; open
    the frames or images before any visual claim.
-5. **Prepare the brief.**
+5. **Prepare the brief** (unless step 3 did).
 
    ```sh
    cd '<run directory>' && python3 <skill directory>/scripts/prepare_analysis.py --run '<run directory>' --mode <diagnosis|content_read|craft_teardown> --question-file analysis/question.txt
@@ -272,10 +283,9 @@ three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which sta
    evidence cannot support is skipped, and section 3 says so), writes `analysis/brief.md` and prints
    it: the brief's sections 1-4, from the evidence. Read the file only when the printed text is cut
    off. Sections 5-7 (the method cards, the judgment rules and the output contract) do not depend on
-   the evidence and are `analysis/rules.md`; when it says it has just written that file, read it
-   whole now. Exit 2 means the mode's own method lacks its evidence, or nothing arrived to analyse:
-   do what it prints.
-6. **Write what section 7 asks**, with sections 1-4 as printed and `analysis/rules.md` read whole:
+   the evidence and are the rules file it names; read it whole when it says so. Exit 2 means the
+   mode's own method lacks its evidence, or nothing arrived to analyse: do what it prints.
+6. **Write what section 7 asks**, with sections 1-4 as printed and sections 5-7 read whole:
    for a diagnosis the judgment JSON, its reference check (which brings the view contract), the
    creator view, and its check, which finishes the report in the same call once it is ready; for a
    content read `analysis/answer.md`, then the answer in the chat; for a craft teardown

@@ -46,8 +46,8 @@ to look for.
    method (the `craft-shot-description` card: the five points per shot, organising around the
    question, ranking, what one person can do alone, and the two levels of sourcing), any topic card
    such as `sound`, and the rules below; read it whole while the evidence arrives.
-   `prepare_analysis.py --mode craft_teardown` prints sections 1-4 from the evidence. Then write the
-   report.
+   `prepare_analysis.py --mode craft_teardown` prints sections 1-4 from the evidence (in a run begun
+   with `begin_analysis.py`, the observation's last command runs it). Then write the report.
 5. **Check and deliver.** End the report with one line, in the creator's language, saying what it
    rests on: how many frames and at what spacing, whether the transcript and the measurements
    were there, and whether the sound was heard. Then run
