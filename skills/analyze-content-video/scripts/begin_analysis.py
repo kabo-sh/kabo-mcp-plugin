@@ -4,7 +4,7 @@
     cd '<run directory>' && python3 begin_analysis.py --url '<link>' | --file-ref 'kabo-file:<id>'
         --subject-state <state> --mode <diagnosis|content_read|craft_teardown|transcript_export>
         [--platform <platform>] [--question '<the creator's words>' | --question-file <file>]
-        [--focus <id>[,<id>]] [--ask identify_track] [--confirmed-by-user] [--duration-s <seconds>]
+        [--focus <id>[,<id>]] [--ask identify_track] [--confirmed-by-user] [--duration-s <seconds>] [--depth deep]
     python3 begin_analysis.py --workspace '<user-workspace>' <the same arguments>
 
 Run it from the reserved run directory, after the run was declared (`start_skill_run`), because the observation it
@@ -29,7 +29,11 @@ diagnosis's, already in context where the host preloads it; otherwise `analysis/
 Everything is checked before anything is written: a card id problem exits 2 with select_method.py's message (correct
 `--focus` once and run the same command again), any other problem exits 1, and in both cases nothing was written and
 nothing was fetched. Once the request exists it is never written again: a second run with the same request goes on to
-the observation, which refuses to start twice, and once the observation is complete a second run is refused.
+the observation, which refuses to start twice, and once the observation is complete a second run is refused. The
+exception is a deep run that stopped waiting (`deep_pending`): the same command continues it in this run.
+
+`--depth deep` is the full analysis of a long video, only once the creator accepted the offer a quick first read
+ended with; it is a new run of its own (observe_video.py's docstring says what changes).
 """
 from __future__ import annotations
 
@@ -43,6 +47,7 @@ sys.dont_write_bytecode = True
 SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 import collect_media  # noqa: E402
+import observation_order  # noqa: E402
 import observe_video  # noqa: E402
 import prepare_analysis  # noqa: E402
 import prepare_link_request  # noqa: E402
@@ -102,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--confirmed-by-user", action="store_true")
     parser.add_argument("--max-connector-calls", type=int)
     parser.add_argument("--duration-s", type=float, help="the video's duration, when already known")
+    parser.add_argument("--depth", choices=observation_order.DEPTHS,
+                        help="deep: the full analysis of a long video, only once the creator accepted it")
     parser.add_argument("--workspace", type=Path,
                         help="reserve this request's run in the workspace first (static_host.py init), where no run "
                              "was reserved and declared before")
@@ -121,6 +128,7 @@ def main(argv: list[str] | None = None) -> int:
         os.chdir(run)
         question, method, text = prepared(args, run.name)
         if observe_video.state().get("done"):
+            # A deep analysis after a quick first read is a new run (a new request), never this one again.
             raise ValueError("this run's observation is already complete: never observe twice; go on from what it "
                              "printed (build the evidence)")
         if REQUEST.is_file() and REQUEST.read_text(encoding="utf-8") != text:
@@ -147,6 +155,8 @@ def main(argv: list[str] | None = None) -> int:
     observe = ["--url", args.url if args.url is not None else args.file_ref, "--mode", args.mode]
     if args.duration_s is not None:
         observe += ["--duration-s", str(args.duration_s)]
+    if args.depth is not None:
+        observe += ["--depth", args.depth]
     return observe_video.main(observe)
 
 

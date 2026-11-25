@@ -20,6 +20,11 @@ Run it from the run directory.
 tool reads the stored file the same way it reads a link). A file on the creator's own machine never comes here:
 it is read locally and never uploaded.
 
+The keyframes, measurement and transcript requests of a link carry `quick_above_s`
+(`observation_order.QUICK_ABOVE_S`): a longer video comes back as a quick, explicitly partial sample. `--depth deep`
+(only once the creator accepted a full analysis) sends no threshold and keys the jobs by the link and the day
+(`deep_run_key`), so a deep run begun again replays them. Both are fixed at the first hand-over.
+
 Prints `status: failed` with the reason when a result cannot be used.
 """
 from __future__ import annotations
@@ -73,6 +78,8 @@ OPERATIONS = {
     "keyframes": "extract_keyframes",
     "measure": "measure_media_signals",
 }
+# The operations a quick first read samples on a long video (observation_order.QUICK_ABOVE_S); metadata is whole.
+QUICK_OPERATIONS = ("keyframes", "measure", "transcript")
 # The same value as the frame-count cap in static_host.job-call.
 MAX_FRAMES = static_host.FRAME_CAPS["public_video_extract_keyframes"]
 # The keyframes request's two optional additions to the duration_scaled plan, both still inside max_frames: a frame
@@ -134,9 +141,59 @@ def quote(text: str) -> str:
 
 
 def run_key() -> str:
+    """This run's key, fixed at the first hand-over (`fix_depth`); before that, the per-run key."""
+    return str(state().get("run_key") or run_scoped_key())
+
+
+def run_scoped_key() -> str:
     # The same run always gets the same key: a repeated call just continues the wait; another run's key differs, so
     # it never replays someone else's job.
     return "acv:" + hashlib.sha256(str(static_host.run_dir().resolve()).encode()).hexdigest()[:32]
+
+
+def deep_run_key(url: str, day: str | None = None) -> str:
+    """The key of a deep run: the link exactly as given and the UTC date, never the run directory.
+
+    A deep run is often begun again in a new run directory (Kabo Web reruns the Skill once the jobs it watched have
+    finished; another host reruns it when the creator says to continue): the same key with the same parameters
+    replays the jobs the first run queued instead of queueing (and paying for) them again. The server keeps job keys
+    per user, so no one else's job is ever replayed. The date bounds the replay: a job that failed today is tried
+    afresh tomorrow, not replayed for ever."""
+    day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return "acv-deep:" + hashlib.sha256(f"{url}|{day}".encode()).hexdigest()[:32]
+
+
+def fix_depth(depth: str, url: str, *, quick: bool = True) -> dict[str, Any]:
+    """Fix this run's depth, its run key and its quick threshold at the first hand-over, like the frame options, so
+    every repeated call sends the same arguments. Later calls change nothing. `quick` is False where a quick sample
+    never applies (a transcript export); an uploaded file keeps today's full pass too."""
+    current = state()
+    if current.get("depth") in observation_order.DEPTHS:
+        return current
+    current["depth"] = depth
+    if depth == "deep":
+        current["run_key"] = deep_run_key(url)
+        current["deep_started_at"] = deep_started_at(current["run_key"])
+    else:
+        current["run_key"] = run_scoped_key()
+        if quick and not is_file_ref(url):
+            current["quick_above_s"] = observation_order.QUICK_ABOVE_S
+    save_state(current)
+    return current
+
+
+def deep_started_at(key: str) -> str:
+    """When the jobs under this deep key were first asked for: the earliest of this workspace's runs that used the
+    key (a deep run begun again in a new run directory), else now. The wait estimate counts from it."""
+    moments = [datetime.now(timezone.utc).isoformat()]
+    for path in static_host.run_dir().parent.glob(f"*/{STATE.name}"):
+        try:
+            other = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(other, dict) and other.get("run_key") == key and isinstance(other.get("deep_started_at"), str):
+            moments.append(other["deep_started_at"])
+    return min(moments)
 
 
 def dense_windows(value: Any) -> list[dict[str, float]]:
@@ -275,12 +332,16 @@ def overview_lines(envelope: dict[str, Any]) -> tuple[list[str], list[str]]:
 
 def call_arguments(args: argparse.Namespace) -> dict[str, Any]:
     requests = []
+    quick = state().get("quick_above_s")
     for name in args.operations:
         parameters: dict[str, Any] = {"url": args.url}
         if name == "keyframes":
             parameters.update({"sampling": "duration_scaled", "max_frames": args.max_frames})
             parameters.update({key: value for key, value in (getattr(args, "frame_options", None) or {}).items()
                                if key in FRAME_OPTION_KEYS and value})
+        if quick and name in QUICK_OPERATIONS:
+            # Fixed for the run at its first hand-over (fix_depth); a video at or under it gets the full pass.
+            parameters["quick_above_s"] = int(quick)
         requests.append({"content_id": "video", "operation": OPERATIONS[name], "parameters": parameters})
     arguments: dict[str, Any] = {"requests": requests, "run_key": run_key(), "delivery": "download"}
     wait = getattr(args, "wait_s", None)
@@ -509,6 +570,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-frames", type=int, default=MAX_FRAMES)
     parser.add_argument("--placed", action="store_true")
     parser.add_argument("--id", dest="result_id", help="the result id of the last collect_video_media call")
+    parser.add_argument("--depth", choices=observation_order.DEPTHS, default="quick",
+                        help="deep: the full pass on a long video, after the creator accepted it (no quick sample)")
     args = parser.parse_args(argv)
     bind_run_to_cwd()
     args.operations = [name.strip() for name in args.operations.split(",") if name.strip()]
@@ -523,6 +586,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.placed:
             if state().get("awaiting"):
                 say("This media round was already handed over; make the call printed earlier, or run with --placed.")
+            fix_depth(args.depth, args.url)
             hand_over_media(args)
             return 0
         dropped = take_saved(args.result_id)

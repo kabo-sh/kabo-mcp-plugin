@@ -70,13 +70,27 @@ build them again (`--replace`) when another envelope or a per-run flag comes in 
 post's metadata still has to come from another tool (YouTube's `youtube_get_video`): it prints the arguments instead,
 as it does in a run that has no request yet. The early build needs no frame bytes: the evidence lists frames from the
 keyframe envelope, and a frame fetched to `snapshot/` later only adds a local copy that no later step reads.
+
+Depth, fixed for the run at its first hand-over (`collect_media.fix_depth`). By default a diagnosis, content read or
+craft teardown of a link is quick-capable: its keyframes, measurement and transcript requests carry `quick_above_s`
+(`observation_order.QUICK_ABOVE_S`), so a longer video comes back as a quick, explicitly partial sample that the
+evidence, the brief and the report label as such, and the answer offers a full analysis. `--depth deep` is that full
+analysis, run only after the creator accepted the offer: no threshold, and a run key made of the link and the UTC
+date (`collect_media.deep_run_key`), so a deep run begun again, in this run or a new one, replays the jobs already
+queued. When a deep run's keyframes are still running and the full pass (`observation_order.deep_fetch_s`) cannot
+arrive inside the observation deadline, it stops waiting instead of cutting the frames short: it prints status
+`deep_pending`, one `deep_analysis_pending: {...}` line (the running jobs' ids, the link and the creator's question)
+that a host may use to deliver the result by itself, and what to tell the creator. The same command run again
+(`--depth deep` without `--placed`) hands the same media call over once more and waits on.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import math
 import os
+import re
 import subprocess
 import sys
 import time
@@ -375,8 +389,13 @@ def start(args: argparse.Namespace) -> int:
                                               force=args.observe_source, mode=args.mode, cards=cards, ask=ask)
     if source is None or source == "local_frames":
         raise ValueError(f"no observation source for this link: {reason}")
+    depth = args.depth or "quick"
+    # Fixed for the run at its first hand-over, like the frame options: the threshold every media call sends (none on
+    # a deep run) and the run key the jobs are queued under.
+    collect_media.fix_depth(depth, url, quick=args.mode in observation_order.QUICK_MODES)
     current = {"url": url, "mode": args.mode, "platform": platform, "duration_s": args.duration_s, "cards": cards,
                "ask": ask, "source": source, "reason": reason, "tried": [], "started_at": now().isoformat(),
+               "depth": depth,
                "viewer": {"active": False}, "media": {"active": False},
                "side": {item["name"]: {**item, "handed": False}
                         for item in observation_order.side_calls(order, cards=cards, ask=ask, mode=selected_mode(),
@@ -1015,6 +1034,90 @@ def next_step(current: dict[str, Any], reads: bool) -> int:
     return 0
 
 
+# A job id the Web host polls (agent-service: `deep_analysis_pending`), and at most this many of them.
+JOB_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+MAX_PENDING_JOBS = 64
+
+
+def keyframes_running() -> bool:
+    """Whether the latest media result still reports the keyframes job as running."""
+    record = (static_host.composite_records(MEDIA_TOOL) or [{}])[-1]
+    return any(isinstance(job, dict) and str(job.get("group") or job.get("operation") or "").endswith("extract_keyframes")
+               and job.get("status") in static_host.PENDING
+               for job in (record.get("summary") or {}).get("jobs") or [])
+
+
+def deep_remaining_s(current: dict[str, Any], media_waiting: bool) -> float | None:
+    """On a deep run whose keyframes are still running: the seconds the full pass still needs (estimated from the
+    duration, `observation_order.deep_fetch_s`, counted from when its jobs were first asked for) when that does not
+    fit what is left of this observation's deadline, or when the deadline covers no further wait at all. None while
+    waiting on is worth it, or when the frames are in."""
+    if not keyframes_running():
+        return None
+    duration = known_duration(current)
+    started = collect_media.state().get("deep_started_at") or current.get("started_at")
+    needed = (observation_order.deep_fetch_s(duration) - seconds_since(started) if duration is not None else None)
+    left = deadline_left(current) - observation_order.HAND_OVER_MARGIN_S
+    if needed is not None and needed > left:
+        return needed
+    if not media_waiting:
+        return max(needed or 0.0, float(observation_order.CALL_WAIT_S))
+    return None
+
+
+def deep_pending(current: dict[str, Any], remaining_s: float) -> int:
+    """Stop waiting on a deep run's frames: say how long they still need, name the running jobs for a host that
+    delivers the result by itself, and how to continue. Nothing is built and no report is written in this turn."""
+    record = (static_host.composite_records(MEDIA_TOOL) or [{}])[-1]
+    running = [job for job in (record.get("summary") or {}).get("jobs") or []
+               if isinstance(job, dict) and job.get("status") in static_host.PENDING and job.get("job_id")]
+    jobs = [str(job["job_id"]) for job in running if JOB_ID.match(str(job["job_id"]))][:MAX_PENDING_JOBS]
+    minutes = max(1, math.ceil(remaining_s / 60))
+    duration = known_duration(current)
+    current["deep_pending"] = {"jobs": jobs, "at": now().isoformat(), "minutes_left": minutes}
+    save_state(current)
+    question_file = static_host.run_dir() / QUESTION
+    question = question_file.read_text(encoding="utf-8") if question_file.is_file() else ""
+    say(json.dumps({"status": "deep_pending", "source": current["source"],
+                    "pending": [f"{str(job.get('group') or '').rsplit('/', 1)[-1]}={job['job_id']}" for job in running],
+                    "duration_s": duration, "minutes_left": minutes}, ensure_ascii=False))
+    if jobs and str(current["url"]).startswith(("https://", "http://")):
+        # One whole line a host may act on: it watches these jobs and asks for the analysis once they are done.
+        say("deep_analysis_pending: " + json.dumps({"jobs": jobs, "url": current["url"], "question": question},
+                                                   ensure_ascii=False, separators=(",", ":")))
+    length = f"this {round(duration / 60)}-minute video" if duration else "this video"
+    again = (f"cd {collect_media.quote(str(static_host.run_dir()))} && python3 "
+             + " ".join(collect_media.quote(part) for part in [str(SCRIPTS / "observe_video.py"), "--url",
+                                                               current["url"], "--mode", current["mode"],
+                                                               "--depth", "deep"]))
+    say(f"The full analysis is still running on Kabo's side: about {minutes} more minute"
+        f"{'s' if minutes != 1 else ''} for {length}. Nothing failed, and nothing is queued or charged again while it "
+        "runs. Write no report and no answer about the video in this turn. Tell the creator, in their language and in "
+        f"one or two sentences, that the full analysis is still running, about {minutes} more minute"
+        f"{'s' if minutes != 1 else ''}, and that they can say \"continue\" later to get it; if a host note after this "
+        "says the result will be posted automatically, say that instead. When they say continue, run this one command "
+        "(this same run picks up the same jobs): " + again)
+    return 0
+
+
+def continue_deep(current: dict[str, Any]) -> int:
+    """A deep run that stopped waiting goes on: the same media call again under the same key (the server replays the
+    jobs it queued; nothing is queued or charged twice), with a new observation deadline from now."""
+    current.pop("deep_pending", None)
+    current["started_at"] = now().isoformat()
+    current["timed_out"] = []
+    media = current["media"]
+    sent = list(media.get("operations") or [])
+    current["media"] = {"active": False, "done": False,
+                        "requested": [name for name in media.get("requested") or [] if name not in sent]}
+    media_state = collect_media.state()
+    media_state["rounds"] = 0
+    collect_media.save_state(media_state)
+    save_state(current)
+    return begin(current, note="Continuing the full analysis: the same call picks up the jobs already running "
+                               "(nothing is queued or charged twice).")
+
+
 def resume(args: argparse.Namespace) -> int:
     current = state()
     if not current:
@@ -1077,6 +1180,12 @@ def resume(args: argparse.Namespace) -> int:
         viewer["timed_out"] = True
         record_timeout(current, ["the whole-video viewing"])
     media_waiting = media_wants and media_wait is not None
+    if current.get("depth") == "deep" and media_open and not media_refused:
+        # A full analysis the creator asked for: frames that cannot arrive inside this deadline are not cut short to
+        # "did not arrive in time"; the run stops waiting and the jobs keep running (deep_pending).
+        remaining = deep_remaining_s(current, media_waiting)
+        if remaining is not None:
+            return deep_pending(current, remaining)
     if media_refused and not media_waiting:
         # Nothing ran on the refused call, and the deadline no longer covers sending it again.
         media_refused = False
@@ -1154,6 +1263,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--id", dest="result_id", help="the result id of the last collect_video_media call")
     parser.add_argument("--observe-source", choices=observation_order.PUBLIC_SOURCES,
                         help="test and bake-off only: force one observation source")
+    parser.add_argument("--depth", choices=observation_order.DEPTHS,
+                        help="deep: the full analysis of a long video, only once the creator accepted it (no quick "
+                             "sample); fixed for the run at its first hand-over")
     parser.add_argument("--poll-sleep-s", type=float, default=POLL_INTERVAL_S, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     collect_media.bind_run_to_cwd()
@@ -1162,6 +1274,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.placed:
             return resume(args)
         current = state()
+        if current.get("deep_pending"):
+            return continue_deep(current)
         if current and not current.get("done"):
             say("This observation was already started; make the calls printed earlier, or run with --placed.")
             return 0

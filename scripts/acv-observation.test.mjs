@@ -1810,7 +1810,7 @@ test("keyframes request: the contract's max_frames, shot starts and the default 
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], plain);
   assert.deepEqual(keyframesOf(callLines(first.out)[0]),
     { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true, dense_windows: [DEFAULT_WINDOW],
-      overview: true });
+      overview: true, quick_above_s: 180 });
 
   const run = await newRun(t);
   const method = await selectFirst(run, "opening,editing-pacing");
@@ -1819,7 +1819,7 @@ test("keyframes request: the contract's max_frames, shot starts and the default 
   const call = callLines(out)[0];
   // The card's window first, then the default one.
   assert.deepEqual(keyframesOf(call), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true,
-    dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW], overview: true });
+    dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW], overview: true, quick_above_s: 180 });
   // The options are fixed at the first hand-over, so a repeated call while jobs run sends the same arguments.
   assert.deepEqual((await readJson(path.join(run, "collect-media.json"))).frame_options,
     { include_shot_starts: true, dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW], overview: true });
@@ -1876,7 +1876,7 @@ test("a server refusing the frame options (keyframes item validation_error, or -
   assert.equal(retriedAgain.code, 0, retriedAgain.out);
   const [again] = callLines(retriedAgain.out);
   assert.equal(again.tool, "collect_video_media");
-  assert.deepEqual(keyframesOf(again), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
+  assert.deepEqual(keyframesOf(again), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, quick_above_s: 180 });
   assert.equal(again.arguments.run_key, call.arguments.run_key);
   assert.equal((await readJson(path.join(run, "collect-media.json"))).frame_options_refused, true);
   const { out } = await driveFrom(run, retriedAgain.out);
@@ -1896,7 +1896,7 @@ test("a server refusing the frame options (keyframes item validation_error, or -
   const repeated = shell(resumeOf(repeatedOnce.out));
   assert.equal(repeated.code, 0, repeated.out);
   assert.match(repeated.out, /did not accept include_shot_starts \/ dense_windows/);
-  assert.deepEqual(keyframesOf(callLines(repeated.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
+  assert.deepEqual(keyframesOf(callLines(repeated.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, quick_above_s: 180 });
   // Inside collect_video_media a bad option fails only the keyframes item (validation_error) while the other items
   // run: that too repeats the call once without the options, and the newer keyframes result is the one used.
   const itemRun = await newRun(t);
@@ -2532,4 +2532,122 @@ test("audience-response without a summary (tool missing on this host, an error, 
   const uploadedRun = await sideRun(t, { focus: "audience-response", url: `kabo-file:${id}` });
   assert.equal(uploadedRun.handed.some((call) => call.tool === "summarize_video_comments"), false);
   assert.equal(uploadedRun.evidence.audience_response.status, "not_attempted");
+});
+
+// Long videos in two steps. By default the keyframes, measurement and transcript requests carry quick_above_s, so a
+// video past 180 s comes back as a quick, explicitly partial sample; `--depth deep` (only after the creator accepted
+// the offer) is the full pass, keyed by the link and the UTC date so a deep run begun again replays the same jobs.
+const QUICK_OPERATIONS = ["fetch_transcript", "extract_keyframes", "measure_media_signals"];
+const quickOf = (call) => Object.fromEntries(call.arguments.requests.map((request) => [request.operation, request.parameters.quick_above_s]));
+const deepKey = (url) => "acv-deep:" + createHash("sha256").update(`${url}|${new Date().toISOString().slice(0, 10)}`).digest("hex").slice(0, 32);
+
+test("quick by default: every sampled operation of a link carries quick_above_s 180, never the metadata; a transcript export and an uploaded file carry none", async (t) => {
+  for (const mode of ["diagnosis", "content_read", "craft_teardown"]) {
+    const run = await newRun(t);
+    const [call] = callLines(python("observe_video.py", ["--url", TIKTOK, "--mode", mode], run).out);
+    assert.deepEqual(quickOf(call), { collect_public_metadata: undefined, fetch_transcript: 180, extract_keyframes: 180,
+      ...(mode === "content_read" ? {} : { measure_media_signals: 180 }) }, mode);
+    assert.match(call.arguments.run_key, /^acv:[0-9a-f]{32}$/);
+    const media = await readJson(path.join(run, "collect-media.json"));
+    assert.deepEqual([media.depth, media.quick_above_s], ["quick", 180]);
+  }
+  const exported = await newRun(t);
+  const [exportCall] = callLines(python("observe_video.py", ["--url", TIKTOK, "--mode", "transcript_export"], exported).out);
+  assert.deepEqual(exportCall.arguments.requests.map((request) => "quick_above_s" in request.parameters), [false]);
+  const uploaded = await newRun(t);
+  const [uploadCall] = callLines(python("observe_video.py", ["--url", `kabo-file:${uuid(9)}`, "--mode", "diagnosis"], uploaded).out);
+  assert.equal(uploadCall.arguments.requests.some((request) => "quick_above_s" in request.parameters), false);
+  // The threshold is the one constant, and the contract takes it on the three operations.
+  const tools = new Map(JSON.parse(readFileSync(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools.map((tool) => [tool.name, tool]));
+  for (const name of ["public_video_extract_keyframes", "public_video_fetch_transcript", "public_video_measure_media_signals"]) {
+    const quick = tools.get(name).inputSchema.properties.parameters.properties.quick_above_s;
+    assert.deepEqual([quick.type, quick.minimum, quick.maximum], ["integer", 30, 3600], name);
+    assert.ok(quick.minimum <= 180 && 180 <= quick.maximum);
+  }
+});
+
+test("deep: no quick threshold, the run key is the link and the UTC date, fixed at the first hand-over and the same in a second run", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-deep-"));
+  if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
+  const runs = [];
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const begun = python("begin_analysis.py", ["--workspace", workspace, "--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+      "--question", "", "--confirmed-by-user", "--depth", "deep"], workspace);
+    assert.equal(begun.code, 0, begun.out);
+    const [call] = callLines(begun.out);
+    assert.equal(call.arguments.run_key, deepKey(TIKTOK));
+    assert.equal(call.arguments.requests.some((request) => "quick_above_s" in request.parameters), false);
+    runs.push(/^Run directory: (\/.+)$/m.exec(begun.out)[1]);
+  }
+  const [first, second] = await Promise.all(runs.map((run) => readJson(path.join(run, "collect-media.json"))));
+  assert.equal(first.depth, "deep");
+  assert.equal((await readJson(path.join(runs[0], "observe-video.json"))).depth, "deep");
+  // The second run counts the wait from when the first asked for the same jobs.
+  assert.equal(second.deep_started_at, first.deep_started_at);
+});
+
+// The frames of an 18-minute video still running after the first wait: the full pass (0.33 x 1080 + 40 = 396 s) cannot
+// arrive inside the 270-second deadline, so a deep run stops waiting instead of cutting the frames short.
+test("deep_pending: a deep run whose frames cannot arrive in time names the running jobs for the host, writes nothing, and the same command continues the same jobs", async (t) => {
+  const question = "why does the middle drag?";
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--confirmed-by-user", "--duration-s", "1080", "--depth", "deep"]);
+  const [call] = callLines(begun.out);
+  const files = slotFiles(begun.out);
+  await writeFile(files[0], mcp(withPending(call.arguments, ["fetch_transcript", "extract_keyframes"])));
+  await writeFile(files[1], mcp(SONG.noMatch));
+  const stopped = shell(resumeOf(begun.out));
+  assert.equal(stopped.code, 0, stopped.out);
+  const lines = stopped.out.trimEnd().split("\n");
+  const status = JSON.parse(lines[0]);
+  assert.equal(status.status, "deep_pending");
+  assert.deepEqual(status.pending, [`fetch_transcript=${uuid(2)}`, `extract_keyframes=${uuid(3)}`]);
+  assert.equal(status.minutes_left, 7);
+  assert.equal(lines[1], `deep_analysis_pending: ${JSON.stringify({ jobs: [uuid(2), uuid(3)], url: TIKTOK, question })}`);
+  assert.match(lines[2], /^The full analysis is still running on Kabo's side: about 7 more minutes for this 18-minute video\. .*Write no report and no answer about the video in this turn\. Tell the creator, in their language/);
+  assert.doesNotMatch(stopped.out, /^(?:Hand-over|call): /m);
+  assert.equal(existsSync(path.join(run, "analysis/content_evidence.json")), false);
+  assert.equal((await readJson(path.join(run, "observe-video.json"))).deep_pending.jobs.length, 2);
+
+  // The same command (the one printed, or begin_analysis.py again in this run) hands the same media call over again.
+  const again = lines[2].slice(lines[2].indexOf("cd '"));
+  assert.match(again, /'--depth' 'deep'$/);
+  const continued = shell(again);
+  assert.equal(continued.code, 0, continued.out);
+  const [repeat] = callLines(continued.out);
+  assert.deepEqual(repeat.arguments, call.arguments);
+  assert.equal(callLines(continued.out).length, 1, "the song is not asked for twice");
+  const { out } = await driveWith(run, continued.out, { media: (args) => composite(args, { duration: 1080 }) });
+  assert.match(out, /"status": "observed"/);
+  assert.match(out, /^Envelopes included: /m);
+  // A rerun of the whole begin command in this run continues the same way.
+  const fresh = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--confirmed-by-user", "--duration-s", "1080", "--depth", "deep"]);
+  await writeFile(slotFiles(fresh.begun.out)[0], mcp(withPending(callLines(fresh.begun.out)[0].arguments, ["extract_keyframes"])));
+  assert.match(shell(resumeOf(fresh.begun.out)).out, /"status": "deep_pending"/);
+  const rebegun = shell(`cd '${fresh.run}' && python3 -B '${path.join(scripts, "begin_analysis.py")}' --url '${TIKTOK}' --subject-state unknown `
+    + `--mode diagnosis --question '${question}' --confirmed-by-user --duration-s 1080 --depth deep`);
+  assert.equal(rebegun.code, 0, rebegun.out);
+  assert.equal(callLines(rebegun.out)[0].arguments.run_key, deepKey(TIKTOK));
+});
+
+test("deep run: frames that fit keep the normal wait, and frames still running when no wait fits end deep_pending, never timed_out", async (t) => {
+  // A 200-second video: the full pass (106 s) fits, so the same call is handed over again.
+  const short = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "content_read", "--duration-s", "200", "--depth", "deep"], short);
+  await writeFile(slotFiles(first.out)[0], mcp(withPending(callLines(first.out)[0].arguments, ["extract_keyframes"])));
+  const waiting = shell(resumeOf(first.out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
+  assert.match(waiting.out, /^Still running: 1 media job\(s\) are still running\. Keep waiting\.$/m);
+  // Past the deadline with the frames still running: deep_pending, not a report without frames.
+  await writeFile(slotFiles(waiting.out)[0], mcp(withPending(callLines(waiting.out)[0].arguments, ["extract_keyframes"])));
+  await startedAgo(short, DEADLINE_S + 10);
+  const late = shell(resumeOf(waiting.out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
+  assert.match(late.out, /^\{"status": "deep_pending"/);
+  assert.doesNotMatch(late.out, /timed_out|did not arrive in time/);
+  // A quick run in the same situation still ends timed_out, as before.
+  const quick = await newRun(t);
+  const begun = python("observe_video.py", ["--url", TIKTOK, "--mode", "content_read", "--duration-s", "200"], quick);
+  await writeFile(slotFiles(begun.out)[0], mcp(withPending(callLines(begun.out)[0].arguments, ["extract_keyframes"])));
+  await startedAgo(quick, DEADLINE_S + 10);
+  assert.match(shell(resumeOf(begun.out).replace("'--placed'", "'--placed' --poll-sleep-s 0")).out, /"status": "observed"/);
 });
