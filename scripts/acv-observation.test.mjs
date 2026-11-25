@@ -154,7 +154,8 @@ test("observation-order.json is the agreed table, and the next source follows it
   assert.deepEqual(await readJson(path.join(skill, "references/observation-order.json")), {
     schema_version: "observation-order/v2", default: ["server_frames"], fallback: { server_frames: ["whole_video"], whole_video: ["server_frames"] },
     add_when_cards: { sound: ["whole_video"], "audience-response": ["comment_summary"] },
-    add_when_asks: { identify_track: ["song"] }, add_when_modes: { diagnosis: ["song"] }, whole_video_max_ms: 600000 });
+    add_when_asks: { identify_track: ["song"] }, add_when_modes: { diagnosis: ["song"] }, whole_video_max_ms: 600000,
+    side_call_max_ms: { song: { youtube: 600000 } } });
   const pick = (...args) => { const r = python("observation_order.py", args, root); return { code: r.code, ...JSON.parse(r.out) }; };
   assert.equal(pick("--platform", "tiktok").source, "server_frames");
   assert.equal(pick("--platform", "tiktok", "--failed", "server_frames").source, "whole_video");
@@ -920,8 +921,10 @@ test("a video attached in Kabo (kabo-file:<id>) goes to the media tool as its ur
   assert.equal(first.code, 0, first.out);
   assert.match(first.out, /Observation source: combined/);
   const calls = callLines(first.out);
-  // The duration is not known yet: the media call measures the stored file first (no YouTube-style metadata round).
-  assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media"]);
+  // The duration is not known yet: the media call measures the stored file first (no YouTube-style metadata round);
+  // the diagnosis's song recognition reads the attached file by the same reference.
+  assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
+  assert.deepEqual(calls[1].arguments, { video_url: `kabo-file:${id}` });
   assert.deepEqual(operationsOf(calls[0]), ["fetch_transcript", "extract_keyframes", "measure_media_signals"]);
   for (const request of calls[0].arguments.requests) assert.equal(request.parameters.url, `kabo-file:${id}`);
   await writeFile(slotFiles(first.out)[0], mcp(composite(calls[0].arguments)));
@@ -2301,15 +2304,35 @@ test("find the track, unsupported or missing: the tool's unsupported answer, an 
   }
 });
 
-test("find the track, uploaded file: no recognition call; the evidence says it was not attempted", async (t) => {
+test("find the track, uploaded file: the recognition reads the attached file by its kabo-file reference", async (t) => {
   const id = "0f8fad5b-d9cb-469f-a165-70867728950e";
-  const { run, handed, evidence, out } = await sideRun(t, { ask: "identify_track", url: `kabo-file:${id}` });
-  assert.deepEqual(handed.map((call) => call.tool), ["collect_video_media"]);
-  assert.match(out, /Side calls: song uploaded_file/);
-  assert.deepEqual([evidence.song_identification.status, evidence.song_identification.reason], ["not_attempted", "uploaded_file"]);
-  assert.equal(evidence.acquisition.some((entry) => entry.operation === "identify_video_song"), false);
+  const upload = { ...SONG.matched, platform: "upload", platform_audio: null };
+  const { run, handed, evidence } = await sideRun(t, { ask: "identify_track", url: `kabo-file:${id}`, side: { identify_video_song: upload } });
+  assert.deepEqual(handed.map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
+  assert.deepEqual(handed[1].arguments, { video_url: `kabo-file:${id}` });
+  assert.equal(evidence.song_identification.status, "matched");
+  assert.equal(evidence.song_identification.song.title, "Golden Hour");
   assert.equal((await prepare(run, ["--mode", "content_read"], "what song is this?")).code, 0);
-  assert.match(section(await readBrief(run), 3), /an uploaded file is not sent to the recognition/);
+  assert.match(section(await readBrief(run), 3), /Golden Hour/);
+});
+
+test("a diagnosis of a YouTube video known to run past 10 minutes does not call the song recognition; the evidence says why", async (t) => {
+  const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+  const run = await newRun(t);
+  await selectFirst(run, "opening");
+  const first = python("observe_video.py", ["--url", YT, "--mode", "diagnosis", "--duration-s", "1920"], run);
+  assert.equal(first.code, 0, first.out);
+  assert.equal(callLines(first.out).some((call) => call.tool === "identify_video_song"), false);
+  const record = await readJson(path.join(run, "snapshot/song.json"));
+  assert.deepEqual([record.attempted, record.skipped], [false, "video_too_long"]);
+  assert.doesNotMatch(first.out, /side calls: song/);
+  // Exactly at the limit, with the duration unknown, or on another platform, the call still goes out.
+  for (const [url, extra] of [[YT, ["--duration-s", "600"]], [YT, []], [TIKTOK, ["--duration-s", "1920"]]]) {
+    const edge = await newRun(t);
+    await selectFirst(edge, "opening");
+    const out = python("observe_video.py", ["--url", url, "--mode", "diagnosis", ...extra], edge);
+    assert.ok(callLines(out.out).some((call) => call.tool === "identify_video_song"), `${url} ${extra.join(" ")}`);
+  }
 });
 
 test("audience-response: choosing the card adds one summarize_video_comments call; the summary becomes citable evidence and a brief section", async (t) => {
