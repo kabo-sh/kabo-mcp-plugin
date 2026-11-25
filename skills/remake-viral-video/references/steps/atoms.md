@@ -32,18 +32,49 @@ line edit takes. Look at these before asking the creator for material.
   time; up to 3 videos of an account can each run a step at once. In one job, send one step, read
   its result (read the status until it is done), then send the next; never send several steps of
   the same job together -- the extra ones are refused (`in_flight`), which is not a limit.
-  Pictures for the same video go in one batch step instead: one `still` with `prompts` (2-8) or
-  one `animate` with `images` (2-8) makes them all at the same time, each into its own new handle
+  Pictures for the same video go in one batch step instead: one `still` with `prompts` (2-16) or
+  one `animate` with `images` (2-16) makes them all at the same time, each into its own new handle
   (`last_step.handles`, in order), much faster than one step per picture. If some items
   fail, the made ones are kept and the notes say which failed -- send only those again.
   Other single steps that do not depend on each other go together as `op: "batch"` with
-  `params.steps` (2-8 `{op, inputs, params}`; `inputs` of the batch itself empty): the per-shot
+  `params.steps` (2-16 `{op, inputs, params}`; `inputs` of the batch itself empty): the per-shot
   `trim` / `retime` / `mux`, one `talking` per line, one `tts` per voice, the `motion_graphics`
-  shots. Each step is checked as a single call would be; they run in order in one call, far
-  faster than one call each. A step cannot use another step's output from the same
+  shots. Each step is checked as a single call would be; the provider steps (`talking`,
+  `lipsync`, `tts`, `music`, `sfx`, `voice_change`, `first_frame`) run at the same time and the
+  local ones in order, all in one call, far faster than one call each. A step cannot use
+  another step's output from the same
   batch -- chain those in the next call. `refvideo`, `motion`, `replace`, `persona`,
   `face_check` and `transcribe` stay single calls; `still` / `animate` batch with their own
   `prompts` / `images`.
+- **Steps that depend on each other go in one chain** (where the host offers `op: "chain"`, as
+  Kabo Web does): `params.stages` (2-8 `{op, inputs, params}`; `inputs` of the chain itself
+  empty) run one after another in one call, each exactly as its own call would -- a `still` /
+  `animate` with several items, a `batch`, or a single step. A later stage reads what the earlier
+  ones made by shot number (`shot` / `shots` take each shot's newest picture, clip and line), or
+  takes the previous stage's output with `"@prev"` in its inputs (`captions {video: "@prev"}`
+  after `concat`; in a batch stage, in its steps' inputs). The chain stops at a stage that fails
+  or makes only some of its items: what was made is kept and the notes say where it stopped --
+  send the failed part and the stages after it again. The same single-call ops as in a batch
+  stay single calls.
+- **Make the video in a few big steps, not shot by shot.** Every step is a runner start and a
+  turn (about a minute each), while the items of one step are made at the same time, so one step
+  for 14 shots takes about as long as one for 2. Once the storyboard is saved, with chain:
+  first the pictures -- one chain of the sheets the storyboard needs (`still` with `sheet_for`)
+  then one `still` for every row (`shot` = the list of rows); look at them and redo only what is
+  clearly wrong, all those rows in one `still`. Then the rest of the cut in one chain: `animate`
+  every row that moves (`shot` list), the voice (`tts` by shot, the lines in one batch), the
+  talking clips, the per-shot `trim` / `retime` / `mux` (a batch, by shot), `concat`
+  `{shots: "all"}`, then `captions`, `sfx`, `music` or `grade` on `"@prev"`; look at the cut, fix
+  only what is clearly wrong, then deliver. Without chain: one `still` for all the rows'
+  pictures, one `animate` for all the rows' clips, and the voice lines and talking clips as
+  batches; redo only what is clearly wrong, all those shots together in one step.
+- **Redos have a limit, and so does the estimate.** A shot whose notes say `still flagged` is
+  dealt with before delivering: make it again with a changed input (another first frame, a
+  simpler action) or keep it and tell the creator. One shot is made at most four times (the first
+  take and three redos that were made; Kabo Web refuses more); then use its best take. Every row of
+  the storyboard stays in the cut: never deliver a shorter video or drop rows because a shot has a
+  flaw. Keep within the estimate the creator saw: accept a small flaw rather than pay for round
+  after round.
 - **Keep it moving.** On Kabo Web only a running step brings the conversation back by itself:
   never end a reply while nothing is running and the video is not delivered -- send the next step
   (a refused one fixed), or tell the creator what is left and ask.
@@ -76,9 +107,9 @@ line edit takes. Look at these before asking the creator for material.
 | The creator's own footage saying other words | `lipsync` | real footage, new mouth. With the default sync model, `sync_mode` says what happens when the audio and video lengths differ: `cut_off` (default; the shorter decides), `loop` / `bounce` (the video repeats under longer audio), `silence` (shorter audio is padded with silence, so the video keeps its length), `remap` (the video is re-timed to the audio). |
 | A still of the creator, or of a generated character, speaking a line | `talking` | from a photo or a `frame` of the creator, or a `still` of a character (on a character picture: `speaker` names who talks; the host finds them and keeps the others still); optional `prompt` for the performance (say who speaks); prefer `lipsync` on real footage when there is one. A generated character talks with Kling Avatar Pro unless another model is named. |
 | The creator's voice reading lines | `tts` | `lines`; `voice:"creator"` (default, cloned from their material) or a preset voice (the one the creator named, otherwise one you choose by the role: `project.md`, "No voice to clone"); `speed` 0.5-2 sets the speaking rate (default 1). A preset voice always reads in the language of the lines: the preset numbers are kinds of voice (gender and tone), and a preset of another language is swapped for that kind in the lines' language (the step's notes say which). Write the lines in the language the video is spoken in. `language` (zh, en, ja, ko, es, fr, de, pt, it, ru, ar, hi, id, th, vi, tr) and `gender` (male / female) pick a preset without an id. Returns one audio for all lines plus one per line; its `notes` give each line's timing, so run it before the pictures when they have to follow the voice. |
-| A picture without the creator (B-roll, a product shot, a scene) | `still` | never the creator: for a shot with the creator use `refvideo`. `prompt`, or `prompts` (2-8) for several pictures made at once; optional `aspect` (`9:16` default, `3:4`, `4:5`, `1:1`, `4:3`, `16:9`) for the picture's shape. Without `refs` it borrows the look (palette, light, grain) of a few frames of the project's videos, their text painted out, never their content. |
+| A picture without the creator (B-roll, a product shot, a scene) | `still` | never the creator: for a shot with the creator use `refvideo`. `prompt`, or `prompts` (2-16) for several pictures made at once; optional `aspect` (`9:16` default, `3:4`, `4:5`, `1:1`, `4:3`, `16:9`) for the picture's shape. Without `refs` it borrows the look (palette, light, grain) of a few frames of the project's videos, their text painted out, never their content. |
 | The reference's picture sits inside black bars (a square or wide picture in a vertical frame) | `still` + `still_video` or `layout` | `frame` `shots:true` says so in its notes, with the nearest `aspect`. Make each picture with `still` `aspect` set to it (never a full-frame picture with bars drawn in), then put it on the black 1080x1920 frame: `still_video` `fit:"contain"` (zoom 1 keeps the bars still), or `layout` with the picture in a `box` across the frame's width at the reference's height (`fit:"contain"`), captions and titles in the bars like the reference. |
-| Put a picture into motion | `animate` | 5 or 10 seconds, silent. `image` + `prompt`, or `images` (2-8) with `prompts` (one per image, same order) or one shared `prompt`, made at once. |
+| Put a picture into motion | `animate` | 5 or 10 seconds, silent. `image` + `prompt`, or `images` (2-16) with `prompts` (one per image, same order) or one shared `prompt`, made at once. |
 | The creator's footage somewhere else | `bg` | the person is cut out and laid over a plate; likeness unchanged. |
 | A picture or screen over a time range | `overlay` | `t0`, `t1`, optional `box`. |
 | Replace a time range with another clip | `splice` | `audio:"base"` keeps the base's sound and length; `"clip"` takes the clip's sound. |
