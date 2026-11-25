@@ -1,7 +1,7 @@
 # Step parameters (generated -- do not edit)
 
 Generated from the Web host's own schema (`contracts/web-remake-tool.v1.json`, kabo-agent-service
-`scripts/remake-skill-schema.ts` at 6c94a63a45029dc25ef2ec8338097a37e38ba915) by `scripts/remake-params-gen.mjs`.
+`scripts/remake-skill-schema.ts` at 9d4e28d4caa3d0199fbdad87487541c3d0e85c51) by `scripts/remake-params-gen.mjs`.
 These are the exact shapes the host accepts; where any other file in this Skill reads
 differently, this file is right. A field not listed under a step is refused on that step.
 `?` / (optional) = may be left out; `a | b` = one of; `[x, ...] (2-16 items)` = a list;
@@ -17,7 +17,6 @@ differently, this file is right. A field not listed under a step is refused on t
 - `audio_plan` (optional): {voice?: {gain_db?: number -40..6}; music?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; sfx?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; ambience?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; voice_over_music_db?: number 3..20}
 - `environments` (optional): a list (at most 12), each entry below
 - `props` (optional): a list (at most 12), each entry below
-- `output` (optional): {aspect?: text (<= 20); width?: integer 240..4096; height?: integer 240..4096; fps?: number 12..60; max_s?: number 1..600}
 - `series` (optional): [{n: integer 0..999 | text (<= 20); brief: text (<= 2000); job_id?: text (<= 64)}, ...] (1-30 items)
 
 Each row of `shots`:
@@ -245,3 +244,8 @@ Each entry of `props`:
 
 - inputs: none
 - params: `storyboard` (optional): text (<= 400000) | {shots: [{<name>: any}, ...] (1-60 items)}; `clear` (optional): true | false; `cast` (optional): {cards?: [{name, sheet?, refs?, views?, description?, voice?, style?, kind} | {kind, name, sheet?, refs?, views?, description?}, ...] (0-36 items); characters?: [{name, sheet?, refs?, views?, description?, voice?, style?}, ...] (0-12 items); style?: {description?: text (<= 2000) | null; keywords?: [text (<= 60), ...] (0-12 items) | null; avoid?: [text (<= 80), ...] (0-12 items) | null; palette?: [text | {hex, role?}, ...] (0-8 items) | null; fonts?: [text (<= 60), ...] (0-4 items) | null; motion?: text (<= 200) | null; refs?: [text (<= 80), ...] (0-4 items) | null}; remove?: [text (<= 60) | {kind, name}, ...] (0-36 items)}
+
+### `chain`
+
+- inputs: none
+- params: `stages`: [{op: text (<= 40); inputs?: {<name>: any}; params?: {<name>: any}}, ...] (2-8 items)

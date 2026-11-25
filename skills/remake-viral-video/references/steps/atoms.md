@@ -46,12 +46,28 @@ line edit takes. Look at these before asking the creator for material.
   batch -- chain those in the next call. `refvideo`, `motion`, `replace`, `persona`,
   `face_check` and `transcribe` stay single calls; `still` / `animate` batch with their own
   `prompts` / `images`.
-- **Make the video in a few big steps, not shot by shot.** Once the storyboard is saved: one
-  `still` for all the rows' pictures (one item per row, with `shot`), one `animate` for all the
-  rows' clips, and the voice lines and talking clips as batches. The items of one step are made
-  at the same time, so one step for 14 shots takes about as long as one for 2, while every extra
-  step adds minutes. Look at a step's previews once it is done and redo only what is clearly
-  wrong, all those shots together in one step.
+- **Steps that depend on each other go in one chain** (where the host offers `op: "chain"`, as
+  Kabo Web does): `params.stages` (2-8 `{op, inputs, params}`; `inputs` of the chain itself
+  empty) run one after another in one call, each exactly as its own call would -- a `still` /
+  `animate` with several items, a `batch`, or a single step. A later stage reads what the earlier
+  ones made by shot number (`shot` / `shots` take each shot's newest picture, clip and line), or
+  takes the previous stage's output with `"@prev"` in its inputs (`captions {video: "@prev"}`
+  after `concat`; in a batch stage, in its steps' inputs). The chain stops at a stage that fails
+  or makes only some of its items: what was made is kept and the notes say where it stopped --
+  send the failed part and the stages after it again. The same single-call ops as in a batch
+  stay single calls.
+- **Make the video in a few big steps, not shot by shot.** Every step is a runner start and a
+  turn (about a minute each), while the items of one step are made at the same time, so one step
+  for 14 shots takes about as long as one for 2. Once the storyboard is saved, with chain:
+  first the pictures -- one chain of the sheets the storyboard needs (`still` with `sheet_for`)
+  then one `still` for every row (`shot` = the list of rows); look at them and redo only what is
+  clearly wrong, all those rows in one `still`. Then the rest of the cut in one chain: `animate`
+  every row that moves (`shot` list), the voice (`tts` by shot, the lines in one batch), the
+  talking clips, the per-shot `trim` / `retime` / `mux` (a batch, by shot), `concat`
+  `{shots: "all"}`, then `captions`, `sfx`, `music` or `grade` on `"@prev"`; look at the cut, fix
+  only what is clearly wrong, then deliver. Without chain: one `still` for all the rows'
+  pictures, one `animate` for all the rows' clips, and the voice lines and talking clips as
+  batches; redo only what is clearly wrong, all those shots together in one step.
 - **Redos have a limit, and so does the estimate.** A shot whose notes say `still flagged` is
   dealt with before delivering: make it again with a changed input (another first frame, a
   simpler action) or keep it and tell the creator. One shot is made at most four times (the first
