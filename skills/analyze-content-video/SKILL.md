@@ -48,15 +48,15 @@ unconfirmed.
 ## Running commands
 
 `<skill directory>` is the folder holding this `SKILL.md`. Reserve exactly one run per request.
-Where the Kabo tool `start_skill_run` is available, and for a local file, reserve it with:
+On every host the first command, `begin_analysis.py --workspace` (analysis step 2), reserves it; a
+local file reserves it with:
 
 ```sh
 python3 '<skill directory>/scripts/static_host.py' init --workspace '<user-workspace>'
 ```
 
-Otherwise `begin_analysis.py --workspace` reserves it (analysis step 2). Both print the run
-directory. Every later command carries it, because hosts keep neither environment variables nor the
-working directory between commands:
+Both print the run directory first. Every later command carries it, because hosts keep neither
+environment variables nor the working directory between commands:
 `cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 '<skill directory>/scripts/…' …`.
 `snapshot/…`, `analysis/…` and `report/…` are relative to the run directory. Every command here is
 complete: do not probe scripts with `--help` or read their source. Quote paths and use `grep` rather
@@ -66,7 +66,7 @@ completed retrieval or rewrite a judgment to get past a validator. A check that 
 `needs_correction` is not a failure (`finish_diagnosis.py --check` exits 3 for it): the brief
 allows its one correction.
 
-**Declare the run.** Where it is available, call the Kabo tool `start_skill_run` once right after `init`, with `skill_id` `analyze-content-video` and `run_id` set to the last path segment of the run directory. It records the run once, so never call it again for the same run. If it fails with `credits_exhausted`, tell the user their credits are used up, give them the link in the error, and stop. It is the credit check, so it comes before the first fetch: wait for its answer before `begin_analysis.py`, which starts the observation, and never send them in the same turn. `get_research_capabilities` may go in the same turn as `start_skill_run`.
+**Declare the run.** Where it is available, call the Kabo tool `start_skill_run` once right after the run directory is printed, with `skill_id` `analyze-content-video` and `run_id` set to the last path segment of the run directory. It records the run once, so never call it again for the same run. If it fails with `credits_exhausted`, tell the user their credits are used up, give them the link in the error, and stop. It is the credit check, so it comes before the first fetch: `begin_analysis.py` fetches nothing itself and only prints the observation's calls, so wait for its answer before making any of them, never in the same turn. `get_research_capabilities` may go in the same turn as `start_skill_run`.
 
 ## Data tools and complete evidence
 
@@ -195,9 +195,8 @@ Diagnosis, content read and craft teardown run the same steps. Read
 `references/diagnosis-runtime.md` whole before the first command, in the same turn as it, and
 `references/video-method/index.md` with it when the creator asked something specific. A file this
 Skill's `metadata.preload` lists (those two and `references/diagnosis-rules.md`) that the host already
-put in your context needs no read. Setup is one turn without `start_skill_run`
-(`begin_analysis.py --workspace`, which starts the fetch) and three with it: `init`, then
-`start_skill_run`, then `begin_analysis.py`.
+put in your context needs no read. Setup is one command, `begin_analysis.py --workspace`, on
+every host (then `start_skill_run`, where available, before its printed calls).
 
 1. **Whose video.** Use the creator's explicit statement for `own_unpublished`, `own_published` or
    `third_party`; a URL or silence proves none of these. "This is my Short I posted last week" is
@@ -217,20 +216,19 @@ put in your context needs no read. Setup is one turn without `start_skill_run`
    (`analysis/rules.md`; its first lines name the file to read for them), and starts the observation:
 
    ```sh
-   cd '<run directory>' && python3 <skill directory>/scripts/begin_analysis.py --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis|content_read|craft_teardown|transcript_export> --question '<their words, verbatim>' [--focus <id>[,<id>]] [--ask identify_track] --confirmed-by-user [--duration-s <seconds>] [--depth deep]
+   python3 <skill directory>/scripts/begin_analysis.py --workspace '<user-workspace>' --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis|content_read|craft_teardown|transcript_export> --question '<their words, verbatim>' [--focus <id>[,<id>]] [--ask identify_track] --confirmed-by-user [--duration-s <seconds>] [--depth deep]
    ```
 
-   Without `start_skill_run` it is the first command, from any directory: `python3 <skill
-   directory>/scripts/begin_analysis.py --workspace '<user-workspace>'` and the same arguments. It
-   reserves the run; never pass `--workspace` again for this request.
+   Run it from any directory: it reserves the run and prints its directory first; never pass
+   `--workspace` again for this request.
 
    For a video attached in Kabo, pass `--file-ref 'kabo-file:<id>' --platform <platform>` instead of
    `--url`; give `--platform` for a link too when the script asks for it. `--question ''` is a bare
    link; when the words are awkward to quote, write them to a file and pass `--question-file
    '<file>'` instead. Add `--duration-s` only when the video's duration is already known, and
-   `--confirmed-by-user` only when that confirmation exists. Exit 2 names a card id problem: correct
-   `--focus` once and run the same command again; exit 1 is a failed step. Either way nothing was
-   fetched. The cards decide what the observation needs: the `sound` card adds a
+   `--confirmed-by-user` only when that confirmation exists. Exit 2 names an argument problem (a card
+   id, a flag): correct it once and run the same command again; exit 1 is a failed step. Either way
+   nothing was reserved or fetched. The cards decide what the observation needs: the `sound` card adds a
    whole-video viewing, which hears the audio, where one is possible (a local file is measured
    instead: `references/local-file.md`); `audience-response` adds the comment summary. A diagnosis of
    a link also adds one song recognition call beside the observation, so it costs no extra wait: when it

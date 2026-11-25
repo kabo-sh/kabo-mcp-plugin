@@ -467,6 +467,7 @@ const section = (brief, number) => {
   const end = brief.indexOf("\n## ", start + 4);
   return brief.slice(start, end === -1 ? undefined : end);
 };
+const CREDIT_LINE = /^Credit check: where the Kabo tool start_skill_run exists, call it now \(skill_id analyze-content-video, run_id \d{8}T\d{6}Z-[0-9a-f]{12}\) and wait for its answer before making any call printed below; if it fails with credits_exhausted, tell the creator and stop\. This command fetched nothing itself\.$/;
 // The whole brief: sections 1-4 (analysis/brief.md, from the evidence) and 5-7 (analysis/rules.md, from the request).
 const readBrief = async (run) => (await readFile(path.join(run, "analysis/brief.md"), "utf8")) + "\n"
   + (await readFile(path.join(run, "analysis/rules.md"), "utf8"));
@@ -761,8 +762,9 @@ test("begin_analysis: one command writes what the separate setup steps write and
   assert.ok(begun.out.split("\n").some((line) => line.startsWith("Hand-over: ")));
   assert.equal(path.basename(hostHandover(begun.out)?.resume.script ?? ""), "observe_video.py");
 
-  // With --workspace it reserves the run itself (no start_skill_run on this host): the run directory comes first,
-  // then the same output. A refused command reserves nothing.
+  // With --workspace it reserves the run itself: the run directory comes first, then the credit-check line (where
+  // start_skill_run exists, it is called before any printed call: the command fetched nothing), then the same
+  // output. A refused command reserves nothing.
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-begin-"));
   if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
   const noRun = python("begin_analysis.py", ["--workspace", workspace, "--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
@@ -772,12 +774,14 @@ test("begin_analysis: one command writes what the separate setup steps write and
   const oneStep = python("begin_analysis.py", ["--workspace", workspace, "--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
     "--question", question, "--focus", "opening,sound", "--confirmed-by-user"], workspace);
   assert.equal(oneStep.code, 0, oneStep.out);
-  const [runLine, rulesAgain, ...rest] = oneStep.out.split("\n");
+  const [runLine, creditLine, rulesAgain, ...rest] = oneStep.out.split("\n");
   const reserved = /^Run directory: (\/.+)$/.exec(runLine)?.[1];
   assert.ok(reserved, oneStep.out);
   assert.equal(path.dirname(reserved), path.join(await realpath(workspace), ".kabo-runs"));
   assert.ok(existsSync(path.join(reserved, ".static-run.json")));
   assert.deepEqual(await readdir(path.join(workspace, ".kabo-runs")), [path.basename(reserved)]);
+  assert.match(creditLine, CREDIT_LINE);
+  assert.ok(creditLine.includes(`run_id ${path.basename(reserved)})`), creditLine);
   assert.equal(rulesAgain, rulesLine);
   assert.equal(same(rest.join("\n"), reserved), same(before.out, separate));
   assert.equal(hostHandover(oneStep.out)?.resume.cwd, reserved);
@@ -827,7 +831,8 @@ async function beginInWorkspace(t, args) {
 }
 test("begin --workspace, default diagnosis: the observation ends with the evidence built and the brief printed, well under the 64 KiB output cap", async (t) => {
   const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis", "--question", "", "--confirmed-by-user"]);
-  assert.equal(begun.out.split("\n")[1], "Sections 5-7 are references/diagnosis-rules.md (this run's analysis/rules.md is the same text): "
+  assert.match(begun.out.split("\n")[1], CREDIT_LINE);
+  assert.equal(begun.out.split("\n")[2], "Sections 5-7 are references/diagnosis-rules.md (this run's analysis/rules.md is the same text): "
     + "no read when it is already in your context, otherwise read it whole while the evidence arrives.");
   // A typical short video: 30 seconds, 60 frames (every half second), 20 spoken lines.
   const frameTimes = Array.from({ length: 60 }, (_, i) => i / 2);
@@ -881,6 +886,59 @@ test("begin --workspace, default diagnosis: the observation ends with the eviden
   assert.equal(await readFile(path.join(run, "analysis/content_evidence.json"), "utf8"), "{}\n");
 });
 
+// The opening on every host: where start_skill_run exists, the model calls it after begin_analysis.py printed the run
+// directory and before any printed call, which is safe only because the command itself fetches nothing.
+test("begin_analysis.py --workspace fetches nothing itself: with every socket blocked it reserves the run and prints the hand-over calls", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-begin-"));
+  if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
+  const blocked = "import runpy, socket, sys\n"
+    + "def refuse(*args, **kwargs):\n    raise SystemExit('network attempt: ' + repr(args))\n"
+    + "socket.socket.connect = socket.socket.connect_ex = socket.create_connection = socket.getaddrinfo = refuse\n"
+    + "sys.argv = sys.argv[1:]\nrunpy.run_path(sys.argv[0], run_name='__main__')\n";
+  const done = spawnSync("python3", ["-B", "-c", blocked, path.join(scripts, "begin_analysis.py"), "--workspace", workspace, "--url", TIKTOK,
+    "--subject-state", "unknown", "--mode", "diagnosis", "--question", "", "--confirmed-by-user"], { cwd: workspace, encoding: "utf8", env });
+  assert.equal(done.status, 0, done.stdout + done.stderr);
+  assert.doesNotMatch(done.stdout + done.stderr, /network attempt/);
+  assert.match(done.stdout.split("\n")[1], CREDIT_LINE);
+  assert.ok(done.stdout.split("\n").some((line) => line.startsWith("Hand-over: ")), done.stdout);
+  assert.deepEqual(callLines(done.stdout).map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
+});
+
+test("begin_analysis: argument mistakes are refused with one JSON line that says what to correct, and nothing is reserved", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-begin-"));
+  if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
+  const base = ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis", "--question", "hook, pacing, visuals, ending?", "--confirmed-by-user"];
+  const refused = (args, cwd = workspace) => {
+    const done = python("begin_analysis.py", args, cwd);
+    const line = JSON.parse(done.out.trim().split("\n").at(-1));
+    assert.equal(existsSync(path.join(workspace, ".kabo-runs")), false, done.out);
+    return { code: done.code, ...line };
+  };
+  // The creator's words where card ids belong: the message names the cards those words point to.
+  const words = refused(["--workspace", workspace, ...base, "--focus", "hook,pacing"]);
+  assert.equal(words.code, 2);
+  assert.match(words.error, /unknown method card id\(s\): hook, pacing\. Topic cards are: .*--focus takes card ids, not the creator's words: hook -> opening; pacing -> editing-pacing$/);
+  // More than two cards: the message says to keep the two the question leans on most.
+  const many = refused(["--workspace", workspace, ...base, "--focus", "opening,editing-pacing,visual-color,narrative-structure"]);
+  assert.equal(many.code, 2);
+  assert.match(many.error, /^at most 2 topic cards; got 4 \(opening, editing-pacing, visual-color, narrative-structure\): pass the 2/);
+  // A flag argparse refuses (unknown, conflicting or missing) is the same JSON line, exit 2.
+  for (const args of [[...base, "--workspace", workspace, "--run", workspace], [...base, "--workspace", workspace, "--question-file", "q.txt"],
+    ["--workspace", workspace, "--url", TIKTOK, "--mode", "diagnosis"]]) {
+    const flag = refused(args);
+    assert.equal(flag.code, 2);
+    assert.equal(flag.status, "refused");
+    assert.match(flag.error, /Nothing was reserved, written or fetched: correct the arguments \(SKILL\.md, analysis step 2\) and run the same command again$/);
+  }
+  // A workspace that is not a directory, and no --workspace outside a reserved run.
+  const nowhere = refused(["--workspace", path.join(workspace, "no-such-dir"), ...base]);
+  assert.equal(nowhere.code, 1);
+  assert.match(nowhere.error, /^--workspace takes an existing directory/);
+  const unreserved = refused(base);
+  assert.equal(unreserved.code, 1);
+  assert.match(unreserved.error, /^no run is reserved here: begin with --workspace '<user-workspace>' and the same arguments/);
+});
+
 test("the observation builds nothing while the post's metadata still has to come from youtube_get_video, and builds once it is in the run", async (t) => {
   const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
   const youtubeEnvelope = { schema_version: "1.0", connector_id: "youtube-public", operation: "get_video", status: "completed",
@@ -903,8 +961,9 @@ test("the observation builds nothing while the post's metadata still has to come
 
 test("a transcript export builds the evidence at the end of the observation and goes straight to the export", async (t) => {
   const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "transcript_export", "--confirmed-by-user"]);
-  // No brief, so no rules line: the run directory is the only line before observe_video.py's output.
-  assert.match(begun.out.split("\n")[1], /^Observation source: /);
+  // No brief, so no rules line: the run directory and the credit check are the only lines before observe_video.py's.
+  assert.match(begun.out.split("\n")[1], CREDIT_LINE);
+  assert.match(begun.out.split("\n")[2], /^Observation source: /);
   const { out } = await driveFrom(run, begun.out);
   assert.match(out, /^Envelopes included: snapshot\/envelope-01\.json$/m);
   assert.match(out, /A transcript export has no brief: now run export_transcript\.py as the Skill says\./);
@@ -1114,15 +1173,18 @@ test("a video attached in Kabo (kabo-file:<id>) goes to the media tool as its ur
 
 test("SKILL.md: cards are chosen before the observation, the credit check comes before the fetch, and an unsupported link stops the run", async () => {
   const text = await readFile(path.join(skill, "SKILL.md"), "utf8");
-  // One setup command takes the cards and starts the observation; the run is declared (the credit check) before it.
-  assert.match(text, /begin_analysis\.py --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis\|content_read\|craft_teardown\|transcript_export> --question '<their words, verbatim>' \[--focus <id>\[,<id>\]\] \[--ask identify_track\]/);
-  assert.ok(text.indexOf("start_skill_run` once") < text.indexOf("scripts/begin_analysis.py --url"), "the run is declared before the fetch starts");
-  assert.match(text, /wait for its answer before `begin_analysis\.py`, which starts the observation, and never send them in the same turn/);
-  assert.ok(text.indexOf("scripts/begin_analysis.py --url") < text.indexOf("prepare_analysis.py --run"));
+  // One setup command, on every host, reserves the run, takes the cards and prints the observation's calls; where
+  // start_skill_run exists, its answer (the credit check) comes before the first printed call.
+  assert.match(text, /python3 <skill directory>\/scripts\/begin_analysis\.py --workspace '<user-workspace>' --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis\|content_read\|craft_teardown\|transcript_export> --question '<their words, verbatim>' \[--focus <id>\[,<id>\]\] \[--ask identify_track\]/);
+  assert.match(text, /On every host the first command, `begin_analysis\.py --workspace` \(analysis step 2\), reserves it; a\s+local file reserves it with:/);
+  assert.match(text, /call the Kabo tool `start_skill_run` once right after the run directory is printed/);
+  assert.match(text, /`begin_analysis\.py` fetches nothing itself and only prints the observation's calls, so wait for its answer before making any of them, never in the same turn/);
+  assert.doesNotMatch(text, /right after `init`|three with it|wait for its answer before `begin_analysis\.py`/);
+  assert.ok(text.indexOf("scripts/begin_analysis.py --workspace") < text.indexOf("prepare_analysis.py --run"));
   assert.match(text, /read the rules file it named whole \(sections 5-7 of the brief/);
-  // Without start_skill_run there is no declaration to wait for: begin_analysis.py --workspace is the one setup command.
-  assert.match(text, /Setup is one turn without `start_skill_run`\s+\(`begin_analysis\.py --workspace`, which starts the fetch\) and three with it/);
-  assert.match(text, /begin_analysis\.py --workspace '<user-workspace>'` and the same arguments\. It\s+reserves the run; never pass `--workspace` again/);
+  assert.match(text, /Setup is one command, `begin_analysis\.py --workspace`, on\s+every host \(then `start_skill_run`, where available, before its printed calls\)\./);
+  assert.match(text, /Run it from any directory: it reserves the run and prints its directory first; never pass\s+`--workspace` again for this request\./);
+  assert.match(text, /Exit 2 names an argument problem \(a card\s+id, a flag\): correct it once and run the same command again/);
   // The observation's last command builds and prepares; an envelope or per-run flag that comes later means one rebuild.
   assert.match(text, /the\s+same command also runs steps 4 and 5/);
   assert.match(text, /If you persist an envelope after that \(YouTube metadata, a post row, a\s+baseline\) or a per-run flag applies, run steps 4 and 5 once more/);
