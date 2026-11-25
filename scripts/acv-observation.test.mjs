@@ -2704,12 +2704,12 @@ test("deep: no quick threshold, the run key is the link and the UTC date, fixed 
   assert.equal(second.deep_started_at, first.deep_started_at);
 });
 
-// The frames of an 18-minute video still running after the first wait: the full pass (0.33 x 1080 + 40 = 396 s) cannot
+// The frames of a 111-minute video still running after the first wait: the full pass (0.06 x 6660 + 40 = 440 s) cannot
 // arrive inside the 270-second deadline, so a deep run stops waiting instead of cutting the frames short.
 test("deep_pending: a deep run whose frames cannot arrive in time names the running jobs for the host, writes nothing, and the same command continues the same jobs", async (t) => {
   const question = "why does the middle drag?";
   const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
-    "--question", question, "--confirmed-by-user", "--duration-s", "1080", "--depth", "deep"]);
+    "--question", question, "--confirmed-by-user", "--duration-s", "6660", "--depth", "deep"]);
   const [call] = callLines(begun.out);
   const files = slotFiles(begun.out);
   await writeFile(files[0], mcp(withPending(call.arguments, ["fetch_transcript", "extract_keyframes"])));
@@ -2720,9 +2720,9 @@ test("deep_pending: a deep run whose frames cannot arrive in time names the runn
   const status = JSON.parse(lines[0]);
   assert.equal(status.status, "deep_pending");
   assert.deepEqual(status.pending, [`fetch_transcript=${uuid(2)}`, `extract_keyframes=${uuid(3)}`]);
-  assert.equal(status.minutes_left, 7);
+  assert.equal(status.minutes_left, 8);
   assert.equal(lines[1], `deep_analysis_pending: ${JSON.stringify({ jobs: [uuid(2), uuid(3)], url: TIKTOK, question })}`);
-  assert.match(lines[2], /^The full analysis is still running on Kabo's side: about 7 more minutes for this 18-minute video\. .*Write no report and no answer about the video in this turn\. Tell the creator, in their language/);
+  assert.match(lines[2], /^The full analysis is still running on Kabo's side: about 8 more minutes for this 111-minute video\. .*Write no report and no answer about the video in this turn\. Tell the creator, in their language/);
   assert.doesNotMatch(stopped.out, /^(?:Hand-over|call): /m);
   assert.equal(existsSync(path.join(run, "analysis/content_evidence.json")), false);
   assert.equal((await readJson(path.join(run, "observe-video.json"))).deep_pending.jobs.length, 2);
@@ -2735,22 +2735,22 @@ test("deep_pending: a deep run whose frames cannot arrive in time names the runn
   const [repeat] = callLines(continued.out);
   assert.deepEqual(repeat.arguments, call.arguments);
   assert.equal(callLines(continued.out).length, 1, "the song is not asked for twice");
-  const { out } = await driveWith(run, continued.out, { media: (args) => composite(args, { duration: 1080 }) });
+  const { out } = await driveWith(run, continued.out, { media: (args) => composite(args, { duration: 6660 }) });
   assert.match(out, /"status": "observed"/);
   assert.match(out, /^Envelopes included: /m);
   // A rerun of the whole begin command in this run continues the same way.
   const fresh = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
-    "--question", question, "--confirmed-by-user", "--duration-s", "1080", "--depth", "deep"]);
+    "--question", question, "--confirmed-by-user", "--duration-s", "6660", "--depth", "deep"]);
   await writeFile(slotFiles(fresh.begun.out)[0], mcp(withPending(callLines(fresh.begun.out)[0].arguments, ["extract_keyframes"])));
   assert.match(shell(resumeOf(fresh.begun.out)).out, /"status": "deep_pending"/);
   const rebegun = shell(`cd '${fresh.run}' && python3 -B '${path.join(scripts, "begin_analysis.py")}' --url '${TIKTOK}' --subject-state unknown `
-    + `--mode diagnosis --question '${question}' --confirmed-by-user --duration-s 1080 --depth deep`);
+    + `--mode diagnosis --question '${question}' --confirmed-by-user --duration-s 6660 --depth deep`);
   assert.equal(rebegun.code, 0, rebegun.out);
   assert.equal(callLines(rebegun.out)[0].arguments.run_key, deepKey(TIKTOK));
 });
 
 test("deep run: frames that fit keep the normal wait, and frames still running when no wait fits end deep_pending, never timed_out", async (t) => {
-  // A 200-second video: the full pass (106 s) fits, so the same call is handed over again.
+  // A 200-second video: the full pass (52 s) fits, so the same call is handed over again.
   const short = await newRun(t);
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "content_read", "--duration-s", "200", "--depth", "deep"], short);
   await writeFile(slotFiles(first.out)[0], mcp(withPending(callLines(first.out)[0].arguments, ["extract_keyframes"])));
@@ -2823,7 +2823,7 @@ test("quick first read: the sample, the speech heard and the measured opening re
   const quick = JSON.parse(spawnSync("python3", ["-I", "-B", "-c", "import json, sys; sys.path.insert(0, sys.argv[1]); "
     + "import report_locale as r; print(json.dumps(r.quick_read(json.load(open(sys.argv[2])))))", scripts,
   path.join(run, "analysis/content_evidence.json")], { encoding: "utf8" }).stdout);
-  assert.deepEqual(quick, { duration_s: 1080.2, minutes: 18, frames: 24, speech: "partial", heard_minutes: 3, eta_minutes: 8 });
+  assert.deepEqual(quick, { duration_s: 1080.2, minutes: 18, frames: 24, speech: "partial", heard_minutes: 3, eta_minutes: 3 });
 });
 
 test("quick first read, content read and craft teardown: the brief hands over the closing offer word for word in every report language; platform captions are named as whole", async (t) => {
@@ -2836,8 +2836,8 @@ test("quick first read, content read and craft teardown: the brief hands over th
     assert.match(index, mode === "craft_teardown"
       ? /- End the report with this paragraph, after its line on what it rests on, unchanged, in the creator's language/
       : /- End your answer with this paragraph, after any other offer, unchanged, in the creator's language/);
-    assert.ok(index.includes("  - zh: 这是对这条 18 分钟视频的快速初看：全片抽看了 24 张画面，台词用的是平台字幕。完整分析大约需要 8 分钟，会再用一次视频额度；回复“深度分析”即可开始。"), mode);
-    assert.ok(index.includes("  - en: This is a quick first read of this 18-minute video: 24 frames sampled across it, the speech from the platform's captions. A full analysis takes about 8 minutes and uses one more video credit; reply \"full analysis\" to start it."), mode);
+    assert.ok(index.includes("  - zh: 这是对这条 18 分钟视频的快速初看：全片抽看了 24 张画面，台词用的是平台字幕。完整分析大约需要 3 分钟，会再用一次视频额度；回复“深度分析”即可开始。"), mode);
+    assert.ok(index.includes("  - en: This is a quick first read of this 18-minute video: 24 frames sampled across it, the speech from the platform's captions. A full analysis takes about 3 minutes and uses one more video credit; reply \"full analysis\" to start it."), mode);
     assert.equal(index.match(/^  - [a-z]{2}: /gm).length, 12);
     assert.doesNotMatch(index, /The final step closes the report/);
   }
@@ -2860,8 +2860,8 @@ test("quick first read, diagnosis end to end: the finished report ends with the 
   assert.equal(finished.code, 0, finished.out);
   const report = await readFile(path.join(run, "report/VIDEO_DIAGNOSIS.md"), "utf8");
   assert.equal(report.trimEnd().split("\n\n").at(-1), "This is a quick first read of this 18-minute video: 24 frames sampled across it, the speech heard "
-    + "for the first 3 minutes only. A full analysis takes about 8 minutes and uses one more video credit; reply \"full analysis\" to start it.");
+    + "for the first 3 minutes only. A full analysis takes about 3 minutes and uses one more video credit; reply \"full analysis\" to start it.");
   const result = await readJson(path.join(run, "analysis/creator-task-result.json"));
-  assert.deepEqual(result.details.quick_read, { duration_s: 1080.2, minutes: 18, frames: 24, speech: "partial", heard_minutes: 3, eta_minutes: 8 });
+  assert.deepEqual(result.details.quick_read, { duration_s: 1080.2, minutes: 18, frames: 24, speech: "partial", heard_minutes: 3, eta_minutes: 3 });
   assert.match(result.creator_view.data_note, /^TikTok video; 24 extracted frames; 1 cited frame refs; /);
 });

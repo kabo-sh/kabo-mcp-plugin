@@ -81,8 +81,8 @@ def deadline_s(duration_s: float | None) -> int:
     return OBSERVE_DEADLINE_S
 
 
-# Long videos in two steps. A full frame pass on an 18-minute YouTube video took the server about six minutes
-# (2026-11, ffmpeg 327 s), past what one turn can wait. By default every keyframes, measurement and transcript
+# Long videos in two steps. A full pass on a 111-minute YouTube video took the server five and a half minutes
+# (pre, 2026-11-25: frames 328 s, transcript 231 s, in parallel), past what one turn can wait. By default every keyframes, measurement and transcript
 # request of a diagnosis, content read or craft teardown carries `quick_above_s`: a video longer than this gets a
 # quick, explicitly partial sample (a small set of frames across it, the first 60 s measured, the first 180 s of
 # speech heard when the platform has no captions) and the answer offers a full ("deep") analysis. A shorter video is
@@ -92,11 +92,15 @@ def deadline_s(duration_s: float | None) -> int:
 QUICK_ABOVE_S = 180
 QUICK_MODES = {"diagnosis", "content_read", "craft_teardown"}
 DEPTHS = ("quick", "deep")
-# The full pass the server needs for a video of this length, in seconds: about a third of the duration plus a fixed
-# start (download, probe). A deep observation stops waiting once the frames cannot arrive inside its deadline.
-DEEP_RATE = 0.33
+# The full pass the server needs for a video of this length, in seconds: a rate per second of video plus a fixed
+# start (download, probe). Measured on pre (2026-11-25) for a 111-minute (6660 s) YouTube video in full mode: the
+# keyframes job took 328 s (resolve 14 s, ffmpeg 308 s) and the chunked speech-to-text transcript 231 s, both in
+# parallel, so about 0.05 s per second of video plus 40 s; 0.06 keeps the estimate slightly conservative. A deep
+# observation stops waiting once the frames cannot arrive inside its deadline.
+DEEP_RATE = 0.06
 DEEP_START_S = 40
-# The offer adds what the analysis and the report take after the fetch.
+# The offer adds what the analysis and the report take after the fetch (on that run, about 90 s when nothing was
+# missing).
 OFFER_EXTRA_S = 90
 
 

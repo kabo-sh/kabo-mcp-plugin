@@ -712,13 +712,13 @@ print(json.dumps({
   "languages": list(QUICK_LANGUAGES),
   "gate": [validate_creator_report.validate(report(code)) for code in QUICK_LANGUAGES],
 }))`);
-  assert.deepEqual(out.quick, { duration_s: 1080.2, minutes: 18, frames: 24, speech: "partial", heard_minutes: 3, eta_minutes: 8 });
+  assert.deepEqual(out.quick, { duration_s: 1080.2, minutes: 18, frames: 24, speech: "partial", heard_minutes: 3, eta_minutes: 3 });
   assert.deepEqual([out.captions, out.full, out.none, out.not_quick], ["captions", "full", "none", null]);
   const zh = out.zh.trimEnd().split("\n\n");
   assert.equal(zh.at(-2), "**视频里的歌**：[Night Changes – One Direction](https://open.spotify.com/track/x)");
-  assert.equal(zh.at(-1), "这是对这条 18 分钟视频的快速初看：全片抽看了 24 张画面，台词只听了前 3 分钟。完整分析大约需要 8 分钟，会再用一次视频额度；回复“深度分析”即可开始。");
+  assert.equal(zh.at(-1), "这是对这条 18 分钟视频的快速初看：全片抽看了 24 张画面，台词只听了前 3 分钟。完整分析大约需要 3 分钟，会再用一次视频额度；回复“深度分析”即可开始。");
   assert.ok(out.en.trimEnd().endsWith("\n\nThis is a quick first read of this 18-minute video: 24 frames sampled across it, the speech heard for the first 3 minutes only. "
-    + "A full analysis takes about 8 minutes and uses one more video credit; reply \"full analysis\" to start it."));
+    + "A full analysis takes about 3 minutes and uses one more video credit; reply \"full analysis\" to start it."));
   assert.match(out.fr.trimEnd().split("\n\n").at(-1), /^Ceci est une première lecture rapide de cette vidéo de 18 minutes/);
   // A language the report does not localize gets the English paragraph, translated with the rest as the Skill says.
   assert.match(out.sw.trimEnd().split("\n\n").at(-1), /^This is a quick first read/);
