@@ -424,8 +424,10 @@ def quick_lines(evidence: dict[str, Any], mode: str | None) -> list[str]:
                      "offering the full analysis, its time and its one more video credit: do not write that offer "
                      "yourself, in the summary, the cards or the next actions.")
     elif quick is not None:
-        lines.append("- End your answer with this paragraph, unchanged, in the creator's language (the line for "
-                     "their language; for a language not listed, translate the English one):")
+        where = ("End the report with this paragraph, after its line on what it rests on"
+                 if mode == "craft_teardown" else "End your answer with this paragraph, after any other offer")
+        lines.append(f"- {where}, unchanged, in the creator's language (the line for their language; for a language "
+                     "not listed, translate the English one):")
         lines += [f"  - {code}: {report_locale.quick_paragraph(quick, code)}"
                   for code in report_locale.QUICK_LANGUAGES]
     lines.append("")

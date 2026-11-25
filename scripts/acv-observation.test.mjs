@@ -2700,7 +2700,7 @@ test("quick first read: the sample, the speech heard and the measured opening re
   assert.match(index, /- Measurements \(cuts, silence, freezes, framing, brightness, loudness\): the first 60s only \(`media\.probed\.coverage`\), not the whole 1080\.2s\./);
   assert.match(index, /- Rule: frame any judgment about a stretch that was not sampled as not observed in this quick read\./);
   assert.match(index, /The final step closes the report with one paragraph saying this was a quick first read/);
-  assert.doesNotMatch(index, /End your answer with this paragraph/);
+  assert.doesNotMatch(index, /with this paragraph/);
   // The report's closing paragraph comes from the same facts.
   const quick = JSON.parse(spawnSync("python3", ["-I", "-B", "-c", "import json, sys; sys.path.insert(0, sys.argv[1]); "
     + "import report_locale as r; print(json.dumps(r.quick_read(json.load(open(sys.argv[2])))))", scripts,
@@ -2715,7 +2715,9 @@ test("quick first read, content read and craft teardown: the brief hands over th
     assert.equal("coverage" in evidence.transcript, false);
     const index = section(brief, 3);
     assert.match(index, /- Speech: the platform's captions, for the whole video\./);
-    assert.match(index, /- End your answer with this paragraph, unchanged, in the creator's language/);
+    assert.match(index, mode === "craft_teardown"
+      ? /- End the report with this paragraph, after its line on what it rests on, unchanged, in the creator's language/
+      : /- End your answer with this paragraph, after any other offer, unchanged, in the creator's language/);
     assert.ok(index.includes("  - zh: 这是对这条 18 分钟视频的快速初看：全片抽看了 24 张画面，台词用的是平台字幕。完整分析大约需要 8 分钟，会再用一次视频额度；回复“深度分析”即可开始。"), mode);
     assert.ok(index.includes("  - en: This is a quick first read of this 18-minute video: 24 frames sampled across it, the speech from the platform's captions. A full analysis takes about 8 minutes and uses one more video credit; reply \"full analysis\" to start it."), mode);
     assert.equal(index.match(/^  - [a-z]{2}: /gm).length, 12);
