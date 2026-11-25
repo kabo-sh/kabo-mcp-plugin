@@ -85,6 +85,14 @@ function composite(args, { failed = false, duration, emptyTranscript, frameTimes
     summary: { requests: jobs.length, pending: 0, jobs }, coverage: { deadline_reached: false, unfinished: [], provider_calls: 0, pending: 0 }, limitations: [] };
 }
 const mcp = (value) => JSON.stringify({ content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value });
+const YOUTUBE = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+// youtube_get_video's envelope for that link, as the connector answers (counts as strings, thumbnails highest first).
+const youtubeVideo = ({ duration = 30, status = "completed" } = {}) => ({ schema_version: "1.0", connector_id: "youtube-public",
+  operation: "get_video", provider: "fixture", status, summary: status === "completed" ? "Found 1 video" : "not available", limitations: [],
+  evidence_ref: "ev-yt", raw_sha256: "d".repeat(64), request_id: "req-yt", retrieved_at: "2026-11-16T00:00:00Z",
+  data: status === "completed" ? { rows: [{ id: "dQw4w9WgXcQ", title: "Why your pan burns", description: "Fix it", duration_seconds: duration,
+    published_at: "2026-11-01T00:00:00Z", metrics: { views: "1200", likes: "90", comments: "4" }, tags: ["cooking"],
+    thumbnails: [{ url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg" }] }] } : null });
 const queued = { ...viewerFixture, status: "queued", progress: 5, result: null, transcript: null, completedAt: null };
 
 async function newRun(t) {
@@ -123,7 +131,7 @@ const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
 // media call's number in this run); `afterRound` runs after each round's results are saved, before the resume.
 const OBSERVED = /"status": "(?:observed|timed_out|metadata_only|source_unavailable)"/;
 async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed = false, mode = "diagnosis", duration,
-  emptyTranscript, afterRound, frameTimes, args = [], cues, url = TIKTOK, measuredDuration } = {}) {
+  emptyTranscript, afterRound, frameTimes, args = [], cues, url = TIKTOK, measuredDuration, youtube = youtubeVideo() } = {}) {
   const run = await newRun(t);
   let out = python("observe_video.py", ["--url", url, "--mode", mode, ...(source ? ["--observe-source", source] : []), ...args], run).out;
   const steps = [...viewerSteps];
@@ -138,6 +146,9 @@ async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed =
         const failed = typeof mediaFailed === "function" ? mediaFailed(mediaCalls) : mediaFailed;
         mediaCalls += 1;
         await writeFile(files[index], mcp(composite(call.arguments, { failed, duration, emptyTranscript, frameTimes, cues, measuredDuration })));
+      } else if (call.tool === "youtube_get_video") {
+        // The post's metadata rides in the first hand-over; null saves nothing, as a host without the tool does.
+        if (youtube !== null) await writeFile(files[index], typeof youtube === "string" ? youtube : mcp(youtube));
       } else await writeFile(files[index], typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
     }
     if (afterRound) await afterRound(run, round);
@@ -728,6 +739,28 @@ test("the observe_video.py hand-over, two calls included, is in the form the Web
   assert.match(resumed.stdout, /--viewer snapshot\/whole-video\.json/);
 });
 
+test("a YouTube link's first hand-over, metadata call included, is in the form the Web host executes", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", YOUTUBE, "--mode", "diagnosis", "--duration-s", "30"], run);
+  const handover = hostHandover(first.out);
+  assert.ok(handover, first.out);
+  assert.deepEqual(handover.calls.map((call) => call.tool), ["collect_video_media", "youtube_get_video"]);
+  // The host maps it to data_connector_run youtube-public/get_video: `parameters` must be an object, `delivery` is dropped.
+  const { delivery, ...rest } = handover.calls[1].arguments;
+  assert.equal(delivery, "download");
+  assert.deepEqual(rest, { parameters: { video_id: "dQw4w9WgXcQ" } });
+  // What the host writes is the research tool's output and the connector envelope itself, each unwrapped.
+  await writeFile(handover.files[0], JSON.stringify(composite(handover.calls[0].arguments)));
+  await writeFile(handover.files[1], JSON.stringify(youtubeVideo()));
+  const resumed = spawnSync("python3", [handover.resume.script, ...handover.resume.args], { cwd: handover.resume.cwd, encoding: "utf8", env });
+  assert.equal(resumed.status, 0, resumed.stdout + resumed.stderr);
+  assert.match(resumed.stdout, /"status": "observed"/);
+  assert.match(resumed.stdout, /Side calls: metadata completed\./);
+  assert.match(flagsOf(resumed.stdout), /^--request analysis\/video-analysis-request\.json --envelope snapshot\/envelope-02\.json --envelope snapshot\/envelope-03\.json --envelope snapshot\/envelope-04\.json --envelope snapshot\/envelope-01\.json /);
+  const persisted = await readJson(path.join(run, "snapshot/envelope-01.json"));
+  assert.deepEqual([persisted.connector_id, persisted.operation], ["youtube-public", "get_video"]);
+});
+
 // Cards first: select_method.py runs on the request alone, before anything is fetched, and the observation reads
 // its choice. The sound card adds the whole-video viewing; prepare_analysis.py re-checks the same cards against
 // the evidence that arrived, with no --focus of its own.
@@ -736,7 +769,7 @@ async function selectFirst(run, focus, mode = "diagnosis") {
   assert.equal(chosen.code, 0, chosen.out);
   return readJson(path.join(run, "analysis/method.json"));
 }
-async function driveFrom(run, out, { viewerSteps = [viewerFixture], media = {} } = {}) {
+async function driveFrom(run, out, { viewerSteps = [viewerFixture], media = {}, youtube = youtubeVideo() } = {}) {
   const steps = [...viewerSteps];
   const handed = [];
   for (let round = 0; round < 8 && !/"status": "observed"/.test(out); round += 1) {
@@ -744,9 +777,12 @@ async function driveFrom(run, out, { viewerSteps = [viewerFixture], media = {} }
     assert.ok(calls.length, out);
     for (const [index, call] of calls.entries()) {
       handed.push(call);
-      // A diagnosis also asks for the song: answer it with no match, leaving the viewer steps to the viewing.
+      // A diagnosis also asks for the song: answer it with no match, leaving the viewer steps to the viewing. A YouTube
+      // link's metadata call gets `youtube` (a string as it is, null saves nothing).
+      if (call.tool === "youtube_get_video" && youtube === null) continue;
       await writeFile(files[index], call.tool === "collect_video_media" ? mcp(composite(call.arguments, media))
         : call.tool === "identify_video_song" ? mcp(SONG.noMatch)
+        : call.tool === "youtube_get_video" ? (typeof youtube === "string" ? youtube : mcp(youtube))
         : typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
     }
     const resumed = shell(resumeOf(out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
@@ -995,24 +1031,76 @@ test("begin_analysis: argument mistakes are refused with one JSON line that says
   assert.match(unreserved.error, /^no run is reserved here: begin with --workspace '<user-workspace>' and the same arguments/);
 });
 
-test("the observation builds nothing while the post's metadata still has to come from youtube_get_video, and builds once it is in the run", async (t) => {
-  const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-  const youtubeEnvelope = { schema_version: "1.0", connector_id: "youtube-public", operation: "get_video", status: "completed",
-    data: { rows: [{ id: "dQw4w9WgXcQ", title: "Why your pan burns", duration_seconds: 30 }] } };
-  const args = ["--url", YT, "--subject-state", "unknown", "--mode", "diagnosis", "--question", "", "--confirmed-by-user", "--duration-s", "30"];
-  const waiting = await beginInWorkspace(t, args);
-  const { out } = await driveFrom(waiting.run, waiting.begun.out);
-  assert.match(out, /^Pass these to build_content_evidence\.py/m);
-  assert.match(out, /The post's metadata comes from youtube_get_video, which is not in this run yet/);
-  assert.doesNotMatch(out, /# Analysis brief/);
-  assert.equal(existsSync(path.join(waiting.run, "analysis/content_evidence.json")), false);
+test("a YouTube observation makes youtube_get_video in its first hand-over, persists its answer and builds with it", async (t) => {
+  const args = ["--url", YOUTUBE, "--subject-state", "unknown", "--mode", "diagnosis", "--question", "", "--confirmed-by-user", "--duration-s", "30"];
+  const first = await beginInWorkspace(t, args);
+  const calls = callLines(first.begun.out);
+  // Last in the first hand-over, with the arguments the runtime reference prescribes; saved whole like the side calls.
+  assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media", "identify_video_song", "youtube_get_video"]);
+  assert.deepEqual(calls[2].arguments, { parameters: { video_id: "dQw4w9WgXcQ" }, delivery: "download" });
+  assert.match(slotFiles(first.begun.out)[2], /\/host-results\/03-youtube_get_video\.json$/);
+  assert.match(first.begun.out, /Save each [^.]*youtube_get_video result whole/);
+  const { out } = await driveFrom(first.run, first.begun.out);
+  assert.match(out, /^Side calls: song no_match, metadata completed\./m);
+  // Read on the first resume, before the media envelopes: envelope-01, persisted as persist_envelope.py would.
+  assert.match(out, /^Envelopes included: snapshot\/envelope-02\.json, snapshot\/envelope-03\.json, snapshot\/envelope-04\.json, snapshot\/envelope-01\.json$/m);
+  assert.match(out, /# Analysis brief/);
+  const persisted = await readJson(path.join(first.run, "snapshot/envelope-01.json"));
+  assert.deepEqual([persisted.connector_id, persisted.operation, persisted.status], ["youtube-public", "get_video", "completed"]);
+  const evidence = await readJson(path.join(first.run, "analysis/content_evidence.json"));
+  assert.equal(evidence.content_metadata.status, "available");
+  assert.equal(evidence.content_metadata.title, "Why your pan burns");
+  assert.doesNotMatch(out, /metadata call \(youtube_get_video\) brought nothing/);
 
-  const ready = await beginInWorkspace(t, args);
-  await writeFile(path.join(ready.run, "snapshot/envelope-01.json"), JSON.stringify(youtubeEnvelope));
-  const built = await driveFrom(ready.run, ready.begun.out);
-  assert.doesNotMatch(built.out, /^Pass these/m);
-  assert.match(built.out, /^Envelopes included: snapshot\/envelope-02\.json, snapshot\/envelope-03\.json, snapshot\/envelope-04\.json, snapshot\/envelope-01\.json$/m);
-  assert.match(built.out, /# Analysis brief/);
+  // The Web host writes the connector envelope itself (no MCP wrapper, no download): staged and persisted the same way.
+  const web = await beginInWorkspace(t, args);
+  const onWeb = await driveFrom(web.run, web.begun.out, { youtube: JSON.stringify(youtubeVideo()) });
+  assert.match(onWeb.out, /metadata completed/);
+  assert.equal((await readJson(path.join(web.run, "analysis/content_evidence.json"))).content_metadata.status, "available");
+
+  // A host that staged the result itself and saved no file: the staged copy is persisted.
+  const staged = await beginInWorkspace(t, args);
+  await writeFile(path.join(staged.run, "host-results/yt-staged.json"), mcp(youtubeVideo()));
+  assert.equal(python("static_host.py", ["stage", "--tool", "youtube_get_video", "--input", "host-results/yt-staged.json"], staged.run).code, 0);
+  const fromStage = await driveFrom(staged.run, staged.begun.out, { youtube: null });
+  assert.match(fromStage.out, /metadata completed/);
+
+  // An answer that the video is unavailable is persisted as the evidence it is: the build records the metadata as unavailable.
+  const failed = await beginInWorkspace(t, args);
+  const refused = await driveFrom(failed.run, failed.begun.out, { youtube: youtubeVideo({ status: "failed" }) });
+  assert.match(refused.out, /metadata failed/);
+  assert.equal((await readJson(path.join(failed.run, "analysis/content_evidence.json"))).content_metadata.status, "unavailable");
+
+  // Nothing saved, an MCP error with no connector evidence, or the Web host's bare failure: one limitation line, and the
+  // observation builds and prints the brief all the same.
+  for (const [youtube, status, why] of [
+    [null, "not_returned", "no result was saved for this call"],
+    [JSON.stringify({ isError: true, content: [{ type: "text", text: "rate limited, retry later" }] }), "failed", "MCP error contains no terminal connector evidence: rate limited, retry later"],
+    [JSON.stringify({ connector_id: "youtube-public", operation: "get_video", status: "failed", error_code: "upstream_failed" }), "failed", "upstream_failed"],
+  ]) {
+    const gap = await beginInWorkspace(t, args);
+    const done = await driveFrom(gap.run, gap.begun.out, { youtube });
+    assert.match(done.out, new RegExp(`metadata ${status}\\.`));
+    assert.match(done.out, /# Analysis brief/);
+    assert.doesNotMatch(done.out, /^Pass these/m);
+    const line = `The post's metadata call (youtube_get_video) brought nothing usable (${why}), so its title, description, tags, cover, publish date and public counts are missing from this analysis.`;
+    const evidence = await readJson(path.join(gap.run, "analysis/content_evidence.json"));
+    assert.ok(JSON.stringify(evidence).includes(JSON.stringify(line).slice(1, -1)), JSON.stringify(evidence.limitations ?? evidence));
+    assert.equal(evidence.content_metadata.status, "not_attempted");
+  }
+});
+
+test("a YouTube run that already holds its metadata envelope makes no metadata call and builds with it", async (t) => {
+  const args = ["--url", YOUTUBE, "--subject-state", "unknown", "--mode", "diagnosis", "--question", "", "--confirmed-by-user", "--duration-s", "30"];
+  const run = await newRun(t);
+  await writeFile(path.join(run, "snapshot/envelope-01.json"), JSON.stringify(youtubeVideo()));
+  const begun = python("begin_analysis.py", args, run);
+  assert.equal(begun.code, 0, begun.out);
+  assert.deepEqual(callLines(begun.out).map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
+  const { out } = await driveFrom(run, begun.out);
+  assert.doesNotMatch(out, /metadata (?:completed|failed|not_returned)/);
+  assert.match(out, /^Envelopes included: snapshot\/envelope-02\.json, snapshot\/envelope-03\.json, snapshot\/envelope-04\.json, snapshot\/envelope-01\.json$/m);
+  assert.match(out, /# Analysis brief/);
 });
 
 test("a transcript export builds the evidence at the end of the observation and goes straight to the export", async (t) => {
@@ -1243,7 +1331,10 @@ test("SKILL.md: cards are chosen before the observation, the credit check comes 
   assert.match(text, /Exit 2 names an argument problem \(a card\s+id, a flag\): correct it once and run the same command again/);
   // The observation's last command builds and prepares; an envelope or per-run flag that comes later means one rebuild.
   assert.match(text, /the\s+same command also runs steps 4 and 5/);
-  assert.match(text, /If you persist an envelope after that \(YouTube metadata, a post row, a\s+baseline\) or a per-run flag applies, run steps 4 and 5 once more/);
+  assert.match(text, /If you persist an envelope after that \(a post row, a baseline\) or a\s+per-run flag applies, run steps 4 and 5 once more/);
+  // YouTube's metadata comes from the observation's own hand-over: never a call the model makes beside it.
+  assert.doesNotMatch(text, /YouTube metadata, post|on every platform but YouTube|`youtube-public` \/ `get_video`/);
+  assert.ok(text.match(/^allowed-tools: (.*)$/m)[1].split(" ").includes("youtube_get_video"));
   assert.match(text, /A file this\s+Skill's `metadata\.preload` lists \(those two and `references\/diagnosis-rules\.md`\) that the host already\s+put in your context needs no read/);
   assert.match(text, /when a tool says the platform or link is not\s+supported, tell the creator which link could not be read and stop/);
   assert.doesNotMatch(text, /Douyin, Xiaohongshu, Kuaishou, Facebook, Bilibili/);
@@ -1300,22 +1391,21 @@ test("duration gate: when no media result reports a duration, the sound card's v
 });
 
 test("duration gate: YouTube reads the duration from its own metadata envelope or from the measurement, and without either no viewing starts", async (t) => {
-  const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-  const youtubeEnvelope = { schema_version: "1.0", connector_id: "youtube-public", operation: "get_video", status: "completed",
-    data: { rows: [{ id: "dQw4w9WgXcQ", duration_seconds: 45 }] } };
-  // The first round measures the file, beside the youtube_get_video call the Skill makes in the same turn: no round is added.
+  const YT = YOUTUBE;
+  // The first round measures the file, beside the youtube_get_video call in the same hand-over: no round is added.
   const begin = async () => {
     const run = await newRun(t);
     const first = python("observe_video.py", ["--url", YT, "--mode", "diagnosis", "--observe-source", "whole_video"], run);
     assert.equal(first.code, 0, first.out);
     const calls = callLines(first.out);
-    assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media"]);
+    assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media", "youtube_get_video"]);
     assert.deepEqual(operationsOf(calls[0]), ["measure_media_signals"]);
-    return { run, first, call: calls[0], file: slotFiles(first.out)[0] };
+    return { run, first, call: calls[0], file: slotFiles(first.out)[0], metadata: slotFiles(first.out)[1] };
   };
 
+  // The metadata call's answer is persisted on the resume, before the gate reads the duration from it.
   const persisted = await begin();
-  await writeFile(path.join(persisted.run, "snapshot/envelope-01.json"), JSON.stringify(youtubeEnvelope));
+  await writeFile(persisted.metadata, mcp(youtubeVideo({ duration: 45 })));
   await writeFile(persisted.file, mcp(composite(persisted.call.arguments)));
   const resumed = shell(resumeOf(persisted.first.out));
   assert.deepEqual(callLines(resumed.out).map((call) => call.tool), ["analyze_content_video"], resumed.out);
@@ -1323,6 +1413,7 @@ test("duration gate: YouTube reads the duration from its own metadata envelope o
 
   // youtube_get_video answered unsupported (the provider's quota): the measurement's duration starts the viewing.
   const measured = await begin();
+  await writeFile(measured.metadata, mcp(youtubeVideo({ status: "unsupported" })));
   await writeFile(measured.file, mcp(composite(measured.call.arguments, { measuredDuration: 41.5 })));
   const started = shell(resumeOf(measured.first.out));
   assert.deepEqual(callLines(started.out).map((call) => call.tool), ["analyze_content_video"], started.out);
@@ -1374,9 +1465,9 @@ test("duration gate: Instagram metadata carries no duration, so the forced viewi
 
 test("a duration given with --duration-s reaches media.duration_s on a whole-video-only run", async (t) => {
   const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-  const { run, out, handed } = await observe(t, "whole_video", { url: YT, args: ["--duration-s", "45"] });
-  // Known up front: no measurement is needed, and nothing but the viewing is called.
-  assert.deepEqual(handed.map((call) => call.tool), ["analyze_content_video"]);
+  const { run, out, handed } = await observe(t, "whole_video", { url: YT, args: ["--duration-s", "45"], youtube: null });
+  // Known up front: no measurement is needed, and nothing but the viewing and the post's metadata is called.
+  assert.deepEqual(handed.map((call) => call.tool), ["analyze_content_video", "youtube_get_video"]);
   assert.match(flagsOf(out), /--duration-s 45/);
   assert.equal(python("prepare_link_request.py", ["--url", YT, "--platform", "youtube", "--subject-state", "unknown", "--mode", "diagnosis",
     "--confirmed-by-user"], run).code, 0);

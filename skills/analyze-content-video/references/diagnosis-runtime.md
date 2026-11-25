@@ -315,10 +315,11 @@ excerpt is not a complete export.
 `metadata` operation.** The media tool reads a video page from a datacentre
 address, and YouTube refuses those: it answers `service_unavailable` on every YouTube URL, and a run
 that used it lost title, tags, cover and publish date. `youtube_get_video` is the platform answering
-about its own video; it is not a deferred job and carries the same facts plus public counts. Call it
-with `{"parameters": {"video_id": "<resolved-video-id>"}, "delivery": "download"}`. Transcript,
-frames and measurements come from `observe_video.py` with the original video URL, as `SKILL.md`
-says; it builds the arguments.
+about its own video; it is not a deferred job and carries the same facts plus public counts.
+`observe_video.py` hands it over last in the observation's first hand-over, with
+`{"parameters": {"video_id": "<resolved-video-id>"}, "delivery": "download"}`, and its resume
+persists the answer (`youtube-public` / `get_video`, failed answers included) before the evidence is
+built: never call it yourself. A call that brought nothing becomes one limitation line, never a wait.
 
 On **every other platform** (Instagram, TikTok, Douyin, Xiaohongshu, Kuaishou, Facebook, Bilibili)
 the media call's `metadata` operation stays the metadata source. On Douyin, Xiaohongshu and Kuaishou
@@ -329,8 +330,7 @@ count: the builder leaves views out and records that limitation, so never write 
 divide anything by views there. A Facebook view count is the page's rounded display; quote it only
 at that precision, and a withheld one stays unknown.
 
-Persist the YouTube response like any other, naming its own connector and operation:
-`--connector youtube-public --operation get_video`. The builder reads its fields into the same shape.
+The builder reads the YouTube response's fields into the same shape.
 
 ⚠ **Do not issue both.** Two metadata envelopes for one video are two readings of the same facts,
 and the builder picks one — which one is then invisible in the report.

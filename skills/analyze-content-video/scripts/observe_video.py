@@ -24,6 +24,15 @@ polled or repeated, and it adds no hand-over of its own. What comes back is pers
 call was not made), an error, or an answer that it cannot read the link is recorded the same way, as that missing
 piece of evidence, never a failure of the run. A file attached in Kabo gets no side call: it has no public link.
 
+Where the post's metadata comes from its own tool instead of the media call (`metadata_route` in
+references/public-video-sources.v1.json: YouTube's `youtube_get_video`), that call rides in the first hand-over too,
+last, with the arguments the runtime reference prescribes (`{"parameters": {"video_id": ...}, "delivery":
+"download"}`). The resume fetches or stages its saved result and persists it as `snapshot/envelope-NN.json` under the
+answering connector and operation (`youtube-public` / `get_video`), exactly as persist_envelope.py does for the model;
+on a host that staged the result itself and saved no file, the staged copy is persisted. A failed answer is persisted
+as the evidence it is; nothing saved or staged, or a result that cannot be staged, is one limitation line, never a
+failure of the run and never a reason to wait.
+
 A fallback that needs media operations no earlier media call asked for (a failed viewing had only the metadata
 or measurement call) starts one more media call for exactly those operations, under the same run key;
 each source is judged on the media results that carry its operations. The mode bends the order the way
@@ -66,10 +75,10 @@ creator's words are written (begin_analysis.py writes both), the same command al
 build_content_evidence.py with the arguments it would otherwise print plus every `snapshot/envelope-*.json` the run
 holds, then prepare_analysis.py, whose output (the brief) it prints after the frame reads, so the model goes from the
 observation straight to the frames and the judgment. It names the envelopes it included and the two commands that
-build them again (`--replace`) when another envelope or a per-run flag comes in later. It does not build while the
-post's metadata still has to come from another tool (YouTube's `youtube_get_video`): it prints the arguments instead,
-as it does in a run that has no request yet. The early build needs no frame bytes: the evidence lists frames from the
-keyframe envelope, and a frame fetched to `snapshot/` later only adds a local copy that no later step reads.
+build them again (`--replace`) when another envelope or a per-run flag comes in later. When the post's metadata
+still has to come from another tool (YouTube's `youtube_get_video`) and this observation made no such call (one
+begun before it did), it prints the arguments instead, as in a run that has no request yet. The early build needs
+no frame bytes: the evidence lists frames from the keyframe envelope, and a frame fetched to `snapshot/` later only adds a local copy that no later step reads.
 
 Depth, fixed for the run at its first hand-over (`collect_media.fix_depth`). By default a diagnosis, content read or
 craft teardown of a link is quick-capable: its keyframes, measurement and transcript requests carry `quick_above_s`
@@ -119,6 +128,10 @@ SIDE_PERSISTED = {"song": "snapshot/song.json", "comment_summary": "snapshot/com
 SIDE_FLAGS = {"song": "--song", "comment_summary": "--comment-summary"}
 SIDE_SCHEMA = "acv-side-call/v1"
 SIDE_TOOLS = set(observation_order.SIDE_CALLS.values())
+# Tools that bring a post's metadata where the media call does not (YouTube's youtube_get_video).
+METADATA_TOOLS = sorted({entry.get("metadata_route") for entry in map(public_video_sources.source,
+                                                                       public_video_sources.platform_ids())}
+                        - {None, "media_call"})
 # At most this many frames per read: hosts cap the images one tool result may show.
 READ_CHUNK = 15
 # What the evidence build reads and writes in the run (the request and the creator's words come from begin_analysis.py).
@@ -154,7 +167,8 @@ MODE_OPERATIONS = {
 # rides in the same media call for free, and without it a refused download could not be told from a deleted video.
 METADATA_MODES = {"diagnosis", "content_read", "craft_teardown"}
 SAVE_RULE = (
-    f"Save each {START_TOOL} / {POLL_TOOL} / " + " / ".join(observation_order.SIDE_CALLS.values()) + " result whole, "
+    f"Save each {START_TOOL} / {POLL_TOOL} / " + " / ".join([*observation_order.SIDE_CALLS.values(), *METADATA_TOOLS])
+    + " result whole, "
     "as returned (its download link or an error included), to "
     "the file named under its call with the host's file-write tool, never as a command-line argument (when this host "
     "has no such tool, save nothing for that call: the run goes on without it); this script "
@@ -328,8 +342,8 @@ def media_namespace(current: dict[str, Any], wait_s: int | None = None) -> Simpl
 
 
 def hand_over_calls(current: dict[str, Any], *, start_viewer: bool, poll_viewer: bool, media: bool,
-                    note: str = "", side: list[str] | tuple[str, ...] = (), viewer_wait_s: int = VIEWER_WAIT_S,
-                    media_wait_s: int | None = None) -> None:
+                    note: str = "", side: list[str] | tuple[str, ...] = (), metadata: bool = False,
+                    viewer_wait_s: int = VIEWER_WAIT_S, media_wait_s: int | None = None) -> None:
     """Print the calls still needed this round, the file for each, and the one resume command.
 
     `viewer_wait_s` / `media_wait_s` are the waits the deadline still covers (observation_order.round_waits); the
@@ -357,6 +371,11 @@ def hand_over_calls(current: dict[str, Any], *, start_viewer: bool, poll_viewer:
         # One bounded call each, beside the observation's own calls: read once on resume, never handed over again.
         entry = current["side"][name]
         calls.append((entry["tool"], {"video_url": current["url"]}, slot(entry["tool"])))
+        entry["handed"] = True
+    if metadata:
+        # Last: the media call's jobs keep running server-side while a host makes this one after it.
+        entry = current["metadata"]
+        calls.append((entry["tool"], entry["arguments"], slot(entry["tool"])))
         entry["handed"] = True
     current = state() | {key: value for key, value in current.items() if key != "slots"}
     current["awaiting"] = [{"tool": tool, "file": str(file)} for tool, _, file in calls]
@@ -399,7 +418,8 @@ def start(args: argparse.Namespace) -> int:
                "viewer": {"active": False}, "media": {"active": False},
                "side": {item["name"]: {**item, "handed": False}
                         for item in observation_order.side_calls(order, cards=cards, ask=ask, mode=selected_mode(),
-                                                                 file_ref=collect_media.is_file_ref(url))}}
+                                                                 file_ref=collect_media.is_file_ref(url))},
+               "metadata": metadata_call(url, platform, args.mode)}
     for name, entry in current["side"].items():
         if not entry["make"]:
             persist_side(current, name, None, skipped="uploaded_file")
@@ -445,13 +465,14 @@ def begin(current: dict[str, Any], note: str = "") -> int:
             refuse_viewer(current, code)
     save_state(current)
     side = [name for name, entry in (current.get("side") or {}).items() if entry["make"] and not entry["handed"]]
-    if not start_viewer and not start_media and not side:
+    metadata = bool(current.get("metadata") and not current["metadata"]["handed"])
+    if not start_viewer and not start_media and not side and not metadata:
         return settle(current)
     # A media call started now waits inside the tool too: never past what the deadline covers (time_for already
     # kept a fallback from starting without a full wait).
     media_wait = (observation_order.round_waits(deadline_left(current), 1) or [None])[0] if start_media else None
     hand_over_calls(current, start_viewer=start_viewer, poll_viewer=False, media=start_media, note=note, side=side,
-                    media_wait_s=media_wait)
+                    metadata=metadata, media_wait_s=media_wait)
     return 0
 
 
@@ -565,6 +586,87 @@ def persist_side(current: dict[str, Any], name: str, raw: bytes | None, *, skipp
 def read_side(current: dict[str, Any], tool: str, file: Path) -> None:
     name = next(key for key, entry in current["side"].items() if entry["tool"] == tool)
     persist_side(current, name, file.read_bytes() if file.is_file() and file.stat().st_size else None)
+
+
+def metadata_key(route: str | None) -> tuple[str, str] | None:
+    """The (connector, operation) a metadata tool answers under, from static_host's declared data tools."""
+    key = next((key for key, tool in static_host.CONNECTOR_TOOLS.items() if tool == route), None)
+    if key is None:
+        return None
+    connector, _, operation = key.partition("/")
+    return connector, operation
+
+
+def metadata_in_run(route: str | None) -> bool:
+    """Whether this run already persisted an envelope of the metadata tool `route`."""
+    wanted = metadata_key(route)
+    for path in (static_host.run_dir() / "snapshot").glob("envelope-*.json"):
+        try:
+            body = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(body, dict) and (body.get("connector_id"), body.get("operation")) == wanted:
+            return True
+    return False
+
+
+def metadata_call(url: str, platform: str | None, mode: str) -> dict[str, Any] | None:
+    """The metadata call this observation makes in its first hand-over: YouTube's youtube_get_video for the video
+    id the link names, with the arguments the runtime reference prescribes. None where the media call carries the
+    metadata, the mode reads none, the source is an attached file, the id cannot be read from the link, or the run
+    already holds that envelope."""
+    route = (public_video_sources.source(platform) or {}).get("metadata_route")
+    key = metadata_key(route)
+    found = public_video_sources.match_url(url)
+    if (mode not in METADATA_MODES or route in (None, "media_call") or key is None or collect_media.is_file_ref(url)
+            or not found or not found.get("id") or metadata_in_run(route)):
+        return None
+    return {"tool": route, "connector": key[0], "operation": key[1], "handed": False,
+            "arguments": {"parameters": {"video_id": found["id"]}, "delivery": "download"}}
+
+
+# The line a metadata call that brought nothing usable adds to the evidence's limitations.
+METADATA_GAP = ("The post's metadata call ({tool}) brought nothing usable ({why}), so its title, description, tags, "
+                "cover, publish date and public counts are missing from this analysis.")
+
+
+def read_metadata(current: dict[str, Any], file: Path) -> None:
+    """Persist the metadata call's answer as snapshot/envelope-NN.json, as persist_envelope.py does for the model:
+    the saved result is fetched (a download) or staged (inline), then the staged copy is persisted under its own
+    connector and operation, failed answers included. A host that staged the result itself and saved no file is
+    persisted the same way. Nothing usable is one limitation line; the run never waits on it."""
+    entry = current["metadata"]
+    if entry.get("status"):
+        # Already read in an earlier attempt at this resume (one that stopped on another call's result).
+        return
+    raw = file.read_bytes() if file.is_file() and file.stat().st_size else None
+    why = None
+    if raw is not None:
+        try:
+            if static_host.fetch(entry["tool"], raw).get("fetched") == 0:
+                static_host.stage(entry["tool"], raw)
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            try:
+                body = json.loads(raw)
+            except ValueError:
+                body = None
+            code = body.get("error_code") if isinstance(body, dict) else None
+            # The error's first sentence only: what follows is advice for a model, not a fact about the post.
+            why = str(code) if isinstance(code, str) and code else str(error).split(". ")[0][:200]
+    if why is None:
+        dest = f"snapshot/envelope-{collect_media.next_slot():02d}.json"
+        done = subprocess.run([sys.executable, "-B", str(SCRIPTS / "persist_envelope.py"), "--dest", dest,
+                               "--connector", entry["connector"], "--operation", entry["operation"], "--any-status"],
+                              capture_output=True, text=True)
+        if done.returncode == 0:
+            entry["persisted"] = dest
+            entry["status"] = str(json.loads(done.stdout).get("envelope_status") or "persisted")
+            save_state(current)
+            return
+        why = "no result was saved for this call" if raw is None else "its result could not be persisted"
+    entry["status"] = "not_returned" if raw is None else "failed"
+    current.setdefault("limitations", []).append(METADATA_GAP.format(tool=entry["tool"], why=why))
+    save_state(current)
 
 
 def duration_of(body: Any) -> float | None:
@@ -839,6 +941,8 @@ def settle(current: dict[str, Any]) -> int:
     if media is not None:
         flags += [("--envelope", path) for path in media["envelopes"]]
         flags += [("--deferred-incomplete", item) for item in media["pending"]]
+    if (current.get("metadata") or {}).get("persisted"):
+        flags.append(("--envelope", current["metadata"]["persisted"]))
     if viewer.get("active") and viewer.get("persisted"):
         flags.append(("--viewer", viewer["persisted"]))
     flags += [(SIDE_FLAGS[name], entry["persisted"]) for name, entry in (current.get("side") or {}).items()
@@ -868,9 +972,11 @@ def settle(current: dict[str, Any]) -> int:
                     "media_pending": media["pending"] if media else [], "timed_out": late}, ensure_ascii=False))
     for line in dict.fromkeys(current.get("fallback_notes") or []):
         say("Fallback: " + line)
-    side = current.get("side") or {}
+    side = {name: entry.get("status") for name, entry in (current.get("side") or {}).items()}
+    if current.get("metadata"):
+        side["metadata"] = current["metadata"].get("status")
     if side:
-        say("Side calls: " + ", ".join(f"{name} {entry.get('status') or 'not read'}" for name, entry in side.items())
+        say("Side calls: " + ", ".join(f"{name} {status or 'not read'}" for name, status in side.items())
             + ". A side call that brought nothing is a gap the evidence records, not a failure: never call it again.")
     if media and media.get("frames_note"):
         say("Frames: " + media["frames_note"])
@@ -945,18 +1051,12 @@ def flag_text(flags: list[tuple[str, str]]) -> str:
 
 def metadata_elsewhere(current: dict[str, Any]) -> str | None:
     """The tool the post's metadata still has to come from before the evidence can be built (YouTube's
-    youtube_get_video), or None when it rides in the media call or its envelope is already in the run."""
+    youtube_get_video when this observation could not make the call itself), or None when it rides in the media call,
+    this observation made it (whatever it brought), or its envelope is already in the run."""
     route = (public_video_sources.source(current.get("platform")) or {}).get("metadata_route")
-    if current["mode"] not in METADATA_MODES or route in (None, "media_call"):
+    if (current["mode"] not in METADATA_MODES or route in (None, "media_call")
+            or (current.get("metadata") or {}).get("handed") or metadata_in_run(route)):
         return None
-    wanted = {tuple(key.split("/", 1)) for key, tool in static_host.CONNECTOR_TOOLS.items() if tool == route}
-    for path in (static_host.run_dir() / "snapshot").glob("envelope-*.json"):
-        try:
-            body = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        if isinstance(body, dict) and (body.get("connector_id"), body.get("operation")) in wanted:
-            return None
     return route
 
 
@@ -1134,6 +1234,8 @@ def resume(args: argparse.Namespace) -> int:
             read_viewer(current, Path(entry["file"]), entry["tool"])
         elif entry["tool"] in SIDE_TOOLS:
             read_side(current, entry["tool"], Path(entry["file"]))
+        elif entry["tool"] == (current.get("metadata") or {}).get("tool"):
+            read_metadata(current, Path(entry["file"]))
     media_refused = False
     if any(entry["tool"] == MEDIA_TOOL for entry in awaiting):
         # True when the server refused the frame options before any job ran: the same call goes again without them.

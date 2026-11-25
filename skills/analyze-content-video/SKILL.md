@@ -76,7 +76,7 @@ the report, say so.
 
 | Evidence | Tool |
 |---|---|
-| Metadata, cover, tags | `youtube_get_video` for a YouTube link; otherwise `observe_video.py` |
+| Metadata, cover, tags | `observe_video.py` (on YouTube it hands over `youtube_get_video`) |
 | Post row (Instagram still-image posts) | `lookup_instagram_post` |
 | Transcript, frames, measurements, whole-video notes, song match, comment summary | `observe_video.py` |
 | Own baseline (own published only) | `youtube_list_channel_uploads`, `instagram_list_reels` / `instagram_list_posts` or `tiktok_search_list_profile_videos`; none elsewhere |
@@ -100,10 +100,9 @@ supported, tell the creator which link could not be read and stop. A video attac
   same turn: an own-published Instagram diagnosis needs the post row, the media call **and** the
   baseline, and none waits on another.
 - **Media: one script, `observe_video.py`** (see *Observing the video*). Transcript, frames,
-  measurements, (on every platform but YouTube) metadata and the whole-video viewing are deferred
-  jobs. Never call them one by one, never poll them yourself and never compose their arguments: make
-  exactly the calls the script prints. Make the other calls in the table (YouTube metadata, post
-  row, baseline) in the same turn as its first calls: none waits on another.
+  measurements, metadata and the whole-video viewing come from it. Never call them one by one, never
+  poll them yourself and never compose their arguments: make exactly the calls the script prints.
+  Make the other calls in the table (post row, baseline) in the same turn as its first calls.
 - **Save every complete result.** The displayed tool result may be abridged, so never retype or
   paste data. Call the data tools and text artifact reads with `"delivery": "download"` (beside
   `parameters` for data tools; frame reads go exactly as `observe_video.py` prints them, without
@@ -143,17 +142,16 @@ supported, tell the creator which link could not be read and stop. A video attac
   request allows it, otherwise report that step with that message); a rate limit, server error or
   empty answer gets one retry. Never describe an invalid input as a network problem.
 - **Persist into the run** every other fetched or staged tool response, failed ones included
-  (`observe_video.py` already persists the media envelopes and the whole-video result). Artifact reads (`read_research_data_artifacts`) are fetched or staged only, never
+  (`observe_video.py` already persists the media envelopes, YouTube's metadata and the whole-video result). Artifact reads (`read_research_data_artifacts`) are fetched or staged only, never
   persisted: the builder finds those images under `snapshot/` by SHA256.
 
   ```sh
   cd '<run directory>' && KABO_STATIC_RUN_DIR='<run directory>' python3 <skill directory>/scripts/persist_envelope.py --dest snapshot/envelope-NN.json --connector <connector_id> --operation <operation> --any-status
   ```
 
-  `connector_id` and `operation` are the fields inside the result: `youtube-public` / `get_video`
-  for `youtube_get_video`; for `lookup_instagram_post` the route that answered (`instagram-discovery`
-  or `instagram-detail-proxy`, operation `get_post`). Never persist a response twice or write an
-  envelope yourself.
+  `connector_id` and `operation` are the fields inside the result: for `lookup_instagram_post` the
+  route that answered (`instagram-discovery` or `instagram-detail-proxy`, operation `get_post`).
+  Never persist a response twice or write an envelope yourself.
 
 ## Platform
 
@@ -262,9 +260,8 @@ every host (then `start_skill_run`, where available, before its printed calls).
    Save and fetch a read only when it returns a download link. Fetch and persist every other
    response as *Data tools and complete evidence* says. In a run begun with `begin_analysis.py` the
    same command also runs steps 4 and 5: it names the envelopes it built from, then prints the
-   brief; go on to step 6. If you persist an envelope after that (YouTube metadata, a post row, a
-   baseline) or a per-run flag applies, run steps 4 and 5 once more with the two commands it
-   printed, the flag added. When it prints the builder's arguments instead, run steps 4 and 5.
+   brief; go on to step 6. If you persist an envelope after that (a post row, a baseline) or a
+   per-run flag applies, run steps 4 and 5 once more with the two commands it printed, the flag added. When it prints the builder's arguments instead, run steps 4 and 5.
 4. **Build the evidence** (unless step 3 did) once, with one `--envelope` for every `snapshot/envelope-*.json` (the
    observation's and any you persisted) plus every other argument `observe_video.py` printed
    (`--viewer`, `--song`, `--comment-summary`, `--deferred-incomplete`; add the per-run flags from the
