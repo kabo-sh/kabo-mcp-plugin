@@ -55,8 +55,10 @@ line edit takes. Look at these before asking the creator for material.
 - **Redos have a limit, and so does the estimate.** A shot whose notes say `still flagged` is
   dealt with before delivering: make it again with a changed input (another first frame, a
   simpler action) or keep it and tell the creator. One shot is made at most four times (the first
-  take and three redos; Kabo Web refuses more). Keep within the estimate the creator saw: accept a
-  small flaw rather than pay for round after round.
+  take and three redos that were made; Kabo Web refuses more); then use its best take. Every row of
+  the storyboard stays in the cut: never deliver a shorter video or drop rows because a shot has a
+  flaw. Keep within the estimate the creator saw: accept a small flaw rather than pay for round
+  after round.
 - **Keep it moving.** On Kabo Web only a running step brings the conversation back by itself:
   never end a reply while nothing is running and the video is not delivered -- send the next step
   (a refused one fixed), or tell the creator what is left and ask.
