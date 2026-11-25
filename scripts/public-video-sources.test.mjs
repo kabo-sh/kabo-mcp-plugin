@@ -75,7 +75,7 @@ test("support list: contracts/ and the Skill copy are byte-identical and match t
   assert.equal(compiled.code, 0, compiled.out);
 });
 
-test("support list: the schema platform enum and the evidence-reading notes match it, SKILL.md names no platform list, and no script keeps its own platform table", async () => {
+test("support list: the schema platform enum and the evidence-reading notes (diagnosis-runtime.md, Part 2) match it, SKILL.md names no platform list, and no script keeps its own platform table", async () => {
   const ids = (await readJson(path.join(root, "contracts/public-video-sources.v1.json"))).sources.map((source) => source.id).sort();
   const request = await readJson(path.join(skill, "references/video-analysis-request.schema.json"));
   assert.deepEqual([...request.properties.source.properties.platform.enum].sort(), [...ids, "unknown"].sort());
@@ -91,9 +91,9 @@ test("support list: the schema platform enum and the evidence-reading notes matc
   const header = body.split("\n").find((line) => line.startsWith("| Evidence |"));
   for (const source of list.sources) assert.ok(!header.includes(source.label), `the evidence table lists ${source.label} as a column`);
   assert.match(body, /when a tool says the platform or link is not\s+supported, tell the creator which link could not be read and stop/);
-  const reading = await readFile(path.join(skill, "references/evidence-reading.md"), "utf8");
+  const reading = await readFile(path.join(skill, "references/diagnosis-runtime.md"), "utf8");
   for (const source of list.sources.filter((item) => !item.public_metrics.views))
-    assert.match(reading, new RegExp(`${source.label}[^.]*publish\\s+no\\s+public\\s+view\\s+count`), `evidence-reading.md does not say ${source.label} publishes no view count`);
+    assert.match(reading, new RegExp(`${source.label}[^.]*publish\\s+no\\s+public\\s+view\\s+count`), `diagnosis-runtime.md does not say ${source.label} publishes no view count`);
 
   // The platform table lives only in the list: a line naming all three original platforms as literals is another copy of it.
   for (const name of await readdir(scripts)) {

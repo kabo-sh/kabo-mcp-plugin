@@ -25,7 +25,7 @@ comments: when the creator asks how the video performed, ask once for its publis
    (sound is measured in step 5, not here). It samples by the connector's plan
    (120 frames at most: the first 50 seconds densest, a frame just after each cut, and the dense
    windows the method cards put in `analysis/method.json`) and writes the same frame shape, so
-   everything in *Frame sampling* in `references/evidence-reading.md` applies unchanged — `frames.origin`
+   everything in *Frame sampling* in `references/diagnosis-runtime.md` applies unchanged — `frames.origin`
    and each frame's `source` included. It also writes **contact sheets**: four frames to an image, two
    by two in time order, each tile at near the frame's full detail, listed under `contact_sheets` in its
    summary with the seconds they span (each tile is captioned with its second where this machine's
@@ -41,7 +41,7 @@ comments: when the creator asks how the video performed, ask once for its publis
    `overview` in its summary and `frames.overview` in the artifact): every second of the file at low
    resolution, tiles in time order left to right and top to bottom. Read those sheets before the contact
    sheets; the high-resolution frames past the opening are then the moments where the picture or the
-   on-screen text changes (*Frame sampling* in `references/evidence-reading.md`). `--no-overview` keeps
+   on-screen text changes (*Frame sampling* in `references/diagnosis-runtime.md`). `--no-overview` keeps
    the even body grid instead.
 3. **Measure, in a command of its own**, whenever the question touches pacing, cuts, pauses or the
    ending: `cd '<run directory>' && python3 <skill directory>/scripts/extract_local_frames.py --media <the same absolute path>
@@ -137,7 +137,7 @@ re-encode turns into audible distortion, so it is worth saying on the master.
 **A file on this machine has no platform captions to fetch, and three tiers in order:**
 
 1. **Platform captions** — only where the same cut is also published and the creator points at the
-   post. That is a `public_url` run and the media call's `transcript` operation is the whole path, as *Transcript* in `references/evidence-reading.md` says.
+   post. That is a `public_url` run and the media call's `transcript` operation is the whole path, as *Transcript* in `references/diagnosis-runtime.md` says.
 2. **A subtitle file the creator supplies** — `.srt` or `.txt`, read by
    `cd '<run directory>' && python3 <skill directory>/scripts/read_subtitle_file.py --subtitle <file> --artifact analysis/local-transcript.json`.
    **Ask for one before giving up on the words.** A creator who cut with captions already has this

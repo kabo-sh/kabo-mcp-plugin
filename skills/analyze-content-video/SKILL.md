@@ -240,8 +240,8 @@ three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which sta
    still running: it waits between readings itself, up to one 330-second deadline). The run is not
    over while it is observing. In the same turn as those calls, or the next calls you make when the
    host made them itself, read `analysis/rules.md` whole (sections 5-7 of the brief: the method
-   cards, the judgment rules and the output contract) and `references/evidence-reading.md`:
-   neither depends on the evidence, and reading them then costs no turn of its own.
+   cards, the judgment rules and the output contract): it does not depend on the evidence, and
+   reading it then costs no turn of its own.
    `status: timed_out`, or a non-empty `timed_out` list, means that part did
    not arrive in time: go on with what arrived and say so plainly, as it prints; `status: metadata_only`
    means only the post's metadata arrived: go on from it as it prints. When it
@@ -259,8 +259,8 @@ three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which sta
    cd '<run directory>' && python3 <skill directory>/scripts/build_content_evidence.py --request analysis/video-analysis-request.json --envelope snapshot/<file>.json [--envelope ...] [--viewer snapshot/whole-video.json] --snapshot-root snapshot --output analysis/content_evidence.json --reference-index analysis/content_evidence.references.json
    ```
 
-   `references/evidence-reading.md` (read with the rules) covers frames, transcript, metadata and
-   cover; open the frames or images before any visual claim.
+   Part 2 of `references/diagnosis-runtime.md` covers frames, transcript, metadata and cover; open
+   the frames or images before any visual claim.
 5. **Prepare the brief.**
 
    ```sh
@@ -291,7 +291,7 @@ cd '<run directory>' && python3 <skill directory>/scripts/export_transcript.py a
 ```
 
 Its deliverables are the `.txt` / `.srt` files it writes. It never invents missing timings; see
-*Transcript* in `references/evidence-reading.md`.
+*Transcript* in `references/diagnosis-runtime.md`.
 
 ## Stops and gaps
 
@@ -301,7 +301,7 @@ Its deliverables are the `.txt` / `.srt` files it writes. It never invents missi
   Send the creator that statement in their language, nothing more, and stop. Do not build a report or
   describe its content.
 - If measurements, a long video's words, real video (a photo post) or an edit are out of reach,
-  follow *When part of the media is out of reach* in `references/evidence-reading.md`.
+  follow *When part of the media is out of reach* in `references/diagnosis-runtime.md`.
 - An unavailable field stays unavailable: name only the missing source, never a blanket "No data was
   retrieved", and never give generic advice in its place.
 
