@@ -225,6 +225,11 @@ Each entry of `props`:
 - inputs: `base`: handle
 - params: `events`: [{t: number 0..600; prompt: text (<= 450); duration?: number 0.5..22; gain_db?: number -30..6}, ...] (1-40 items)
 
+### `auto_audio`
+
+- inputs: `base`: handle
+- params: `music` (optional): "generated" | "none"; `sfx` (optional): "on" | "off"; `mood` (optional): "horror" | "comedy" | "kids" | "narrative" | "history" | "science" | "money"; `prompt` (optional): text (<= 400); `aesthetic` (optional): "cartoon" | "tech" | "cinematic" | "organic" | "dark"
+
 ### `grade`
 
 - inputs: `video`: handle; `match` (optional): handle
@@ -233,7 +238,7 @@ Each entry of `props`:
 ### `batch`
 
 - inputs: none
-- params: `steps`: [{op: "trim" | "retime" | "mux" | "crop" | "grade" | "still_video" | "concat" | "captions" | "overlay" | "splice" | "layout" | "text_cards" | "motion_graphics" | "talking" | "lipsync" | "tts" | "frame" | "extract_audio" | "sfx" | "music" | "audio_edit" | "voice_change" | "inpaint_text" | "first_frame" | "bg"; inputs?: {<name>: any}; params?: {<name>: any}}, ...] (2-16 items)
+- params: `steps`: [{op: "trim" | "retime" | "mux" | "crop" | "grade" | "still_video" | "concat" | "captions" | "overlay" | "splice" | "layout" | "text_cards" | "motion_graphics" | "talking" | "lipsync" | "tts" | "frame" | "auto_audio" | "extract_audio" | "sfx" | "music" | "audio_edit" | "voice_change" | "inpaint_text" | "first_frame" | "bg"; inputs?: {<name>: any}; params?: {<name>: any}}, ...] (2-16 items)
 
 ### `cast`
 

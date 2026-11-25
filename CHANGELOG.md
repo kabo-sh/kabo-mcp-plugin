@@ -18,6 +18,12 @@ The version number follows `plugin.json`; the root package version in `.claude-p
   on a model known to be weak for the ask, say the risk, offer the more reliable path, then do the creator's choice;
   other requests start without asking. A language change gives every on-screen text a counterpart at the same time
   and place (titles to titles, nothing blank) and captions follow the speech.
+- remake-viral-video: new step `auto_audio` (runner op, Web host contract kabo#2467 / kabo-agent-service#507):
+  music bed + sound effects for a finished cut in one paid call. `atoms.md` lists it, `sound.md` (new) says how
+  to use it and report it; `plan.md` adds one
+  `auto_audio` step before delivery when the cut has no music (unless the creator asked for none) and prefers it
+  to hand-written `music` / `sfx`. `params.md` regenerated from the host schema. Host-gated: release only after
+  the runner image and host contract are live and the new checksum is registered in kabo-agent-service.
 
 ## 1.0.62
 

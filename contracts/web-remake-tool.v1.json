@@ -3350,6 +3350,97 @@
     "properties": {
      "op": {
       "type": "string",
+      "const": "auto_audio"
+     },
+     "inputs": {
+      "type": "object",
+      "properties": {
+       "base": {
+        "type": "string",
+        "pattern": "^(creator\\/[a-z0-9_.-]{1,60}|input\\/[a-z0-9_.-]{1,60}|a\\d{2,3}|final(_r\\d{1,2})?|master|take_s\\d{2}|broll_b\\d{2,3}|frame_s\\d{2}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$"
+       }
+      },
+      "required": [
+       "base"
+      ],
+      "additionalProperties": false
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "music": {
+        "type": "string",
+        "enum": [
+         "generated",
+         "none"
+        ]
+       },
+       "sfx": {
+        "type": "string",
+        "enum": [
+         "on",
+         "off"
+        ]
+       },
+       "mood": {
+        "type": "string",
+        "enum": [
+         "horror",
+         "comedy",
+         "kids",
+         "narrative",
+         "history",
+         "science",
+         "money"
+        ]
+       },
+       "prompt": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 400
+       },
+       "aesthetic": {
+        "type": "string",
+        "enum": [
+         "cartoon",
+         "tech",
+         "cinematic",
+         "organic",
+         "dark"
+        ]
+       }
+      },
+      "additionalProperties": false
+     },
+     "action": {
+      "type": "string",
+      "const": "atom"
+     },
+     "job_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+     },
+     "idempotency_key": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+     }
+    },
+    "required": [
+     "op",
+     "inputs",
+     "action",
+     "job_id",
+     "idempotency_key"
+    ],
+    "additionalProperties": false
+   },
+   {
+    "type": "object",
+    "properties": {
+     "op": {
+      "type": "string",
       "const": "grade"
      },
      "inputs": {
@@ -3491,6 +3582,7 @@
             "extract_audio",
             "sfx",
             "music",
+            "auto_audio",
             "audio_edit",
             "voice_change",
             "inpaint_text",
