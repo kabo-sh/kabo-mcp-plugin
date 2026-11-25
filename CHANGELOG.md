@@ -2,6 +2,14 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## Unreleased
+
+- analyze-content-video: a diagnosis of a link also asks for the song (one `identify_video_song` side call made
+  in the observation's first hand-over, so it adds no wait). When the song is recognised from the video's own
+  audio, the report closes with one localized line naming the track and its listen link; a platform sound label,
+  no match, a failed call or an uploaded file leave the report silent about music. The brief tells the model not
+  to name the track again in the cards. For creators who paste a link mostly to find the song.
+
 ## 1.0.61
 
 - analyze-content-video, develop-content-ideas, create-script-and-packaging: declare `metadata.platform_agnostic`.

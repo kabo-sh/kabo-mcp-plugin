@@ -42,6 +42,7 @@
     "on_screen": "En pantalla",
     "shot": "Plano",
     "next": "Siguientes pasos",
+    "song": "Canción del video",
     "colon": ": "
    },
    "note": {
@@ -106,6 +107,7 @@
     "on_screen": "Na tela",
     "shot": "Plano",
     "next": "Próximos passos",
+    "song": "Música do vídeo",
     "colon": ": "
    },
    "note": {
@@ -170,6 +172,7 @@
     "on_screen": "Texteinblendung",
     "shot": "Einstellung",
     "next": "Nächste Schritte",
+    "song": "Song im Video",
     "colon": ": "
    },
    "note": {
@@ -234,6 +237,7 @@
     "on_screen": "À l'écran",
     "shot": "Plan",
     "next": "Prochaines étapes",
+    "song": "Musique de la vidéo",
     "colon": " : "
    },
    "note": {
@@ -298,6 +302,7 @@
     "on_screen": "画面テキスト",
     "shot": "ショット",
     "next": "次にやること",
+    "song": "動画の曲",
     "colon": "："
    },
    "note": {
@@ -362,6 +367,7 @@
     "on_screen": "화면 자막",
     "shot": "샷",
     "next": "다음 단계",
+    "song": "영상 속 노래",
     "colon": ": "
    },
    "note": {
@@ -426,6 +432,7 @@
     "on_screen": "Teks di layar",
     "shot": "Shot",
     "next": "Langkah berikutnya",
+    "song": "Lagu di video ini",
     "colon": ": "
    },
    "note": {
@@ -490,6 +497,7 @@
     "on_screen": "Chữ trên màn hình",
     "shot": "Cảnh quay",
     "next": "Bước tiếp theo",
+    "song": "Bài hát trong video",
     "colon": ": "
    },
    "note": {
@@ -554,6 +562,7 @@
     "on_screen": "النص على الشاشة",
     "shot": "اللقطة",
     "next": "الخطوات التالية",
+    "song": "الأغنية في الفيديو",
     "colon": ": "
    },
    "note": {
@@ -618,6 +627,7 @@
     "on_screen": "स्क्रीन पर टेक्स्ट",
     "shot": "शॉट",
     "next": "अगले कदम",
+    "song": "वीडियो में गाना",
     "colon": ": "
    },
    "note": {

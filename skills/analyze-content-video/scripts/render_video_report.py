@@ -175,11 +175,11 @@ STRINGS = {
     "zh": {"why": "现在的效果", "action": "要改什么", "reuse": "怎么复用", "avoid": "怎么避开", "fix": "怎么修正",
            "yours": "你的下一条怎么做", "say": "这样说",
            "at": "位置", "on_screen": "画面文字", "shot": "镜头", "next": "下一步",
-           "colon": "："},
+           "song": "视频里的歌", "colon": "："},
     "en": {"why": "What it does now", "action": "What to change", "reuse": "How to reuse it",
            "avoid": "How to avoid it", "fix": "How to fix it", "yours": "What to do in yours",
            "say": "Say this", "at": "Where", "on_screen": "On screen", "shot": "Shot",
-           "next": "Next", "colon": ": "},
+           "next": "Next", "song": "Song in this video", "colon": ": "},
 }
 STRINGS.update({language: report_locale.labels(language) for language in sorted(report_locale.LOCALES)})
 # Each card's action label, by position and by whose video it is. Own video: reuse what works, fix what holds it
@@ -334,7 +334,21 @@ def render(result: dict) -> str:
     # better than a timecode -- 0.199s is the point, and [0:00] loses it.
     document = "\n".join(out).strip()
     headline, separator, body = document.partition("\n")
-    return headline + separator + prose_timecodes(body, evidence_positions(result)) + "\n"
+    return headline + separator + prose_timecodes(body, evidence_positions(result)) + song_line(result, words) + "\n"
+
+
+def song_line(result: dict, words: dict) -> str:
+    """One closing line naming the track a diagnosis recognised in the video's audio, with its link when there is
+    one; nothing at all when no song was recognised. Added after the timecode rewrite, which must never touch a song
+    title, and outside the cards, so the report stays one report with one extra fact rather than a second answer."""
+    song = (result.get("details") or {}).get("song") or {}
+    title, artist = str(song.get("title") or "").strip(), str(song.get("artist") or "").strip()
+    if not title or not artist:
+        return ""
+    name = f"{title} – {artist}"
+    url = song.get("url")
+    shown = f"[{name}]({url})" if isinstance(url, str) and url.startswith("https://") else name
+    return f"\n\n**{words['song']}**{words['colon']}{shown}"
 
 
 def main() -> int:

@@ -154,7 +154,7 @@ test("observation-order.json is the agreed table, and the next source follows it
   assert.deepEqual(await readJson(path.join(skill, "references/observation-order.json")), {
     schema_version: "observation-order/v2", default: ["server_frames"], fallback: { server_frames: ["whole_video"], whole_video: ["server_frames"] },
     add_when_cards: { sound: ["whole_video"], "audience-response": ["comment_summary"] },
-    add_when_asks: { identify_track: ["song"] }, whole_video_max_ms: 600000 });
+    add_when_asks: { identify_track: ["song"] }, add_when_modes: { diagnosis: ["song"] }, whole_video_max_ms: 600000 });
   const pick = (...args) => { const r = python("observation_order.py", args, root); return { code: r.code, ...JSON.parse(r.out) }; };
   assert.equal(pick("--platform", "tiktok").source, "server_frames");
   assert.equal(pick("--platform", "tiktok", "--failed", "server_frames").source, "whole_video");
@@ -189,6 +189,13 @@ test("observation-order.json is the agreed table, and the next source follows it
   assert.deepEqual([song.source, song.side_calls], ["server_frames", ["song"]]);
   assert.deepEqual(pick("--platform", "tiktok", "--cards", "sound,audience-response").source, "combined");
   assert.deepEqual(pick("--local-file", "--cards", "audience-response").side_calls, []);
+  // A diagnosis of a link also asks for the song (one bounded side call, no viewing); other modes do not.
+  const diagnosis = pick("--platform", "tiktok", "--mode", "diagnosis");
+  assert.deepEqual([diagnosis.source, diagnosis.side_calls], ["server_frames", ["song"]]);
+  assert.deepEqual(pick("--platform", "tiktok", "--mode", "diagnosis", "--cards", "audience-response").side_calls, ["comment_summary", "song"]);
+  assert.deepEqual(pick("--platform", "tiktok", "--mode", "craft_teardown").side_calls, []);
+  assert.deepEqual(pick("--platform", "tiktok", "--mode", "content_read").side_calls, []);
+  assert.deepEqual(pick("--local-file", "--mode", "diagnosis").side_calls, []);
   // A viewing that already failed is never added back, and a forced source stays forced.
   assert.equal(pick("--platform", "tiktok", "--failed", "whole_video", "--cards", "sound").source, "server_frames");
   assert.equal(pick("--platform", "tiktok", "--observe-source", "server_frames", "--cards", "sound").source, "server_frames");
@@ -670,7 +677,9 @@ async function driveFrom(run, out, { viewerSteps = [viewerFixture] } = {}) {
     assert.ok(calls.length, out);
     for (const [index, call] of calls.entries()) {
       handed.push(call);
+      // A diagnosis also asks for the song: answer it with no match, leaving the viewer steps to the viewing.
       await writeFile(files[index], call.tool === "collect_video_media" ? mcp(composite(call.arguments))
+        : call.tool === "identify_video_song" ? mcp(SONG.noMatch)
         : typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
     }
     const resumed = shell(resumeOf(out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
@@ -765,11 +774,12 @@ test("cards first: the pre-fetch selection skips nothing, and the sound card mak
   assert.deepEqual(method.skipped, []);
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run);
   assert.equal(first.code, 0, first.out);
-  assert.match(first.out, /Observation source: combined \(default order; the sound card adds whole_video\)/);
-  // The duration is not known yet: the media call goes first, and the paid viewing starts once it reports 30 s.
-  assert.deepEqual(callLines(first.out).map((call) => call.tool), ["collect_video_media"]);
+  assert.match(first.out, /Observation source: combined \(default order; the sound card adds whole_video; side calls: song\)/);
+  // The duration is not known yet: the media call goes first (with the diagnosis's song recognition beside it), and
+  // the paid viewing starts once it reports 30 s.
+  assert.deepEqual(callLines(first.out).map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
   const { out, handed } = await driveFrom(run, first.out);
-  assert.deepEqual(handed.map((call) => call.tool), ["collect_video_media", "analyze_content_video", "get_analysis_run"].slice(0, handed.length));
+  assert.deepEqual(handed.map((call) => call.tool), ["collect_video_media", "identify_video_song", "analyze_content_video", "get_analysis_run"].slice(0, handed.length));
   assert.match(out, /"source": "combined"/);
   await writeRequest(run);
   assert.equal(build(run, flagsOf(out)).code, 0);
@@ -784,8 +794,8 @@ test("cards first: the pre-fetch selection skips nothing, and the sound card mak
   const plain = await newRun(t);
   await selectFirst(plain, "opening");
   const framesOnly = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], plain);
-  assert.match(framesOnly.out, /Observation source: server_frames \(default order\)/);
-  assert.deepEqual(callLines(framesOnly.out).map((call) => call.tool), ["collect_video_media"]);
+  assert.match(framesOnly.out, /Observation source: server_frames \(default order; side calls: song\)/);
+  assert.deepEqual(callLines(framesOnly.out).map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
 });
 
 test("cards first: a chosen card the evidence cannot support is skipped by prepare_analysis.py, and the brief says so", async (t) => {
@@ -989,7 +999,8 @@ test("duration gate: when no media result reports a duration, the sound card's v
   await selectFirst(run, "sound");
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], run);
   const calls = callLines(first.out);
-  assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media"]);
+  // The diagnosis's song recognition rides along beside the media call.
+  assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
   await writeFile(slotFiles(first.out)[0], mcp(noDuration(calls[0].arguments)));
   const done = shell(resumeOf(first.out));
   assert.equal(done.code, 0, done.out);
@@ -2304,7 +2315,7 @@ test("find the track, uploaded file: no recognition call; the evidence says it w
 test("audience-response: choosing the card adds one summarize_video_comments call; the summary becomes citable evidence and a brief section", async (t) => {
   const { run, first, handed, evidence, out } = await sideRun(t, { focus: "audience-response", side: { summarize_video_comments: COMMENTS.ok } });
   const handover = hostHandover(first);
-  assert.deepEqual(handover.calls.map((call) => call.tool), ["collect_video_media", "summarize_video_comments"]);
+  assert.deepEqual(handover.calls.map((call) => call.tool), ["collect_video_media", "summarize_video_comments", "identify_video_song"]);
   assert.ok(pinnedInput("summarize_video_comments")(handover.calls[1].arguments));
   assert.equal(handed.filter((call) => call.tool === "summarize_video_comments").length, 1);
   assert.match(out, /--comment-summary snapshot\/comment-summary\.json/);
@@ -2325,7 +2336,7 @@ test("audience-response: choosing the card adds one summarize_video_comments cal
   // Without the card, no comment call is made.
   const plain = await newRun(t);
   await selectFirst(plain, "opening");
-  assert.deepEqual(callLines(python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], plain).out).map((call) => call.tool), ["collect_video_media"]);
+  assert.deepEqual(callLines(python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], plain).out).map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
 });
 
 test("audience-response without a summary (tool missing on this host, an error, too few comments, an uploaded file): the comments were not read", async (t) => {

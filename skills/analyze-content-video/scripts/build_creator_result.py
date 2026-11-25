@@ -216,6 +216,23 @@ def validate_next_actions(view: dict[str, Any]) -> None:
             raise SystemExit(f'creator_view.next_actions[{index}] must be a non-empty string')
 
 
+def matched_song(evidence: dict[str, Any]) -> dict[str, Any] | None:
+    """The track a diagnosis names in its one closing line: only a song recognised from the video's own audio
+    (identify_video_song answered `matched` from `recognition`) with a title and an artist, and its link only when
+    the tool returned one. A platform sound label, no match, a failed or skipped call give nothing, so the report
+    says nothing about music then."""
+    song_id = record(evidence.get("song_identification"))
+    song = record(song_id.get("song"))
+    if song_id.get("status") != "matched" or song_id.get("source") != "recognition":
+        return None
+    title, artist = str(song.get("title") or "").strip(), str(song.get("artist") or "").strip()
+    if not title or not artist:
+        return None
+    url = song.get("url")
+    return {"title": title, "artist": artist,
+            "url": url if isinstance(url, str) and url.startswith("https://") else None}
+
+
 def build(view_document: dict[str, Any], analysis: dict[str, Any], evidence: dict[str, Any],
           request: dict[str, Any]) -> dict[str, Any]:
     view = record(view_document.get("creator_view")) or view_document
@@ -294,6 +311,7 @@ def build(view_document: dict[str, Any], analysis: dict[str, Any], evidence: dic
             "decision": decision,
             # The renderer picks card 2's action label from it (someone else's video: how to avoid it).
             "subject_state": analysis.get("subject_state"),
+            **({"song": song} if (song := matched_song(evidence)) else {}),
         },
         "evidence_index": evidence_index(view, analysis, evidence),
         "interaction": {
