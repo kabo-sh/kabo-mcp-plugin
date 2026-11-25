@@ -39291,6 +39291,12 @@
                 "minLength": 2,
                 "type": "string"
               },
+              "quick_above_s": {
+                "description": "Seconds; longer = quick partial sample.",
+                "maximum": 3600,
+                "minimum": 30,
+                "type": "integer"
+              },
               "url": {
                 "maxLength": 2048,
                 "minLength": 1,
@@ -39960,6 +39966,12 @@
               "overview": {
                 "description": "duration_scaled: >50s, sheets of every second + change frames.",
                 "type": "boolean"
+              },
+              "quick_above_s": {
+                "description": "Seconds; longer = quick partial sample.",
+                "maximum": 3600,
+                "minimum": 30,
+                "type": "integer"
               },
               "sampling": {
                 "description": "duration_scaled=whole; evenly_spaced=first max_frames/fps seconds.",
@@ -41947,6 +41959,12 @@
           },
           "parameters": {
             "properties": {
+              "quick_above_s": {
+                "description": "Seconds; longer = quick partial sample.",
+                "maximum": 3600,
+                "minimum": 30,
+                "type": "integer"
+              },
               "shot_threshold": {
                 "description": "0-1; lower finds more cuts.",
                 "exclusiveMaximum": 1,
