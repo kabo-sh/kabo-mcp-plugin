@@ -126,6 +126,31 @@ with its job, share and shots), `form` naming the spoken language and the voices
 2-3 frames of the reference as `refs` (the look is shown, not only described), `characters`
 with their non-speech `sounds` (meows, laughs) when they make any, every object that matters in
 `props`, and in each row what is done and how it ends (who holds what, what ends up where).
+**Continuity: fixed fields, filled every time.** The same people, places and objects are drawn
+the same way only when every picture gets the same concrete words, so the cards and rows are
+written in these fields (the host turns each `look` into one fixed description that goes into
+every picture of it; small items are kept only when they are written out):
+- `characters[].look`: `{identity` (gender, age range, skin tone, build)`, face, hair` (colour,
+  length, style, hair accessories)`, body, outfit: {base` (top and bottom)`, outerwear` (open or
+  closed)`, accessories` (every small item and where it is: gloves on both hands -- colour and
+  material -- or "no gloves", a hat or helmet on the head, held or hanging, glasses, jewellery,
+  bags)`, footwear, insignia` (badges, patches, printed words and where)`}, carried` (what they
+  always carry, in which hand)`, palette, marks` (scars, tattoos, freckles)`, keep: [...]` (what
+  never changes between shots)`, may_change: [...]}` (what a shot may change: dirt, rolled
+  sleeves, helmet off).
+- `environments[].look`: `{type` (indoor or outdoor)`, layout` (where the doors, windows, walls
+  and furniture are)`, fixtures, palette, light` (the main light and where it comes from)`,
+  time_weather, keep}`.
+- `props[].look`: `{appearance` (size, shape, colour, material)`, text_on_it, states` (open,
+  closed, full, empty, broken)`, keep}`.
+- each row: `cast_state: {<name>: {doing, expression, holding` (what is in which hand; "nothing"
+  when empty)`, outfit` (only what differs from the card in this shot)`}}` for everyone in
+  `on_screen_cast`; `light` (when the time, weather or light differs from the place's);
+  `continuity` (what carries over from the row before: who is where, what is held, what is open,
+  spilt or broken); `must_not: [...]` (what must not appear: extra hands, writing, a second copy
+  of a person).
+Write each item as a concrete phrase ("brown leather gloves on both hands", not "gloves") and use
+the same wording every time it recurs.
 One row per shot of the reference: a single continuous take stays one row (up to 30 s). The save
 checks the plan against the reference (length, shot count, language) and names what is off --
 fix it and save again.
@@ -146,7 +171,7 @@ voice-over or when nobody is seen speaking), `how` (the steps that make the row,
 the handles, e.g. "still a05 -> talking (speaker: grandma)" or "still -> animate"; acting and
 delivery go in `motion` or `prompt`, not here), `prompt` (the full prompt: what happens, camera
 and framing; it names the characters, place and props and never copies their looks), `captions`, `sound`,
-`transition`. A row whose words are said on camera by its speaker is a talking shot: its `how`
+`transition`, and the continuity fields below. A row whose words are said on camera by its speaker is a talking shot: its `how`
 names `talking` (or `lipsync` on a moving clip), never `animate` alone. Every character in a shot's picture
 is in its `on_screen_cast`, and the picture never redescribes a character's look differently from
 `characters`. (The style card's `cast` says what kind of figures appear at all; it is not
