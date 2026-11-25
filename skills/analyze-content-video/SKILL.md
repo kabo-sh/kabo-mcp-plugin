@@ -217,7 +217,7 @@ put in your context needs no read. Setup is one turn without `start_skill_run`
    (`analysis/rules.md`; its first lines name the file to read for them), and starts the observation:
 
    ```sh
-   cd '<run directory>' && python3 <skill directory>/scripts/begin_analysis.py --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis|content_read|craft_teardown|transcript_export> --question '<their words, verbatim>' [--focus <id>[,<id>]] [--ask identify_track] --confirmed-by-user [--duration-s <seconds>]
+   cd '<run directory>' && python3 <skill directory>/scripts/begin_analysis.py --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis|content_read|craft_teardown|transcript_export> --question '<their words, verbatim>' [--focus <id>[,<id>]] [--ask identify_track] --confirmed-by-user [--duration-s <seconds>] [--depth deep]
    ```
 
    Without `start_skill_run` it is the first command, from any directory: `python3 <skill
@@ -236,7 +236,12 @@ put in your context needs no read. Setup is one turn without `start_skill_run`
    a link also adds one song recognition call beside the observation, so it costs no extra wait: when it
    recognises a track, the final step closes the report with one line naming it and its link; otherwise
    the report says nothing about music. A side call
-   that brings nothing is missing evidence, never retried. A local file has no begin step: write
+   that brings nothing is missing evidence, never retried. **Long videos.** A link over 3 minutes
+   is read quickly first, and its answer ends with an offer of the full analysis (one more video
+   credit). `--depth deep` is that analysis, a new run from step 1 with `--duration-s` from the
+   first result: run it only when the creator accepted that offer (any wording, any language) or a
+   host message says the deep analysis is ready, never for 3 minutes or less. *Long videos in two
+   steps* in `references/diagnosis-runtime.md` covers it, `deep_pending` included. A local file has no begin step: write
    the request by hand and the creator's words to `analysis/question.txt`, then choose the method:
 
    ```sh
