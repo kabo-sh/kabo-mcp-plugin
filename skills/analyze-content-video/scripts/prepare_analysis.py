@@ -44,6 +44,7 @@ SKILL = SCRIPTS.parent
 sys.path.insert(0, str(SCRIPTS))
 import acv_timing  # noqa: E402
 import observation_order  # noqa: E402
+import report_locale  # noqa: E402
 import select_method  # noqa: E402
 import transcript_checks  # noqa: E402
 
@@ -259,6 +260,7 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
                   "- Say this plainly in the first lines of what the creator reads: the video's picture and sound could "
                   "not be fetched this time, so the answer rests on the post's title, caption and public counts. The "
                   "video is not deleted or private; never describe what it shows or says.", ""]
+    lines += quick_lines(evidence, method.get("mode"))
     for skipped in method.get("skipped") or []:
         lines.append(f"Method card `{skipped['id']}` was skipped: {skipped['reason']}.")
     if method.get("skipped"):
@@ -385,6 +387,48 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
         lines += ["### Limitations already recorded", ""]
         lines += [f"- {one_line(text)}" for text in evidence["limitations"]]
         lines.append("")
+    return lines
+
+
+def quick_lines(evidence: dict[str, Any], mode: str | None) -> list[str]:
+    """What a quick first read of a long video saw and heard, the rule for what it did not, and the offer of a full
+    analysis; nothing when every part of the evidence covers the whole video."""
+    quick = report_locale.quick_read(evidence)
+    transcript = (evidence.get("transcript") or {}).get("coverage") or {}
+    probed = ((evidence.get("media") or {}).get("probed") or {}).get("coverage") or {}
+    if quick is None and not transcript and not probed:
+        return []
+    lines = ["### Quick first read of a long video", ""]
+    duration = (evidence.get("media") or {}).get("duration_s")
+    if quick is not None:
+        times = ((evidence.get("frames") or {}).get("sampling") or {}).get("times_s") or []
+        lines.append(f"- Frames: {quick['frames']} frames at fixed moments across the {quick['minutes']}-minute "
+                     f"video ({', '.join(seconds(t) for t in times)}), not the full pass. Nothing between those "
+                     "moments was seen.")
+    if transcript:
+        lines.append(f"- Speech: heard only for {seconds(transcript['covered_s'][0])}–{seconds(transcript['covered_s'][1])}"
+                     f" (`transcript.coverage`); nothing said after that was heard.")
+    elif quick is not None:
+        lines.append({"captions": "- Speech: the platform's captions, for the whole video.",
+                      "full": "- Speech: heard for the whole video.",
+                      "none": "- Speech: no transcript arrived."}.get(quick["speech"], "- Speech: as section 3 lists."))
+    if probed:
+        lines.append(f"- Measurements (cuts, silence, freezes, framing, brightness, loudness): the first "
+                     f"{seconds(probed['covered_s'][1])} only (`media.probed.coverage`), not the whole "
+                     + (f"{duration:g}s." if isinstance(duration, (int, float)) else "video."))
+    lines.append("- Rule: frame any judgment about a stretch that was not sampled as not observed in this quick read. "
+                 "Never state the whole video's pacing, structure, cut rhythm or retention shape from it, and never "
+                 "spread a count from the measured opening over the full length.")
+    if quick is not None and mode == "diagnosis":
+        lines.append("- The final step closes the report with one paragraph saying this was a quick first read and "
+                     "offering the full analysis, its time and its one more video credit: do not write that offer "
+                     "yourself, in the summary, the cards or the next actions.")
+    elif quick is not None:
+        lines.append("- End your answer with this paragraph, unchanged, in the creator's language (the line for "
+                     "their language; for a language not listed, translate the English one):")
+        lines += [f"  - {code}: {report_locale.quick_paragraph(quick, code)}"
+                  for code in report_locale.QUICK_LANGUAGES]
+    lines.append("")
     return lines
 
 

@@ -1,5 +1,5 @@
 {
- "_comment": "Report strings by BCP 47 primary language subtag, read by scripts/report_locale.py. `labels` and `note` cover the languages the renderer and the data_note localize beyond zh and en (those two stay in code); `listen` covers every language: the listen line's frame, with `{items}` replaced by the phrases for the items that apply, joined by `sep` and, before the last, `last_sep`. A language not listed renders in English.",
+ "_comment": "Report strings by BCP 47 primary language subtag, read by scripts/report_locale.py. `labels` and `note` cover the languages the renderer and the data_note localize beyond zh and en (those two stay in code); `listen` covers every language: the listen line's frame, with `{items}` replaced by the phrases for the items that apply, joined by `sep` and, before the last, `last_sep`. A language not listed renders in English. `quick` covers every language too: the closing paragraph of a quick first read of a long video, with `{minutes}`, `{frames}`, `{speech}` (one of `speech`, where `{heard}` is the minutes of speech heard) and `{eta}` replaced.",
  "languages": {
   "zh": {
    "listen": {
@@ -12,6 +12,15 @@
      "sung_or_spoken": "歌词是唱的还是说的",
      "voice_timbre": "人声音色",
      "sfx_quality": "音效好不好"
+    }
+   },
+   "quick": {
+    "line": "这是对这条 {minutes} 分钟视频的快速初看：全片抽看了 {frames} 张画面，{speech}。完整分析大约需要 {eta} 分钟，会再用一次视频额度；回复“深度分析”即可开始。",
+    "speech": {
+     "captions": "台词用的是平台字幕",
+     "full": "台词全片都听了",
+     "partial": "台词只听了前 {heard} 分钟",
+     "none": "没有拿到台词"
     }
    }
   },
@@ -26,6 +35,15 @@
      "sung_or_spoken": "whether the words are sung or spoken",
      "voice_timbre": "how the voice comes across",
      "sfx_quality": "how the sound effects come across"
+    }
+   },
+   "quick": {
+    "line": "This is a quick first read of this {minutes}-minute video: {frames} frames sampled across it, {speech}. A full analysis takes about {eta} minutes and uses one more video credit; reply \"full analysis\" to start it.",
+    "speech": {
+     "captions": "the speech from the platform's captions",
+     "full": "the speech heard in full",
+     "partial": "the speech heard for the first {heard} minutes only",
+     "none": "no speech transcript"
     }
    }
   },
@@ -92,6 +110,15 @@
      "voice_timbre": "cómo suena la voz",
      "sfx_quality": "cómo suenan los efectos"
     }
+   },
+   "quick": {
+    "line": "Esta es una primera lectura rápida de este video de {minutes} minutos: {frames} fotogramas tomados a lo largo del video, {speech}. Un análisis completo tarda unos {eta} minutos y usa un crédito de video más; responde \"análisis completo\" para empezarlo.",
+    "speech": {
+     "captions": "la voz sale de los subtítulos de la plataforma",
+     "full": "la voz se escuchó completa",
+     "partial": "solo se escucharon los primeros {heard} minutos de voz",
+     "none": "sin transcripción de la voz"
+    }
    }
   },
   "pt": {
@@ -156,6 +183,15 @@
      "sung_or_spoken": "se as palavras são cantadas ou faladas",
      "voice_timbre": "como soa a voz",
      "sfx_quality": "como soam os efeitos sonoros"
+    }
+   },
+   "quick": {
+    "line": "Esta é uma primeira leitura rápida deste vídeo de {minutes} minutos: {frames} quadros amostrados ao longo dele, {speech}. Uma análise completa leva cerca de {eta} minutos e usa mais um crédito de vídeo; responda \"análise completa\" para começar.",
+    "speech": {
+     "captions": "a fala veio das legendas da plataforma",
+     "full": "a fala foi ouvida por inteiro",
+     "partial": "a fala foi ouvida só nos primeiros {heard} minutos",
+     "none": "sem transcrição da fala"
     }
    }
   },
@@ -222,6 +258,15 @@
      "voice_timbre": "wie die Stimme klingt",
      "sfx_quality": "wie die Soundeffekte klingen"
     }
+   },
+   "quick": {
+    "line": "Das ist ein schneller erster Blick auf dieses {minutes}-minütige Video: {frames} Bilder über das ganze Video verteilt, {speech}. Eine vollständige Analyse dauert etwa {eta} Minuten und verbraucht ein weiteres Video-Guthaben; antworte mit „vollständige Analyse“, um sie zu starten.",
+    "speech": {
+     "captions": "der gesprochene Text aus den Untertiteln der Plattform",
+     "full": "der Ton vollständig angehört",
+     "partial": "nur die ersten {heard} Minuten Sprache angehört",
+     "none": "kein Transkript der Sprache"
+    }
    }
   },
   "fr": {
@@ -286,6 +331,15 @@
      "sung_or_spoken": "si les paroles sont chantées ou parlées",
      "voice_timbre": "comment sonne la voix",
      "sfx_quality": "comment sonnent les effets sonores"
+    }
+   },
+   "quick": {
+    "line": "Ceci est une première lecture rapide de cette vidéo de {minutes} minutes : {frames} images prises sur toute sa durée, {speech}. Une analyse complète prend environ {eta} minutes et utilise un crédit vidéo de plus ; réponds « analyse complète » pour la lancer.",
+    "speech": {
+     "captions": "les paroles tirées des sous-titres de la plateforme",
+     "full": "les paroles écoutées en entier",
+     "partial": "seules les {heard} premières minutes de paroles écoutées",
+     "none": "pas de transcription des paroles"
     }
    }
   },
@@ -352,6 +406,15 @@
      "voice_timbre": "声の質感",
      "sfx_quality": "効果音の出来"
     }
+   },
+   "quick": {
+    "line": "これは {minutes} 分の動画をざっと見た最初の結果です：全体から {frames} 枚の画面を抜き出し、{speech}。完全な分析には約 {eta} 分かかり、動画クレジットをもう1回分使います。「詳しく分析」と返信すると始まります。",
+    "speech": {
+     "captions": "セリフはプラットフォームの字幕を使いました",
+     "full": "セリフは最後まで聞き取りました",
+     "partial": "セリフは最初の {heard} 分だけ聞き取りました",
+     "none": "セリフは取得できませんでした"
+    }
    }
   },
   "ko": {
@@ -416,6 +479,15 @@
      "sung_or_spoken": "가사를 노래하는지 말하는지",
      "voice_timbre": "목소리 톤",
      "sfx_quality": "효과음의 완성도"
+    }
+   },
+   "quick": {
+    "line": "이 {minutes}분짜리 영상을 빠르게 먼저 훑어본 결과입니다: 영상 전체에서 화면 {frames}장을 뽑아 봤고, {speech}. 전체 분석은 약 {eta}분 걸리고 영상 크레딧을 한 번 더 사용합니다. \"전체 분석\"이라고 답하면 시작합니다.",
+    "speech": {
+     "captions": "대사는 플랫폼 자막을 사용했습니다",
+     "full": "대사는 끝까지 들었습니다",
+     "partial": "대사는 처음 {heard}분만 들었습니다",
+     "none": "대사는 가져오지 못했습니다"
     }
    }
   },
@@ -482,6 +554,15 @@
      "voice_timbre": "bagaimana warna suaranya",
      "sfx_quality": "bagaimana efek suaranya"
     }
+   },
+   "quick": {
+    "line": "Ini adalah tinjauan cepat pertama untuk video {minutes} menit ini: {frames} frame diambil di sepanjang video, {speech}. Analisis lengkap memakan sekitar {eta} menit dan memakai satu kredit video lagi; balas \"analisis lengkap\" untuk memulainya.",
+    "speech": {
+     "captions": "ucapan diambil dari teks bawaan platform",
+     "full": "ucapan didengar sampai habis",
+     "partial": "ucapan hanya didengar untuk {heard} menit pertama",
+     "none": "tanpa transkrip ucapan"
+    }
    }
   },
   "vi": {
@@ -546,6 +627,15 @@
      "sung_or_spoken": "lời được hát hay được nói",
      "voice_timbre": "giọng nghe thế nào",
      "sfx_quality": "hiệu ứng âm thanh nghe thế nào"
+    }
+   },
+   "quick": {
+    "line": "Đây là bản xem nhanh đầu tiên của video dài {minutes} phút này: lấy {frames} khung hình trải khắp video, {speech}. Phân tích đầy đủ mất khoảng {eta} phút và dùng thêm một lượt video; trả lời \"phân tích đầy đủ\" để bắt đầu.",
+    "speech": {
+     "captions": "lời thoại lấy từ phụ đề của nền tảng",
+     "full": "lời thoại được nghe hết",
+     "partial": "lời thoại chỉ được nghe {heard} phút đầu",
+     "none": "không có bản ghi lời thoại"
     }
    }
   },
@@ -612,6 +702,15 @@
      "voice_timbre": "كيف يبدو الصوت البشري",
      "sfx_quality": "كيف تبدو المؤثرات الصوتية"
     }
+   },
+   "quick": {
+    "line": "هذه قراءة أولى سريعة لهذا الفيديو الذي مدته {minutes} دقيقة: {frames} لقطة مأخوذة على امتداده، {speech}. يستغرق التحليل الكامل نحو {eta} دقيقة ويستخدم رصيد فيديو إضافيًا واحدًا؛ ردّ بـ\"تحليل كامل\" لبدئه.",
+    "speech": {
+     "captions": "والكلام من ترجمة المنصة النصية",
+     "full": "والكلام مسموع بالكامل",
+     "partial": "ولم يُسمع من الكلام إلا أول {heard} دقائق",
+     "none": "ولا يوجد نص للكلام"
+    }
    }
   },
   "hi": {
@@ -676,6 +775,15 @@
      "sung_or_spoken": "शब्द गाए गए हैं या बोले गए",
      "voice_timbre": "आवाज़ कैसी लगती है",
      "sfx_quality": "साउंड इफ़ेक्ट कैसे लगते हैं"
+    }
+   },
+   "quick": {
+    "line": "यह इस {minutes} मिनट के वीडियो की एक त्वरित पहली झलक है: पूरे वीडियो से {frames} फ़्रेम लिए गए, {speech}। पूरा विश्लेषण लगभग {eta} मिनट लेता है और एक और वीडियो क्रेडिट इस्तेमाल करता है; शुरू करने के लिए \"पूरा विश्लेषण\" लिखकर जवाब दें।",
+    "speech": {
+     "captions": "बोली गई बातें प्लेटफ़ॉर्म के कैप्शन से ली गईं",
+     "full": "बोली गई बातें पूरी सुनी गईं",
+     "partial": "सिर्फ़ पहले {heard} मिनट की बातें सुनी गईं",
+     "none": "बोली गई बातों का ट्रांसक्रिप्ट नहीं मिला"
     }
    }
   }

@@ -2651,3 +2651,97 @@ test("deep run: frames that fit keep the normal wait, and frames still running w
   await startedAgo(quick, DEADLINE_S + 10);
   assert.match(shell(resumeOf(begun.out).replace("'--placed'", "'--placed' --poll-sleep-s 0")).out, /"status": "observed"/);
 });
+
+// The quick sample in the backend's shape (kabo-sh/kabo#2474): 24 frames at fixed moments of an 18-minute video, no
+// overview, the first 60 s measured (also carried as the frames' signals) and, without platform captions, the first
+// 180 s heard.
+const QUICK_TIMES = [0, 1, 2, 3, 5, 8, 12, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 540, 660, 780, 900, 960, 1020, 1075];
+const COVERED = (to) => ({ mode: "partial", covered_s: [0, to], duration_s: 1080.2 });
+function quickComposite(args, { captions = false } = {}) {
+  const value = composite(args, { duration: 1080 });
+  for (const call of value.calls) {
+    const result = call.result;
+    if (result.operation === "extract_keyframes") {
+      const frames = QUICK_TIMES.map((t, i) => ({ frame_id: `frame-quick-${String(i).padStart(3, "0")}`, t_seconds: t, bytes: 100,
+        sha256: "c".repeat(64), object_ref: `creator-media/${result.job_id}/epoch-1/frame-quick-${String(i).padStart(3, "0")}.jpg` }));
+      result.data = { frame_count: 24, selection: "quick_sample_v1", duration_s: 1080.2, sampling_plan: null,
+        sampling: { mode: "quick", above_s: 180, frames: 24, duration_s: 1080.2, times_s: QUICK_TIMES }, frames,
+        artifacts: frames.map((f) => ({ kind: "keyframes", bytes: 100, sha256: f.sha256, object_ref: f.object_ref })),
+        signals: { shots: { count: 2, cuts_at_s: [12.5], shots: [{ start_s: 0, end_s: 12.5 }, { start_s: 12.5, end_s: 60 }] }, coverage: COVERED(60) } };
+      result.limitations = ["Quick sample: 24 frames at fixed moments across the video; the full pass was not run."];
+    } else if (result.operation === "measure_media_signals") {
+      result.data.coverage = COVERED(60);
+    } else if (result.operation === "fetch_transcript") {
+      if (captions) result.data.origin = "platform_captions";
+      else result.data.coverage = COVERED(180);
+    }
+  }
+  return value;
+}
+async function quickRun(t, mode, options) {
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", mode, "--question", "",
+    "--confirmed-by-user"]);
+  const { out } = await driveWith(run, begun.out, { media: (args) => quickComposite(args, options), side: { identify_video_song: SONG.noMatch } });
+  return { run, out, evidence: await readJson(path.join(run, "analysis/content_evidence.json")), brief: await readBrief(run) };
+}
+
+test("quick first read: the sample, the speech heard and the measured opening reach the evidence, and the brief states them with the rule and, for a diagnosis, leaves the offer to the report", async (t) => {
+  const { run, out, evidence, brief } = await quickRun(t, "diagnosis");
+  assertValidEvidence(evidence);
+  assert.equal(evidence.frames.selection, "quick_sample_v1");
+  assert.deepEqual(evidence.frames.sampling, { mode: "quick", above_s: 180, frames: 24, duration_s: 1080.2, times_s: QUICK_TIMES });
+  assert.deepEqual(evidence.transcript.coverage, COVERED(180));
+  assert.deepEqual(evidence.media.probed.coverage, COVERED(60));
+  assert.equal(evidence.frames.items.length, 24);
+  assert.ok(out.includes("### Quick first read of a long video"), "the printed brief carries it");
+  const index = section(brief, 3);
+  assert.match(index, /### Quick first read of a long video\n\n- Frames: 24 frames at fixed moments across the 18-minute video \(0s, 1s, 2s, .*, 1075s\), not the full pass\. Nothing between those moments was seen\./);
+  assert.match(index, /- Speech: heard only for 0s–180s \(`transcript\.coverage`\); nothing said after that was heard\./);
+  assert.match(index, /- Measurements \(cuts, silence, freezes, framing, brightness, loudness\): the first 60s only \(`media\.probed\.coverage`\), not the whole 1080\.2s\./);
+  assert.match(index, /- Rule: frame any judgment about a stretch that was not sampled as not observed in this quick read\./);
+  assert.match(index, /The final step closes the report with one paragraph saying this was a quick first read/);
+  assert.doesNotMatch(index, /End your answer with this paragraph/);
+  // The report's closing paragraph comes from the same facts.
+  const quick = JSON.parse(spawnSync("python3", ["-I", "-B", "-c", "import json, sys; sys.path.insert(0, sys.argv[1]); "
+    + "import report_locale as r; print(json.dumps(r.quick_read(json.load(open(sys.argv[2])))))", scripts,
+  path.join(run, "analysis/content_evidence.json")], { encoding: "utf8" }).stdout);
+  assert.deepEqual(quick, { duration_s: 1080.2, minutes: 18, frames: 24, speech: "partial", heard_minutes: 3, eta_minutes: 8 });
+});
+
+test("quick first read, content read and craft teardown: the brief hands over the closing offer word for word in every report language; platform captions are named as whole", async (t) => {
+  for (const mode of ["content_read", "craft_teardown"]) {
+    const { evidence, brief } = await quickRun(t, mode, { captions: true });
+    assertValidEvidence(evidence);
+    assert.equal("coverage" in evidence.transcript, false);
+    const index = section(brief, 3);
+    assert.match(index, /- Speech: the platform's captions, for the whole video\./);
+    assert.match(index, /- End your answer with this paragraph, unchanged, in the creator's language/);
+    assert.ok(index.includes("  - zh: 这是对这条 18 分钟视频的快速初看：全片抽看了 24 张画面，台词用的是平台字幕。完整分析大约需要 8 分钟，会再用一次视频额度；回复“深度分析”即可开始。"), mode);
+    assert.ok(index.includes("  - en: This is a quick first read of this 18-minute video: 24 frames sampled across it, the speech from the platform's captions. A full analysis takes about 8 minutes and uses one more video credit; reply \"full analysis\" to start it."), mode);
+    assert.equal(index.match(/^  - [a-z]{2}: /gm).length, 12);
+    assert.doesNotMatch(index, /The final step closes the report/);
+  }
+});
+
+test("a full pass (no sampling block, no coverage) adds no quick lines and no offer", async (t) => {
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "content_read", "--question", "",
+    "--confirmed-by-user"]);
+  await driveWith(run, begun.out);
+  const brief = await readBrief(run);
+  assert.doesNotMatch(brief, /Quick first read|full analysis/);
+});
+
+test("quick first read, diagnosis end to end: the finished report ends with the offer and passes every gate", async (t) => {
+  const { run } = await quickRun(t, "diagnosis");
+  const judgment = { ...JUDGMENT, observations: [{ ...JUDGMENT.observations[0], evidence_refs: ["frame-quick-000"] }] };
+  await writeFile(path.join(run, "analysis/video_judgment.json"), JSON.stringify(judgment));
+  await writeFile(path.join(run, "analysis/creator_view.json"), JSON.stringify(creatorView()));
+  const finished = python("finish_diagnosis.py", ["--run-dir", run, "--check", "--finish-if-ready"], run);
+  assert.equal(finished.code, 0, finished.out);
+  const report = await readFile(path.join(run, "report/VIDEO_DIAGNOSIS.md"), "utf8");
+  assert.equal(report.trimEnd().split("\n\n").at(-1), "This is a quick first read of this 18-minute video: 24 frames sampled across it, the speech heard "
+    + "for the first 3 minutes only. A full analysis takes about 8 minutes and uses one more video credit; reply \"full analysis\" to start it.");
+  const result = await readJson(path.join(run, "analysis/creator-task-result.json"));
+  assert.deepEqual(result.details.quick_read, { duration_s: 1080.2, minutes: 18, frames: 24, speech: "partial", heard_minutes: 3, eta_minutes: 8 });
+  assert.match(result.creator_view.data_note, /^TikTok video; 24 extracted frames; 1 cited frame refs; /);
+});

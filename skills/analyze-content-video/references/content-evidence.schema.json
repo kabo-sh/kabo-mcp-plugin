@@ -744,6 +744,34 @@
                 "type": "string"
               },
               "description": "Which it could not, so a missing block is not read as a zero."
+            },
+            "coverage": {
+              "type": "object",
+              "description": "Present only when a quick first read of a long video measured just its opening: every measurement here covers covered_s alone, not the whole video.",
+              "required": [
+                "mode",
+                "covered_s"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "mode": {
+                  "const": "partial"
+                },
+                "covered_s": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "duration_s": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -1247,6 +1275,34 @@
               }
             }
           }
+        },
+        "coverage": {
+          "type": "object",
+          "description": "Present only when a quick first read of a long video heard just its opening (no platform captions, so speech recognition ran on the first covered_s seconds). Absent means the transcript covers the whole video.",
+          "required": [
+            "mode",
+            "covered_s"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "partial"
+            },
+            "covered_s": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "duration_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          }
         }
       }
     },
@@ -1271,6 +1327,7 @@
             "duration_scaled_v1",
             "evenly_spaced_bounded_v1",
             "explicit_timestamps_v1",
+            "quick_sample_v1",
             "none"
           ],
           "description": "The sampling algorithm this run used: verbatim from the connector on a connector path, and the same algorithm run here on a local extraction. duration_scaled_v1 is the default: dense across the opening three seconds, steady through the body, dense again at the close. evenly_spaced_bounded_v1 places its first frame at duration/(n+1) and cannot reach the opening — measured on a 60s video, 24 evenly spaced frames landed one frame inside the hook window while the segmented plan landed seven using four fewer frames. It survives only for callers that ask for it by name. Which path produced the frames is not encoded here, deliberately: it is in acquisition[].step and media.duration_source, and a consumer reading frames must not branch on where they were taken. Frames are frames; the plan is the same plan."
@@ -1486,6 +1543,41 @@
             }
           },
           "minItems": 1
+        },
+        "sampling": {
+          "type": "object",
+          "description": "Present only on a quick first read of a long video (quick_sample_v1): the server took a small set of frames at fixed moments across it instead of the full pass. What lies between those moments was not seen.",
+          "required": [
+            "mode",
+            "times_s"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "quick"
+            },
+            "above_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "frames": {
+              "type": "integer"
+            },
+            "duration_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "times_s": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          }
         }
       }
     },

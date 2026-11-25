@@ -25,7 +25,7 @@ from typing import Any
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from creator_measurement_basis import canonical_note, image_note, note_language, note_matches
-from report_locale import LOCALES, listen_note
+from report_locale import LOCALES, listen_note, quick_read
 
 SCHEMA_VERSION = "creator-task-result.v2-final"
 TASK = "analyze_content_video"
@@ -312,6 +312,8 @@ def build(view_document: dict[str, Any], analysis: dict[str, Any], evidence: dic
             # The renderer picks card 2's action label from it (someone else's video: how to avoid it).
             "subject_state": analysis.get("subject_state"),
             **({"song": song} if (song := matched_song(evidence)) else {}),
+            # A quick first read of a long video: the renderer closes the report with what was seen and the offer.
+            **({"quick_read": quick} if (quick := quick_read(evidence)) else {}),
         },
         "evidence_index": evidence_index(view, analysis, evidence),
         "interaction": {

@@ -196,6 +196,7 @@ const LOCALIZED_SKILL_DATA = [
 const NON_ENGLISH_TEST_DATA = [
   "scripts/account-review-correction.test.mjs",
   "scripts/account-review-evidence.test.mjs",
+  "scripts/acv-observation.test.mjs",
   "scripts/acv-report-checks.test.mjs",
   "scripts/content-language-regression.py",
   "scripts/continuation-overlap.test.mjs",
