@@ -222,7 +222,10 @@ three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which sta
    `--focus` once and run the same command again; exit 1 is a failed step. Either way nothing was
    fetched. The cards decide what the observation needs: the `sound` card adds a
    whole-video viewing, which hears the audio, where one is possible (a local file is measured
-   instead: `references/local-file.md`); `audience-response` adds the comment summary. A side call
+   instead: `references/local-file.md`); `audience-response` adds the comment summary. A diagnosis of
+   a link also adds one song recognition call beside the observation, so it costs no extra wait: when it
+   recognises a track, the final step closes the report with one line naming it and its link; otherwise
+   the report says nothing about music. A side call
    that brings nothing is missing evidence, never retried. A local file has no begin step: write
    the request by hand and the creator's words to `analysis/question.txt`, then choose the method:
 

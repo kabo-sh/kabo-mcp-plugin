@@ -411,6 +411,10 @@ def song_lines(evidence: dict[str, Any]) -> list[str]:
                 f"{seconds(song.get('sample_start_s'))}): \"{named.get('title')}\" by {named.get('artist')}"
                 + (f", album {named['album']}" if named.get("album") else "")
                 + (f"; listen link {named['url']}" if named.get("url") else "; no listen link") + ".")
+        if song.get("source") == "recognition":
+            line += ("\n- In a diagnosis report the final step adds this track by itself as one closing line, with its "
+                     "link: do not name it in the summary, the cards or the next actions, unless the sound itself is "
+                     "one of the findings.")
     elif status == "platform_metadata":
         line = "- Song recognition: no audio match; the platform's own sound label is what names it."
     else:

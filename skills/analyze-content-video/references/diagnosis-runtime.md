@@ -65,8 +65,10 @@ Per-run flags, on the evidence-building command only:
   already reduced to its timestamped notes and transcript. Its notes become `viewer_observations`
   (cited by their ids) and its transcript fills the transcript only when none was fetched.
 - `--song snapshot/song.json` and `--comment-summary snapshot/comment-summary.json` when the
-  observation printed them: the one song recognition call of a find-the-song request and the one
-  comment summary call of the `audience-response` card, as they came back (or why they did not).
+  observation printed them: the one song recognition call of a find-the-song request or of a
+  diagnosis of a link, and the one comment summary call of the `audience-response` card, as they came
+  back (or why they did not). A diagnosis names a recognised track only in the report's closing line,
+  which the final step adds.
   They become `song_identification` and `audience_response`; a call that brought nothing is a
   limitation line, never a failure to retry.
 - `--pending <operation>=<job id>` or `--deferred-incomplete <operation>=<job id>` for a deferred

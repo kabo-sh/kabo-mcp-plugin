@@ -218,6 +218,16 @@ def selected_method() -> tuple[list[str], str | None]:
     return [str(card["id"]) for card in method.get("cards") or [] if isinstance(card, dict) and card.get("id")], ask
 
 
+def selected_mode() -> str | None:
+    """The analysis mode select_method.py recorded with its cards (`add_when_modes` reads it: a diagnosis of a link
+    adds the song recognition); none when the method was not chosen, so a run without it adds no mode side call."""
+    chosen = static_host.run_dir() / "analysis" / "method.json"
+    if not chosen.is_file():
+        return None
+    mode = json.loads(chosen.read_text(encoding="utf-8")).get("mode")
+    return mode if isinstance(mode, str) else None
+
+
 def deadline_of(current: dict[str, Any]) -> int:
     """This run's observation deadline: shorter once the video is known to run past ten minutes."""
     return observation_order.deadline_s(known_duration(current))
@@ -348,7 +358,7 @@ def start(args: argparse.Namespace) -> int:
                "ask": ask, "source": source, "reason": reason, "tried": [], "started_at": now().isoformat(),
                "viewer": {"active": False}, "media": {"active": False},
                "side": {item["name"]: {**item, "handed": False}
-                        for item in observation_order.side_calls(order, cards=cards, ask=ask,
+                        for item in observation_order.side_calls(order, cards=cards, ask=ask, mode=selected_mode(),
                                                                  file_ref=collect_media.is_file_ref(url))}}
     for name, entry in current["side"].items():
         if not entry["make"]:

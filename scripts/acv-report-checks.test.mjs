@@ -643,3 +643,41 @@ test("a craft teardown ends with the line on what it rests on and is checked bef
   assert.match(section, /validate_creator_report\.py report\/craft-teardown\.md --emit-report/);
   assert.match(section, /what it rests on/);
 });
+
+// N20 layer 3: a diagnosis of a link also asks for the song, and the report names a recognised track in one closing
+// line with its link; a platform tag, no match or a failed call leaves the report silent about music.
+test("diagnosis song line: added from a recognised match only, localized, with its link, after the timecode rewrite", () => {
+  const out = probe(`
+from render_video_report import render
+from build_creator_result import matched_song
+def report(song, language="en"):
+    details = {"subject_state": "unknown", **({"song": song} if song else {})}
+    return render({"creator_view": {"language": language, "headline": "H", "summary": "S at 12.5s",
+                   "cards": [{"title": "T", "why_for_you": "a", "action": "b"}]}, "details": details})
+def evidence(status, source, song):
+    return {"song_identification": {"status": status, "source": source, "song": song}}
+song = {"title": "Night Changes 2.5s", "artist": "One Direction", "url": "https://open.spotify.com/track/x"}
+print(json.dumps({
+  "en": report(song),
+  "zh": report(song, "zh-CN"),
+  "es": report(song, "es"),
+  "nolink": report({"title": "A", "artist": "B", "url": None}),
+  "none": report(None),
+  "matched": matched_song(evidence("matched", "recognition", song)),
+  "tag": matched_song(evidence("platform_metadata", "platform_tag", None)),
+  "tagmatched": matched_song(evidence("matched", "platform_tag", song)),
+  "nomatch": matched_song(evidence("no_match", None, None)),
+  "badurl": matched_song(evidence("matched", "recognition", {"title": "A", "artist": "B", "url": "javascript:x"})),
+}))`);
+  assert.ok(out.en.trimEnd().endsWith("**Song in this video**: [Night Changes 2.5s – One Direction](https://open.spotify.com/track/x)"));
+  assert.ok(out.zh.trimEnd().endsWith("**视频里的歌**：[Night Changes 2.5s – One Direction](https://open.spotify.com/track/x)"));
+  assert.ok(out.es.includes("**Canción del video**: "));
+  assert.ok(out.nolink.trimEnd().endsWith("**Song in this video**: A – B"));
+  assert.ok(!/Song in this video/.test(out.none));
+  assert.equal(out.en.match(/Song in this video/g).length, 1);
+  assert.deepEqual(out.matched, { title: "Night Changes 2.5s", artist: "One Direction", url: "https://open.spotify.com/track/x" });
+  assert.equal(out.tag, null);
+  assert.equal(out.tagmatched, null);
+  assert.equal(out.nomatch, null);
+  assert.equal(out.badurl.url, null);
+});

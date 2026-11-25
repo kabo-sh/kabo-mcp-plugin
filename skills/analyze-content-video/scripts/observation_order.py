@@ -5,7 +5,9 @@ The order is data, not code: `default` lists the sources a run starts with, `fal
 source fails, `add_when_cards` what a selected method card adds to the chosen source (the `sound` card adds the
 whole-video viewing, which hears the audio: server frames plus a viewing is `combined`) or beside it (the
 `audience-response` card adds the comment summary), `add_when_asks` what a kind of request adds beside it (a
-find-the-song request adds the song identification), and `whole_video_max_ms` caps the length a viewing takes.
+find-the-song request adds the song identification), `add_when_modes` what an analysis mode adds beside it (a
+diagnosis of a link adds the song identification, so the report can name the track in one closing line), and
+`whole_video_max_ms` caps the length a viewing takes.
 
 A side call (`SIDE_CALLS`) is not an observation source: it is one bounded call made in the observation's first
 hand-over, read once, never polled and never repeated. A file attached in Kabo has no public link for it, so it
@@ -158,6 +160,12 @@ def load_order(path: Path | None = None) -> dict[str, Any]:
                                          for key, value in asks.items()):
         raise ValueError("observation order: add_when_asks maps a kind of request to a list of "
                          + " / ".join(SIDE_CALLS))
+    modes = document.get("add_when_modes", {})
+    if not isinstance(modes, dict) or any(not isinstance(key, str) or not isinstance(value, list)
+                                          or any(item not in SIDE_CALLS for item in value)
+                                          for key, value in modes.items()):
+        raise ValueError("observation order: add_when_modes maps an analysis mode to a list of "
+                         + " / ".join(SIDE_CALLS))
     if "whole_video_platforms" in document:
         # The viewing is not limited by platform here: the tool answers for the sources it cannot read.
         raise ValueError("observation order: whole_video_platforms is no longer part of the table")
@@ -223,8 +231,9 @@ def with_cards(order: dict[str, Any], source: str, reason: str, *, cards: list[s
 
 
 def side_calls(order: dict[str, Any], *, cards: list[str] | tuple[str, ...] = (), ask: str | None = None,
-               file_ref: bool = False) -> list[dict[str, Any]]:
-    """The side calls the selected cards and the kind of request add, in table order: {name, tool, why, make}.
+               file_ref: bool = False, mode: str | None = None) -> list[dict[str, Any]]:
+    """The side calls the selected cards, the kind of request and the analysis mode add, in table order:
+    {name, tool, why, make}.
 
     `make` is False for a file attached in Kabo, which has no public link for these tools: the call is not made
     and the gap is recorded the same way as a tool that answered it cannot read the link."""
@@ -235,6 +244,8 @@ def side_calls(order: dict[str, Any], *, cards: list[str] | tuple[str, ...] = ()
                 wanted.setdefault(extra, f"the {card} card adds {extra}")
     for extra in order.get("add_when_asks", {}).get(ask or "", []):
         wanted.setdefault(extra, f"a {ASK_NAMES.get(ask or '', ask)} adds {extra}")
+    for extra in order.get("add_when_modes", {}).get(mode or "", []):
+        wanted.setdefault(extra, f"a {mode} adds {extra}")
     return [{"name": name, "tool": SIDE_CALLS[name], "make": not file_ref,
              "why": why + (", but an uploaded file has no public link for it" if file_ref else "")}
             for name, why in wanted.items()]
@@ -303,7 +314,8 @@ def main(argv: list[str] | None = None) -> int:
         source, reason = choose(order, platform=args.platform, duration_s=args.duration_s,
                                 failed=args.failed, failure_code=args.failure_code, force=args.observe_source,
                                 local_file=args.local_file, mode=args.mode, ask=args.ask, cards=cards)
-        extras = [item["name"] for item in side_calls(order, cards=cards, ask=args.ask) if not args.local_file]
+        extras = [item["name"] for item in side_calls(order, cards=cards, ask=args.ask, mode=args.mode)
+                  if not args.local_file]
     except (ValueError, OSError, json.JSONDecodeError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}))
         return 2
