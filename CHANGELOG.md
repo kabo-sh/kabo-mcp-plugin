@@ -2,6 +2,15 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## Unreleased
+
+- remake-viral-video 1.0.30: new step `auto_audio` (runner op, Web host contract kabo#2467 / kabo-agent-service#507):
+  music bed + sound effects for a finished cut in one paid call. `atoms.md` lists it, `sound.md` (new) says how
+  to use it and report it; `plan.md` adds one
+  `auto_audio` step before delivery when the cut has no music (unless the creator asked for none) and prefers it
+  to hand-written `music` / `sfx`. `params.md` regenerated from the host schema. Host-gated: release only after
+  the runner image and host contract are live and the new checksum is registered in kabo-agent-service.
+
 ## 1.0.62
 
 - analyze-content-video: a diagnosis of a link also asks for the song (one `identify_video_song` side call made

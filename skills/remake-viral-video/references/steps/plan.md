@@ -235,6 +235,9 @@ the creator wrote it). Then choose the steps yourself, row by row, from the tabl
   `transition` does nothing: `concat` takes one transition per call, never one per row. A hard
   cut to black joins the black clip with `cut`; a fade to black joins it alone in a last `concat`
   with `fade_black` and a `transition_s` shorter than the black clip (the rest joined first).
+- **Music before delivery**: when the finished cut has no music and the creator did not ask for
+  none, add one `auto_audio` step on it before `deliver` (`sound.md`); prefer it to writing
+  `music` and `sfx` by hand.
 
 Write the prompt yourself from `picture`, `form` (`avoid`), the `look` of each
 character in the row's `on_screen_cast`, and the style
