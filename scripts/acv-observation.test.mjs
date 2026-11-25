@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -728,8 +728,9 @@ async function driveFrom(run, out, { viewerSteps = [viewerFixture] } = {}) {
 }
 
 // begin_analysis.py is the four setup steps in one command: the request, the creator's words, the cards and the first
-// observation run. Its output is observe_video.py's own, byte for byte, because the Web host reads the hand-over from
-// it; the files are those the separate steps write, and the brief's sections 5-7 are ready before the fetch.
+// observation run. Its output is observe_video.py's own, byte for byte, after at most two leading lines (the run
+// directory with --workspace, and where sections 5-7 are), because the Web host reads the hand-over from it; the files
+// are those the separate steps write, and the brief's sections 5-7 are ready before the fetch.
 test("begin_analysis: one command writes what the separate setup steps write and prints observe_video.py's output unchanged", async (t) => {
   const question = "is the hook strong enough? it's my first try";
   const separate = await newRun(t);
@@ -751,11 +752,36 @@ test("begin_analysis: one command writes what the separate setup steps write and
   const begun = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
     "--question", question, "--focus", "opening,sound", "--confirmed-by-user"], run);
   assert.equal(begun.code, 0, begun.out);
-  // The same output but for the run's own path and the run key derived from it.
+  // The same output but for the run's own path and the run key derived from it, after one leading line: a topic card
+  // makes sections 5-7 this run's own file.
   const same = (out, dir) => out.replaceAll(dir, "<run>").replace(/"run_key": "acv:[0-9a-f]+"/g, '"run_key": "<key>"');
-  assert.equal(same(begun.out, run), same(before.out, separate));
+  const [rulesLine, ...observed] = begun.out.split("\n");
+  assert.equal(rulesLine, "Sections 5-7 are analysis/rules.md: read it whole while the evidence arrives.");
+  assert.equal(same(observed.join("\n"), run), same(before.out, separate));
   assert.ok(begun.out.split("\n").some((line) => line.startsWith("Hand-over: ")));
   assert.equal(path.basename(hostHandover(begun.out)?.resume.script ?? ""), "observe_video.py");
+
+  // With --workspace it reserves the run itself (no start_skill_run on this host): the run directory comes first,
+  // then the same output. A refused command reserves nothing.
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-begin-"));
+  if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
+  const noRun = python("begin_analysis.py", ["--workspace", workspace, "--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--focus", "opening,no-such-card", "--confirmed-by-user"], workspace);
+  assert.equal(noRun.code, 2, noRun.out);
+  assert.equal(existsSync(path.join(workspace, ".kabo-runs")), false);
+  const oneStep = python("begin_analysis.py", ["--workspace", workspace, "--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--focus", "opening,sound", "--confirmed-by-user"], workspace);
+  assert.equal(oneStep.code, 0, oneStep.out);
+  const [runLine, rulesAgain, ...rest] = oneStep.out.split("\n");
+  const reserved = /^Run directory: (\/.+)$/.exec(runLine)?.[1];
+  assert.ok(reserved, oneStep.out);
+  assert.equal(path.dirname(reserved), path.join(await realpath(workspace), ".kabo-runs"));
+  assert.ok(existsSync(path.join(reserved, ".static-run.json")));
+  assert.deepEqual(await readdir(path.join(workspace, ".kabo-runs")), [path.basename(reserved)]);
+  assert.equal(rulesAgain, rulesLine);
+  assert.equal(same(rest.join("\n"), reserved), same(before.out, separate));
+  assert.equal(hostHandover(oneStep.out)?.resume.cwd, reserved);
+  assert.equal((await readJson(path.join(reserved, "analysis/video-analysis-request.json"))).request_id, path.basename(reserved));
   // Another request in the same run is refused before anything is written.
   const other = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "third_party", "--mode", "diagnosis"], run);
   assert.equal(other.code, 1, other.out);
