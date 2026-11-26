@@ -1,7 +1,7 @@
 # Step parameters (generated -- do not edit)
 
 Generated from the Web host's own schema (`contracts/web-remake-tool.v1.json`, kabo-agent-service
-`scripts/remake-skill-schema.ts` at 9d4e28d4caa3d0199fbdad87487541c3d0e85c51) by `scripts/remake-params-gen.mjs`.
+`scripts/remake-skill-schema.ts` at 7cba9124258af4e8471fc6f05f399af5656ec24f) by `scripts/remake-params-gen.mjs`.
 These are the exact shapes the host accepts; where any other file in this Skill reads
 differently, this file is right. A field not listed under a step is refused on that step.
 `?` / (optional) = may be left out; `a | b` = one of; `[x, ...] (2-16 items)` = a list;
@@ -17,6 +17,7 @@ differently, this file is right. A field not listed under a step is refused on t
 - `audio_plan` (optional): {voice?: {gain_db?: number -40..6}; music?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; sfx?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; ambience?: {gain_db?: number -40..6; duck_db?: number 0..30; attack_s?: number 0..1; release_s?: number 0.05..2}; voice_over_music_db?: number 3..20}
 - `environments` (optional): a list (at most 12), each entry below
 - `props` (optional): a list (at most 12), each entry below
+- `output` (optional): {aspect?: text (<= 20); width?: integer 240..4096; height?: integer 240..4096; fps?: number 12..60; max_s?: number 1..600}
 - `series` (optional): [{n: integer 0..999 | text (<= 20); brief: text (<= 2000); job_id?: text (<= 64)}, ...] (1-30 items)
 
 Each row of `shots`:
@@ -223,7 +224,12 @@ Each entry of `props`:
 ### `sfx`
 
 - inputs: `base`: handle
-- params: `events`: [{t: number 0..600; prompt: text (<= 450); duration?: number 0.5..22; gain_db?: number -30..6}, ...] (1-40 items)
+- params: `events`: [{t: number 0..600; prompt: text (<= 450); duration?: number 0.5..120; gain_db?: number -30..6}, ...] (1-40 items)
+
+### `auto_audio`
+
+- inputs: `base`: handle
+- params: `music` (optional): "generated" | "none"; `sfx` (optional): "on" | "off"; `mood` (optional): "horror" | "comedy" | "kids" | "narrative" | "history" | "science" | "money"; `prompt` (optional): text (<= 400); `aesthetic` (optional): "cartoon" | "tech" | "cinematic" | "organic" | "dark"
 
 ### `grade`
 
@@ -233,7 +239,7 @@ Each entry of `props`:
 ### `batch`
 
 - inputs: none
-- params: `steps`: [{op: "trim" | "retime" | "mux" | "crop" | "grade" | "still_video" | "concat" | "captions" | "overlay" | "splice" | "layout" | "text_cards" | "motion_graphics" | "talking" | "lipsync" | "tts" | "frame" | "extract_audio" | "sfx" | "music" | "audio_edit" | "voice_change" | "inpaint_text" | "first_frame" | "bg"; inputs?: {<name>: any}; params?: {<name>: any}}, ...] (2-16 items)
+- params: `steps`: [{op: "trim" | "retime" | "mux" | "crop" | "grade" | "still_video" | "concat" | "captions" | "overlay" | "splice" | "layout" | "text_cards" | "motion_graphics" | "talking" | "lipsync" | "tts" | "frame" | "extract_audio" | "sfx" | "music" | "auto_audio" | "audio_edit" | "voice_change" | "inpaint_text" | "first_frame" | "bg"; inputs?: {<name>: any}; params?: {<name>: any}}, ...] (2-16 items)
 
 ### `cast`
 
