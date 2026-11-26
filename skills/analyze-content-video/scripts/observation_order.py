@@ -113,6 +113,10 @@ PARTS = {"server_frames": ("server_frames",), "whole_video": ("whole_video",),
 ADDABLE = ("server_frames", "whole_video")
 # One bounded call beside the observation, by name: the tool it calls. Read once from the first hand-over.
 SIDE_CALLS = {"song": "identify_video_song", "comment_summary": "summarize_video_comments"}
+# The side calls that also read a file attached in Kabo (`kabo-file:<id>`): the song identification does, by the
+# same reference the media tool takes (the Web host's song finder checks the file is the creator's own). The comment
+# summary reads a public post's comments, which an attached file has none of.
+FILE_REF_SIDE_CALLS = frozenset({"song"})
 # Modes that never start a whole-video viewing, and modes whose method needs frames beside any viewing.
 NO_VIEWER_MODES = {"transcript_export"}
 FRAMES_MODES = {"craft_teardown"}
@@ -166,6 +170,12 @@ def load_order(path: Path | None = None) -> dict[str, Any]:
                                           for key, value in modes.items()):
         raise ValueError("observation order: add_when_modes maps an analysis mode to a list of "
                          + " / ".join(SIDE_CALLS))
+    limits = document.get("side_call_max_ms", {})
+    if not isinstance(limits, dict) or any(key not in SIDE_CALLS or not isinstance(value, dict)
+                                           or any(not isinstance(platform, str) or type(limit) is not int or limit <= 0
+                                                  for platform, limit in value.items())
+                                           for key, value in limits.items()):
+        raise ValueError("observation order: side_call_max_ms maps a side call to {platform: positive integer}")
     if "whole_video_platforms" in document:
         # The viewing is not limited by platform here: the tool answers for the sources it cannot read.
         raise ValueError("observation order: whole_video_platforms is no longer part of the table")
@@ -235,8 +245,8 @@ def side_calls(order: dict[str, Any], *, cards: list[str] | tuple[str, ...] = ()
     """The side calls the selected cards, the kind of request and the analysis mode add, in table order:
     {name, tool, why, make}.
 
-    `make` is False for a file attached in Kabo, which has no public link for these tools: the call is not made
-    and the gap is recorded the same way as a tool that answered it cannot read the link."""
+    `make` is False for a file attached in Kabo when the call cannot read one (FILE_REF_SIDE_CALLS says which can):
+    the call is not made and the gap is recorded the same way as a tool that answered it cannot read the link."""
     wanted: dict[str, str] = {}
     for card in cards:
         for extra in order["add_when_cards"].get(card, []):
@@ -246,9 +256,19 @@ def side_calls(order: dict[str, Any], *, cards: list[str] | tuple[str, ...] = ()
         wanted.setdefault(extra, f"a {ASK_NAMES.get(ask or '', ask)} adds {extra}")
     for extra in order.get("add_when_modes", {}).get(mode or "", []):
         wanted.setdefault(extra, f"a {mode} adds {extra}")
-    return [{"name": name, "tool": SIDE_CALLS[name], "make": not file_ref,
-             "why": why + (", but an uploaded file has no public link for it" if file_ref else "")}
+    return [{"name": name, "tool": SIDE_CALLS[name], "make": not file_ref or name in FILE_REF_SIDE_CALLS,
+             "why": why + (", but an uploaded file has no public link for it"
+                           if file_ref and name not in FILE_REF_SIDE_CALLS else "")}
             for name, why in wanted.items()]
+
+
+def side_call_too_long(order: dict[str, Any], name: str, platform: str | None, duration_s: float | None) -> bool:
+    """Whether a side call is bound to fail on a video this long: the song finder refuses a YouTube video over
+    10 minutes (video_too_long, even with a time), so the call is not made once the duration is known to be past
+    it. Only the platforms the table names: the finder still answers a longer TikTok or attached file from its
+    opening. An unknown duration does not block: the call goes out and the tool's own answer stands."""
+    limit = order.get("side_call_max_ms", {}).get(name, {}).get(platform or "")
+    return limit is not None and duration_s is not None and duration_s * 1000 > limit
 
 
 def choose(order: dict[str, Any], *, platform: str | None, duration_s: float | None = None,

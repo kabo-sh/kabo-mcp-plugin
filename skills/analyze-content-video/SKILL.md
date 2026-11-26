@@ -223,7 +223,8 @@ three turns: `init`, then `start_skill_run`, then `begin_analysis.py`, which sta
    fetched. The cards decide what the observation needs: the `sound` card adds a
    whole-video viewing, which hears the audio, where one is possible (a local file is measured
    instead: `references/local-file.md`); `audience-response` adds the comment summary. A diagnosis of
-   a link also adds one song recognition call beside the observation, so it costs no extra wait: when it
+   a link or of a video attached in Kabo also adds one song recognition call beside the observation (none
+   for a YouTube video known to run past 10 minutes, which the recognition refuses), so it costs no extra wait: when it
    recognises a track, the final step closes the report with one line naming it and its link; otherwise
    the report says nothing about music. A side call
    that brings nothing is missing evidence, never retried. A local file has no begin step: write
