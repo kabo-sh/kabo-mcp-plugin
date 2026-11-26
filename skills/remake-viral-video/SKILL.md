@@ -4,7 +4,7 @@ description: "Have Kabo make a finished MP4: remake a reference video (talking, 
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
 metadata:
-  version: "1.0.30"
+  version: "1.0.31"
   platform_agnostic: "true"
 allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
@@ -47,8 +47,15 @@ that, not by how the request is worded ("remake" included):
    a line what you chose. When they ask for a video, the deliverable is the video: write any
    script, prompts or captions they also asked for, show them in your reply, and go on to make the
    video in the same flow. Never stop at a script or prompts, and never answer that a video cannot
-   be made here while the tools are listed. Captions they asked for are always in the cut (placed
-   clear of on-screen text, never dropped for it), with names from their words in `terms`.
+   be made here while the tools are listed. Never hand the work back either: no "cut it yourself in
+   CapCut or the TikTok editor", no list of times to cut by hand -- clips or reels from their own
+   video are steps here (`trim`, `crop` to 9:16, `concat`). When a step fails, fix the call from its
+   error or use another step, then report. Captions they asked for are always in the cut (placed
+   clear of on-screen text, never dropped for it), with names from their words in `terms`. One real
+   trade-off to raise: before the first paid step that relies on a model known to be weak for the ask
+   (a face or identity put on other footage, hands working with objects, talking from a single
+   still -- `references/steps/plan.md` "Known limits"), say the risk in one sentence, offer the more
+   reliable path, and do what they choose. Other requests start without such a question.
 5. The whole remake is the shortcut for "the same structure again, with me": a reference of one
    of the four kinds below, or an approved script. It is not the fallback, and a reference plus
    the creator's footage does not make a request one; the creator's own video is footage to keep,
@@ -246,7 +253,8 @@ the answer by its meaning, in any language:
   briefly; start nothing.
 
 Never choose for the creator, never send the model in the same turn you wrote the script, and
-never ask about the model before the script is written. If the runner returns the script with a
+never ask about the model before the script is written. When the face comes from a single still, the
+Known limits question (a short clip of them talking) comes before this list. If the runner returns the script with a
 list of failures, nothing paid was spent: fix only what it names, keep the rest, submit again;
 the chosen model is kept.
 

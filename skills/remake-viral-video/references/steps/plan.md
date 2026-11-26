@@ -243,6 +243,26 @@ Write the prompt yourself from `picture`, `form` (`avoid`), the `look` of each
 character in the row's `on_screen_cast`, and the style
 card, as step 4 above says, and save it into the row when you save the storyboard again.
 
+## Known limits: say the risk, offer the reliable path, then do their choice
+
+Some steps use a model that is known to be unreliable for what is asked. Before the first paid step
+that would rely on one, tell the creator the risk in one sentence, offer the most reliable path that
+gets them the same result, and go on with what they choose. The path you offer fixes the weak part of
+the picture itself (likeness, mouth, hands) -- a better voice alone does not. Everything else is made
+without asking.
+
+Known cases, as examples (not a complete list -- the same rule holds for any step you know to be
+weak for the ask):
+
+- A face or identity put onto other footage or changed (swapping their face in, aging, a different
+  person): it can look pasted on. More reliable: they film the part themselves, or the original
+  picture stays with their cloned voice.
+- Hands working with objects: fingers can bend or merge. More reliable: the creator talking plus a
+  hands-free close-up of the object, or a short clip of their own hands.
+- Talking from a single still: only the mouth moves on a frozen picture. More reliable: a 5-10 s
+  clip of them talking drives the mouth on real footage; without one, give the still life with a
+  push-in, parallax or B-roll.
+
 ## What the change needs: make it, do not ask for it
 
 A change of words or theme, of a character or of a place needs material the reference does not
@@ -319,6 +339,25 @@ its own shot. A save that leaves one out comes back with a note naming it.
 
 **Opening and narration.** Open on a moving shot. Narration states each fact once and never asks
 a question the video has already answered (listing the costs, then asking "how much did it cost?").
+
+**Text on screen.** Plan every title, text card and caption with its place and its time: no two
+text blocks on screen at once in the same area (a title and the captions never sit on each other --
+move one, or show them one after the other), every line inside the frame with a margin (shorten the
+words rather than let a line run off the edge or be cut), and nothing over a face. Before `deliver`,
+take a `frame` at each text's start and look: a block that overlaps another or is cut off is fixed
+first.
+
+**Changing a video's language.** Make the source right first, then cut: remove the old burned-in
+text (`inpaint_text`) and put the new voice on the whole source (`tts` for every line, then `mux`)
+before taking shots, frames or crops from it -- never cut shots from the original and fix its text
+or voice afterwards. Every spoken line is replaced (none left in the old language), and the title
+and on-screen text are rewritten in the new language (`text_cards` or `motion_graphics`): every
+piece of text the source shows gets its counterpart in the new language at the same time and place
+(titles map to titles, labels to labels), and no region where old text was removed is left empty or
+smeared. Spoken words appear once: when the source already carries them on screen, those texts are
+the captions -- do not add a second caption layer. Before `deliver`, `transcribe` the result and put
+a `frame` at each text's start next to the source's frame at the same time: old-language words, an
+empty or blurred box, a mismatched title or doubled captions are fixed first.
 
 **A revision** keeps the last version's length and what worked in it. "Make it fun / livelier /
 better" means new shots, new sound or new pacing, not only new on-screen text; the delivery receipt
