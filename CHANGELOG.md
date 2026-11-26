@@ -14,9 +14,10 @@ The version number follows `plugin.json`; the root package version in `.claude-p
   Also plan around known model limits and say them before the first paid step: a face swap is offered
   after re-performing on their own camera or keeping the picture with their cloned voice (#005/#006);
   hand-and-object shots are avoided or flagged (#037/#043); a single photo asks once for a 5-10 s clip,
-  else the background gets a push-in, parallax or B-roll (#072). These limits are asked about in the first reply,
-  before any paid step (SKILL.md "Choose what to make" item 6). A language change translates every on-screen
-  label in place, keeps the opening title matched to the original's and times captions to the speech.
+  else the background gets a push-in, parallax or B-roll (#072). Stated as one rule: before a paid step that relies
+  on a model known to be weak for the ask, say the risk, offer the more reliable path, then do the creator's choice;
+  other requests start without asking. A language change gives every on-screen text a counterpart at the same time
+  and place (titles to titles, nothing blank) and captions follow the speech.
 
 ## 1.0.62
 

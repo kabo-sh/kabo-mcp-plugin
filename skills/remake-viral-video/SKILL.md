@@ -51,7 +51,11 @@ that, not by how the request is worded ("remake" included):
    CapCut or the TikTok editor", no list of times to cut by hand -- clips or reels from their own
    video are steps here (`trim`, `crop` to 9:16, `concat`). When a step fails, fix the call from its
    error or use another step, then report. Captions they asked for are always in the cut (placed
-   clear of on-screen text, never dropped for it), with names from their words in `terms`.
+   clear of on-screen text, never dropped for it), with names from their words in `terms`. One real
+   trade-off to raise: before the first paid step that relies on a model known to be weak for the ask
+   (a face or identity put on other footage, hands working with objects, talking from a single
+   still -- `references/steps/plan.md` "Known limits"), say the risk in one sentence, offer the more
+   reliable path, and do what they choose. Other requests start without such a question.
 5. The whole remake is the shortcut for "the same structure again, with me": a reference of one
    of the four kinds below, or an approved script. It is not the fallback, and a reference plus
    the creator's footage does not make a request one; the creator's own video is footage to keep,
@@ -60,13 +64,6 @@ that, not by how the request is worded ("remake" included):
    delivery. A change to a delivered video is an edit or steps on that job, never a new remake;
    when only one moment of it changes, rebuild only that span and put it back in
    (`references/steps/edits.md`).
-6. Known model limits are asked about first (`references/steps/plan.md` "Known limits"): in the
-   first reply, before any paid step, say the limit and offer the alternative, then wait. A face
-   swap into a reference: offer re-performing on their own camera, or the reference picture kept
-   with their cloned voice. Only a photo to make them talk: ask for a 5-10 s video of them talking
-   to drive the mouth (none: push-in, parallax or B-roll). Hands working with objects: offer the
-   creator talking plus a hands-free product close-up, or, when they asked for the hands, say they
-   may come out bent. Make what they asked only once they still want it.
 6. Nobody on camera **when there is no narrated reference video to remake** (a freeform animation
    or kinetic-typography video from a prompt, product photos turned into an ad, a multi-photo
    montage, a live-video HUD callout overlay, a re-edit of their own video, or a silent or
