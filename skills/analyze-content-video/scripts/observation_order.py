@@ -88,8 +88,11 @@ def deadline_s(duration_s: float | None) -> int:
 # speech heard when the platform has no captions) and the answer offers a full ("deep") analysis. A shorter video is
 # unaffected: the server ignores the threshold and does the full pass. A deep run (`--depth deep`, only after the
 # creator accepted that offer) sends no threshold. A transcript export always wants every word, and an uploaded file
-# keeps today's full pass, so neither sends it.
-QUICK_ABOVE_S = 180
+# keeps today's full pass, so neither sends it. The threshold is 10 minutes: over the 30 days to 2026-11-26 no
+# Instagram and no Shorts link and about a fifth of TikTok links ran past 3 minutes, none of them past 10; a full pass on
+# a video of 10 minutes or less fits one turn (about 110-180 s on Web), so only longer videos, all of them YouTube links,
+# pay for a second step.
+QUICK_ABOVE_S = 600
 QUICK_MODES = {"diagnosis", "content_read", "craft_teardown"}
 DEPTHS = ("quick", "deep")
 # The full pass the server needs for a video of this length, in seconds: a rate per second of video plus a fixed

@@ -2,6 +2,14 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.65
+
+- analyze-content-video: the quick first read now starts at videos over 10 minutes instead of 3. Over the 30 days
+  to 2026-11-26 no Instagram or Shorts link and about a fifth of TikTok links ran past 3 minutes, none past 10, and
+  a full analysis of a video of 10 minutes or less fits one turn, so those videos get the full analysis in one step
+  again with no second credit; only longer videos (all YouTube links, about a tenth of requests) are read quickly
+  first and offered the full analysis.
+
 ## 1.0.64
 
 - analyze-content-video: faster video analysis on Kabo Web.

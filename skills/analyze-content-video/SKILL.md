@@ -233,11 +233,11 @@ every host (then `start_skill_run`, where available, before its printed calls).
    for a YouTube video known to run past 10 minutes, which the recognition refuses), so it costs no extra wait: when it
    recognises a track, the final step closes the report with one line naming it and its link; otherwise
    the report says nothing about music. A side call
-   that brings nothing is missing evidence, never retried. **Long videos.** A link over 3 minutes
+   that brings nothing is missing evidence, never retried. **Long videos.** A link over 10 minutes
    is read quickly first, and its answer ends with an offer of the full analysis (one more video
    credit). `--depth deep` is that analysis, a new run from step 1 with `--duration-s` from the
    first result: run it only when the creator accepted that offer (any wording, any language) or a
-   host message says the deep analysis is ready, never for 3 minutes or less. *Long videos in two
+   host message says the deep analysis is ready, never for 10 minutes or less. *Long videos in two
    steps* in `references/diagnosis-runtime.md` covers it, `deep_pending` included. A local file has no begin step: write
    the request by hand and the creator's words to `analysis/question.txt`, then choose the method:
 

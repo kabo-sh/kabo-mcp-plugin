@@ -392,7 +392,7 @@ that never arrives.
 ## Long videos in two steps
 
 - **Quick first read, by default.** A diagnosis, content read or craft teardown of a link asks the
-  media jobs for a quick sample of any video over 3 minutes: a small set of frames at fixed moments
+  media jobs for a quick sample of any video over 10 minutes: a small set of frames at fixed moments
   across it, cuts and sound measured over the first minute, and, where the platform has no captions,
   speech heard for the first 3 minutes. The evidence marks each part (`frames.sampling`,
   `transcript.coverage`, `media.probed.coverage`) and section 3 of the brief states what was seen
@@ -403,7 +403,7 @@ that never arrives.
   shorter video, a transcript export and an uploaded file always get the full pass.
 - **Consent.** Only a reply that accepts that offer ("yes", "full analysis", in any language), or a
   host message saying the deep analysis is ready, starts the full analysis. Never start it on your
-  own, for a video of 3 minutes or less, or a second time.
+  own, for a video of 10 minutes or less, or a second time.
 - **The deep run.** Begin again from analysis step 1 as a new run (with `start_skill_run` where
   available: this is the one more credit), with the same link, ownership, mode and the creator's
   original words, `--duration-s` from the first result and `--depth deep`. Its jobs are keyed by
