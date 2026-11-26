@@ -2052,7 +2052,7 @@ test("keyframes request: the contract's max_frames, shot starts and the default 
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], plain);
   assert.deepEqual(keyframesOf(callLines(first.out)[0]),
     { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true, dense_windows: [DEFAULT_WINDOW],
-      overview: true, quick_above_s: 180 });
+      overview: true, quick_above_s: 600 });
 
   const run = await newRun(t);
   const method = await selectFirst(run, "opening,editing-pacing");
@@ -2061,7 +2061,7 @@ test("keyframes request: the contract's max_frames, shot starts and the default 
   const call = callLines(out)[0];
   // The card's window first, then the default one.
   assert.deepEqual(keyframesOf(call), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true,
-    dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW], overview: true, quick_above_s: 180 });
+    dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW], overview: true, quick_above_s: 600 });
   // The options are fixed at the first hand-over, so a repeated call while jobs run sends the same arguments.
   assert.deepEqual((await readJson(path.join(run, "collect-media.json"))).frame_options,
     { include_shot_starts: true, dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW], overview: true });
@@ -2118,7 +2118,7 @@ test("a server refusing the frame options (keyframes item validation_error, or -
   assert.equal(retriedAgain.code, 0, retriedAgain.out);
   const [again] = callLines(retriedAgain.out);
   assert.equal(again.tool, "collect_video_media");
-  assert.deepEqual(keyframesOf(again), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, quick_above_s: 180 });
+  assert.deepEqual(keyframesOf(again), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, quick_above_s: 600 });
   assert.equal(again.arguments.run_key, call.arguments.run_key);
   assert.equal((await readJson(path.join(run, "collect-media.json"))).frame_options_refused, true);
   const { out } = await driveFrom(run, retriedAgain.out);
@@ -2138,7 +2138,7 @@ test("a server refusing the frame options (keyframes item validation_error, or -
   const repeated = shell(resumeOf(repeatedOnce.out));
   assert.equal(repeated.code, 0, repeated.out);
   assert.match(repeated.out, /did not accept include_shot_starts \/ dense_windows/);
-  assert.deepEqual(keyframesOf(callLines(repeated.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, quick_above_s: 180 });
+  assert.deepEqual(keyframesOf(callLines(repeated.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, quick_above_s: 600 });
   // Inside collect_video_media a bad option fails only the keyframes item (validation_error) while the other items
   // run: that too repeats the call once without the options, and the newer keyframes result is the one used.
   const itemRun = await newRun(t);
@@ -2797,21 +2797,21 @@ test("audience-response without a summary (tool missing on this host, an error, 
 });
 
 // Long videos in two steps. By default the keyframes, measurement and transcript requests carry quick_above_s, so a
-// video past 180 s comes back as a quick, explicitly partial sample; `--depth deep` (only after the creator accepted
+// video past 600 s comes back as a quick, explicitly partial sample; `--depth deep` (only after the creator accepted
 // the offer) is the full pass, keyed by the link and the UTC date so a deep run begun again replays the same jobs.
 const QUICK_OPERATIONS = ["fetch_transcript", "extract_keyframes", "measure_media_signals"];
 const quickOf = (call) => Object.fromEntries(call.arguments.requests.map((request) => [request.operation, request.parameters.quick_above_s]));
 const deepKey = (url) => "acv-deep:" + createHash("sha256").update(`${url}|${new Date().toISOString().slice(0, 10)}`).digest("hex").slice(0, 32);
 
-test("quick by default: every sampled operation of a link carries quick_above_s 180, never the metadata; a transcript export and an uploaded file carry none", async (t) => {
+test("quick by default: every sampled operation of a link carries quick_above_s 600, never the metadata; a transcript export and an uploaded file carry none", async (t) => {
   for (const mode of ["diagnosis", "content_read", "craft_teardown"]) {
     const run = await newRun(t);
     const [call] = callLines(python("observe_video.py", ["--url", TIKTOK, "--mode", mode], run).out);
-    assert.deepEqual(quickOf(call), { collect_public_metadata: undefined, fetch_transcript: 180, extract_keyframes: 180,
-      ...(mode === "content_read" ? {} : { measure_media_signals: 180 }) }, mode);
+    assert.deepEqual(quickOf(call), { collect_public_metadata: undefined, fetch_transcript: 600, extract_keyframes: 600,
+      ...(mode === "content_read" ? {} : { measure_media_signals: 600 }) }, mode);
     assert.match(call.arguments.run_key, /^acv:[0-9a-f]{32}$/);
     const media = await readJson(path.join(run, "collect-media.json"));
-    assert.deepEqual([media.depth, media.quick_above_s], ["quick", 180]);
+    assert.deepEqual([media.depth, media.quick_above_s], ["quick", 600]);
   }
   const exported = await newRun(t);
   const [exportCall] = callLines(python("observe_video.py", ["--url", TIKTOK, "--mode", "transcript_export"], exported).out);
@@ -2824,7 +2824,7 @@ test("quick by default: every sampled operation of a link carries quick_above_s 
   for (const name of ["public_video_extract_keyframes", "public_video_fetch_transcript", "public_video_measure_media_signals"]) {
     const quick = tools.get(name).inputSchema.properties.parameters.properties.quick_above_s;
     assert.deepEqual([quick.type, quick.minimum, quick.maximum], ["integer", 30, 3600], name);
-    assert.ok(quick.minimum <= 180 && 180 <= quick.maximum);
+    assert.ok(quick.minimum <= 600 && 600 <= quick.maximum);
   }
 });
 

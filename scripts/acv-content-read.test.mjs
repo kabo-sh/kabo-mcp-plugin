@@ -110,9 +110,9 @@ test("long videos: the full analysis runs only when the creator accepted the off
   const analysis = section("Analysis");
   assert.match(analysis, /\[--depth deep\]/);
   const long = analysis.slice(analysis.indexOf("**Long videos.**")).replace(/\s+/g, " ");
-  assert.match(long, /over 3 minutes is read quickly first, and its answer ends with an offer of the full analysis \(one more video credit\)/);
+  assert.match(long, /over 10 minutes is read quickly first, and its answer ends with an offer of the full analysis \(one more video credit\)/);
   assert.match(long, /a new run from step 1 with `--duration-s` from the first result/);
-  assert.match(long, /only when the creator accepted that offer \(any wording, any language\) or a host message says the deep analysis is ready, never for 3 minutes or less/);
+  assert.match(long, /only when the creator accepted that offer \(any wording, any language\) or a host message says the deep analysis is ready, never for 10 minutes or less/);
   const runtime = readFileSync(path.join(skillDir, "references/diagnosis-runtime.md"), "utf8");
   const part = runtime.slice(runtime.indexOf("## Long videos in two steps"), runtime.indexOf("## When part of the media is out of reach")).replace(/\s+/g, " ");
   assert.match(part, /`deep_pending`/);

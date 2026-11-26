@@ -85,10 +85,10 @@ test("video analysis media single composite call: hand off one call, resume unti
   const keyframes = args.requests.find((r) => r.operation === "extract_keyframes");
   // The contract's cap, a frame just after each cut (on by default), the default dense window (the first 50s every
   // 0.5s; no method cards chose windows here) and the overview of every second (applied past 50s).
-  // And the quick threshold, on every operation a quick first read samples: a video past 180 s comes back partial.
+  // And the quick threshold, on every operation a quick first read samples: a video past 600 s comes back partial.
   assert.deepEqual(keyframes.parameters, { url: URL_, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true,
-    dense_windows: [{ start_s: 0, end_s: 50, interval_s: 0.5 }], overview: true, quick_above_s: 180 });
-  assert.deepEqual(args.requests.map((r) => r.parameters.quick_above_s), [180, 180, 180]);
+    dense_windows: [{ start_s: 0, end_s: 50, interval_s: 0.5 }], overview: true, quick_above_s: 600 });
+  assert.deepEqual(args.requests.map((r) => r.parameters.quick_above_s), [600, 600, 600]);
 
   // Jobs are still running: a resume emits the same call again.
   await save(saveOf(first.out), composite(args, new Set(["video/extract_keyframes"])));
