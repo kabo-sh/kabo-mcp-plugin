@@ -423,6 +423,7 @@ def start(args: argparse.Namespace) -> int:
     for name, entry in current["side"].items():
         if not entry["make"]:
             persist_side(current, name, None, skipped="uploaded_file")
+    skip_long_side_calls(current)
     save_state(current)
     side = [name for name, entry in current["side"].items() if entry["make"]]
     if side:
@@ -464,6 +465,7 @@ def begin(current: dict[str, Any], note: str = "") -> int:
         else:
             refuse_viewer(current, code)
     save_state(current)
+    skip_long_side_calls(current)
     side = [name for name, entry in (current.get("side") or {}).items() if entry["make"] and not entry["handed"]]
     metadata = bool(current.get("metadata") and not current["metadata"]["handed"])
     if not start_viewer and not start_media and not side and not metadata:
@@ -559,6 +561,22 @@ def read_viewer(current: dict[str, Any], file: Path, tool: str) -> None:
                  "discarded_fields": viewer_response.DISCARDED_FIELDS}
     Path(PERSISTED_VIEWER).write_text(json.dumps(persisted, ensure_ascii=False, indent=2) + "\n")
     viewer["persisted"] = PERSISTED_VIEWER
+
+
+def skip_long_side_calls(current: dict[str, Any]) -> None:
+    """Drop a side call not yet handed over that is bound to fail on this video's known length (a song
+    identification of a YouTube video past the song finder's limit), recording why, instead of spending a call
+    on it."""
+    side = current.get("side") or {}
+    pending = [name for name, entry in side.items() if entry["make"] and not entry["handed"]]
+    if not pending:
+        return
+    order = observation_order.load_order()
+    duration = known_duration(current)
+    for name in pending:
+        if observation_order.side_call_too_long(order, name, current.get("platform"), duration):
+            side[name]["make"] = False
+            persist_side(current, name, None, skipped="video_too_long")
 
 
 def persist_side(current: dict[str, Any], name: str, raw: bytes | None, *, skipped: str | None = None) -> None:

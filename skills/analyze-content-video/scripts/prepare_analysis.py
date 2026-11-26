@@ -544,8 +544,13 @@ SONG_GAP = {
     "in_progress": "the recognition did not finish within its one call",
     "quota_exceeded": "the recognition is out of its daily allowance",
     "unsupported_platform": "the recognition covers Instagram, YouTube and TikTok links only",
-    "not_attempted": "an uploaded file is not sent to the recognition",
+    "not_attempted": "the recognition was not called",
     "failed": "the recognition brought no answer here",
+}
+# Why a song recognition was not called (the side-call record's `skipped`).
+SONG_SKIPPED = {
+    "video_too_long": "the YouTube video runs past the recognition's 10-minute limit, so it was not called",
+    "uploaded_file": "an uploaded file is not sent to the recognition",
 }
 COMMENT_GAP = {
     "too_few_comments": "the post has too few comments to summarise",
@@ -575,7 +580,9 @@ def song_lines(evidence: dict[str, Any]) -> list[str]:
     elif status == "platform_metadata":
         line = "- Song recognition: no audio match; the platform's own sound label is what names it."
     else:
-        line = (f"- Song recognition: {status} ({SONG_GAP.get(str(status), 'no answer')}"
+        gap = (SONG_SKIPPED.get(str(song.get("reason")), SONG_GAP["not_attempted"]) if status == "not_attempted"
+               else SONG_GAP.get(str(status), "no answer"))
+        line = (f"- Song recognition: {status} ({gap}"
                 + (f"; {song['reason']}" if song.get("reason") and status != "not_attempted" else "") + ").")
     lines = [line]
     if tag:

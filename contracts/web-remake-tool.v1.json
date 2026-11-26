@@ -1,6 +1,6 @@
 {
  "source": "kabo-agent-service",
- "commit": "9d4e28d4caa3d0199fbdad87487541c3d0e85c51",
+ "commit": "7cba9124258af4e8471fc6f05f399af5656ec24f",
  "atom": {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
@@ -3299,7 +3299,7 @@
           "duration": {
            "type": "number",
            "minimum": 0.5,
-           "maximum": 22
+           "maximum": 120
           },
           "gain_db": {
            "type": "number",
@@ -3339,6 +3339,97 @@
      "op",
      "inputs",
      "params",
+     "action",
+     "job_id",
+     "idempotency_key"
+    ],
+    "additionalProperties": false
+   },
+   {
+    "type": "object",
+    "properties": {
+     "op": {
+      "type": "string",
+      "const": "auto_audio"
+     },
+     "inputs": {
+      "type": "object",
+      "properties": {
+       "base": {
+        "type": "string",
+        "pattern": "^(creator\\/[a-z0-9_.-]{1,60}|input\\/[a-z0-9_.-]{1,60}|a\\d{2,3}|final(_r\\d{1,2})?|master|take_s\\d{2}|broll_b\\d{2,3}|frame_s\\d{2}|line_\\d{2,3})\\.(mp4|png|jpg|wav)$"
+       }
+      },
+      "required": [
+       "base"
+      ],
+      "additionalProperties": false
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "music": {
+        "type": "string",
+        "enum": [
+         "generated",
+         "none"
+        ]
+       },
+       "sfx": {
+        "type": "string",
+        "enum": [
+         "on",
+         "off"
+        ]
+       },
+       "mood": {
+        "type": "string",
+        "enum": [
+         "horror",
+         "comedy",
+         "kids",
+         "narrative",
+         "history",
+         "science",
+         "money"
+        ]
+       },
+       "prompt": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 400
+       },
+       "aesthetic": {
+        "type": "string",
+        "enum": [
+         "cartoon",
+         "tech",
+         "cinematic",
+         "organic",
+         "dark"
+        ]
+       }
+      },
+      "additionalProperties": false
+     },
+     "action": {
+      "type": "string",
+      "const": "atom"
+     },
+     "job_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+     },
+     "idempotency_key": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+     }
+    },
+    "required": [
+     "op",
+     "inputs",
      "action",
      "job_id",
      "idempotency_key"
@@ -3491,6 +3582,7 @@
             "extract_audio",
             "sfx",
             "music",
+            "auto_audio",
             "audio_edit",
             "voice_change",
             "inpaint_text",
@@ -5489,6 +5581,35 @@
       "look"
      ],
      "additionalProperties": {}
+    }
+   },
+   "output": {
+    "type": "object",
+    "properties": {
+     "aspect": {
+      "type": "string",
+      "maxLength": 20
+     },
+     "width": {
+      "type": "integer",
+      "minimum": 240,
+      "maximum": 4096
+     },
+     "height": {
+      "type": "integer",
+      "minimum": 240,
+      "maximum": 4096
+     },
+     "fps": {
+      "type": "number",
+      "minimum": 12,
+      "maximum": 60
+     },
+     "max_s": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 600
+     }
     }
    },
    "series": {

@@ -4,7 +4,7 @@ description: "Have Kabo make a finished MP4: remake a reference video (talking, 
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
 metadata:
-  version: "1.0.25"
+  version: "1.0.30"
   platform_agnostic: "true"
 allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
@@ -116,8 +116,8 @@ that, not by how the request is worded ("remake" included):
 | -- | a picture without the creator (nobody speaks a line on camera in it); a code animation (diagram, chart, map, UI, text in motion, photos in motion, callouts over a video); text to read; captions; music; sound | `still`, `animate`, `motion_graphics`, `text_cards`, `captions`, `music`, `sfx`, `mux` | no |
 
 Before the first edit, project or step, read `references/steps/plan.md` (plan and storyboard) and
-`references/steps/atoms.md` (what each step takes); then `project.md`, `edits.md` and
-`motion-graphics.md` in the same folder as the work needs. Before the first paid step, say in two
+`references/steps/atoms.md` (what each step takes); then `project.md`, `edits.md`,
+`motion-graphics.md` and `sound.md` in the same folder as the work needs. Before the first paid step, say in two
 or three lines what you will make, with what your host adds (Web: the host's quote; see the host
 file), then go ahead. A `degraded` face check never blocks delivery: say which part looks less
 like the creator. Cancel a job only when the creator asks; spend so far stays charged.

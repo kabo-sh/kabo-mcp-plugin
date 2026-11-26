@@ -2,7 +2,7 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
-## 1.0.63
+## 1.0.64
 
 - analyze-content-video: faster video analysis on Kabo Web.
   - One command opens the run (`begin_analysis.py --workspace` reserves it and starts observing), and the
@@ -17,6 +17,20 @@ The version number follows `plugin.json`; the root package version in `.claude-p
 - analyze-content-video: the time the offer quotes for a full analysis is recalibrated to measured server runs.
 - Requires Kabo backend support for `quick_above_s` on the public video media operations (kabo-sh/kabo#2474) to be
   live before this release is published.
+
+## 1.0.63
+
+- remake-viral-video 1.0.30: new step `auto_audio` (runner op, Web host contract kabo#2467 / kabo-agent-service#507):
+  music bed + sound effects for a finished cut in one paid call. `atoms.md` lists it, `sound.md` (new) says how
+  to use it and report it; `plan.md` adds one
+  `auto_audio` step before delivery when the cut has no music (unless the creator asked for none) and prefers it
+  to hand-written `music` / `sfx`. `params.md` regenerated from the host schema. Host-gated: release only after
+  the runner image and host contract are live and the new checksum is registered in kabo-agent-service.
+  It also carries remake-viral-video 1.0.20-1.0.25 already on main (#214, #215): reference plus a changed story
+  makes the video, cut to black as its own clip, fewer and bigger steps, two-chain production, continuity fields (#220).
+- analyze-content-video: an attached video is recognised too (the upload is passed as `kabo-file:<id>` to
+  `identify_video_song`, host kabo-agent-service#511 / kabo#2475), and a YouTube video known to run past the
+  song-finder's 10-minute limit skips the call instead of failing it (#221).
 
 ## 1.0.62
 
