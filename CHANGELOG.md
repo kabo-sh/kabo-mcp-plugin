@@ -4,7 +4,7 @@ The version number follows `plugin.json`; the root package version in `.claude-p
 
 ## Unreleased
 
-- remake-viral-video 1.0.26: never hand the work back to the creator (no "cut it yourself in CapCut", no list of
+- remake-viral-video 1.0.28: never hand the work back to the creator (no "cut it yourself in CapCut", no list of
   times to cut by hand) -- clips or reels from their own video are made with steps, and a failed step is fixed or
   replaced before replying (badcase #010–014); plan every on-screen text block with its place and time so titles,
   cards and captions never overlap, run off the frame or cover a face, and check a frame at each text's start
@@ -14,7 +14,9 @@ The version number follows `plugin.json`; the root package version in `.claude-p
   Also plan around known model limits and say them before the first paid step: a face swap is offered
   after re-performing on their own camera or keeping the picture with their cloned voice (#005/#006);
   hand-and-object shots are avoided or flagged (#037/#043); a single photo asks once for a 5-10 s clip,
-  else the background gets a push-in, parallax or B-roll (#072).
+  else the background gets a push-in, parallax or B-roll (#072). These limits are asked about in the first reply,
+  before any paid step (SKILL.md "Choose what to make" item 6). A language change translates every on-screen
+  label in place, keeps the opening title matched to the original's and times captions to the speech.
 
 ## 1.0.62
 

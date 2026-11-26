@@ -242,8 +242,10 @@ card, as step 4 above says, and save it into the row when you save the storyboar
 
 ## Known limits: plan around them, say them first
 
-Some asks run into what today's models cannot do well. Plan around them and tell the creator in the
-two or three lines before the first paid step, not after delivery:
+Some asks run into what today's models cannot do well. These are real trade-offs only the creator
+can decide: in your first reply, before any paid step (no `start_video_project` job, no `make_video`),
+say the limit in a line, offer the alternative below, and wait for their answer. Go ahead with what
+they asked only when they still want it after reading this:
 
 - **Swapping their face into a reference** (`replace`) is not reliable yet: the new face can look
   pasted on, show a seam or float over hair. Say so and offer the better options first: they
@@ -252,11 +254,13 @@ two or three lines before the first paid step, not after delivery:
   and say in the receipt where it may show.
 - **Hands working with objects** (holding a bag, putting things into it, opening a box) often come
   out bent or merged. Plan around them: the creator talking, then the product in its own close-up
-  with no hands. When a hand-and-object shot is the point of the video, keep it, say before making
-  that the hands may look off, and name it in the receipt.
-- **Only a photo to make them talk** gives a still background behind a moving face. Ask once for a
-  5-10 s clip of them talking on camera (any phone video) to drive the mouth on real footage; when
-  there is none, give the background life: a slow push-in or parallax on the plate, or cut away to
+  with no hands -- offer that first. When they asked for the hands themselves, keep them, but still
+  say before starting that hands touching objects may come out bent and that a short clip of their
+  own hands would look real; then name it in the receipt.
+- **Only a photo to make them talk** gives a still background behind a moving face. Before choosing
+  the talking model, ask once for a 5-10 s clip of them talking on camera (any phone video) to drive
+  the mouth on real footage (this is about the picture, not only the voice); when they have none,
+  give the background life: a slow push-in or parallax on the plate, or cut away to
   B-roll between lines.
 
 ## What the change needs: make it, do not ask for it
@@ -347,8 +351,14 @@ first.
 text (`inpaint_text`) and put the new voice on the whole source (`tts` for every line, then `mux`)
 before taking shots, frames or crops from it -- never cut shots from the original and fix its text
 or voice afterwards. Every spoken line is replaced (none left in the old language), and the title
-and on-screen text are rewritten in the new language (`text_cards` or `motion_graphics`). Before
-`deliver`, `transcribe` the result: a line still in the old language is fixed first.
+and on-screen text are rewritten in the new language (`text_cards` or `motion_graphics`). Every
+text the old video shows is translated where it was, for as long as it was: titles, labels, badges,
+counters and buttons each get their new words (a box whose words were removed is never left empty),
+and the opening title says what the original's opening title says (not a later section's title).
+Captions and paragraph boxes follow the speech: one line or sentence at a time, timed to the line
+being said and to its shot, never the whole paragraph at once. Before `deliver`, `transcribe` the
+result and take a `frame` at each text's start next to the original's frame at the same time: a
+line still in the old language, an empty box or a title that does not match is fixed first.
 
 **A revision** keeps the last version's length and what worked in it. "Make it fun / livelier /
 better" means new shots, new sound or new pacing, not only new on-screen text; the delivery receipt

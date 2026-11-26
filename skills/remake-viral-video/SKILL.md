@@ -4,7 +4,7 @@ description: "Have Kabo make a finished MP4: remake a reference video (talking, 
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
 metadata:
-  version: "1.0.26"
+  version: "1.0.28"
   platform_agnostic: "true"
 allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
@@ -60,6 +60,13 @@ that, not by how the request is worded ("remake" included):
    delivery. A change to a delivered video is an edit or steps on that job, never a new remake;
    when only one moment of it changes, rebuild only that span and put it back in
    (`references/steps/edits.md`).
+6. Known model limits are asked about first (`references/steps/plan.md` "Known limits"): in the
+   first reply, before any paid step, say the limit and offer the alternative, then wait. A face
+   swap into a reference: offer re-performing on their own camera, or the reference picture kept
+   with their cloned voice. Only a photo to make them talk: ask for a 5-10 s video of them talking
+   to drive the mouth (none: push-in, parallax or B-roll). Hands working with objects: offer the
+   creator talking plus a hands-free product close-up, or, when they asked for the hands, say they
+   may come out bent. Make what they asked only once they still want it.
 6. Nobody on camera **when there is no narrated reference video to remake** (a freeform animation
    or kinetic-typography video from a prompt, product photos turned into an ad, a multi-photo
    montage, a live-video HUD callout overlay, a re-edit of their own video, or a silent or
