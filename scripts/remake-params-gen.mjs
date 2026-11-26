@@ -75,7 +75,7 @@ export function render(contract) {
     `\`scripts/remake-skill-schema.ts\` at ${contract.commit ?? "unknown"}) by \`scripts/remake-params-gen.mjs\`.`,
     "These are the exact shapes the host accepts; where any other file in this Skill reads",
     "differently, this file is right. A field not listed under a step is refused on that step.",
-    "`?` / (optional) = may be left out; `a | b` = one of; `[x, ...] (2-8 items)` = a list;",
+    "`?` / (optional) = may be left out; `a | b` = one of; `[x, ...] (2-16 items)` = a list;",
     "`{<name>: x}` = an object keyed by name (never a list).",
     "",
     "## Storyboard (`plan`)",

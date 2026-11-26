@@ -1,6 +1,6 @@
 {
  "source": "kabo-agent-service",
- "commit": "6c94a63a45029dc25ef2ec8338097a37e38ba915",
+ "commit": "9d4e28d4caa3d0199fbdad87487541c3d0e85c51",
  "atom": {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
@@ -560,7 +560,7 @@
        },
        "prompts": {
         "minItems": 2,
-        "maxItems": 8,
+        "maxItems": 16,
         "type": "array",
         "items": {
          "type": "string",
@@ -626,7 +626,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -708,7 +708,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -752,7 +752,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -796,7 +796,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -851,7 +851,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -888,7 +888,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -914,7 +914,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "type": "integer",
@@ -971,7 +971,7 @@
        },
        "images": {
         "minItems": 2,
-        "maxItems": 8,
+        "maxItems": 16,
         "type": "array",
         "items": {
          "type": "string",
@@ -991,7 +991,7 @@
        },
        "prompts": {
         "minItems": 2,
-        "maxItems": 8,
+        "maxItems": 16,
         "type": "array",
         "items": {
          "type": "string",
@@ -1038,7 +1038,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -1082,7 +1082,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -1126,7 +1126,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -1181,7 +1181,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -1218,7 +1218,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "anyOf": [
@@ -1244,7 +1244,7 @@
          },
          {
           "minItems": 2,
-          "maxItems": 8,
+          "maxItems": 16,
           "type": "array",
           "items": {
            "type": "integer",
@@ -3463,7 +3463,7 @@
       "properties": {
        "steps": {
         "minItems": 2,
-        "maxItems": 8,
+        "maxItems": 16,
         "type": "array",
         "items": {
          "type": "object",
@@ -4933,6 +4933,84 @@
      "op"
     ],
     "additionalProperties": false
+   },
+   {
+    "type": "object",
+    "properties": {
+     "action": {
+      "type": "string",
+      "const": "atom"
+     },
+     "job_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+     },
+     "idempotency_key": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+     },
+     "op": {
+      "type": "string",
+      "const": "chain"
+     },
+     "inputs": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "stages": {
+        "minItems": 2,
+        "maxItems": 8,
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "op": {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 40
+          },
+          "inputs": {
+           "type": "object",
+           "propertyNames": {
+            "type": "string"
+           },
+           "additionalProperties": {}
+          },
+          "params": {
+           "type": "object",
+           "propertyNames": {
+            "type": "string"
+           },
+           "additionalProperties": {}
+          }
+         },
+         "required": [
+          "op"
+         ],
+         "additionalProperties": false
+        }
+       }
+      },
+      "required": [
+       "stages"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "required": [
+     "action",
+     "job_id",
+     "idempotency_key",
+     "op",
+     "params"
+    ],
+    "additionalProperties": false
    }
   ]
  },
@@ -5411,35 +5489,6 @@
       "look"
      ],
      "additionalProperties": {}
-    }
-   },
-   "output": {
-    "type": "object",
-    "properties": {
-     "aspect": {
-      "type": "string",
-      "maxLength": 20
-     },
-     "width": {
-      "type": "integer",
-      "minimum": 240,
-      "maximum": 4096
-     },
-     "height": {
-      "type": "integer",
-      "minimum": 240,
-      "maximum": 4096
-     },
-     "fps": {
-      "type": "number",
-      "minimum": 12,
-      "maximum": 60
-     },
-     "max_s": {
-      "type": "number",
-      "minimum": 1,
-      "maximum": 600
-     }
     }
    },
    "series": {

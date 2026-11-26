@@ -34,11 +34,27 @@ test("allowed-tools names only pinned tools, and every hand-off tool", async () 
     assert.ok(allowed.includes(name), name);
 });
 
-test("G8: description triggers only when a finished video is wanted or changed, not for script writing, breakdown or account diagnosis, and stays within 500 characters", async () => {
+test("G8: description triggers when a finished video is wanted or changed (a reference plus a changed story, dialogue, voice or look included), not when only a script is wanted, and stays within 500 characters", async () => {
   const description = /^description: "(.*)"$/m.exec(await doc("SKILL.md"))[1];
   assert.ok(description.length <= 500, String(description.length));
-  assert.match(description, /only when the user wants the video itself made or changed/);
-  assert.match(description, /not for writing or adapting a script, breaking down a video, or reviewing an account/);
+  assert.match(description, /A reference video plus a change to its story, dialogue, lines, voice or look means make that video, not a script/);
+  assert.match(description, /Not when only a written script is wanted, or for breaking down a video or reviewing an account/);
+  assert.doesNotMatch(description, /not for writing or adapting a script/);
+});
+
+test("create-script-and-packaging leaves a reference video to be remade with changes to the video Skill", async () => {
+  const description = /^description: "(.*)"$/m.exec(await readFile(path.join(root, "skills/create-script-and-packaging/SKILL.md"), "utf8"))[1];
+  assert.ok(description.length <= 500, String(description.length));
+  assert.match(description, /Not for a reference video to be remade with changes as a video/);
+});
+
+test("a cut to black is its own black clip, never only a transition word", async () => {
+  const plan = await doc("references/steps/plan.md");
+  assert.match(plan, /its own storyboard row/);
+  assert.match(plan, /still \(plain black\) -> still_video/);
+  assert.match(plan, /one transition per call/);
+  assert.match(plan, /`fade_black` and a `transition_s` shorter than the black clip/);
+  assert.match(await doc("references/steps/atoms.md"), /A cut to black is a black `still_video` clip of its own/);
 });
 
 test("plugin hand-off wording: quote before make_video, relay needs_reply verbatim, cancel says it is still stopping", async () => {

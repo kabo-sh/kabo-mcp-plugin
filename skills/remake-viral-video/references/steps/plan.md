@@ -120,6 +120,40 @@ When the user states the output itself -- a size (`720x1280`), a shape (16:9, la
 frame rate (24 fps) or a limit ("under 60 s") -- write it at the top as `output: {aspect, width,
 height, fps, max_s}` (only what was said, in numbers): the delivery is made to it. Without one the
 video keeps the reference's shape; a platform word (TikTok, Reels, Shorts) means 9:16.
+**The storyboard is the template: every module gets a value**, even when nothing changes --
+`target_s` (the reference's length unless another was asked), `skeleton` (its segments, each
+with its job, share and shots), `form` naming the spoken language and the voices, `style` with
+2-3 frames of the reference as `refs` (the look is shown, not only described), `characters`
+with their non-speech `sounds` (meows, laughs) when they make any, every object that matters in
+`props`, and in each row what is done and how it ends (who holds what, what ends up where).
+**Continuity: fixed fields, filled every time.** The same people, places and objects are drawn
+the same way only when every picture gets the same concrete words, so the cards and rows are
+written in these fields (the host turns each `look` into one fixed description that goes into
+every picture of it; small items are kept only when they are written out):
+- `characters[].look`: `{identity` (gender, age range, skin tone, build)`, face, hair` (colour,
+  length, style, hair accessories)`, body, outfit: {base` (top and bottom)`, outerwear` (open or
+  closed)`, accessories` (every small item and where it is: gloves on both hands -- colour and
+  material -- or "no gloves", a hat or helmet on the head, held or hanging, glasses, jewellery,
+  bags)`, footwear, insignia` (badges, patches, printed words and where)`}, carried` (what they
+  always carry, in which hand)`, palette, marks` (scars, tattoos, freckles)`, keep: [...]` (what
+  never changes between shots)`, may_change: [...]}` (what a shot may change: dirt, rolled
+  sleeves, helmet off).
+- `environments[].look`: `{type` (indoor or outdoor)`, layout` (where the doors, windows, walls
+  and furniture are)`, fixtures, palette, light` (the main light and where it comes from)`,
+  time_weather, keep}`.
+- `props[].look`: `{appearance` (size, shape, colour, material)`, text_on_it, states` (open,
+  closed, full, empty, broken)`, keep}`.
+- each row: `cast_state: {<name>: {doing, expression, holding` (what is in which hand; "nothing"
+  when empty)`, outfit` (only what differs from the card in this shot)`}}` for everyone in
+  `on_screen_cast`; `light` (when the time, weather or light differs from the place's);
+  `continuity` (what carries over from the row before: who is where, what is held, what is open,
+  spilt or broken); `must_not: [...]` (what must not appear: extra hands, writing, a second copy
+  of a person).
+Write each item as a concrete phrase ("brown leather gloves on both hands", not "gloves") and use
+the same wording every time it recurs.
+One row per shot of the reference: a single continuous take stays one row (up to 30 s). The save
+checks the plan against the reference (length, shot count, language) and names what is off --
+fix it and save again.
 `total_s` follows the reference when there is one. Without one (the creator's request and
 material only) and with no length asked for, plan the length the format needs, not the fewest
 seconds the material fills: a product or brand promo runs about 20-30 s, an explainer or a story as
@@ -137,7 +171,7 @@ voice-over or when nobody is seen speaking), `how` (the steps that make the row,
 the handles, e.g. "still a05 -> talking (speaker: grandma)" or "still -> animate"; acting and
 delivery go in `motion` or `prompt`, not here), `prompt` (the full prompt: what happens, camera
 and framing; it names the characters, place and props and never copies their looks), `captions`, `sound`,
-`transition`. A row whose words are said on camera by its speaker is a talking shot: its `how`
+`transition`, and the continuity fields below. A row whose words are said on camera by its speaker is a talking shot: its `how`
 names `talking` (or `lipsync` on a moving clip), never `animate` alone. Every character in a shot's picture
 is in its `on_screen_cast`, and the picture never redescribes a character's look differently from
 `characters`. (The style card's `cast` says what kind of figures appear at all; it is not
@@ -148,13 +182,21 @@ picture). Captions follow the reference: when it has captions, `form` and each r
 `form.captions` names the mode by its word: `phrase`, `word`, `highlight` or `reveal` (captions
 that grow a word at a time as it is said are `reveal`, never `highlight`); `none` only
 when the reference has none or the creator asked for none. Every line of the script has a picture that
-shows what it says. A storyboard written before the material is broken down is not the plan.
+shows what it says. A storyboard written before the material is broken down is not the plan. One shot is one
+place and one picture: a row whose picture or motion cuts to another place ("hard cut to the
+stage", "then we see the bread wink", a closing card after the scene) is two rows, each with its
+own `location`, `on_screen_cast`, `props`, `prompt` and `how`, since a step makes only what its
+own row names (a final stage written into the bakery row was never made, 11-23).
 Each shot is its own picture; a shot whose reference moves (a person or thing acting, a camera
 move) is made to move (`animate`, `refvideo`, `talking`, a code animation), and only a shot over
 a held picture in the reference becomes `still_video`. One action per shot: a generated shot
 shows a single action of about 5 s at most. Never ask one shot to move food or an object from one
 container to another (pouring, plating, scooping, handing over); cut from the action to its result
-instead (stir-frying in the pan -> cut -> the finished dish on the plate). Animate each shot about as long
+instead (stir-frying in the pan -> cut -> the finished dish on the plate). A generated shot cannot
+keep an exact number of things while they move or appear: when the point is how many there are
+(counting along, a set that grows item by item, a total), give each count its own row whose
+picture already shows the right number of things (and the number itself, drawn on them, when the
+reference shows one), never one moving shot that has to add items or numbers one by one. Animate each shot about as long
 as its line (5 s unless the line is longer); a shot `mux` trims the picture to its line. Then make it row by row -- every row, in
 batches -- without redesigning the look, the characters or the shot structure, and before
 delivering count the rows made against the rows planned; times may follow the real voice, the
@@ -187,6 +229,12 @@ the creator wrote it). Then choose the steps yourself, row by row, from the tabl
 - **Sound and joins**: `tts` per voice before the pictures that follow it, `concat` with the
   row's `transition`, `mux`, `music` (`duck` under speech), `sfx`, then `captions` as the row or
   `form` says.
+- **Black** (a cut to black, a black screen, an ending on black, in the reference or asked for):
+  its own storyboard row with its length (0.3-1 s unless the reference holds it longer),
+  `picture` black and `how` "still (plain black) -> still_video". Writing it only into a row's
+  `transition` does nothing: `concat` takes one transition per call, never one per row. A hard
+  cut to black joins the black clip with `cut`; a fade to black joins it alone in a last `concat`
+  with `fade_black` and a `transition_s` shorter than the black clip (the rest joined first).
 
 Write the prompt yourself from `picture`, `form` (`avoid`), the `look` of each
 character in the row's `on_screen_cast`, and the style
@@ -212,7 +260,33 @@ have. Make it in the plan, before the shots, never ask the creator for it:
   and light), then `refvideo` with the shot's `trim` as `ref_video` and that still as
   `first_frame` (`kling/v4/reference-to-video`). A `refvideo` without the new first frame copies
   the reference's room.
+- **Swapping a subject that is not the creator** (an animal, a drawn or invented character, an
+  object): `replace`, `lipsync` and `motion` work on the creator's own footage only and are refused
+  without it -- never ask the creator to film themselves for this. Make the new subject's sheet
+  with `still`, then per shot the new first picture from the shot's own `frame` (`still` with the
+  frame and the sheet as refs: same pose, place and camera, only that subject changed), then
+  `refvideo` with the shot's `trim` as `ref_video` and that still as `first_frame`
+  (11-23: "swap the left cat for a Shiba" went to `replace` and stopped to ask for the creator's
+  video).
+- **A new story on the same picture** (a silent pet or object skit: "the cat makes a matcha latte"):
+  keep every beat's length, who acts and the camera; rewrite each beat's action and the props it
+  needs (new prop cards, states). When a beat keeps the reference's motion (stirring stays stirring),
+  re-make it with the edited first frame + `refvideo` following the reference segment; when the
+  action itself changes, `animate` the edited first frame per beat instead -- a reference clip
+  would pull the old action back.
 
+Editing a first frame (`still` with the frame as ref): one short instruction, one change per call
+-- "replace the orange cat on the left with a red fox, same pose" -- then the next subject on the
+result. Two swaps in one call, or a long description of the whole picture, came back unchanged
+(11-23 cat -> fox, remove a cat, night scene). A sheet made for a new subject follows the style
+card's look (a photoreal reference gets a photoreal sheet).
+
+A one-line change ("make the cats foxes", "set it at night in the rain") is the creator's whole
+brief: work out yourself everything it touches and change only that. Go module by module -- the
+cards (look, and the voice or sounds of a changed character: meows become a fox's yips), the words
+and on-screen text that name or describe the old thing, the props and places tied to it, the light,
+the music and effects -- and say in the analysis which modules change and why; everything else
+(shots, timing, camera, actions, the rest of the cast) stays as the reference has it.
 The new script is part of the plan, not a question: save it with the storyboard and go on making
 the video in the same turn; never stop to show it for approval (11-22 pre: "change the story to …"
 got only a script back and needed a second message). A row whose words are a voice-over (nobody
