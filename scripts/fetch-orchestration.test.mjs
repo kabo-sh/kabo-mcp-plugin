@@ -40,7 +40,8 @@ const HANDOVER_SITES = {
   // arguments) -- the known pre-round of docs/skills-spec.md KS9: analyze_content_video neither reports the
   // duration nor refuses a video over the 10-minute limit, so the measurement has to come first until the backend
   // tool checks the duration itself; (3) resume(): the bounded wait (KS8) on the same viewing and media jobs. The
-  // side calls (identify_video_song, summarize_video_comments) ride in site (1)'s first hand-over and add no site.
+  // side calls (identify_video_song, summarize_video_comments) and YouTube's metadata call (youtube_get_video) ride
+  // in site (1)'s first hand-over and add no site.
   // collect_media.py hand_over_media (its own CLI): (4) the request, (5)-(7) the same call again: still running
   // (bounded wait) or resent without the frame options the server refused.
   "analyze-content-video": 7,

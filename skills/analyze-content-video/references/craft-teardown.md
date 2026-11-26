@@ -5,8 +5,8 @@ Read this file whole when the creator asks how a video was made — see *Which q
 `craft-shot-description` card in `references/video-method/`, which the analysis brief carries.
 
 A creator watched something and wants to know how it was made. Answer the question they asked, in
-the shape that question has. Everything `SKILL.md` and `references/evidence-reading.md` say about
-evidence holds here: frame sampling, transcript handling and when to stop waiting are shared. What
+the shape that question has. Everything `SKILL.md` and Part 2 of `references/diagnosis-runtime.md` say
+about evidence holds here: frame sampling, transcript handling and when to stop waiting are shared. What
 differs is what the evidence is read *for*, and that there is no fixed layout waiting at the end.
 
 **The diagnosis pipeline does not belong to this path.** A teardown writes no `video_analysis.json`,
@@ -32,7 +32,7 @@ to look for.
 
    **Then look at the frames.** They arrive as references — an id, a second, a checksum — and a
    reference is not a picture. Read the frames with `read_research_data_artifacts` as *Reading the
-   frame bytes* in `references/evidence-reading.md` says, and look at the images: the ones the read
+   frame bytes* in `references/diagnosis-runtime.md` says, and look at the images: the ones the read
    shows you, or the fetched files you open. Framing, shot size, camera movement, type, colour and where the eye
    goes all live in the picture. Read only the words and you have written what the video *said*,
    filed under a question about how it was *made*.
@@ -46,8 +46,8 @@ to look for.
    method (the `craft-shot-description` card: the five points per shot, organising around the
    question, ranking, what one person can do alone, and the two levels of sourcing), any topic card
    such as `sound`, and the rules below; read it whole while the evidence arrives.
-   `prepare_analysis.py --mode craft_teardown` prints sections 1-4 from the evidence. Then write the
-   report.
+   `prepare_analysis.py --mode craft_teardown` prints sections 1-4 from the evidence (in a run begun
+   with `begin_analysis.py`, the observation's last command runs it). Then write the report.
 5. **Check and deliver.** End the report with one line, in the creator's language, saying what it
    rests on: how many frames and at what spacing, whether the transcript and the measurements
    were there, and whether the sound was heard. Then run

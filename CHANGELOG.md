@@ -2,6 +2,22 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.64
+
+- analyze-content-video: faster video analysis on Kabo Web.
+  - One command opens the run (`begin_analysis.py --workspace` reserves it and starts observing), and the
+    observation's last command builds the evidence and prints the brief in the same step.
+  - The default diagnosis rules ship as a preloadable reference (`references/diagnosis-rules.md`), so the host
+    reads them while the fetch runs; the brief's evidence index prints every measured value and citable reference.
+  - A YouTube link's metadata is fetched in the observation's first hand-over instead of a separate round.
+- analyze-content-video: videos over 3 minutes are read quickly first (a sample of frames across the video, the
+  opening measured, the platform's captions or the first minutes of speech). The report labels that basis
+  plainly and ends with an offer of a full analysis, which uses one more video credit and runs only when the
+  creator accepts. On Kabo Web the full analysis is posted back to the conversation when it is ready.
+- analyze-content-video: the time the offer quotes for a full analysis is recalibrated to measured server runs.
+- Requires Kabo backend support for `quick_above_s` on the public video media operations (kabo-sh/kabo#2474) to be
+  live before this release is published.
+
 ## 1.0.63
 
 - remake-viral-video 1.0.30: new step `auto_audio` (runner op, Web host contract kabo#2467 / kabo-agent-service#507):

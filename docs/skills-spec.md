@@ -58,6 +58,11 @@ This repository implements them in Node, so CI does not need Python for this val
   to strings.
   - If the source business version is recorded, put it in `metadata.version`. Versioning and release
     rules are not yet covered by this specification.
+  - `metadata.preload` (optional) lists reference files, as one string of paths under `references/`
+    separated by single spaces, that a host may load into the model's context together with `SKILL.md`
+    (Kabo Web does), so the model never spends a turn reading them. Each path must be a text file in the
+    Skill (`scripts/skills-lint.mjs` checks this). Other hosts ignore the key, so the body still names
+    every file to read and says that a listed file already in context needs no read.
   - Put the license in `license`; it must match `plugin.json` (enforced by the package check).
     The skills CLI copies only an individual Skill directory, without the repository-root LICENSE,
     so the license declaration must be distributed with the Skill.

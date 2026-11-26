@@ -85,8 +85,10 @@ test("video analysis media single composite call: hand off one call, resume unti
   const keyframes = args.requests.find((r) => r.operation === "extract_keyframes");
   // The contract's cap, a frame just after each cut (on by default), the default dense window (the first 50s every
   // 0.5s; no method cards chose windows here) and the overview of every second (applied past 50s).
+  // And the quick threshold, on every operation a quick first read samples: a video past 180 s comes back partial.
   assert.deepEqual(keyframes.parameters, { url: URL_, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true,
-    dense_windows: [{ start_s: 0, end_s: 50, interval_s: 0.5 }], overview: true });
+    dense_windows: [{ start_s: 0, end_s: 50, interval_s: 0.5 }], overview: true, quick_above_s: 180 });
+  assert.deepEqual(args.requests.map((r) => r.parameters.quick_above_s), [180, 180, 180]);
 
   // Jobs are still running: a resume emits the same call again.
   await save(saveOf(first.out), composite(args, new Set(["video/extract_keyframes"])));
@@ -382,3 +384,23 @@ test("collect_media.py: a hard round cap besides wall time stops endless hand-ov
   assert.match(last.out, /"status": "collected"/);
   assert.match(last.out, /unfinished, not failed/);
 });
+
+// The second step of a long video, on its own CLI: `--depth deep` sends no quick threshold and keys the jobs by the
+// link and the UTC date, so a deep run begun again in another run directory the same day replays the same jobs.
+test("collect_media.py --depth deep: no quick threshold, and one run key per link and day across run directories", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-media-"));
+  if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
+  const keys = [];
+  for (const attempt of [1, 2]) {
+    const run = python("static_host.py", ["init", "--workspace", workspace]).out.trim();
+    const first = python("collect_media.py", ["--url", URL_, "--operations", "transcript,keyframes,measure", "--depth", "deep"], { cwd: run, run });
+    assert.equal(first.code, 0, first.out);
+    const args = calls(first.out)[0].arguments;
+    assert.deepEqual(args.requests.map((r) => "quick_above_s" in r.parameters), [false, false, false], `attempt ${attempt}`);
+    keys.push(args.run_key);
+  }
+  const day = new Date().toISOString().slice(0, 10);
+  const expected = "acv-deep:" + (await import("node:crypto")).createHash("sha256").update(`${URL_}|${day}`).digest("hex").slice(0, 32);
+  assert.deepEqual(keys, [expected, expected]);
+});
+

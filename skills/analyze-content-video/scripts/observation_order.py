@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -66,7 +67,7 @@ SOURCE_UNAVAILABLE_REPLY = ("This video can't be opened: it may have been delete
 # hand-over therefore starts only while the deadline still covers its own longest wait (`round_waits`).
 OBSERVE_DEADLINE_S = 330
 # A video known to run past ten minutes stops waiting earlier. Its analysis reads more (the overview sheets, a long
-# transcript) and its frames take minutes to decode: on pre an 18-minute video's frames arrived just before 330
+# transcript) and its frames take minutes to decode: on pre a 111-minute video's frames arrived just before 330
 # seconds, the analysis that followed needed about two and a half minutes more, and the turn died at 500 with no
 # reply. 270 seconds leaves it about three and a half; frames that miss it are named as not arrived in time.
 LONG_VIDEO_S = 600
@@ -78,6 +79,39 @@ def deadline_s(duration_s: float | None) -> int:
     if isinstance(duration_s, (int, float)) and not isinstance(duration_s, bool) and duration_s > LONG_VIDEO_S:
         return LONG_VIDEO_DEADLINE_S
     return OBSERVE_DEADLINE_S
+
+
+# Long videos in two steps. A full pass on a 111-minute YouTube video took the server five and a half minutes
+# (pre, 2026-11-25: frames 328 s, transcript 231 s, in parallel), past what one turn can wait. By default every keyframes, measurement and transcript
+# request of a diagnosis, content read or craft teardown carries `quick_above_s`: a video longer than this gets a
+# quick, explicitly partial sample (a small set of frames across it, the first 60 s measured, the first 180 s of
+# speech heard when the platform has no captions) and the answer offers a full ("deep") analysis. A shorter video is
+# unaffected: the server ignores the threshold and does the full pass. A deep run (`--depth deep`, only after the
+# creator accepted that offer) sends no threshold. A transcript export always wants every word, and an uploaded file
+# keeps today's full pass, so neither sends it.
+QUICK_ABOVE_S = 180
+QUICK_MODES = {"diagnosis", "content_read", "craft_teardown"}
+DEPTHS = ("quick", "deep")
+# The full pass the server needs for a video of this length, in seconds: a rate per second of video plus a fixed
+# start (download, probe). Measured on pre (2026-11-25) for a 111-minute (6660 s) YouTube video in full mode: the
+# keyframes job took 328 s (resolve 14 s, ffmpeg 308 s) and the chunked speech-to-text transcript 231 s, both in
+# parallel, so about 0.05 s per second of video plus 40 s; 0.06 keeps the estimate slightly conservative. A deep
+# observation stops waiting once the frames cannot arrive inside its deadline.
+DEEP_RATE = 0.06
+DEEP_START_S = 40
+# The offer adds what the analysis and the report take after the fetch (on that run, about 90 s when nothing was
+# missing).
+OFFER_EXTRA_S = 90
+
+
+def deep_fetch_s(duration_s: float) -> float:
+    """Seconds the server's full pass takes for a video this long (estimate)."""
+    return DEEP_RATE * float(duration_s) + DEEP_START_S
+
+
+def offer_minutes(duration_s: float) -> int:
+    """Whole minutes the offer names for a full analysis of a video this long: fetch plus analysis, rounded up."""
+    return max(1, math.ceil((DEEP_RATE * float(duration_s) + OFFER_EXTRA_S) / 60))
 # How long one hand-over may wait inside its tool: collect_video_media's own wait when no `wait_s` is sent, and the
 # `wait_s` a get_analysis_run reading sends. 45 seconds keeps a call inside the 60-second tool timeout some hosts
 # (Codex) apply.

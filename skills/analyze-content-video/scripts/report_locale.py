@@ -1,4 +1,5 @@
-"""The report's own words in the creator's language: labels, the measurement line and the listen line.
+"""The report's own words in the creator's language: labels, the measurement line, the listen line and the closing
+paragraph of a quick first read.
 
 The creator's language is `creator_view.language`, a BCP 47 tag; its primary subtag picks the strings. Chinese and
 English keep their wording in the renderer and the measurement-basis module; `references/report-locales.json`
@@ -8,8 +9,13 @@ renders in English.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import observation_order  # noqa: E402
 
 _CATALOG = json.loads((Path(__file__).resolve().parents[1] / "references/report-locales.json")
                       .read_text(encoding="utf-8"))["languages"]
@@ -111,3 +117,49 @@ def listen_note(evidence: Any, language: str) -> str | None:
     phrases = [words["items"][item] for item in items]
     joined = phrases[0] if len(phrases) == 1 else words["sep"].join(phrases[:-1]) + words["last_sep"] + phrases[-1]
     return words["line"].replace("{items}", joined)
+
+
+# What a quick first read heard, by the transcript it kept: the platform's captions (whole), speech recognition over
+# the whole video, over its opening only, or nothing.
+QUICK_SPEECH = ("captions", "full", "partial", "none")
+# Every language the closing paragraph is written in.
+QUICK_LANGUAGES = tuple(code for code, entry in _CATALOG.items() if "quick" in entry)
+
+
+def quick_read(evidence: Any) -> dict | None:
+    """The facts a quick first read of a long video states and its offer needs, from the evidence alone; None for any
+    other run. Quick means the server sampled the frames (`frames.sampling.mode` quick): a small set of frames at fixed
+    moments across a video longer than `observation_order.QUICK_ABOVE_S`."""
+    evidence = record(evidence)
+    frames = record(evidence.get("frames"))
+    sampling = record(frames.get("sampling"))
+    if sampling.get("mode") != "quick" or frames.get("status") != "available" or not frames.get("items"):
+        return None
+    duration = sampling.get("duration_s") or record(evidence.get("media")).get("duration_s")
+    if isinstance(duration, bool) or not isinstance(duration, (int, float)) or duration <= 0:
+        return None
+    transcript = record(evidence.get("transcript"))
+    covered = record(transcript.get("coverage")).get("covered_s")
+    heard = None
+    if transcript.get("status") != "available":
+        speech = "none"
+    elif isinstance(covered, list) and len(covered) == 2:
+        speech, heard = "partial", max(1, round(float(covered[1]) / 60))
+    elif transcript.get("origin") in ("platform_captions", "provider_transcript"):
+        speech = "captions"
+    else:
+        speech = "full"
+    return {"duration_s": duration, "minutes": max(1, round(float(duration) / 60)), "frames": len(frames["items"]),
+            "speech": speech, "heard_minutes": heard, "eta_minutes": observation_order.offer_minutes(duration)}
+
+
+def quick_paragraph(quick: Any, language: str) -> str:
+    """The closing paragraph of a quick first read in a language from references/report-locales.json (English for
+    any other): what was seen and heard, then the offer of a full analysis with its time and its one more credit."""
+    quick = record(quick)
+    if quick.get("speech") not in QUICK_SPEECH or not quick.get("minutes"):
+        return ""
+    words = record(record(_CATALOG.get(language)).get("quick")) or _CATALOG["en"]["quick"]
+    speech = words["speech"][quick["speech"]].replace("{heard}", str(quick.get("heard_minutes") or ""))
+    return (words["line"].replace("{minutes}", str(quick["minutes"])).replace("{frames}", str(quick.get("frames")))
+            .replace("{speech}", speech).replace("{eta}", str(quick.get("eta_minutes"))))

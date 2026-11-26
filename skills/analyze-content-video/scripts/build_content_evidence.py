@@ -109,7 +109,8 @@ ACQUISITION_STATUSES = {
     "completed", "completed_partial", "pending", "deferred_incomplete",
     "blocked_setup", "feature_gated", "unsupported", "failed",
 }
-FRAME_SELECTIONS = {"duration_scaled_v1", "evenly_spaced_bounded_v1", "explicit_timestamps_v1", "none"}
+FRAME_SELECTIONS = {"duration_scaled_v1", "evenly_spaced_bounded_v1", "explicit_timestamps_v1", "quick_sample_v1",
+                    "none"}
 TRANSCRIPT_ORIGINS = {"platform_captions", "provider_transcript", "speech_recognition"}
 # When only the transcript is exported, metadata is not fetched and the model's request often has no content_id
 # either: take it from the original link the creator gave. The platform, the evidence-id prefix and the id
@@ -150,6 +151,41 @@ SAMPLING_PLAN_KEYS = {
 # Why a frame is in the plan: the same names on the server and on this machine.
 FRAME_SOURCES = {"hook", "body", "closing", "shot_start", "dense_window", "change", "anchor"}
 CHANGE_REASONS = {"picture_change", "text_change"}
+
+
+def positive_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+
+
+def partial_coverage(value: Any) -> dict[str, Any] | None:
+    """What a quick first read of a long video covered (`quick_above_s` on the request): the transcript's or the
+    measurement's `coverage` when it is partial, as {mode, covered_s: [from, to], duration_s}. No coverage, or a
+    malformed one, is a full pass: None."""
+    if not isinstance(value, dict) or value.get("mode") != "partial":
+        return None
+    span = value.get("covered_s")
+    if (not isinstance(span, list) or len(span) != 2
+            or not all(isinstance(item, (int, float)) and not isinstance(item, bool) for item in span)
+            or not 0 <= span[0] < span[1]):
+        return None
+    duration = value.get("duration_s")
+    return {"mode": "partial", "covered_s": [span[0], span[1]],
+            "duration_s": duration if positive_number(duration) else None}
+
+
+def quick_sampling(value: Any) -> dict[str, Any] | None:
+    """The keyframes' `sampling` when the server took a quick sample of a long video: how many frames, at which
+    moments, of how long a video. Anything else (the full pass carries no such block) is None."""
+    if not isinstance(value, dict) or value.get("mode") != "quick":
+        return None
+    times = [item for item in value.get("times_s") or []
+             if isinstance(item, (int, float)) and not isinstance(item, bool) and item >= 0]
+    above, frames, duration = value.get("above_s"), value.get("frames"), value.get("duration_s")
+    return {"mode": "quick",
+            "above_s": above if isinstance(above, int) and not isinstance(above, bool) else None,
+            "frames": frames if isinstance(frames, int) and not isinstance(frames, bool) else len(times),
+            "duration_s": duration if positive_number(duration) else None,
+            "times_s": times}
 
 
 def frame_why(frame: dict[str, Any]) -> dict[str, Any]:
@@ -811,6 +847,10 @@ def probed_block(measurements: dict[str, Any] | None) -> dict[str, Any] | None:
         value = data.get(key)
         if isinstance(value, list):
             block[key] = [item for item in value if isinstance(item, str)]
+    coverage = partial_coverage(data.get("coverage"))
+    if block and coverage:
+        # A quick first read measured only the opening: every number above is about that stretch alone.
+        block["coverage"] = coverage
     return block or None
 
 
@@ -1262,6 +1302,10 @@ def transcript_block(captions: dict[str, Any] | None, request: dict[str, Any]) -
     block["character_count"] = len(text)
     block["text_sha256"] = hashlib.sha256(text.encode("utf-8")).hexdigest()
     block["origin"] = origin
+    coverage = partial_coverage(data.get("coverage"))
+    if coverage:
+        # A quick first read heard only the opening of a long video with no platform captions.
+        block["coverage"] = coverage
     return block
 
 
@@ -1323,6 +1367,7 @@ def frames_block(frames: dict[str, Any] | None, local: dict[str, Any] | None = N
     selection = data.get("selection") if data.get("selection") in FRAME_SELECTIONS else "none"
     if items:
         overview = overview_block(data.get("overview"), "object_ref")
+        sampling = quick_sampling(data.get("sampling"))
         return {
             "status": "available",
             "selection": selection,
@@ -1331,6 +1376,8 @@ def frames_block(frames: dict[str, Any] | None, local: dict[str, Any] | None = N
             "sampling_plan": plan,
             "origin": "extracted_frames",
             **({"overview": overview} if overview else {}),
+            # A quick first read of a long video: a small set of frames at fixed moments, not the full pass.
+            **({"sampling": sampling} if sampling else {}),
         }
     observations = []
     for entry in data.get("observations") or []:
@@ -1819,6 +1866,19 @@ def observation_source(evidence: dict[str, Any]) -> str:
     return "whole_video" if "viewer_observations" in evidence and not asked else "server_frames"
 
 
+def own_earlier_pair(output: Path, reference_path: Path) -> bool:
+    """Whether the evidence and reference index already at these paths are a pair this builder wrote: both regular
+    files, the index naming the evidence's exact sha256. Only such a pair may be built over (`--replace`)."""
+    try:
+        if output.is_symlink() or reference_path.is_symlink() or not output.is_file() or not reference_path.is_file():
+            return False
+        index = json.loads(reference_path.read_text(encoding="utf-8"))
+        return (isinstance(index, dict) and index.get("schema_version") == "content-evidence-references.v1"
+                and index.get("evidence_sha256") == hashlib.sha256(output.read_bytes()).hexdigest())
+    except (OSError, ValueError):
+        return False
+
+
 def write_evidence_with_reference_index(output: Path, evidence_bytes: bytes,
                                         reference_path: Path, reference_bytes: bytes) -> None:
     """Stage both files before committing the index, then atomically replace evidence."""
@@ -1880,7 +1940,11 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--reference-index", type=Path,
                         help="optional same-source structural reference index for the judgment")
+    parser.add_argument("--replace", action="store_true",
+                        help="build again over this run's earlier evidence and reference index (a pair this builder "
+                             "wrote), after another envelope or a per-run flag came in")
     args = parser.parse_args()
+    replacing = False
     try:
         reference_path = args.reference_index
         if reference_path is not None:
@@ -1895,7 +1959,12 @@ def main() -> int:
                             or (output.exists() and source.exists() and output.samefile(source))):
                         raise ValueError("evidence and reference outputs must not overwrite an input")
             if reference_path.exists() or reference_path.is_symlink():
-                raise ValueError("the reference sidecar already exists; no input or output was overwritten")
+                if not args.replace:
+                    raise ValueError("the reference sidecar already exists; no input or output was overwritten")
+                if not own_earlier_pair(args.output, reference_path):
+                    raise ValueError("--replace builds again only over this builder's own evidence and reference "
+                                     "index; no input or output was overwritten")
+                replacing = True
         request = load_json(args.request)
         run_id = args.run_id
         if not run_id and not request.get("request_id"):
@@ -1941,6 +2010,11 @@ def main() -> int:
         if reference_path is None:
             args.output.write_text(evidence_bytes.decode("utf-8"), encoding="utf-8")
         else:
+            if replacing:
+                # Checked again right before the write: still the same pair, so nothing else is removed.
+                if not own_earlier_pair(args.output, reference_path):
+                    raise ValueError("the evidence or reference index changed during the build; nothing was replaced")
+                reference_path.unlink()
             write_evidence_with_reference_index(args.output, evidence_bytes, reference_path, reference_bytes)
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
         print(json.dumps({"status": "failed", "error": f"{type(error).__name__}: {error}"}, ensure_ascii=False))

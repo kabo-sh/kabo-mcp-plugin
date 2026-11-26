@@ -334,7 +334,8 @@ def render(result: dict) -> str:
     # better than a timecode -- 0.199s is the point, and [0:00] loses it.
     document = "\n".join(out).strip()
     headline, separator, body = document.partition("\n")
-    return headline + separator + prose_timecodes(body, evidence_positions(result)) + song_line(result, words) + "\n"
+    return (headline + separator + prose_timecodes(body, evidence_positions(result)) + song_line(result, words)
+            + quick_line(result, lang_of(view)) + "\n")
 
 
 def song_line(result: dict, words: dict) -> str:
@@ -349,6 +350,15 @@ def song_line(result: dict, words: dict) -> str:
     url = song.get("url")
     shown = f"[{name}]({url})" if isinstance(url, str) and url.startswith("https://") else name
     return f"\n\n**{words['song']}**{words['colon']}{shown}"
+
+
+def quick_line(result: dict, language: str) -> str:
+    """One closing paragraph for a quick first read of a long video (`details.quick_read`, which the builder derives
+    from the evidence): what was seen and heard, then the offer of a full analysis, its time and its one more video
+    credit. Last, after the song line, so the report ends on the offer; added after the timecode rewrite like the song
+    line, so its minutes are never read as positions. Nothing for any other run."""
+    paragraph = report_locale.quick_paragraph((result.get("details") or {}).get("quick_read"), language)
+    return f"\n\n{paragraph}" if paragraph else ""
 
 
 def main() -> int:

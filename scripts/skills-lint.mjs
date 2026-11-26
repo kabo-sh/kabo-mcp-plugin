@@ -110,6 +110,14 @@ export function lintSkill(id, files, { toolNames, skillIds, toolScopes = new Map
       add("KS1.4", "error", "SKILL.md", "compatibility must be a string of at most 500 characters.");
     if ("metadata" in meta && (meta.metadata === null || typeof meta.metadata !== "object" || Array.isArray(meta.metadata) || Object.values(meta.metadata).some(v => typeof v !== "string")))
       add("KS1.4", "error", "SKILL.md", "metadata must be a string-to-string mapping.");
+    // metadata.preload: reference files a host may load into the model's context with SKILL.md (Kabo Web does).
+    const preload = meta.metadata && typeof meta.metadata === "object" ? meta.metadata.preload : undefined;
+    if (typeof preload === "string") {
+      const listed = preload.split(" ").filter(Boolean);
+      const wrong = listed.filter(file => !file.startsWith("references/") || !files.has(file) || !textFile(files.get(file)));
+      if (!listed.length || preload !== listed.join(" ") || wrong.length || new Set(listed).size !== listed.length)
+        add("KS1.4", "error", "SKILL.md", `metadata.preload must list distinct text files under references/, separated by single spaces${wrong.length ? `; not found: ${wrong.join(", ")}` : ""}.`);
+    }
   }
 
   // KS2: the only runtime dependencies are /mcp-pub tools

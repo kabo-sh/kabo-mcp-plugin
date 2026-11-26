@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -42,7 +42,7 @@ const TOOLS = { collect_public_metadata: "public_video_collect_public_metadata",
 
 // One fixed job id per operation, so a second media call in the same run (after a fallback) never reuses one.
 const JOB_NUMBER = { collect_public_metadata: 1, fetch_transcript: 2, extract_keyframes: 3, measure_media_signals: 4 };
-function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyTranscript = false, frameTimes = [0, 0.5, 1, 12, 25], measuredDuration, cues } = {}) {
+function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyTranscript = false, frameTimes = [0, 0.5, 1, 12, 25], measuredDuration, cues, signals } = {}) {
   const base = {
     schema_version: "1.0", connector_id: "public-video-media", operation, provider: "fixture", status: failed ? "failed" : "completed",
     summary: "ok", limitations: failed ? ["the platform refused the download"] : [], credential_values_recorded: false, job_id: jobId,
@@ -63,13 +63,28 @@ function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyT
       origin: "speech_recognition", cue_count: 2, artifacts: [] } };
   if (operation === "measure_media_signals")
     return { ...base, data: { shots: { count: 2, cuts_at_s: [12.5], shots: [{ start_s: 0, end_s: 12.5 }, { start_s: 12.5, end_s: 30 }] }, artifacts: [],
-      ...(measuredDuration ? { duration_s: measuredDuration } : {}) } };
+      ...(measuredDuration ? { duration_s: measuredDuration } : {}), ...signals } };
   const frames = frameTimes.map((t, i) => ({ bytes: 100, sha256: "c".repeat(64), frame_id: `frame-${String(i + 1).padStart(4, "0")}`, t_seconds: t,
     object_ref: `creator-media/${jobId}/epoch-1/frame-${String(i + 1).padStart(4, "0")}.jpg` }));
   return { ...base, data: { frames, artifacts: frames.map((f) => ({ kind: "keyframes", bytes: 100, sha256: f.sha256, object_ref: f.object_ref })),
     selection: "duration_scaled_v1", duration_s: 30, frame_count: frames.length } };
 }
-function composite(args, { failed = false, duration, emptyTranscript, frameTimes, measuredDuration, cues } = {}) {
+// Every signal the measurement returns for a typical 30-second video of six shots: the momentary loudness every 0.1 s,
+// brightness per shot, a silence span, framing, and what was and was not measured.
+const FULL_SIGNALS = {
+  shots: { count: 6, cuts_at_s: [2.4, 6.3, 11, 17.5, 24], shots: [0, 2.4, 6.3, 11, 17.5, 24].map((start, index, all) =>
+    ({ index, start_s: start, end_s: all[index + 1] ?? 30, duration_s: +((all[index + 1] ?? 30) - start).toFixed(3) })) },
+  silence: { min_s: 0.5, floor_db: -40, spans: [{ start_s: 28.9, end_s: 30, duration_s: 1.1 }] },
+  freeze: { min_s: 1, spans: [] },
+  framing: { fps: 30, width: 720, height: 1280, aspect_ratio: 0.5625, vertical_screen_fill: 1,
+    bars: { top: 0, left: 0, right: 0, bottom: 0 }, content_rect: { x: 0, y: 0, width: 720, height: 1280 } },
+  brightness: { samples: 30, whole_video: { samples: 30, mean_luma: 121.4 },
+    per_shot: [134.9, 106.4, 146.7, 115.9, 98.2, 127.5].map((mean_luma, shot_index) => ({ shot_index, samples: 5, mean_luma })) },
+  loudness: { interval_s: 0.1, series: Array.from({ length: 300 }, (_, i) => ({ t_seconds: +(i / 10).toFixed(1),
+    momentary_lufs: i < 3 ? -120.7 : +(-15 + 3 * Math.sin(i / 7)).toFixed(1) })) },
+  measured: ["shots", "brightness", "silence", "loudness", "freeze", "framing"], unavailable: [],
+};
+function composite(args, { failed = false, duration, emptyTranscript, frameTimes, measuredDuration, cues, signals } = {}) {
   const jobs = [], list = [];
   args.requests.forEach((request) => {
     const group = `${request.content_id}/${request.operation}`;
@@ -79,12 +94,20 @@ function composite(args, { failed = false, duration, emptyTranscript, frameTimes
     const lost = failed === "all" || (failed && request.operation !== "collect_public_metadata");
     jobs.push({ group, content_id: request.content_id, operation: request.operation, attempt: 1, job_id: jobId, status: lost ? "failed" : "completed" });
     list.push({ tool: TOOLS[request.operation], parameters: request.parameters, group, attempts: 1,
-      result: mediaEnvelope(request.operation, jobId, { failed: lost, duration, emptyTranscript, frameTimes, measuredDuration, cues }) });
+      result: mediaEnvelope(request.operation, jobId, { failed: lost, duration, emptyTranscript, frameTimes, measuredDuration, cues, signals }) });
   });
   return { schema_version: "kabo-composite-fetch.v1", tool: "collect_video_media", status: "completed", calls: list,
     summary: { requests: jobs.length, pending: 0, jobs }, coverage: { deadline_reached: false, unfinished: [], provider_calls: 0, pending: 0 }, limitations: [] };
 }
 const mcp = (value) => JSON.stringify({ content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value });
+const YOUTUBE = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+// youtube_get_video's envelope for that link, as the connector answers (counts as strings, thumbnails highest first).
+const youtubeVideo = ({ duration = 30, status = "completed" } = {}) => ({ schema_version: "1.0", connector_id: "youtube-public",
+  operation: "get_video", provider: "fixture", status, summary: status === "completed" ? "Found 1 video" : "not available", limitations: [],
+  evidence_ref: "ev-yt", raw_sha256: "d".repeat(64), request_id: "req-yt", retrieved_at: "2026-11-16T00:00:00Z",
+  data: status === "completed" ? { rows: [{ id: "dQw4w9WgXcQ", title: "Why your pan burns", description: "Fix it", duration_seconds: duration,
+    published_at: "2026-11-01T00:00:00Z", metrics: { views: "1200", likes: "90", comments: "4" }, tags: ["cooking"],
+    thumbnails: [{ url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg" }] }] } : null });
 const queued = { ...viewerFixture, status: "queued", progress: 5, result: null, transcript: null, completedAt: null };
 
 async function newRun(t) {
@@ -123,7 +146,7 @@ const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
 // media call's number in this run); `afterRound` runs after each round's results are saved, before the resume.
 const OBSERVED = /"status": "(?:observed|timed_out|metadata_only|source_unavailable)"/;
 async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed = false, mode = "diagnosis", duration,
-  emptyTranscript, afterRound, frameTimes, args = [], cues, url = TIKTOK, measuredDuration } = {}) {
+  emptyTranscript, afterRound, frameTimes, args = [], cues, url = TIKTOK, measuredDuration, youtube = youtubeVideo() } = {}) {
   const run = await newRun(t);
   let out = python("observe_video.py", ["--url", url, "--mode", mode, ...(source ? ["--observe-source", source] : []), ...args], run).out;
   const steps = [...viewerSteps];
@@ -138,6 +161,9 @@ async function observe(t, source, { viewerSteps = [viewerFixture], mediaFailed =
         const failed = typeof mediaFailed === "function" ? mediaFailed(mediaCalls) : mediaFailed;
         mediaCalls += 1;
         await writeFile(files[index], mcp(composite(call.arguments, { failed, duration, emptyTranscript, frameTimes, cues, measuredDuration })));
+      } else if (call.tool === "youtube_get_video") {
+        // The post's metadata rides in the first hand-over; null saves nothing, as a host without the tool does.
+        if (youtube !== null) await writeFile(files[index], typeof youtube === "string" ? youtube : mcp(youtube));
       } else await writeFile(files[index], typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
     }
     if (afterRound) await afterRound(run, round);
@@ -468,6 +494,11 @@ const section = (brief, number) => {
   const end = brief.indexOf("\n## ", start + 4);
   return brief.slice(start, end === -1 ? undefined : end);
 };
+// A diagnosis with topic cards: sections 5-7 are the shipped default rules plus the cards the brief prints at its end.
+const cardsLine = (when) => "Sections 5-7 are references/diagnosis-rules.md plus this run's topic cards, which the brief prints at its end "
+  + "(in section 5 they follow the base card, in place of the line \"No topic card was asked for\"): do not read analysis/rules.md; "
+  + `read references/diagnosis-rules.md whole ${when} only when it is not already in your context.`;
+const CREDIT_LINE = /^Credit check: where the Kabo tool start_skill_run exists, call it now \(skill_id analyze-content-video, run_id \d{8}T\d{6}Z-[0-9a-f]{12}\) and wait for its answer before making any call printed below; if it fails with credits_exhausted, tell the creator and stop\. This command fetched nothing itself\.$/;
 // The whole brief: sections 1-4 (analysis/brief.md, from the evidence) and 5-7 (analysis/rules.md, from the request).
 const readBrief = async (run) => (await readFile(path.join(run, "analysis/brief.md"), "utf8")) + "\n"
   + (await readFile(path.join(run, "analysis/rules.md"), "utf8"));
@@ -487,9 +518,10 @@ test("one brief from any source: sections 1, 2, 5, 6 and 7 are byte-identical wh
     assert.equal(build(run, flagsOf(out)).code, 0);
     const prepared = await prepare(run, ["--mode", "diagnosis", "--focus", "opening"]);
     assert.equal(prepared.code, 0, prepared.out);
-    // The brief comes printed, and the rules file (written here: no begin step ran) is to be read now.
+    // The brief comes printed; the rules file (written here: no begin step ran) is the default plus the topic card,
+    // which the brief prints, so it needs no read.
     assert.match(prepared.out, /## 3\. Evidence index/);
-    assert.match(prepared.out, /Sections 5-7 were just written to analysis\/rules\.md: read it whole now/);
+    assert.ok(prepared.out.includes(cardsLine("now")), prepared.out);
     briefs[source] = await readBrief(run);
     rules[source] = await readFile(path.join(run, "analysis/rules.md"), "utf8");
     assert.ok(prepared.out.includes(await readFile(path.join(run, "analysis/brief.md"), "utf8")), "the printed brief is the file");
@@ -502,7 +534,7 @@ test("one brief from any source: sections 1, 2, 5, 6 and 7 are byte-identical wh
     assert.ok(existsSync(path.join(run, "analysis/deterministic.json")));
     // Unchanged on a second run: nothing new to read.
     const again = await prepare(run, ["--mode", "diagnosis", "--focus", "opening"]);
-    assert.match(again.out, /Sections 5-7 are analysis\/rules\.md, read while the evidence arrived/);
+    assert.ok(again.out.includes(cardsLine("now")), again.out);
   }
   if (hasFfmpeg) {
     const run = await localRun(t);
@@ -513,7 +545,7 @@ test("one brief from any source: sections 1, 2, 5, 6 and 7 are byte-identical wh
   }
   const headings = briefs.server_frames.split("\n").filter((line) => line.startsWith("## "));
   assert.deepEqual(headings, ["## 1. Creator question", "## 2. Mode", "## 3. Evidence index", "## 4. Deterministic results",
-    "## 5. Method", "## 6. Judgment rules", "## 7. Output contract"]);
+    "## Topic cards for section 5", "## 5. Method", "## 6. Judgment rules", "## 7. Output contract"]);
   // Sections 5-7 depend on the request alone: the rules file is the same whichever source observed the video.
   for (const [source, text] of Object.entries(rules)) assert.equal(text, rules.server_frames, source);
   assert.match(rules.server_frames, /^# Analysis rules\n/);
@@ -525,6 +557,67 @@ test("one brief from any source: sections 1, 2, 5, 6 and 7 are byte-identical wh
   assert.match(section(briefs.whole_video, 3), /`V01` 0–2\.5s \[hook\]/);
   assert.match(section(briefs.server_frames, 3), /`frame-0001` 0s/);
   assert.match(section(briefs.server_frames, 7), /"title": "Video judgment"/);
+});
+
+// A default diagnosis (no topic card, no special ask) always has the same sections 5-7. They ship as
+// references/diagnosis-rules.md, which a host may preload (SKILL.md metadata.preload), so the run names that file
+// instead of its own byte-identical analysis/rules.md and the model reads nothing it already holds.
+const REGENERATE_RULES = "python3 -B -c \"import sys; sys.path.insert(0, 'skills/analyze-content-video/scripts'); "
+  + "import prepare_analysis as p; p.DEFAULT_RULES.write_text(p.default_rules(), encoding='utf-8')\"";
+test("references/diagnosis-rules.md is exactly the default diagnosis rules, and SKILL.md preloads it with the runtime and the card index", async () => {
+  const generated = spawnSync("python3", ["-B", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import prepare_analysis; "
+    + "sys.stdout.buffer.write(prepare_analysis.default_rules().encode('utf-8'))", scripts], { encoding: "utf8", env });
+  assert.equal(generated.status, 0, generated.stderr);
+  const shipped = await readFile(path.join(skill, "references/diagnosis-rules.md"), "utf8");
+  assert.ok(generated.stdout === shipped, `references/diagnosis-rules.md drifted from prepare_analysis.default_rules(); regenerate it from the repository root: ${REGENERATE_RULES}`);
+  assert.match(shipped, /^# Analysis rules\n[\s\S]*## 5\. Method[\s\S]*`diagnosis-default`, base card[\s\S]*## 6\. Judgment rules[\s\S]*## 7\. Output contract/);
+  const body = await readFile(path.join(skill, "SKILL.md"), "utf8");
+  const preload = /^metadata:\n(?:  .*\n)*?  preload: "([^"]*)"$/m.exec(body.split("\n---\n")[0] + "\n");
+  assert.ok(preload, "SKILL.md declares metadata.preload");
+  assert.deepEqual(preload[1].split(" "), ["references/diagnosis-runtime.md", "references/video-method/index.md", "references/diagnosis-rules.md"]);
+  for (const file of preload[1].split(" ")) assert.ok(existsSync(path.join(skill, file)), file);
+});
+
+test("prepare_analysis.py names references/diagnosis-rules.md for a default diagnosis, that file plus the printed topic cards for a diagnosis with cards, and analysis/rules.md otherwise", async (t) => {
+  const { run, out } = await observe(t, "server_frames");
+  await writeRequest(run);
+  assert.equal(build(run, flagsOf(out)).code, 0);
+  const prepared = await prepare(run, ["--mode", "diagnosis"]);
+  assert.equal(prepared.code, 0, prepared.out);
+  assert.equal(await readFile(path.join(run, "analysis/rules.md"), "utf8"), await readFile(path.join(skill, "references/diagnosis-rules.md"), "utf8"));
+  assert.equal(JSON.parse(prepared.out.split("\n")[0]).rules, "references/diagnosis-rules.md");
+  assert.match(prepared.out, /Sections 5-7 are references\/diagnosis-rules\.md \(this run's analysis\/rules\.md is the same text\): no read when it is already in your context, otherwise read it whole now\. Then write analysis\/video_judgment\.json/);
+  assert.match(await readFile(path.join(run, "analysis/brief.md"), "utf8"), /Sections 5-7 \(method, judgment rules, output contract\) are `references\/diagnosis-rules\.md`/);
+  // Topic cards change only section 5: the default rules plus the cards, printed at the end of the brief, exactly
+  // as analysis/rules.md holds them, so the run's own file needs no read.
+  const shipped = await readFile(path.join(skill, "references/diagnosis-rules.md"), "utf8");
+  const focused = await prepare(run, ["--mode", "diagnosis", "--focus", "opening,narrative-structure"]);
+  assert.equal(focused.code, 0, focused.out);
+  assert.equal(JSON.parse(focused.out.split("\n")[0]).rules, "references/diagnosis-rules.md + topic cards");
+  assert.equal(focused.out.trimEnd().split("\n").at(-1), "(End of analysis/brief.md; read the file only if the text above is cut off.) "
+    + cardsLine("now") + " Then write analysis/video_judgment.json as section 7 says.");
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.ok(focused.out.includes(brief), "the printed brief is the file, cards included");
+  assert.match(brief, /are `references\/diagnosis-rules\.md`, with this run's topic cards \(at the end of this brief\) in its section 5\./);
+  const cards = brief.slice(brief.indexOf("\n### ", brief.indexOf("## Topic cards for section 5")) + 1).trimEnd();
+  assert.match(cards, /^### Opening \(`opening`, topic card[\s\S]*\n### Narrative structure \(`narrative-structure`, topic card/);
+  assert.doesNotMatch(cards, /diagnosis-default|^## /m);
+  // Exact: the default with its opening line of section 5 left out and the printed cards after the base card is
+  // byte for byte the run's own rules file.
+  const DEFAULT_ONLY = "No topic card was asked for: the base card alone gives the default analysis.\n\n";
+  const rebuilt = shipped.replace(DEFAULT_ONLY, "").replace("\n## 6. Judgment rules\n", `\n${cards}\n\n## 6. Judgment rules\n`);
+  assert.ok(rebuilt === await readFile(path.join(run, "analysis/rules.md"), "utf8"), "default rules + printed cards = analysis/rules.md");
+  // Any other difference keeps the run's own file: a content read has no shipped default.
+  const read = await prepare(run, ["--mode", "content_read", "--focus", "opening"]);
+  assert.equal(read.code, 0, read.out);
+  assert.equal(JSON.parse(read.out.split("\n")[0]).rules, "analysis/rules.md");
+  assert.match(read.out, /Sections 5-7 were just written to analysis\/rules\.md: read it whole now/);
+  assert.doesNotMatch(read.out, /references\/diagnosis-rules\.md|## Topic cards for section 5/);
+  // A rules file that differs from the default anywhere else is never taken for default plus cards.
+  await writeFile(path.join(run, "analysis/rules.md"), rebuilt.replace("## 6. Judgment rules\n", "## 6. Judgment rules\n\nOne more rule.\n"));
+  const odd = spawnSync("python3", ["-B", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import prepare_analysis as p; from pathlib import Path; "
+    + "print(p.rules_source(Path(sys.argv[2])), p.topic_cards(Path(sys.argv[2])))", scripts, path.join(run, "analysis")], { encoding: "utf8", env });
+  assert.equal(odd.stdout.trim(), "analysis/rules.md None", odd.stderr);
 });
 
 test("method selection: no focus is the base card only; unknown or excess focus exits 2; missing evidence skips or refuses", async (t) => {
@@ -662,6 +755,28 @@ test("the observe_video.py hand-over, two calls included, is in the form the Web
   assert.match(resumed.stdout, /--viewer snapshot\/whole-video\.json/);
 });
 
+test("a YouTube link's first hand-over, metadata call included, is in the form the Web host executes", async (t) => {
+  const run = await newRun(t);
+  const first = python("observe_video.py", ["--url", YOUTUBE, "--mode", "diagnosis", "--duration-s", "30"], run);
+  const handover = hostHandover(first.out);
+  assert.ok(handover, first.out);
+  assert.deepEqual(handover.calls.map((call) => call.tool), ["collect_video_media", "youtube_get_video"]);
+  // The host maps it to data_connector_run youtube-public/get_video: `parameters` must be an object, `delivery` is dropped.
+  const { delivery, ...rest } = handover.calls[1].arguments;
+  assert.equal(delivery, "download");
+  assert.deepEqual(rest, { parameters: { video_id: "dQw4w9WgXcQ" } });
+  // What the host writes is the research tool's output and the connector envelope itself, each unwrapped.
+  await writeFile(handover.files[0], JSON.stringify(composite(handover.calls[0].arguments)));
+  await writeFile(handover.files[1], JSON.stringify(youtubeVideo()));
+  const resumed = spawnSync("python3", [handover.resume.script, ...handover.resume.args], { cwd: handover.resume.cwd, encoding: "utf8", env });
+  assert.equal(resumed.status, 0, resumed.stdout + resumed.stderr);
+  assert.match(resumed.stdout, /"status": "observed"/);
+  assert.match(resumed.stdout, /Side calls: metadata completed\./);
+  assert.match(flagsOf(resumed.stdout), /^--request analysis\/video-analysis-request\.json --envelope snapshot\/envelope-02\.json --envelope snapshot\/envelope-03\.json --envelope snapshot\/envelope-04\.json --envelope snapshot\/envelope-01\.json /);
+  const persisted = await readJson(path.join(run, "snapshot/envelope-01.json"));
+  assert.deepEqual([persisted.connector_id, persisted.operation], ["youtube-public", "get_video"]);
+});
+
 // Cards first: select_method.py runs on the request alone, before anything is fetched, and the observation reads
 // its choice. The sound card adds the whole-video viewing; prepare_analysis.py re-checks the same cards against
 // the evidence that arrived, with no --focus of its own.
@@ -670,7 +785,7 @@ async function selectFirst(run, focus, mode = "diagnosis") {
   assert.equal(chosen.code, 0, chosen.out);
   return readJson(path.join(run, "analysis/method.json"));
 }
-async function driveFrom(run, out, { viewerSteps = [viewerFixture] } = {}) {
+async function driveFrom(run, out, { viewerSteps = [viewerFixture], media = {}, youtube = youtubeVideo() } = {}) {
   const steps = [...viewerSteps];
   const handed = [];
   for (let round = 0; round < 8 && !/"status": "observed"/.test(out); round += 1) {
@@ -678,9 +793,12 @@ async function driveFrom(run, out, { viewerSteps = [viewerFixture] } = {}) {
     assert.ok(calls.length, out);
     for (const [index, call] of calls.entries()) {
       handed.push(call);
-      // A diagnosis also asks for the song: answer it with no match, leaving the viewer steps to the viewing.
-      await writeFile(files[index], call.tool === "collect_video_media" ? mcp(composite(call.arguments))
+      // A diagnosis also asks for the song: answer it with no match, leaving the viewer steps to the viewing. A YouTube
+      // link's metadata call gets `youtube` (a string as it is, null saves nothing).
+      if (call.tool === "youtube_get_video" && youtube === null) continue;
+      await writeFile(files[index], call.tool === "collect_video_media" ? mcp(composite(call.arguments, media))
         : call.tool === "identify_video_song" ? mcp(SONG.noMatch)
+        : call.tool === "youtube_get_video" ? (typeof youtube === "string" ? youtube : mcp(youtube))
         : typeof steps[0] === "string" ? steps.shift() : mcp(steps.shift()));
     }
     const resumed = shell(resumeOf(out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
@@ -692,8 +810,9 @@ async function driveFrom(run, out, { viewerSteps = [viewerFixture] } = {}) {
 }
 
 // begin_analysis.py is the four setup steps in one command: the request, the creator's words, the cards and the first
-// observation run. Its output is observe_video.py's own, byte for byte, because the Web host reads the hand-over from
-// it; the files are those the separate steps write, and the brief's sections 5-7 are ready before the fetch.
+// observation run. Its output is observe_video.py's own, byte for byte, after at most two leading lines (the run
+// directory with --workspace, and where sections 5-7 are), because the Web host reads the hand-over from it; the files
+// are those the separate steps write, and the brief's sections 5-7 are ready before the fetch.
 test("begin_analysis: one command writes what the separate setup steps write and prints observe_video.py's output unchanged", async (t) => {
   const question = "is the hook strong enough? it's my first try";
   const separate = await newRun(t);
@@ -715,11 +834,39 @@ test("begin_analysis: one command writes what the separate setup steps write and
   const begun = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
     "--question", question, "--focus", "opening,sound", "--confirmed-by-user"], run);
   assert.equal(begun.code, 0, begun.out);
-  // The same output but for the run's own path and the run key derived from it.
+  // The same output but for the run's own path and the run key derived from it, after one leading line: with topic
+  // cards, sections 5-7 are the shipped default plus those cards, which the brief prints.
   const same = (out, dir) => out.replaceAll(dir, "<run>").replace(/"run_key": "acv:[0-9a-f]+"/g, '"run_key": "<key>"');
-  assert.equal(same(begun.out, run), same(before.out, separate));
+  const [rulesLine, ...observed] = begun.out.split("\n");
+  assert.equal(rulesLine, cardsLine("while the evidence arrives"));
+  assert.equal(same(observed.join("\n"), run), same(before.out, separate));
   assert.ok(begun.out.split("\n").some((line) => line.startsWith("Hand-over: ")));
   assert.equal(path.basename(hostHandover(begun.out)?.resume.script ?? ""), "observe_video.py");
+
+  // With --workspace it reserves the run itself: the run directory comes first, then the credit-check line (where
+  // start_skill_run exists, it is called before any printed call: the command fetched nothing), then the same
+  // output. A refused command reserves nothing.
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-begin-"));
+  if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
+  const noRun = python("begin_analysis.py", ["--workspace", workspace, "--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--focus", "opening,no-such-card", "--confirmed-by-user"], workspace);
+  assert.equal(noRun.code, 2, noRun.out);
+  assert.equal(existsSync(path.join(workspace, ".kabo-runs")), false);
+  const oneStep = python("begin_analysis.py", ["--workspace", workspace, "--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--focus", "opening,sound", "--confirmed-by-user"], workspace);
+  assert.equal(oneStep.code, 0, oneStep.out);
+  const [runLine, creditLine, rulesAgain, ...rest] = oneStep.out.split("\n");
+  const reserved = /^Run directory: (\/.+)$/.exec(runLine)?.[1];
+  assert.ok(reserved, oneStep.out);
+  assert.equal(path.dirname(reserved), path.join(await realpath(workspace), ".kabo-runs"));
+  assert.ok(existsSync(path.join(reserved, ".static-run.json")));
+  assert.deepEqual(await readdir(path.join(workspace, ".kabo-runs")), [path.basename(reserved)]);
+  assert.match(creditLine, CREDIT_LINE);
+  assert.ok(creditLine.includes(`run_id ${path.basename(reserved)})`), creditLine);
+  assert.equal(rulesAgain, rulesLine);
+  assert.equal(same(rest.join("\n"), reserved), same(before.out, separate));
+  assert.equal(hostHandover(oneStep.out)?.resume.cwd, reserved);
+  assert.equal((await readJson(path.join(reserved, "analysis/video-analysis-request.json"))).request_id, path.basename(reserved));
   // Another request in the same run is refused before anything is written.
   const other = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "third_party", "--mode", "diagnosis"], run);
   assert.equal(other.code, 1, other.out);
@@ -734,14 +881,16 @@ test("begin_analysis: one command writes what the separate setup steps write and
   const rules = await readFile(path.join(run, "analysis/rules.md"), "utf8");
   assert.match(rules, /## 5\. Method[\s\S]*\(`opening`, topic card[\s\S]*\(`sound`, topic card[\s\S]*## 6\. Judgment rules[\s\S]*## 7\. Output contract/);
 
-  // The observation goes on from observe_video.py's resume command, and the brief later finds the rules unchanged.
+  // The observation goes on from observe_video.py's resume command, which builds the evidence and prints the brief
+  // itself once the observation ends; the brief finds the rules unchanged.
   const { out } = await driveFrom(run, begun.out);
-  assert.equal(build(run, flagsOf(out)).code, 0);
-  const prepared = python("prepare_analysis.py", ["--run", run, "--mode", "diagnosis", "--question-file", "analysis/question.txt"], run);
-  assert.equal(prepared.code, 0, prepared.out);
-  assert.match(prepared.out, /Sections 5-7 are analysis\/rules\.md, read while the evidence arrived/);
+  assert.doesNotMatch(out, /^Pass these to build_content_evidence\.py/m);
+  assert.match(out, /^Evidence \(step 4\) built here, with: --request analysis\/video-analysis-request\.json --envelope snapshot\/envelope-01\.json/m);
+  assert.ok(out.includes(cardsLine("now")), out);
+  assert.match(out, /## Topic cards for section 5\n[\s\S]*\(`opening`, topic card[\s\S]*\(`sound`, topic card/);
   assert.equal(await readFile(path.join(run, "analysis/rules.md"), "utf8"), rules);
-  assert.match(prepared.out, /## 1\. Creator question\n\nis the hook strong enough\? it's my first try/);
+  assert.match(out, /## 1\. Creator question\n\nis the hook strong enough\? it's my first try/);
+  assert.ok(out.includes(await readFile(path.join(run, "analysis/brief.md"), "utf8")), "the printed brief is the file");
 
   // Run again by mistake: the observation is complete, so nothing starts again.
   const again = python("begin_analysis.py", ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
@@ -749,6 +898,254 @@ test("begin_analysis: one command writes what the separate setup steps write and
   assert.equal(again.code, 1, again.out);
   assert.match(again.out, /already complete: never observe twice/);
   assert.doesNotMatch(again.out, /^Hand-over: /m);
+});
+
+// Where the host has no start_skill_run, one command opens the run, and the observation's last command builds the
+// evidence and prints the brief: a default diagnosis goes from the link to the frames and the judgment in two
+// commands. Sections 5-7 are the shipped references/diagnosis-rules.md, which a host may already have preloaded.
+async function beginInWorkspace(t, args) {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-begin-"));
+  if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
+  const begun = python("begin_analysis.py", ["--workspace", workspace, ...args], workspace);
+  assert.equal(begun.code, 0, begun.out);
+  const run = /^Run directory: (\/.+)$/m.exec(begun.out)[1];
+  return { run, begun };
+}
+test("begin --workspace, default diagnosis: the observation ends with the evidence built and the brief printed, well under the 64 KiB output cap", async (t) => {
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis", "--question", "", "--confirmed-by-user"]);
+  assert.match(begun.out.split("\n")[1], CREDIT_LINE);
+  assert.equal(begun.out.split("\n")[2], "Sections 5-7 are references/diagnosis-rules.md (this run's analysis/rules.md is the same text): "
+    + "no read when it is already in your context, otherwise read it whole while the evidence arrives.");
+  // A typical short video: 30 seconds, 60 frames (every half second), 20 spoken lines, every signal measured.
+  const frameTimes = Array.from({ length: 60 }, (_, i) => i / 2);
+  const cues = Array.from({ length: 20 }, (_, i) => ({ text: `Line ${i + 1}: here is one more reason your pan keeps burning on a high flame.`,
+    start_ms: i * 1500, end_ms: i * 1500 + 1400 }));
+  const { out } = await driveFrom(run, begun.out, { media: { frameTimes, cues, signals: FULL_SIGNALS } });
+  const bytes = Buffer.byteLength(out);
+  t.diagnostic(`final observation output: ${bytes} bytes (brief ${Buffer.byteLength(await readFile(path.join(run, "analysis/brief.md")))} bytes)`);
+  assert.ok(bytes < 56 * 1024, `${bytes} bytes`);
+  assert.match(out, /^Envelopes included: snapshot\/envelope-01\.json, snapshot\/envelope-02\.json, snapshot\/envelope-03\.json, snapshot\/envelope-04\.json$/m);
+  assert.match(out, /^\{"status": "ok", "output": "analysis\/content_evidence\.json"/m);
+  // The frame reads come before the brief, the brief is the file, and the last line says to read the frames first.
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  assert.ok(out.indexOf("read: {") < out.indexOf(brief) && out.includes(brief), out);
+  assert.match(brief, /are `references\/diagnosis-rules\.md`/);
+  assert.match(out, /"rules": "references\/diagnosis-rules\.md"/);
+  assert.match(out, /Sections 5-7 are references\/diagnosis-rules\.md \(this run's analysis\/rules\.md is the same text\): no read when it is already in your context, otherwise read it whole now\. Then write analysis\/video_judgment\.json/);
+  assert.equal(out.trimEnd().split("\n").at(-1), "Make the frame reads above before writing anything.");
+  assertValidEvidence(await readJson(path.join(run, "analysis/content_evidence.json")));
+  // Section 3 holds every measured value and every citable reference, so the model reads neither evidence file:
+  // each measured group by name with its numbers, each acquisition step, and only references the check accepts.
+  const section3 = brief.slice(brief.indexOf("## 3. Evidence index"), brief.indexOf("## 4. "));
+  assert.match(section3, /This index lists every citable reference with its value: cite each exactly as written here/);
+  assert.match(section3, /they need no read\./);
+  assert.doesNotMatch(section3, /read from the evidence file|The complete list of legal references/);
+  assert.match(section3, /^- `media\.probed\.loudness` \(momentary loudness summary; `\.<field>`\): interval_s 0\.1, samples 300, mean_lufs -1[0-9.]+, min_lufs -120\.7, .*lead_in_silence_s 0\.2, first_audible_s 0\.3/m);
+  assert.match(section3, /^- `media\.probed\.brightness` \(mean luma, 0-255\): 30 samples; whole video mean luma 121\.4 \(`\.whole_video`\); per shot \(`\.per_shot\[i\]` = shot index: mean luma\) \[0\] shot 0: 134\.9, .*\[5\] shot 5: 127\.5$/m);
+  assert.match(section3, /^- `media\.probed\.mean_volume_db` = -1[0-9.]+ \(the loudness mean\)$/m);
+  assert.match(section3, /^- `media\.probed\.measured`: shots, brightness, silence, loudness, freeze, framing$/m);
+  assert.match(section3, /^- `acquisition\[0\]` collect_public_metadata completed; `acquisition\[1\]` /m);
+  const refs = new Set((await readJson(path.join(run, "analysis/content_evidence.references.json"))).evidence_refs);
+  const cited = [...section3.matchAll(/`((?:media\.probed|media\.discrepancies|acquisition|owner_metrics)[A-Za-z0-9_.\[\]]*)`/g)].map((match) => match[1]);
+  assert.ok(cited.length >= 10, cited.join(" "));
+  assert.deepEqual(cited.filter((ref) => !refs.has(ref)), []);
+  // A second resume by mistake neither observes nor builds again.
+  const again = shell(resumeOf(begun.out));
+  assert.match(again.out, /already complete; its evidence and brief were built/);
+  // Past the output budget (hosts keep 64 KiB of a command's output) the brief stays in its file and the output says so.
+  const long = spawnSync("python3", ["-B", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import observe_video as o; "
+    + "o.PRINTED[0] = o.PRINT_LIMIT; sys.exit(o.next_step({'mode': 'diagnosis'}, True))", scripts], { cwd: run, encoding: "utf8", env });
+  assert.equal(long.status, 0, long.stderr);
+  const [status, note, last] = long.stdout.trimEnd().split("\n");
+  assert.equal(JSON.parse(status).status, "ready");
+  assert.match(note, /^The brief is too long to print with the observation: read analysis\/brief\.md whole now\. Sections 5-7 are references\/diagnosis-rules\.md/);
+  assert.equal(last, "Make the frame reads above before writing anything.");
+  assert.doesNotMatch(long.stdout, /# Analysis brief/);
+
+  // A per-run flag that comes in later: the printed rebuild command, with it added, builds over the run's own pair,
+  // and the printed step 5 prints the brief again.
+  const line = out.split("\n").find((item) => item.startsWith("If another envelope is persisted after this"));
+  const [rebuild, again5] = line.slice(line.indexOf("cd '")).split(" then ");
+  const rebuilt = shell(`${rebuild} --limitation 'The creator says the audio was replaced after posting.'`);
+  assert.equal(rebuilt.code, 0, rebuilt.out);
+  const evidence = await readJson(path.join(run, "analysis/content_evidence.json"));
+  assert.ok(JSON.stringify(evidence).includes("the audio was replaced after posting"));
+  const index = await readJson(path.join(run, "analysis/content_evidence.references.json"));
+  assert.equal(index.evidence_sha256, createHash("sha256").update(await readFile(path.join(run, "analysis/content_evidence.json"))).digest("hex"));
+  const reprepared = shell(again5);
+  assert.equal(reprepared.code, 0, reprepared.out);
+  assert.match(reprepared.out, /## 3\. Evidence index/);
+  // --replace builds only over the builder's own pair: an evidence file edited by hand is refused, and kept.
+  await writeFile(path.join(run, "analysis/content_evidence.json"), "{}\n");
+  const refused = shell(rebuild);
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /--replace builds again only over this builder's own evidence and reference index/);
+  assert.equal(await readFile(path.join(run, "analysis/content_evidence.json"), "utf8"), "{}\n");
+});
+
+test("begin --workspace, diagnosis with the two largest topic cards: the brief ends with the cards, no rules file to read, still under the output cap", async (t) => {
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", "how are my hook and my music?", "--focus", "opening,sound", "--confirmed-by-user"]);
+  assert.equal(begun.out.split("\n")[2], cardsLine("while the evidence arrives"));
+  const frameTimes = Array.from({ length: 60 }, (_, i) => i / 2);
+  const cues = Array.from({ length: 20 }, (_, i) => ({ text: `Line ${i + 1}: here is one more reason your pan keeps burning on a high flame.`,
+    start_ms: i * 1500, end_ms: i * 1500 + 1400 }));
+  const { out } = await driveFrom(run, begun.out, { media: { frameTimes, cues } });
+  const bytes = Buffer.byteLength(out);
+  const brief = await readFile(path.join(run, "analysis/brief.md"), "utf8");
+  const cards = brief.slice(brief.indexOf("## Topic cards for section 5"));
+  t.diagnostic(`final observation output: ${bytes} bytes (brief ${Buffer.byteLength(brief)} bytes, of which topic cards ${Buffer.byteLength(cards)})`);
+  assert.ok(bytes < 56 * 1024, `${bytes} bytes`);
+  assert.ok(out.includes(brief), "the brief, cards included, is printed whole");
+  assert.match(out, /"rules": "references\/diagnosis-rules\.md \+ topic cards"/);
+  assert.ok(out.includes(cardsLine("now") + " Then write analysis/video_judgment.json as section 7 says."), out);
+  assert.doesNotMatch(out, /analysis\/rules\.md: read it whole|(?<!not )read analysis\/rules\.md/);
+  assert.equal(out.trimEnd().split("\n").at(-1), "Make the frame reads above before writing anything.");
+  // Past the output budget the brief stays in its file, which holds the cards too.
+  const long = spawnSync("python3", ["-B", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import observe_video as o; "
+    + "o.PRINTED[0] = o.PRINT_LIMIT; sys.exit(o.next_step({'mode': 'diagnosis'}, True))", scripts], { cwd: run, encoding: "utf8", env });
+  assert.equal(long.status, 0, long.stderr);
+  const note = long.stdout.trimEnd().split("\n")[1];
+  assert.ok(note.startsWith("The brief is too long to print with the observation: read analysis/brief.md whole now. " + cardsLine("now")), note);
+});
+
+// The opening on every host: where start_skill_run exists, the model calls it after begin_analysis.py printed the run
+// directory and before any printed call, which is safe only because the command itself fetches nothing.
+test("begin_analysis.py --workspace fetches nothing itself: with every socket blocked it reserves the run and prints the hand-over calls", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-begin-"));
+  if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
+  const blocked = "import runpy, socket, sys\n"
+    + "def refuse(*args, **kwargs):\n    raise SystemExit('network attempt: ' + repr(args))\n"
+    + "socket.socket.connect = socket.socket.connect_ex = socket.create_connection = socket.getaddrinfo = refuse\n"
+    + "sys.argv = sys.argv[1:]\nrunpy.run_path(sys.argv[0], run_name='__main__')\n";
+  const done = spawnSync("python3", ["-B", "-c", blocked, path.join(scripts, "begin_analysis.py"), "--workspace", workspace, "--url", TIKTOK,
+    "--subject-state", "unknown", "--mode", "diagnosis", "--question", "", "--confirmed-by-user"], { cwd: workspace, encoding: "utf8", env });
+  assert.equal(done.status, 0, done.stdout + done.stderr);
+  assert.doesNotMatch(done.stdout + done.stderr, /network attempt/);
+  assert.match(done.stdout.split("\n")[1], CREDIT_LINE);
+  assert.ok(done.stdout.split("\n").some((line) => line.startsWith("Hand-over: ")), done.stdout);
+  assert.deepEqual(callLines(done.stdout).map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
+});
+
+test("begin_analysis: argument mistakes are refused with one JSON line that says what to correct, and nothing is reserved", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-begin-"));
+  if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
+  const base = ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis", "--question", "hook, pacing, visuals, ending?", "--confirmed-by-user"];
+  const refused = (args, cwd = workspace) => {
+    const done = python("begin_analysis.py", args, cwd);
+    const line = JSON.parse(done.out.trim().split("\n").at(-1));
+    assert.equal(existsSync(path.join(workspace, ".kabo-runs")), false, done.out);
+    return { code: done.code, ...line };
+  };
+  // The creator's words where card ids belong: the message names the cards those words point to.
+  const words = refused(["--workspace", workspace, ...base, "--focus", "hook,pacing"]);
+  assert.equal(words.code, 2);
+  assert.match(words.error, /unknown method card id\(s\): hook, pacing\. Topic cards are: .*--focus takes card ids, not the creator's words: hook -> opening; pacing -> editing-pacing$/);
+  // More than two cards: the message says to keep the two the question leans on most.
+  const many = refused(["--workspace", workspace, ...base, "--focus", "opening,editing-pacing,visual-color,narrative-structure"]);
+  assert.equal(many.code, 2);
+  assert.match(many.error, /^at most 2 topic cards; got 4 \(opening, editing-pacing, visual-color, narrative-structure\): pass the 2/);
+  // A flag argparse refuses (unknown, conflicting or missing) is the same JSON line, exit 2.
+  for (const args of [[...base, "--workspace", workspace, "--run", workspace], [...base, "--workspace", workspace, "--question-file", "q.txt"],
+    ["--workspace", workspace, "--url", TIKTOK, "--mode", "diagnosis"]]) {
+    const flag = refused(args);
+    assert.equal(flag.code, 2);
+    assert.equal(flag.status, "refused");
+    assert.match(flag.error, /Nothing was reserved, written or fetched: correct the arguments \(SKILL\.md, analysis step 2\) and run the same command again$/);
+  }
+  // A workspace that is not a directory, and no --workspace outside a reserved run.
+  const nowhere = refused(["--workspace", path.join(workspace, "no-such-dir"), ...base]);
+  assert.equal(nowhere.code, 1);
+  assert.match(nowhere.error, /^--workspace takes an existing directory/);
+  const unreserved = refused(base);
+  assert.equal(unreserved.code, 1);
+  assert.match(unreserved.error, /^no run is reserved here: begin with --workspace '<user-workspace>' and the same arguments/);
+});
+
+test("a YouTube observation makes youtube_get_video in its first hand-over, persists its answer and builds with it", async (t) => {
+  const args = ["--url", YOUTUBE, "--subject-state", "unknown", "--mode", "diagnosis", "--question", "", "--confirmed-by-user", "--duration-s", "30"];
+  const first = await beginInWorkspace(t, args);
+  const calls = callLines(first.begun.out);
+  // Last in the first hand-over, with the arguments the runtime reference prescribes; saved whole like the side calls.
+  assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media", "identify_video_song", "youtube_get_video"]);
+  assert.deepEqual(calls[2].arguments, { parameters: { video_id: "dQw4w9WgXcQ" }, delivery: "download" });
+  assert.match(slotFiles(first.begun.out)[2], /\/host-results\/03-youtube_get_video\.json$/);
+  assert.match(first.begun.out, /Save each [^.]*youtube_get_video result whole/);
+  const { out } = await driveFrom(first.run, first.begun.out);
+  assert.match(out, /^Side calls: song no_match, metadata completed\./m);
+  // Read on the first resume, before the media envelopes: envelope-01, persisted as persist_envelope.py would.
+  assert.match(out, /^Envelopes included: snapshot\/envelope-02\.json, snapshot\/envelope-03\.json, snapshot\/envelope-04\.json, snapshot\/envelope-01\.json$/m);
+  assert.match(out, /# Analysis brief/);
+  const persisted = await readJson(path.join(first.run, "snapshot/envelope-01.json"));
+  assert.deepEqual([persisted.connector_id, persisted.operation, persisted.status], ["youtube-public", "get_video", "completed"]);
+  const evidence = await readJson(path.join(first.run, "analysis/content_evidence.json"));
+  assert.equal(evidence.content_metadata.status, "available");
+  assert.equal(evidence.content_metadata.title, "Why your pan burns");
+  assert.doesNotMatch(out, /metadata call \(youtube_get_video\) brought nothing/);
+
+  // The Web host writes the connector envelope itself (no MCP wrapper, no download): staged and persisted the same way.
+  const web = await beginInWorkspace(t, args);
+  const onWeb = await driveFrom(web.run, web.begun.out, { youtube: JSON.stringify(youtubeVideo()) });
+  assert.match(onWeb.out, /metadata completed/);
+  assert.equal((await readJson(path.join(web.run, "analysis/content_evidence.json"))).content_metadata.status, "available");
+
+  // A host that staged the result itself and saved no file: the staged copy is persisted.
+  const staged = await beginInWorkspace(t, args);
+  await writeFile(path.join(staged.run, "host-results/yt-staged.json"), mcp(youtubeVideo()));
+  assert.equal(python("static_host.py", ["stage", "--tool", "youtube_get_video", "--input", "host-results/yt-staged.json"], staged.run).code, 0);
+  const fromStage = await driveFrom(staged.run, staged.begun.out, { youtube: null });
+  assert.match(fromStage.out, /metadata completed/);
+
+  // An answer that the video is unavailable is persisted as the evidence it is: the build records the metadata as unavailable.
+  const failed = await beginInWorkspace(t, args);
+  const refused = await driveFrom(failed.run, failed.begun.out, { youtube: youtubeVideo({ status: "failed" }) });
+  assert.match(refused.out, /metadata failed/);
+  assert.equal((await readJson(path.join(failed.run, "analysis/content_evidence.json"))).content_metadata.status, "unavailable");
+
+  // Nothing saved, an MCP error with no connector evidence, or the Web host's bare failure: one limitation line, and the
+  // observation builds and prints the brief all the same.
+  for (const [youtube, status, why] of [
+    [null, "not_returned", "no result was saved for this call"],
+    [JSON.stringify({ isError: true, content: [{ type: "text", text: "rate limited, retry later" }] }), "failed", "MCP error contains no terminal connector evidence: rate limited, retry later"],
+    [JSON.stringify({ connector_id: "youtube-public", operation: "get_video", status: "failed", error_code: "upstream_failed" }), "failed", "upstream_failed"],
+  ]) {
+    const gap = await beginInWorkspace(t, args);
+    const done = await driveFrom(gap.run, gap.begun.out, { youtube });
+    assert.match(done.out, new RegExp(`metadata ${status}\\.`));
+    assert.match(done.out, /# Analysis brief/);
+    assert.doesNotMatch(done.out, /^Pass these/m);
+    const line = `The post's metadata call (youtube_get_video) brought nothing usable (${why}), so its title, description, tags, cover, publish date and public counts are missing from this analysis.`;
+    const evidence = await readJson(path.join(gap.run, "analysis/content_evidence.json"));
+    assert.ok(JSON.stringify(evidence).includes(JSON.stringify(line).slice(1, -1)), JSON.stringify(evidence.limitations ?? evidence));
+    assert.equal(evidence.content_metadata.status, "not_attempted");
+  }
+});
+
+test("a YouTube run that already holds its metadata envelope makes no metadata call and builds with it", async (t) => {
+  const args = ["--url", YOUTUBE, "--subject-state", "unknown", "--mode", "diagnosis", "--question", "", "--confirmed-by-user", "--duration-s", "30"];
+  const run = await newRun(t);
+  await writeFile(path.join(run, "snapshot/envelope-01.json"), JSON.stringify(youtubeVideo()));
+  const begun = python("begin_analysis.py", args, run);
+  assert.equal(begun.code, 0, begun.out);
+  assert.deepEqual(callLines(begun.out).map((call) => call.tool), ["collect_video_media", "identify_video_song"]);
+  const { out } = await driveFrom(run, begun.out);
+  assert.doesNotMatch(out, /metadata (?:completed|failed|not_returned)/);
+  assert.match(out, /^Envelopes included: snapshot\/envelope-02\.json, snapshot\/envelope-03\.json, snapshot\/envelope-04\.json, snapshot\/envelope-01\.json$/m);
+  assert.match(out, /# Analysis brief/);
+});
+
+test("a transcript export builds the evidence at the end of the observation and goes straight to the export", async (t) => {
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "transcript_export", "--confirmed-by-user"]);
+  // No brief, so no rules line: the run directory and the credit check are the only lines before observe_video.py's.
+  assert.match(begun.out.split("\n")[1], CREDIT_LINE);
+  assert.match(begun.out.split("\n")[2], /^Observation source: /);
+  const { out } = await driveFrom(run, begun.out);
+  assert.match(out, /^Envelopes included: snapshot\/envelope-01\.json$/m);
+  assert.match(out, /A transcript export has no brief: now run export_transcript\.py as the Skill says\./);
+  assert.match(out, /then export_transcript\.py as the Skill says/);
+  const exported = shell(`cd '${run}' && python3 -B '${path.join(scripts, "export_transcript.py")}' analysis/content_evidence.json report/`);
+  assert.equal(exported.code, 0, exported.out);
+  assert.match(await readFile(path.join(run, "report/transcript.txt"), "utf8"), /Here is why your pan keeps burning/);
 });
 
 test("begin_analysis: an attached file and a transcript export need no card, and an unknown link must name its platform", async (t) => {
@@ -953,12 +1350,25 @@ test("a video attached in Kabo (kabo-file:<id>) goes to the media tool as its ur
 
 test("SKILL.md: cards are chosen before the observation, the credit check comes before the fetch, and an unsupported link stops the run", async () => {
   const text = await readFile(path.join(skill, "SKILL.md"), "utf8");
-  // One setup command takes the cards and starts the observation; the run is declared (the credit check) before it.
-  assert.match(text, /begin_analysis\.py --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis\|content_read\|craft_teardown\|transcript_export> --question '<their words, verbatim>' \[--focus <id>\[,<id>\]\] \[--ask identify_track\]/);
-  assert.ok(text.indexOf("start_skill_run` once") < text.indexOf("scripts/begin_analysis.py --url"), "the run is declared before the fetch starts");
-  assert.match(text, /wait for its answer before `begin_analysis\.py`, which starts the observation, and never send them in the same turn/);
-  assert.ok(text.indexOf("scripts/begin_analysis.py --url") < text.indexOf("prepare_analysis.py --run"));
-  assert.match(text, /read `analysis\/rules\.md` whole/);
+  // One setup command, on every host, reserves the run, takes the cards and prints the observation's calls; where
+  // start_skill_run exists, its answer (the credit check) comes before the first printed call.
+  assert.match(text, /python3 <skill directory>\/scripts\/begin_analysis\.py --workspace '<user-workspace>' --url '<link exactly as given>' --subject-state <chosen-state> --mode <diagnosis\|content_read\|craft_teardown\|transcript_export> --question '<their words, verbatim>' \[--focus <id>\[,<id>\]\] \[--ask identify_track\]/);
+  assert.match(text, /On every host the first command, `begin_analysis\.py --workspace` \(analysis step 2\), reserves it; a\s+local file reserves it with:/);
+  assert.match(text, /call the Kabo tool `start_skill_run` once right after the run directory is printed/);
+  assert.match(text, /`begin_analysis\.py` fetches nothing itself and only prints the observation's calls, so wait for its answer before making any of them, never in the same turn/);
+  assert.doesNotMatch(text, /right after `init`|three with it|wait for its answer before `begin_analysis\.py`/);
+  assert.ok(text.indexOf("scripts/begin_analysis.py --workspace") < text.indexOf("prepare_analysis.py --run"));
+  assert.match(text, /read the rules file it named whole \(sections 5-7 of the brief/);
+  assert.match(text, /Setup is one command, `begin_analysis\.py --workspace`, on\s+every host \(then `start_skill_run`, where available, before its printed calls\)\./);
+  assert.match(text, /Run it from any directory: it reserves the run and prints its directory first; never pass\s+`--workspace` again for this request\./);
+  assert.match(text, /Exit 2 names an argument problem \(a card\s+id, a flag\): correct it once and run the same command again/);
+  // The observation's last command builds and prepares; an envelope or per-run flag that comes later means one rebuild.
+  assert.match(text, /the\s+same command also runs steps 4 and 5/);
+  assert.match(text, /If you persist an envelope after that \(a post row, a baseline\) or a\s+per-run flag applies, run steps 4 and 5 once more/);
+  // YouTube's metadata comes from the observation's own hand-over: never a call the model makes beside it.
+  assert.doesNotMatch(text, /YouTube metadata, post|on every platform but YouTube|`youtube-public` \/ `get_video`/);
+  assert.ok(text.match(/^allowed-tools: (.*)$/m)[1].split(" ").includes("youtube_get_video"));
+  assert.match(text, /A file this\s+Skill's `metadata\.preload` lists \(those two and `references\/diagnosis-rules\.md`\) that the host already\s+put in your context needs no read/);
   assert.match(text, /when a tool says the platform or link is not\s+supported, tell the creator which link could not be read and stop/);
   assert.doesNotMatch(text, /Douyin, Xiaohongshu, Kuaishou, Facebook, Bilibili/);
   assert.match(text, /kabo-file:<id>/);
@@ -1014,22 +1424,21 @@ test("duration gate: when no media result reports a duration, the sound card's v
 });
 
 test("duration gate: YouTube reads the duration from its own metadata envelope or from the measurement, and without either no viewing starts", async (t) => {
-  const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-  const youtubeEnvelope = { schema_version: "1.0", connector_id: "youtube-public", operation: "get_video", status: "completed",
-    data: { rows: [{ id: "dQw4w9WgXcQ", duration_seconds: 45 }] } };
-  // The first round measures the file, beside the youtube_get_video call the Skill makes in the same turn: no round is added.
+  const YT = YOUTUBE;
+  // The first round measures the file, beside the youtube_get_video call in the same hand-over: no round is added.
   const begin = async () => {
     const run = await newRun(t);
     const first = python("observe_video.py", ["--url", YT, "--mode", "diagnosis", "--observe-source", "whole_video"], run);
     assert.equal(first.code, 0, first.out);
     const calls = callLines(first.out);
-    assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media"]);
+    assert.deepEqual(calls.map((call) => call.tool), ["collect_video_media", "youtube_get_video"]);
     assert.deepEqual(operationsOf(calls[0]), ["measure_media_signals"]);
-    return { run, first, call: calls[0], file: slotFiles(first.out)[0] };
+    return { run, first, call: calls[0], file: slotFiles(first.out)[0], metadata: slotFiles(first.out)[1] };
   };
 
+  // The metadata call's answer is persisted on the resume, before the gate reads the duration from it.
   const persisted = await begin();
-  await writeFile(path.join(persisted.run, "snapshot/envelope-01.json"), JSON.stringify(youtubeEnvelope));
+  await writeFile(persisted.metadata, mcp(youtubeVideo({ duration: 45 })));
   await writeFile(persisted.file, mcp(composite(persisted.call.arguments)));
   const resumed = shell(resumeOf(persisted.first.out));
   assert.deepEqual(callLines(resumed.out).map((call) => call.tool), ["analyze_content_video"], resumed.out);
@@ -1037,6 +1446,7 @@ test("duration gate: YouTube reads the duration from its own metadata envelope o
 
   // youtube_get_video answered unsupported (the provider's quota): the measurement's duration starts the viewing.
   const measured = await begin();
+  await writeFile(measured.metadata, mcp(youtubeVideo({ status: "unsupported" })));
   await writeFile(measured.file, mcp(composite(measured.call.arguments, { measuredDuration: 41.5 })));
   const started = shell(resumeOf(measured.first.out));
   assert.deepEqual(callLines(started.out).map((call) => call.tool), ["analyze_content_video"], started.out);
@@ -1088,9 +1498,9 @@ test("duration gate: Instagram metadata carries no duration, so the forced viewi
 
 test("a duration given with --duration-s reaches media.duration_s on a whole-video-only run", async (t) => {
   const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-  const { run, out, handed } = await observe(t, "whole_video", { url: YT, args: ["--duration-s", "45"] });
-  // Known up front: no measurement is needed, and nothing but the viewing is called.
-  assert.deepEqual(handed.map((call) => call.tool), ["analyze_content_video"]);
+  const { run, out, handed } = await observe(t, "whole_video", { url: YT, args: ["--duration-s", "45"], youtube: null });
+  // Known up front: no measurement is needed, and nothing but the viewing and the post's metadata is called.
+  assert.deepEqual(handed.map((call) => call.tool), ["analyze_content_video", "youtube_get_video"]);
   assert.match(flagsOf(out), /--duration-s 45/);
   assert.equal(python("prepare_link_request.py", ["--url", YT, "--platform", "youtube", "--subject-state", "unknown", "--mode", "diagnosis",
     "--confirmed-by-user"], run).code, 0);
@@ -1642,7 +2052,7 @@ test("keyframes request: the contract's max_frames, shot starts and the default 
   const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "diagnosis"], plain);
   assert.deepEqual(keyframesOf(callLines(first.out)[0]),
     { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true, dense_windows: [DEFAULT_WINDOW],
-      overview: true });
+      overview: true, quick_above_s: 180 });
 
   const run = await newRun(t);
   const method = await selectFirst(run, "opening,editing-pacing");
@@ -1651,7 +2061,7 @@ test("keyframes request: the contract's max_frames, shot starts and the default 
   const call = callLines(out)[0];
   // The card's window first, then the default one.
   assert.deepEqual(keyframesOf(call), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, include_shot_starts: true,
-    dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW], overview: true });
+    dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW], overview: true, quick_above_s: 180 });
   // The options are fixed at the first hand-over, so a repeated call while jobs run sends the same arguments.
   assert.deepEqual((await readJson(path.join(run, "collect-media.json"))).frame_options,
     { include_shot_starts: true, dense_windows: [{ start_s: 0, end_s: 5, interval_s: 0.25 }, DEFAULT_WINDOW], overview: true });
@@ -1708,7 +2118,7 @@ test("a server refusing the frame options (keyframes item validation_error, or -
   assert.equal(retriedAgain.code, 0, retriedAgain.out);
   const [again] = callLines(retriedAgain.out);
   assert.equal(again.tool, "collect_video_media");
-  assert.deepEqual(keyframesOf(again), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
+  assert.deepEqual(keyframesOf(again), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, quick_above_s: 180 });
   assert.equal(again.arguments.run_key, call.arguments.run_key);
   assert.equal((await readJson(path.join(run, "collect-media.json"))).frame_options_refused, true);
   const { out } = await driveFrom(run, retriedAgain.out);
@@ -1728,7 +2138,7 @@ test("a server refusing the frame options (keyframes item validation_error, or -
   const repeated = shell(resumeOf(repeatedOnce.out));
   assert.equal(repeated.code, 0, repeated.out);
   assert.match(repeated.out, /did not accept include_shot_starts \/ dense_windows/);
-  assert.deepEqual(keyframesOf(callLines(repeated.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120 });
+  assert.deepEqual(keyframesOf(callLines(repeated.out)[0]), { url: TIKTOK, sampling: "duration_scaled", max_frames: 120, quick_above_s: 180 });
   // Inside collect_video_media a bad option fails only the keyframes item (validation_error) while the other items
   // run: that too repeats the call once without the options, and the newer keyframes result is the one used.
   const itemRun = await newRun(t);
@@ -2384,4 +2794,218 @@ test("audience-response without a summary (tool missing on this host, an error, 
   const uploadedRun = await sideRun(t, { focus: "audience-response", url: `kabo-file:${id}` });
   assert.equal(uploadedRun.handed.some((call) => call.tool === "summarize_video_comments"), false);
   assert.equal(uploadedRun.evidence.audience_response.status, "not_attempted");
+});
+
+// Long videos in two steps. By default the keyframes, measurement and transcript requests carry quick_above_s, so a
+// video past 180 s comes back as a quick, explicitly partial sample; `--depth deep` (only after the creator accepted
+// the offer) is the full pass, keyed by the link and the UTC date so a deep run begun again replays the same jobs.
+const QUICK_OPERATIONS = ["fetch_transcript", "extract_keyframes", "measure_media_signals"];
+const quickOf = (call) => Object.fromEntries(call.arguments.requests.map((request) => [request.operation, request.parameters.quick_above_s]));
+const deepKey = (url) => "acv-deep:" + createHash("sha256").update(`${url}|${new Date().toISOString().slice(0, 10)}`).digest("hex").slice(0, 32);
+
+test("quick by default: every sampled operation of a link carries quick_above_s 180, never the metadata; a transcript export and an uploaded file carry none", async (t) => {
+  for (const mode of ["diagnosis", "content_read", "craft_teardown"]) {
+    const run = await newRun(t);
+    const [call] = callLines(python("observe_video.py", ["--url", TIKTOK, "--mode", mode], run).out);
+    assert.deepEqual(quickOf(call), { collect_public_metadata: undefined, fetch_transcript: 180, extract_keyframes: 180,
+      ...(mode === "content_read" ? {} : { measure_media_signals: 180 }) }, mode);
+    assert.match(call.arguments.run_key, /^acv:[0-9a-f]{32}$/);
+    const media = await readJson(path.join(run, "collect-media.json"));
+    assert.deepEqual([media.depth, media.quick_above_s], ["quick", 180]);
+  }
+  const exported = await newRun(t);
+  const [exportCall] = callLines(python("observe_video.py", ["--url", TIKTOK, "--mode", "transcript_export"], exported).out);
+  assert.deepEqual(exportCall.arguments.requests.map((request) => "quick_above_s" in request.parameters), [false]);
+  const uploaded = await newRun(t);
+  const [uploadCall] = callLines(python("observe_video.py", ["--url", `kabo-file:${uuid(9)}`, "--mode", "diagnosis"], uploaded).out);
+  assert.equal(uploadCall.arguments.requests.some((request) => "quick_above_s" in request.parameters), false);
+  // The threshold is the one constant, and the contract takes it on the three operations.
+  const tools = new Map(JSON.parse(readFileSync(path.join(root, "contracts/directory-mcp/tools-list.json"), "utf8")).tools.map((tool) => [tool.name, tool]));
+  for (const name of ["public_video_extract_keyframes", "public_video_fetch_transcript", "public_video_measure_media_signals"]) {
+    const quick = tools.get(name).inputSchema.properties.parameters.properties.quick_above_s;
+    assert.deepEqual([quick.type, quick.minimum, quick.maximum], ["integer", 30, 3600], name);
+    assert.ok(quick.minimum <= 180 && 180 <= quick.maximum);
+  }
+});
+
+test("deep: no quick threshold, the run key is the link and the UTC date, fixed at the first hand-over and the same in a second run", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "kabo-acv-deep-"));
+  if (!process.env.KEEP) t.after(() => rm(workspace, { recursive: true, force: true }));
+  const runs = [];
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const begun = python("begin_analysis.py", ["--workspace", workspace, "--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+      "--question", "", "--confirmed-by-user", "--depth", "deep"], workspace);
+    assert.equal(begun.code, 0, begun.out);
+    const [call] = callLines(begun.out);
+    assert.equal(call.arguments.run_key, deepKey(TIKTOK));
+    assert.equal(call.arguments.requests.some((request) => "quick_above_s" in request.parameters), false);
+    runs.push(/^Run directory: (\/.+)$/m.exec(begun.out)[1]);
+  }
+  const [first, second] = await Promise.all(runs.map((run) => readJson(path.join(run, "collect-media.json"))));
+  assert.equal(first.depth, "deep");
+  assert.equal((await readJson(path.join(runs[0], "observe-video.json"))).depth, "deep");
+  // The second run counts the wait from when the first asked for the same jobs.
+  assert.equal(second.deep_started_at, first.deep_started_at);
+});
+
+// The frames of a 111-minute video still running after the first wait: the full pass (0.06 x 6660 + 40 = 440 s) cannot
+// arrive inside the 270-second deadline, so a deep run stops waiting instead of cutting the frames short.
+test("deep_pending: a deep run whose frames cannot arrive in time names the running jobs for the host, writes nothing, and the same command continues the same jobs", async (t) => {
+  const question = "why does the middle drag?";
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--confirmed-by-user", "--duration-s", "6660", "--depth", "deep"]);
+  const [call] = callLines(begun.out);
+  const files = slotFiles(begun.out);
+  await writeFile(files[0], mcp(withPending(call.arguments, ["fetch_transcript", "extract_keyframes"])));
+  await writeFile(files[1], mcp(SONG.noMatch));
+  const stopped = shell(resumeOf(begun.out));
+  assert.equal(stopped.code, 0, stopped.out);
+  const lines = stopped.out.trimEnd().split("\n");
+  const status = JSON.parse(lines[0]);
+  assert.equal(status.status, "deep_pending");
+  assert.deepEqual(status.pending, [`fetch_transcript=${uuid(2)}`, `extract_keyframes=${uuid(3)}`]);
+  assert.equal(status.minutes_left, 8);
+  assert.equal(lines[1], `deep_analysis_pending: ${JSON.stringify({ jobs: [uuid(2), uuid(3)], url: TIKTOK, question })}`);
+  assert.match(lines[2], /^The full analysis is still running on Kabo's side: about 8 more minutes for this 111-minute video\. .*Write no report and no answer about the video in this turn\. Tell the creator, in their language/);
+  assert.doesNotMatch(stopped.out, /^(?:Hand-over|call): /m);
+  assert.equal(existsSync(path.join(run, "analysis/content_evidence.json")), false);
+  assert.equal((await readJson(path.join(run, "observe-video.json"))).deep_pending.jobs.length, 2);
+
+  // The same command (the one printed, or begin_analysis.py again in this run) hands the same media call over again.
+  const again = lines[2].slice(lines[2].indexOf("cd '"));
+  assert.match(again, /'--depth' 'deep'$/);
+  const continued = shell(again);
+  assert.equal(continued.code, 0, continued.out);
+  const [repeat] = callLines(continued.out);
+  assert.deepEqual(repeat.arguments, call.arguments);
+  assert.equal(callLines(continued.out).length, 1, "the song is not asked for twice");
+  const { out } = await driveWith(run, continued.out, { media: (args) => composite(args, { duration: 6660 }) });
+  assert.match(out, /"status": "observed"/);
+  assert.match(out, /^Envelopes included: /m);
+  // A rerun of the whole begin command in this run continues the same way.
+  const fresh = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "diagnosis",
+    "--question", question, "--confirmed-by-user", "--duration-s", "6660", "--depth", "deep"]);
+  await writeFile(slotFiles(fresh.begun.out)[0], mcp(withPending(callLines(fresh.begun.out)[0].arguments, ["extract_keyframes"])));
+  assert.match(shell(resumeOf(fresh.begun.out)).out, /"status": "deep_pending"/);
+  const rebegun = shell(`cd '${fresh.run}' && python3 -B '${path.join(scripts, "begin_analysis.py")}' --url '${TIKTOK}' --subject-state unknown `
+    + `--mode diagnosis --question '${question}' --confirmed-by-user --duration-s 6660 --depth deep`);
+  assert.equal(rebegun.code, 0, rebegun.out);
+  assert.equal(callLines(rebegun.out)[0].arguments.run_key, deepKey(TIKTOK));
+});
+
+test("deep run: frames that fit keep the normal wait, and frames still running when no wait fits end deep_pending, never timed_out", async (t) => {
+  // A 200-second video: the full pass (52 s) fits, so the same call is handed over again.
+  const short = await newRun(t);
+  const first = python("observe_video.py", ["--url", TIKTOK, "--mode", "content_read", "--duration-s", "200", "--depth", "deep"], short);
+  await writeFile(slotFiles(first.out)[0], mcp(withPending(callLines(first.out)[0].arguments, ["extract_keyframes"])));
+  const waiting = shell(resumeOf(first.out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
+  assert.match(waiting.out, /^Still running: 1 media job\(s\) are still running\. Keep waiting\.$/m);
+  // Past the deadline with the frames still running: deep_pending, not a report without frames.
+  await writeFile(slotFiles(waiting.out)[0], mcp(withPending(callLines(waiting.out)[0].arguments, ["extract_keyframes"])));
+  await startedAgo(short, DEADLINE_S + 10);
+  const late = shell(resumeOf(waiting.out).replace("'--placed'", "'--placed' --poll-sleep-s 0"));
+  assert.match(late.out, /^\{"status": "deep_pending"/);
+  assert.doesNotMatch(late.out, /timed_out|did not arrive in time/);
+  // A quick run in the same situation still ends timed_out, as before.
+  const quick = await newRun(t);
+  const begun = python("observe_video.py", ["--url", TIKTOK, "--mode", "content_read", "--duration-s", "200"], quick);
+  await writeFile(slotFiles(begun.out)[0], mcp(withPending(callLines(begun.out)[0].arguments, ["extract_keyframes"])));
+  await startedAgo(quick, DEADLINE_S + 10);
+  assert.match(shell(resumeOf(begun.out).replace("'--placed'", "'--placed' --poll-sleep-s 0")).out, /"status": "observed"/);
+});
+
+// The quick sample in the backend's shape (kabo-sh/kabo#2474): 24 frames at fixed moments of an 18-minute video, no
+// overview, the first 60 s measured (also carried as the frames' signals) and, without platform captions, the first
+// 180 s heard.
+const QUICK_TIMES = [0, 1, 2, 3, 5, 8, 12, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 540, 660, 780, 900, 960, 1020, 1075];
+const COVERED = (to) => ({ mode: "partial", covered_s: [0, to], duration_s: 1080.2 });
+function quickComposite(args, { captions = false } = {}) {
+  const value = composite(args, { duration: 1080 });
+  for (const call of value.calls) {
+    const result = call.result;
+    if (result.operation === "extract_keyframes") {
+      const frames = QUICK_TIMES.map((t, i) => ({ frame_id: `frame-quick-${String(i).padStart(3, "0")}`, t_seconds: t, bytes: 100,
+        sha256: "c".repeat(64), object_ref: `creator-media/${result.job_id}/epoch-1/frame-quick-${String(i).padStart(3, "0")}.jpg` }));
+      result.data = { frame_count: 24, selection: "quick_sample_v1", duration_s: 1080.2, sampling_plan: null,
+        sampling: { mode: "quick", above_s: 180, frames: 24, duration_s: 1080.2, times_s: QUICK_TIMES }, frames,
+        artifacts: frames.map((f) => ({ kind: "keyframes", bytes: 100, sha256: f.sha256, object_ref: f.object_ref })),
+        signals: { shots: { count: 2, cuts_at_s: [12.5], shots: [{ start_s: 0, end_s: 12.5 }, { start_s: 12.5, end_s: 60 }] }, coverage: COVERED(60) } };
+      result.limitations = ["Quick sample: 24 frames at fixed moments across the video; the full pass was not run."];
+    } else if (result.operation === "measure_media_signals") {
+      result.data.coverage = COVERED(60);
+    } else if (result.operation === "fetch_transcript") {
+      if (captions) result.data.origin = "platform_captions";
+      else result.data.coverage = COVERED(180);
+    }
+  }
+  return value;
+}
+async function quickRun(t, mode, options) {
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", mode, "--question", "",
+    "--confirmed-by-user"]);
+  const { out } = await driveWith(run, begun.out, { media: (args) => quickComposite(args, options), side: { identify_video_song: SONG.noMatch } });
+  return { run, out, evidence: await readJson(path.join(run, "analysis/content_evidence.json")), brief: await readBrief(run) };
+}
+
+test("quick first read: the sample, the speech heard and the measured opening reach the evidence, and the brief states them with the rule and, for a diagnosis, leaves the offer to the report", async (t) => {
+  const { run, out, evidence, brief } = await quickRun(t, "diagnosis");
+  assertValidEvidence(evidence);
+  assert.equal(evidence.frames.selection, "quick_sample_v1");
+  assert.deepEqual(evidence.frames.sampling, { mode: "quick", above_s: 180, frames: 24, duration_s: 1080.2, times_s: QUICK_TIMES });
+  assert.deepEqual(evidence.transcript.coverage, COVERED(180));
+  assert.deepEqual(evidence.media.probed.coverage, COVERED(60));
+  assert.equal(evidence.frames.items.length, 24);
+  assert.ok(out.includes("### Quick first read of a long video"), "the printed brief carries it");
+  const index = section(brief, 3);
+  assert.match(index, /### Quick first read of a long video\n\n- Frames: 24 frames at fixed moments across the 18-minute video \(0s, 1s, 2s, .*, 1075s\), not the full pass\. Nothing between those moments was seen\./);
+  assert.match(index, /- Speech: heard only for 0s–180s \(`transcript\.coverage`\); nothing said after that was heard\./);
+  assert.match(index, /- Measurements \(cuts, silence, freezes, framing, brightness, loudness\): the first 60s only \(`media\.probed\.coverage`\), not the whole 1080\.2s\./);
+  assert.match(index, /- Rule: frame any judgment about a stretch that was not sampled as not observed in this quick read\./);
+  assert.match(index, /The final step closes the report with one paragraph saying this was a quick first read/);
+  assert.doesNotMatch(index, /with this paragraph/);
+  // The report's closing paragraph comes from the same facts.
+  const quick = JSON.parse(spawnSync("python3", ["-I", "-B", "-c", "import json, sys; sys.path.insert(0, sys.argv[1]); "
+    + "import report_locale as r; print(json.dumps(r.quick_read(json.load(open(sys.argv[2])))))", scripts,
+  path.join(run, "analysis/content_evidence.json")], { encoding: "utf8" }).stdout);
+  assert.deepEqual(quick, { duration_s: 1080.2, minutes: 18, frames: 24, speech: "partial", heard_minutes: 3, eta_minutes: 3 });
+});
+
+test("quick first read, content read and craft teardown: the brief hands over the closing offer word for word in every report language; platform captions are named as whole", async (t) => {
+  for (const mode of ["content_read", "craft_teardown"]) {
+    const { evidence, brief } = await quickRun(t, mode, { captions: true });
+    assertValidEvidence(evidence);
+    assert.equal("coverage" in evidence.transcript, false);
+    const index = section(brief, 3);
+    assert.match(index, /- Speech: the platform's captions, for the whole video\./);
+    assert.match(index, mode === "craft_teardown"
+      ? /- End the report with this paragraph, after its line on what it rests on, unchanged, in the creator's language/
+      : /- End your answer with this paragraph, after any other offer, unchanged, in the creator's language/);
+    assert.ok(index.includes("  - zh: 这是对这条 18 分钟视频的快速初看：全片抽看了 24 张画面，台词用的是平台字幕。完整分析大约需要 3 分钟，会再用一次视频额度；回复“深度分析”即可开始。"), mode);
+    assert.ok(index.includes("  - en: This is a quick first read of this 18-minute video: 24 frames sampled across it, the speech from the platform's captions. A full analysis takes about 3 minutes and uses one more video credit; reply \"full analysis\" to start it."), mode);
+    assert.equal(index.match(/^  - [a-z]{2}: /gm).length, 12);
+    assert.doesNotMatch(index, /The final step closes the report/);
+  }
+});
+
+test("a full pass (no sampling block, no coverage) adds no quick lines and no offer", async (t) => {
+  const { run, begun } = await beginInWorkspace(t, ["--url", TIKTOK, "--subject-state", "unknown", "--mode", "content_read", "--question", "",
+    "--confirmed-by-user"]);
+  await driveWith(run, begun.out);
+  const brief = await readBrief(run);
+  assert.doesNotMatch(brief, /Quick first read|full analysis/);
+});
+
+test("quick first read, diagnosis end to end: the finished report ends with the offer and passes every gate", async (t) => {
+  const { run } = await quickRun(t, "diagnosis");
+  const judgment = { ...JUDGMENT, observations: [{ ...JUDGMENT.observations[0], evidence_refs: ["frame-quick-000"] }] };
+  await writeFile(path.join(run, "analysis/video_judgment.json"), JSON.stringify(judgment));
+  await writeFile(path.join(run, "analysis/creator_view.json"), JSON.stringify(creatorView()));
+  const finished = python("finish_diagnosis.py", ["--run-dir", run, "--check", "--finish-if-ready"], run);
+  assert.equal(finished.code, 0, finished.out);
+  const report = await readFile(path.join(run, "report/VIDEO_DIAGNOSIS.md"), "utf8");
+  assert.equal(report.trimEnd().split("\n\n").at(-1), "This is a quick first read of this 18-minute video: 24 frames sampled across it, the speech heard "
+    + "for the first 3 minutes only. A full analysis takes about 3 minutes and uses one more video credit; reply \"full analysis\" to start it.");
+  const result = await readJson(path.join(run, "analysis/creator-task-result.json"));
+  assert.deepEqual(result.details.quick_read, { duration_s: 1080.2, minutes: 18, frames: 24, speech: "partial", heard_minutes: 3, eta_minutes: 3 });
+  assert.match(result.creator_view.data_note, /^TikTok video; 24 extracted frames; 1 cited frame refs; /);
 });

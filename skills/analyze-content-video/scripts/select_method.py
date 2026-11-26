@@ -152,6 +152,19 @@ def requested_focus(method: dict[str, Any]) -> list[str]:
                    if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"] not in kept]
 
 
+def cards_for_word(index: dict[str, Any], word: str) -> list[str]:
+    """The topic cards whose focus terms hold this word (the creator's word passed where a card id belongs)."""
+    word = word.strip().lower().replace("-", " ").replace("_", " ")
+    forms = {word, word.removesuffix("s")} - {""}
+    found = []
+    for card in index["cards"]:
+        terms = [str(term).lower() for terms in (card.get("focus_terms") or {}).values() for term in terms]
+        words = {part for term in terms for part in term.split()} | set(terms) | set(card["id"].split("-"))
+        if card.get("topic") and forms & words:
+            found.append(card["id"])
+    return found
+
+
 def frame_plan(cards: list[dict[str, Any]]) -> dict[str, Any]:
     """The kept cards' frame hints, merged: shot starts on unless a card turns them off, dense windows in card order."""
     windows: list[dict[str, Any]] = []
@@ -183,13 +196,18 @@ def select(index: dict[str, Any], mode: str, focus: list[str], evidence: dict[st
     unknown = [item for item in focus if item not in cards]
     if unknown:
         topics = ", ".join(card["id"] for card in index["cards"] if card.get("topic"))
-        raise SelectionError(f"unknown method card id(s): {', '.join(unknown)}. Topic cards are: {topics}")
+        hints = [f"{item} -> {', '.join(found)}" for item in unknown if (found := cards_for_word(index, item))]
+        raise SelectionError(f"unknown method card id(s): {', '.join(unknown)}. Topic cards are: {topics}"
+                             + (". --focus takes card ids, not the creator's words: " + "; ".join(hints)
+                                if hints else ""))
     not_topic = [item for item in focus if not cards[item].get("topic")]
     if not_topic:
         raise SelectionError(f"{', '.join(not_topic)} is a base card, not a topic: it is included by its mode, "
                              "never passed with --focus")
     if len(focus) > MAX_TOPICS:
-        raise SelectionError(f"at most {MAX_TOPICS} topic cards; got {len(focus)}")
+        raise SelectionError(f"at most {MAX_TOPICS} topic cards; got {len(focus)} ({', '.join(focus)}): pass the "
+                             f"{MAX_TOPICS} the creator's question leans on most (the base card already reads the "
+                             "whole video in general)")
     if mode == "transcript_export" and focus:
         raise SelectionError("a transcript export reads no method cards; pass no --focus")
     have = set(EVIDENCE_KINDS) if evidence is None else present_kinds(evidence)

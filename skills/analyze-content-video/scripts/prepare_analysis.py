@@ -22,6 +22,16 @@ sections 1-4 and prints that brief, so it needs no separate read. A requested to
 is skipped: section 3 says so, and its text in section 5 does not apply. When `analysis/rules.md` is missing or no
 longer matches the request (a local file, which has no begin step, or a different `--focus`), it is written again
 here and the output says to read it. This is the only place a brief is assembled.
+
+A default diagnosis (no topic card, no special ask) always gets the same sections 5-7. That text ships as
+`references/diagnosis-rules.md` (generated from `default_rules()`; a test fails when it drifts), which a host may
+preload into the model's context. When a run's `analysis/rules.md` is byte-identical to it, the output names that
+reference instead (`rules_source`), so the model reads nothing it already holds. A diagnosis with topic cards differs
+from it only in section 5, where the cards take the place of the default's opening line ("No topic card was asked
+for: ..."); when that is the whole difference, checked on the text itself (`topic_cards`), the brief ends with those
+cards exactly as `analysis/rules.md` holds them and the output names the reference plus those cards, so such a run
+needs no read of `analysis/rules.md` either. Any other difference (another mode, a special ask) keeps the run's own
+file.
 """
 from __future__ import annotations
 
@@ -39,6 +49,7 @@ SKILL = SCRIPTS.parent
 sys.path.insert(0, str(SCRIPTS))
 import acv_timing  # noqa: E402
 import observation_order  # noqa: E402
+import report_locale  # noqa: E402
 import select_method  # noqa: E402
 import transcript_checks  # noqa: E402
 
@@ -79,9 +90,25 @@ NEXT = {
 }
 # Sections 5-7 of the brief, written before the fetch; sections 1-4 are analysis/brief.md.
 RULES = "rules.md"
+# Sections 5-7 of a default diagnosis, shipped with the Skill so a host can preload them (default_rules()).
+DEFAULT_RULES = SKILL / "references" / "diagnosis-rules.md"
+DEFAULT_RULES_NAME = "references/diagnosis-rules.md"
+# Sections 5-7 of a diagnosis with topic cards that differ from DEFAULT_RULES only by those cards (topic_cards()).
+CARDS_SOURCE = DEFAULT_RULES_NAME + " + topic cards"
+# The line section 5 of a default diagnosis opens with (method_section); with topic cards it is not there.
+DEFAULT_ONLY = "No topic card was asked for: the base card alone gives the default analysis."
 DIAGNOSIS_REPORT = SKILL / "references" / "diagnosis-report.md"
-# The measured signals worth a line in the index; the rest of media.probed stays in the evidence file.
+# The measured signals printed whole in the index; every other media.probed group gets a compact line
+# (probed_lines), so the index holds every measured value an analysis cites.
 PROBED_SUMMARY = ("shots", "silence", "freeze", "framing")
+# The opening of section 3: it lists every citable reference with its value, so neither evidence file needs a read.
+INDEX_NOTE = ("This index lists every citable reference with its value: cite each exactly as written here (any "
+              "field of a measured group as `media.probed.<group>.<field>`, a list item by its position, such as "
+              "`media.probed.silence.spans[0]`). The evidence files "
+              "(`analysis/content_evidence.json`, `analysis/content_evidence.references.json`) are what the "
+              "reference check validates against; they need no read.")
+# Past this many shots the brightness line names the darkest and brightest shots instead of every one.
+PER_SHOT_LIMIT = 40
 # A sound cue in a transcript: a bracketed tag such as [Music] (in any language) or a music note.
 SOUND_MARKER = re.compile(r"\[[^\[\]\n]{1,40}\]|[\u266a\u266b\u266c]")
 # Whole-video note aspects that are about what was heard ("Audio Integration", "Audio Quality", "Voice", ...).
@@ -237,9 +264,7 @@ def transcript_lines(transcript: dict[str, Any]) -> list[str]:
 
 def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[str, Any],
                    request: dict[str, Any] | None = None) -> list[str]:
-    lines = [f"Observation source: {source or 'unknown'}. Evidence `{evidence.get('evidence_id')}`. The complete "
-             "list of legal references is `analysis/content_evidence.references.json`; the values are in "
-             "`analysis/content_evidence.json`.", ""]
+    lines = [f"Observation source: {source or 'unknown'}. Evidence `{evidence.get('evidence_id')}`. {INDEX_NOTE}", ""]
     late = late_lines(evidence)
     if late:
         lines += ["### Did not arrive in time", ""] + [f"- {one_line(text)}" for text in late] + [
@@ -251,6 +276,7 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
                   "- Say this plainly in the first lines of what the creator reads: the video's picture and sound could "
                   "not be fetched this time, so the answer rests on the post's title, caption and public counts. The "
                   "video is not deleted or private; never describe what it shows or says.", ""]
+    lines += quick_lines(evidence, method.get("mode"))
     for skipped in method.get("skipped") or []:
         lines.append(f"Method card `{skipped['id']}` was skipped: {skipped['reason']}.")
     if method.get("skipped"):
@@ -282,6 +308,7 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
         lines.append(f"- `public_metrics.{metric['native_name']}` = {metric.get('value')}")
     for item in evidence.get("derived") or []:
         lines.append(f"- `derived.{item['name']}` = {item.get('value')}")
+    lines += owner_lines(evidence)
     lines += [""] + sound_lines(evidence)
     if "audience_response" in evidence or any(card.get("id") == AUDIENCE_CARD for card in method.get("cards") or []):
         lines += audience_lines(evidence)
@@ -369,14 +396,144 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
             if isinstance(value, dict):
                 shown = {key: item for key, item in value.items() if key != "shots" or len(json.dumps(item)) < 4000}
                 lines.append(f"- `media.probed.{name}`: {json.dumps(shown, ensure_ascii=False)}")
-        others = sorted(set(probed) - set(PROBED_SUMMARY))
-        if others:
-            lines.append(f"- also measured, read from the evidence file: {', '.join(f'`media.probed.{n}`' for n in others)}")
+        lines += probed_lines(probed)
         lines.append("")
+    lines += discrepancy_lines(media) + acquisition_lines(evidence)
     if evidence.get("limitations"):
         lines += ["### Limitations already recorded", ""]
         lines += [f"- {one_line(text)}" for text in evidence["limitations"]]
         lines.append("")
+    return lines
+
+
+def number(value: Any) -> str:
+    return f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
+
+
+def brightness_line(block: dict[str, Any]) -> str:
+    """The measured brightness (mean luma, 0-255): the whole video and each shot, as `per_shot[i]`."""
+    whole = block.get("whole_video") or {}
+    parts = [f"{block.get('samples')} samples"]
+    if isinstance(whole, dict) and whole.get("mean_luma") is not None:
+        parts.append(f"whole video mean luma {number(whole['mean_luma'])} (`.whole_video`)")
+    shots = [(index, item) for index, item in enumerate(block.get("per_shot") or []) if isinstance(item, dict)]
+    if shots and len(shots) <= PER_SHOT_LIMIT:
+        parts.append("per shot (`.per_shot[i]` = shot index: mean luma) "
+                     + ", ".join(f"[{index}] shot {item.get('shot_index')}: {number(item.get('mean_luma'))}"
+                                 for index, item in shots))
+    elif shots:
+        lit = [(index, item) for index, item in shots if isinstance(item.get("mean_luma"), (int, float))]
+        ends = [min(lit, key=lambda pair: pair[1]["mean_luma"]), max(lit, key=lambda pair: pair[1]["mean_luma"])] if lit else []
+        parts.append(f"{len(shots)} shots in `.per_shot[i]`"
+                     + "".join(f"; {label} `.per_shot[{index}]` shot {item.get('shot_index')}: {number(item['mean_luma'])}"
+                               for label, (index, item) in zip(("darkest", "brightest"), ends)))
+    return "- `media.probed.brightness` (mean luma, 0-255): " + "; ".join(parts)
+
+
+def loudness_line(block: dict[str, Any]) -> str:
+    """The momentary-loudness summary: every field the evidence holds, by its own name."""
+    fields = ", ".join(f"{key} {number(value)}" for key, value in block.items() if value is not None)
+    return f"- `media.probed.loudness` (momentary loudness summary; `.<field>`): {fields}"
+
+
+def probed_lines(probed: dict[str, Any]) -> list[str]:
+    """Every measured group not printed whole above, compactly, with its citable name."""
+    lines = []
+    for name in sorted(set(probed) - set(PROBED_SUMMARY)):
+        value = probed[name]
+        if name == "loudness" and isinstance(value, dict):
+            lines.append(loudness_line(value))
+        elif name == "brightness" and isinstance(value, dict):
+            lines.append(brightness_line(value))
+        elif name == "mean_volume_db":
+            lines.append(f"- `media.probed.mean_volume_db` = {number(value)} (the loudness mean)")
+        elif isinstance(value, list):
+            lines.append(f"- `media.probed.{name}`: {', '.join(map(str, value)) or 'none'}")
+        else:
+            text = json.dumps(value, ensure_ascii=False)
+            lines.append(f"- `media.probed.{name}`: " + (text if len(text) <= 600 else
+                         "fields " + ", ".join(f"`.{key}`" for key in value) if isinstance(value, dict) else text[:600]))
+    return lines
+
+
+def owner_lines(evidence: dict[str, Any]) -> list[str]:
+    """The owner's own metrics, when an owner export or connector supplied them: each by its citable name."""
+    block = evidence.get("owner_metrics") or {}
+    items = [item for item in block.get("items") or [] if isinstance(item, dict) and item.get("native_name")]
+    if not items:
+        return []
+    lines = [f"- owner metrics ({block.get('status')}, {block.get('source_mode')}):"]
+    for item in items:
+        extra = [str(item[key]) for key in ("unit", "period") if item.get(key)]
+        if item.get("denominator_known") is False:
+            extra.append("population unknown")
+        lines.append(f"  - `owner_metrics.{item['native_name']}` = {number(item.get('value'))}"
+                     + (f" {item.get('status')}" if item.get("status") != "available" else "")
+                     + (f" ({', '.join(extra)})" if extra else ""))
+    return lines
+
+
+def discrepancy_lines(media: dict[str, Any]) -> list[str]:
+    items = [item for item in media.get("discrepancies") or [] if isinstance(item, dict)]
+    if not items:
+        return []
+    return ["### Declared against delivered", ""] + [
+        f"- `media.discrepancies[{index}]` {item.get('field')}: declared {json.dumps(item.get('declared'))}, "
+        f"observed {json.dumps(item.get('observed'))}" + (f" ({one_line(item['note'])})" if item.get("note") else "")
+        for index, item in enumerate(items)] + [""]
+
+
+def acquisition_lines(evidence: dict[str, Any]) -> list[str]:
+    """Each acquisition step, citable as `acquisition[i]`: what it fetched or measured and how it ended."""
+    steps = [item for item in evidence.get("acquisition") or [] if isinstance(item, dict)]
+    if not steps:
+        return []
+    return ["### Acquisition steps", "", "- " + "; ".join(
+        f"`acquisition[{index}]` {item.get('operation')}" + (f" ({item['tool']})" if item.get("tool") else "")
+        + f" {item.get('status')}" for index, item in enumerate(steps)), ""]
+
+
+def quick_lines(evidence: dict[str, Any], mode: str | None) -> list[str]:
+    """What a quick first read of a long video saw and heard, the rule for what it did not, and the offer of a full
+    analysis; nothing when every part of the evidence covers the whole video."""
+    quick = report_locale.quick_read(evidence)
+    transcript = (evidence.get("transcript") or {}).get("coverage") or {}
+    probed = ((evidence.get("media") or {}).get("probed") or {}).get("coverage") or {}
+    if quick is None and not transcript and not probed:
+        return []
+    lines = ["### Quick first read of a long video", ""]
+    duration = (evidence.get("media") or {}).get("duration_s")
+    if quick is not None:
+        times = ((evidence.get("frames") or {}).get("sampling") or {}).get("times_s") or []
+        lines.append(f"- Frames: {quick['frames']} frames at fixed moments across the {quick['minutes']}-minute "
+                     f"video ({', '.join(seconds(t) for t in times)}), not the full pass. Nothing between those "
+                     "moments was seen.")
+    if transcript:
+        lines.append(f"- Speech: heard only for {seconds(transcript['covered_s'][0])}–{seconds(transcript['covered_s'][1])}"
+                     f" (`transcript.coverage`); nothing said after that was heard.")
+    elif quick is not None:
+        lines.append({"captions": "- Speech: the platform's captions, for the whole video.",
+                      "full": "- Speech: heard for the whole video.",
+                      "none": "- Speech: no transcript arrived."}.get(quick["speech"], "- Speech: as section 3 lists."))
+    if probed:
+        lines.append(f"- Measurements (cuts, silence, freezes, framing, brightness, loudness): the first "
+                     f"{seconds(probed['covered_s'][1])} only (`media.probed.coverage`), not the whole "
+                     + (f"{duration:g}s." if isinstance(duration, (int, float)) else "video."))
+    lines.append("- Rule: frame any judgment about a stretch that was not sampled as not observed in this quick read. "
+                 "Never state the whole video's pacing, structure, cut rhythm or retention shape from it, and never "
+                 "spread a count from the measured opening over the full length.")
+    if quick is not None and mode == "diagnosis":
+        lines.append("- The final step closes the report with one paragraph saying this was a quick first read and "
+                     "offering the full analysis, its time and its one more video credit: do not write that offer "
+                     "yourself, in the summary, the cards or the next actions.")
+    elif quick is not None:
+        where = ("End the report with this paragraph, after its line on what it rests on"
+                 if mode == "craft_teardown" else "End your answer with this paragraph, after any other offer")
+        lines.append(f"- {where}, unchanged, in the creator's language (the line for their language; for a language "
+                     "not listed, translate the English one):")
+        lines += [f"  - {code}: {report_locale.quick_paragraph(quick, code)}"
+                  for code in report_locale.QUICK_LANGUAGES]
+    lines.append("")
     return lines
 
 
@@ -526,6 +683,14 @@ def audio_lines(audio: dict[str, Any]) -> list[str]:
              + (f"; not measured: {', '.join(item.get('measure', '') for item in audio.get('skipped') or [])}"
                 if audio.get("skipped") else "")
              + (f"; stopped early at {json.dumps(audio['measured_until_s'])}" if audio.get("measured_until_s") else "")]
+    for name, block in audio.items():
+        # Each measured block is citable as `media.audio.<name>`: its single numbers, never its lists or series.
+        if name in ("findings", "listen_check", "thresholds") or not isinstance(block, dict):
+            continue
+        scalars = [f"{key} {number(value)}" for key, value in block.items()
+                   if value is not None and not isinstance(value, (dict, list))]
+        if scalars:
+            lines.append(f"  `media.audio.{name}`: {', '.join(scalars)}")
     findings = [item for item in audio.get("findings") or [] if isinstance(item, dict)]
     if findings:
         lines.append("  Findings (measured, threshold cleared; cite `media.audio.findings[i]`):")
@@ -558,7 +723,7 @@ def method_section(method: dict[str, Any], library: Path, index: dict[str, Any])
     named in section 3, never removed here, so this section never changes once the evidence arrives."""
     lines = []
     if method.get("default_only"):
-        lines += ["No topic card was asked for: the base card alone gives the default analysis.", ""]
+        lines += [DEFAULT_ONLY, ""]
     for card in method["cards"]:
         text = select_method.card_text(library, index, card["id"]).lstrip()
         if text.startswith("# "):
@@ -625,9 +790,76 @@ def write_rules(analysis: Path, mode: str, focus: list[str], ask: str | None = N
     return True
 
 
+def default_rules(library: Path = select_method.LIBRARY) -> str:
+    """Sections 5-7 of a default diagnosis: no topic card and no special ask. `references/diagnosis-rules.md` is
+    exactly this text."""
+    index = select_method.load_index(library)
+    return rules("diagnosis", select_method.select(index, "diagnosis", [], None, None), library, index)
+
+
+def topic_cards(analysis: Path) -> str | None:
+    """This run's topic cards in section 5, exactly as `analysis/rules.md` holds them, when that file is
+    `references/diagnosis-rules.md` with only the default's opening line of section 5 (DEFAULT_ONLY) left out and
+    these cards added after the base card, every other byte the same (the base card, sections 6-7, the head).
+    None when the file is missing, is the default itself or differs in any other way."""
+    try:
+        text = (analysis / RULES).read_text(encoding="utf-8")
+        default = DEFAULT_RULES.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    cut = default.find("\n## 6. Judgment rules\n")
+    line = "\n" + DEFAULT_ONLY + "\n\n"
+    if cut < 0 or default.count(line) != 1 or default.index(line) > cut:
+        return None
+    head, tail = default[:cut + 1].replace(line, "\n", 1), default[cut + 1:]
+    if text == default or len(text) <= len(head) + len(tail) or not (text.startswith(head) and text.endswith(tail)):
+        return None
+    cards = text[len(head):len(text) - len(tail)]
+    return cards.rstrip("\n") if cards.startswith("### ") else None
+
+
+def rules_source(analysis: Path) -> str:
+    """Where this run's sections 5-7 are to be read: `references/diagnosis-rules.md` when `analysis/rules.md` is
+    byte-identical to it (a default diagnosis), that file plus the topic cards the brief prints (CARDS_SOURCE) when
+    they are the only difference (topic_cards), otherwise `analysis/rules.md`."""
+    try:
+        if (analysis / RULES).read_bytes() == DEFAULT_RULES.read_bytes():
+            return DEFAULT_RULES_NAME
+    except OSError:
+        pass
+    if topic_cards(analysis) is not None:
+        return CARDS_SOURCE
+    return f"analysis/{RULES}"
+
+
+def rules_line(source: str, *, now: bool) -> str:
+    """One sentence naming where sections 5-7 are and whether they still need a read."""
+    when = "now" if now else "while the evidence arrives"
+    if source == DEFAULT_RULES_NAME:
+        return (f"Sections 5-7 are {DEFAULT_RULES_NAME} (this run's analysis/{RULES} is the same text): no read "
+                f"when it is already in your context, otherwise read it whole {when}.")
+    if source == CARDS_SOURCE:
+        return (f"Sections 5-7 are {DEFAULT_RULES_NAME} plus this run's topic cards, which the brief prints at its "
+                "end (in section 5 they follow the base card, in place of the line \"No topic card was asked "
+                f"for\"): do not read analysis/{RULES}; read {DEFAULT_RULES_NAME} whole {when} only when it is not "
+                "already in your context.")
+    return f"Sections 5-7 are analysis/{RULES}: read it whole {when}."
+
+
+def cards_block(cards: str) -> list[str]:
+    """The end of the brief when sections 5-7 are CARDS_SOURCE: the topic cards, exactly as analysis/rules.md holds
+    them in its section 5."""
+    return ["## Topic cards for section 5", "",
+            f"This run's topic cards, exactly as section 5 of analysis/{RULES} holds them. In section 5 of "
+            f"`{DEFAULT_RULES_NAME}` they follow the base card, and its line \"{DEFAULT_ONLY}\" does not apply.", "",
+            cards, ""]
+
+
 def brief(question: str, mode: str, focus: list[str], method: dict[str, Any], evidence_lines: list[str],
-          deterministic_lines: list[str], subject_state: str = "unknown") -> str:
-    """Sections 1-4: the request and what the evidence holds."""
+          deterministic_lines: list[str], subject_state: str = "unknown", rules_path: str = f"analysis/{RULES}",
+          cards: str | None = None) -> str:
+    """Sections 1-4: the request and what the evidence holds; with `cards` (sections 5-7 are CARDS_SOURCE), the
+    topic cards after them."""
     ask = method.get("ask")
     sections = [
         ("1. Creator question", [question.strip() or "(no words beyond the link: a default analysis)", ""]),
@@ -639,11 +871,15 @@ def brief(question: str, mode: str, focus: list[str], method: dict[str, Any], ev
                                *evidence_lines]),
         ("4. Deterministic results", deterministic_lines),
     ]
+    where = (f"`{DEFAULT_RULES_NAME}`, with this run's topic cards (at the end of this brief) in its section 5"
+             if cards is not None else f"`{rules_path}`")
     out = ["# Analysis brief", "", "Sections 1-4, from this run's evidence. Sections 5-7 (method, judgment rules, "
-           f"output contract) are `analysis/{RULES}`. Together they are the only analysis instruction for this run.",
+           f"output contract) are {where}. Together they are the only analysis instruction for this run.",
            ""]
     for title, lines in sections:
         out += [f"## {title}", "", *lines]
+    if cards is not None:
+        out += cards_block(cards)
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -685,26 +921,35 @@ def main(argv: list[str] | None = None) -> int:
     try:
         (analysis / "method.json").write_text(json.dumps(method, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         source = acv_timing.load(analysis).get("observation_source")
+        rewritten = write_rules(analysis, args.mode, focus, ask, args.library)
+        where = rules_source(analysis)
         text = brief(question, args.mode, focus, method,
                      evidence_index(evidence, source, method, request), deterministic(run, args.mode, evidence, request),
-                     subject_state=str((request.get("source") or {}).get("subject_state") or "unknown"))
+                     subject_state=str((request.get("source") or {}).get("subject_state") or "unknown"),
+                     rules_path=where, cards=topic_cards(analysis) if where == CARDS_SOURCE else None)
         (analysis / "brief.md").write_text(text, encoding="utf-8")
-        rewritten = write_rules(analysis, args.mode, focus, ask, args.library)
     except (ValueError, OSError, KeyError, TypeError, RuntimeError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}, ensure_ascii=False))
         return 1
     acv_timing.append(analysis, "prepare", started)
-    print(json.dumps({"status": "ready", "brief": "analysis/brief.md", "rules": f"analysis/{RULES}",
+    print(json.dumps({"status": "ready", "brief": "analysis/brief.md", "rules": where,
                       "cards": [card["id"] for card in method["cards"]], "skipped": method["skipped"]},
                      ensure_ascii=False))
     # The brief itself, so it needs no read of its own.
     print(text, end="")
-    print(f"(End of analysis/brief.md; read the file only if the text above is cut off.) "
-          + (f"Sections 5-7 were just written to analysis/{RULES}: read it whole now, then {NEXT[args.mode]}."
-             if rewritten else
-             f"Sections 5-7 are analysis/{RULES}, read while the evidence arrived (read it whole now if you have "
-             f"not). Now {NEXT[args.mode]}."))
+    print(end_line(args.mode, where, rewritten))
     return 0
+
+
+def end_line(mode: str, where: str, rewritten: bool | None) -> str:
+    """The line after the printed brief: where sections 5-7 are, and what to write next."""
+    head = "(End of analysis/brief.md; read the file only if the text above is cut off.) "
+    if where in (DEFAULT_RULES_NAME, CARDS_SOURCE):
+        return head + rules_line(where, now=True) + f" Then {NEXT[mode]}."
+    if rewritten:
+        return head + f"Sections 5-7 were just written to analysis/{RULES}: read it whole now, then {NEXT[mode]}."
+    return (head + f"Sections 5-7 are analysis/{RULES}, read while the evidence arrived (read it whole now if you have "
+            f"not). Now {NEXT[mode]}.")
 
 
 if __name__ == "__main__":

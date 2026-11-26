@@ -21,6 +21,14 @@ test("a spec-compliant skill has no errors; allowed-tools covers the /mcp-pub to
   assert.deepEqual(rules(lintSkill("demo-skill", files, context)), []);
 });
 
+test("metadata.preload lists existing reference text files, separated by single spaces", () => {
+  const front = (list) => `name: demo-skill\ndescription: Analyze one public video.\nmetadata:\n  preload: "${list}"`;
+  const refs = { "references/a.md": "A\n", "references/b.md": "B\n", "scripts/run.py": "print('ok')\n" };
+  assert.deepEqual(rules(lintSkill("demo-skill", skill(front("references/a.md references/b.md"), "Run.\n", refs), context)), []);
+  for (const list of ["references/missing.md", "scripts/run.py", "references/a.md  references/b.md", "references/a.md references/a.md", ""])
+    assert.deepEqual(rules(lintSkill("demo-skill", skill(front(list), "Run.\n", refs), context)), ["KS1.4"], list);
+});
+
 test("errors when frontmatter does not match the open spec", () => {
   assert.deepEqual(rules(lintSkill("demo-skill", skill("name: demo-skill\ndescription: uses search then get: never collect"), context)), ["KS1.1"]);
   assert.deepEqual(rules(lintSkill("demo-skill", skill("name: Demo-Skill\ndescription: x\nexecution: subagent"), context)), ["KS1.1", "KS1.3"]);

@@ -24,6 +24,15 @@ polled or repeated, and it adds no hand-over of its own. What comes back is pers
 call was not made), an error, or an answer that it cannot read the link is recorded the same way, as that missing
 piece of evidence, never a failure of the run. A file attached in Kabo gets no side call: it has no public link.
 
+Where the post's metadata comes from its own tool instead of the media call (`metadata_route` in
+references/public-video-sources.v1.json: YouTube's `youtube_get_video`), that call rides in the first hand-over too,
+last, with the arguments the runtime reference prescribes (`{"parameters": {"video_id": ...}, "delivery":
+"download"}`). The resume fetches or stages its saved result and persists it as `snapshot/envelope-NN.json` under the
+answering connector and operation (`youtube-public` / `get_video`), exactly as persist_envelope.py does for the model;
+on a host that staged the result itself and saved no file, the staged copy is persisted. A failed answer is persisted
+as the evidence it is; nothing saved or staged, or a result that cannot be staged, is one limitation line, never a
+failure of the run and never a reason to wait.
+
 A fallback that needs media operations no earlier media call asked for (a failed viewing had only the metadata
 or measurement call) starts one more media call for exactly those operations, under the same run key;
 each source is judged on the media results that carry its operations. The mode bends the order the way
@@ -60,13 +69,38 @@ itself. A fallback starts only while enough of the deadline is left for it to fi
 (`observation_order.MIN_LEFT_S`), and the run goes on with what arrived.
 The status line says how it ended: `observed`, `timed_out` (nothing to look at arrived in time) or
 `source_unavailable` (the video itself could not be read: a result said so, or every source came back empty).
+
+Once it ends with something to analyse (`observed`, `timed_out` or `metadata_only`) in a run whose request and the
+creator's words are written (begin_analysis.py writes both), the same command also runs the next two steps itself:
+build_content_evidence.py with the arguments it would otherwise print plus every `snapshot/envelope-*.json` the run
+holds, then prepare_analysis.py, whose output (the brief) it prints after the frame reads, so the model goes from the
+observation straight to the frames and the judgment. It names the envelopes it included and the two commands that
+build them again (`--replace`) when another envelope or a per-run flag comes in later. When the post's metadata
+still has to come from another tool (YouTube's `youtube_get_video`) and this observation made no such call (one
+begun before it did), it prints the arguments instead, as in a run that has no request yet. The early build needs
+no frame bytes: the evidence lists frames from the keyframe envelope, and a frame fetched to `snapshot/` later only adds a local copy that no later step reads.
+
+Depth, fixed for the run at its first hand-over (`collect_media.fix_depth`). By default a diagnosis, content read or
+craft teardown of a link is quick-capable: its keyframes, measurement and transcript requests carry `quick_above_s`
+(`observation_order.QUICK_ABOVE_S`), so a longer video comes back as a quick, explicitly partial sample that the
+evidence, the brief and the report label as such, and the answer offers a full analysis. `--depth deep` is that full
+analysis, run only after the creator accepted the offer: no threshold, and a run key made of the link and the UTC
+date (`collect_media.deep_run_key`), so a deep run begun again, in this run or a new one, replays the jobs already
+queued. When a deep run's keyframes are still running and the full pass (`observation_order.deep_fetch_s`) cannot
+arrive inside the observation deadline, it stops waiting instead of cutting the frames short: it prints status
+`deep_pending`, one `deep_analysis_pending: {...}` line (the running jobs' ids, the link and the creator's question)
+that a host may use to deliver the result by itself, and what to tell the creator. The same command run again
+(`--depth deep` without `--placed`) hands the same media call over once more and waits on.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import math
 import os
+import re
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -94,8 +128,21 @@ SIDE_PERSISTED = {"song": "snapshot/song.json", "comment_summary": "snapshot/com
 SIDE_FLAGS = {"song": "--song", "comment_summary": "--comment-summary"}
 SIDE_SCHEMA = "acv-side-call/v1"
 SIDE_TOOLS = set(observation_order.SIDE_CALLS.values())
+# Tools that bring a post's metadata where the media call does not (YouTube's youtube_get_video).
+METADATA_TOOLS = sorted({entry.get("metadata_route") for entry in map(public_video_sources.source,
+                                                                       public_video_sources.platform_ids())}
+                        - {None, "media_call"})
 # At most this many frames per read: hosts cap the images one tool result may show.
 READ_CHUNK = 15
+# What the evidence build reads and writes in the run (the request and the creator's words come from begin_analysis.py).
+REQUEST = "analysis/video-analysis-request.json"
+QUESTION = "analysis/question.txt"
+BUILD_OUTPUTS = ["--snapshot-root", "snapshot", "--output", "analysis/content_evidence.json",
+                 "--reference-index", "analysis/content_evidence.references.json"]
+BRIEF_MODES = ("diagnosis", "content_read", "craft_teardown")
+# Hosts keep at most 64 KiB of one command's output: past this much, the brief is left in analysis/brief.md.
+PRINT_LIMIT = 56 * 1024
+PRINTED = [0]
 # A reading waits inside the call for a final status (`wait_s`), the way collect_video_media waits for its jobs.
 # 45 seconds (observation_order.CALL_WAIT_S), the same budget as collect_media.py: it keeps the call inside the
 # 60-second tool timeout some hosts (Codex) apply. Near the observation deadline it is shortened to what is left. The submission itself does not wait (docs/skills-spec.md KS8, decision of 2026-10-20). Where a reading still comes back sooner (a host or server that does not
@@ -120,7 +167,8 @@ MODE_OPERATIONS = {
 # rides in the same media call for free, and without it a refused download could not be told from a deleted video.
 METADATA_MODES = {"diagnosis", "content_read", "craft_teardown"}
 SAVE_RULE = (
-    f"Save each {START_TOOL} / {POLL_TOOL} / " + " / ".join(observation_order.SIDE_CALLS.values()) + " result whole, "
+    f"Save each {START_TOOL} / {POLL_TOOL} / " + " / ".join([*observation_order.SIDE_CALLS.values(), *METADATA_TOOLS])
+    + " result whole, "
     "as returned (its download link or an error included), to "
     "the file named under its call with the host's file-write tool, never as a command-line argument (when this host "
     "has no such tool, save nothing for that call: the run goes on without it); this script "
@@ -130,6 +178,7 @@ SAVE_RULE = (
 
 
 def say(text: str) -> None:
+    PRINTED[0] += len(text.encode("utf-8")) + 1
     print(text, flush=True)
 
 
@@ -293,8 +342,8 @@ def media_namespace(current: dict[str, Any], wait_s: int | None = None) -> Simpl
 
 
 def hand_over_calls(current: dict[str, Any], *, start_viewer: bool, poll_viewer: bool, media: bool,
-                    note: str = "", side: list[str] | tuple[str, ...] = (), viewer_wait_s: int = VIEWER_WAIT_S,
-                    media_wait_s: int | None = None) -> None:
+                    note: str = "", side: list[str] | tuple[str, ...] = (), metadata: bool = False,
+                    viewer_wait_s: int = VIEWER_WAIT_S, media_wait_s: int | None = None) -> None:
     """Print the calls still needed this round, the file for each, and the one resume command.
 
     `viewer_wait_s` / `media_wait_s` are the waits the deadline still covers (observation_order.round_waits); the
@@ -322,6 +371,11 @@ def hand_over_calls(current: dict[str, Any], *, start_viewer: bool, poll_viewer:
         # One bounded call each, beside the observation's own calls: read once on resume, never handed over again.
         entry = current["side"][name]
         calls.append((entry["tool"], {"video_url": current["url"]}, slot(entry["tool"])))
+        entry["handed"] = True
+    if metadata:
+        # Last: the media call's jobs keep running server-side while a host makes this one after it.
+        entry = current["metadata"]
+        calls.append((entry["tool"], entry["arguments"], slot(entry["tool"])))
         entry["handed"] = True
     current = state() | {key: value for key, value in current.items() if key != "slots"}
     current["awaiting"] = [{"tool": tool, "file": str(file)} for tool, _, file in calls]
@@ -354,12 +408,18 @@ def start(args: argparse.Namespace) -> int:
                                               force=args.observe_source, mode=args.mode, cards=cards, ask=ask)
     if source is None or source == "local_frames":
         raise ValueError(f"no observation source for this link: {reason}")
+    depth = args.depth or "quick"
+    # Fixed for the run at its first hand-over, like the frame options: the threshold every media call sends (none on
+    # a deep run) and the run key the jobs are queued under.
+    collect_media.fix_depth(depth, url, quick=args.mode in observation_order.QUICK_MODES)
     current = {"url": url, "mode": args.mode, "platform": platform, "duration_s": args.duration_s, "cards": cards,
                "ask": ask, "source": source, "reason": reason, "tried": [], "started_at": now().isoformat(),
+               "depth": depth,
                "viewer": {"active": False}, "media": {"active": False},
                "side": {item["name"]: {**item, "handed": False}
                         for item in observation_order.side_calls(order, cards=cards, ask=ask, mode=selected_mode(),
-                                                                 file_ref=collect_media.is_file_ref(url))}}
+                                                                 file_ref=collect_media.is_file_ref(url))},
+               "metadata": metadata_call(url, platform, args.mode)}
     for name, entry in current["side"].items():
         if not entry["make"]:
             persist_side(current, name, None, skipped="uploaded_file")
@@ -407,13 +467,14 @@ def begin(current: dict[str, Any], note: str = "") -> int:
     save_state(current)
     skip_long_side_calls(current)
     side = [name for name, entry in (current.get("side") or {}).items() if entry["make"] and not entry["handed"]]
-    if not start_viewer and not start_media and not side:
+    metadata = bool(current.get("metadata") and not current["metadata"]["handed"])
+    if not start_viewer and not start_media and not side and not metadata:
         return settle(current)
     # A media call started now waits inside the tool too: never past what the deadline covers (time_for already
     # kept a fallback from starting without a full wait).
     media_wait = (observation_order.round_waits(deadline_left(current), 1) or [None])[0] if start_media else None
     hand_over_calls(current, start_viewer=start_viewer, poll_viewer=False, media=start_media, note=note, side=side,
-                    media_wait_s=media_wait)
+                    metadata=metadata, media_wait_s=media_wait)
     return 0
 
 
@@ -543,6 +604,87 @@ def persist_side(current: dict[str, Any], name: str, raw: bytes | None, *, skipp
 def read_side(current: dict[str, Any], tool: str, file: Path) -> None:
     name = next(key for key, entry in current["side"].items() if entry["tool"] == tool)
     persist_side(current, name, file.read_bytes() if file.is_file() and file.stat().st_size else None)
+
+
+def metadata_key(route: str | None) -> tuple[str, str] | None:
+    """The (connector, operation) a metadata tool answers under, from static_host's declared data tools."""
+    key = next((key for key, tool in static_host.CONNECTOR_TOOLS.items() if tool == route), None)
+    if key is None:
+        return None
+    connector, _, operation = key.partition("/")
+    return connector, operation
+
+
+def metadata_in_run(route: str | None) -> bool:
+    """Whether this run already persisted an envelope of the metadata tool `route`."""
+    wanted = metadata_key(route)
+    for path in (static_host.run_dir() / "snapshot").glob("envelope-*.json"):
+        try:
+            body = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(body, dict) and (body.get("connector_id"), body.get("operation")) == wanted:
+            return True
+    return False
+
+
+def metadata_call(url: str, platform: str | None, mode: str) -> dict[str, Any] | None:
+    """The metadata call this observation makes in its first hand-over: YouTube's youtube_get_video for the video
+    id the link names, with the arguments the runtime reference prescribes. None where the media call carries the
+    metadata, the mode reads none, the source is an attached file, the id cannot be read from the link, or the run
+    already holds that envelope."""
+    route = (public_video_sources.source(platform) or {}).get("metadata_route")
+    key = metadata_key(route)
+    found = public_video_sources.match_url(url)
+    if (mode not in METADATA_MODES or route in (None, "media_call") or key is None or collect_media.is_file_ref(url)
+            or not found or not found.get("id") or metadata_in_run(route)):
+        return None
+    return {"tool": route, "connector": key[0], "operation": key[1], "handed": False,
+            "arguments": {"parameters": {"video_id": found["id"]}, "delivery": "download"}}
+
+
+# The line a metadata call that brought nothing usable adds to the evidence's limitations.
+METADATA_GAP = ("The post's metadata call ({tool}) brought nothing usable ({why}), so its title, description, tags, "
+                "cover, publish date and public counts are missing from this analysis.")
+
+
+def read_metadata(current: dict[str, Any], file: Path) -> None:
+    """Persist the metadata call's answer as snapshot/envelope-NN.json, as persist_envelope.py does for the model:
+    the saved result is fetched (a download) or staged (inline), then the staged copy is persisted under its own
+    connector and operation, failed answers included. A host that staged the result itself and saved no file is
+    persisted the same way. Nothing usable is one limitation line; the run never waits on it."""
+    entry = current["metadata"]
+    if entry.get("status"):
+        # Already read in an earlier attempt at this resume (one that stopped on another call's result).
+        return
+    raw = file.read_bytes() if file.is_file() and file.stat().st_size else None
+    why = None
+    if raw is not None:
+        try:
+            if static_host.fetch(entry["tool"], raw).get("fetched") == 0:
+                static_host.stage(entry["tool"], raw)
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            try:
+                body = json.loads(raw)
+            except ValueError:
+                body = None
+            code = body.get("error_code") if isinstance(body, dict) else None
+            # The error's first sentence only: what follows is advice for a model, not a fact about the post.
+            why = str(code) if isinstance(code, str) and code else str(error).split(". ")[0][:200]
+    if why is None:
+        dest = f"snapshot/envelope-{collect_media.next_slot():02d}.json"
+        done = subprocess.run([sys.executable, "-B", str(SCRIPTS / "persist_envelope.py"), "--dest", dest,
+                               "--connector", entry["connector"], "--operation", entry["operation"], "--any-status"],
+                              capture_output=True, text=True)
+        if done.returncode == 0:
+            entry["persisted"] = dest
+            entry["status"] = str(json.loads(done.stdout).get("envelope_status") or "persisted")
+            save_state(current)
+            return
+        why = "no result was saved for this call" if raw is None else "its result could not be persisted"
+    entry["status"] = "not_returned" if raw is None else "failed"
+    current.setdefault("limitations", []).append(METADATA_GAP.format(tool=entry["tool"], why=why))
+    save_state(current)
 
 
 def duration_of(body: Any) -> float | None:
@@ -813,13 +955,15 @@ def settle(current: dict[str, Any]) -> int:
     if blocked:
         current.setdefault("limitations", []).append(observation_order.MEDIA_BLOCKED_TEXT)
     # The builder requires the run's request; the hint names it so the passed flags are a complete set.
-    flags = ["--request analysis/video-analysis-request.json"]
+    flags = [("--request", REQUEST)]
     if media is not None:
-        flags += [f"--envelope {path}" for path in media["envelopes"]]
-        flags += [f"--deferred-incomplete {item}" for item in media["pending"]]
+        flags += [("--envelope", path) for path in media["envelopes"]]
+        flags += [("--deferred-incomplete", item) for item in media["pending"]]
+    if (current.get("metadata") or {}).get("persisted"):
+        flags.append(("--envelope", current["metadata"]["persisted"]))
     if viewer.get("active") and viewer.get("persisted"):
-        flags.append(f"--viewer {viewer['persisted']}")
-    flags += [f"{SIDE_FLAGS[name]} {entry['persisted']}" for name, entry in (current.get("side") or {}).items()
+        flags.append(("--viewer", viewer["persisted"]))
+    flags += [(SIDE_FLAGS[name], entry["persisted"]) for name, entry in (current.get("side") or {}).items()
               if entry.get("persisted")]
     duration = current.get("duration_s")
     if duration is None and media is not None:
@@ -827,9 +971,9 @@ def settle(current: dict[str, Any]) -> int:
     if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration > 0:
         # Given with --duration-s or read from a result: the evidence records it even when no envelope passed to the
         # builder carries it (a whole-video run needs it for the hook window and the promise).
-        flags.append(f"--duration-s {duration:g}")
+        flags.append(("--duration-s", f"{duration:g}"))
     # One line per limitation, however many times a round recorded it.
-    flags += [f"--limitation {collect_media.quote(text)}" for text in dict.fromkeys(current.get("limitations") or [])]
+    flags += [("--limitation", text) for text in dict.fromkeys(current.get("limitations") or [])]
     current["done"] = True
     save_state(current)
     nothing = not observed_anything(current, media)
@@ -846,9 +990,11 @@ def settle(current: dict[str, Any]) -> int:
                     "media_pending": media["pending"] if media else [], "timed_out": late}, ensure_ascii=False))
     for line in dict.fromkeys(current.get("fallback_notes") or []):
         say("Fallback: " + line)
-    side = current.get("side") or {}
+    side = {name: entry.get("status") for name, entry in (current.get("side") or {}).items()}
+    if current.get("metadata"):
+        side["metadata"] = current["metadata"].get("status")
     if side:
-        say("Side calls: " + ", ".join(f"{name} {entry.get('status') or 'not read'}" for name, entry in side.items())
+        say("Side calls: " + ", ".join(f"{name} {status or 'not read'}" for name, status in side.items())
             + ". A side call that brought nothing is a gap the evidence records, not a failure: never call it again.")
     if media and media.get("frames_note"):
         say("Frames: " + media["frames_note"])
@@ -876,19 +1022,30 @@ def settle(current: dict[str, Any]) -> int:
     if media and media["pending"]:
         say("Some media jobs were still running when waiting stopped. They are unfinished, not failed: say that "
             "step was still running, never a backend failure.")
-    say("Pass these to build_content_evidence.py, plus one --envelope for each other snapshot/envelope-*.json this "
-        "run persisted: " + " ".join(flags))
-    if media and media["read"]:
-        reads = media["read"]
+    waiting_for = metadata_elsewhere(current)
+    build = (static_host.run_dir() / REQUEST).is_file() and waiting_for is None
+    if build:
+        flags = with_every_envelope(flags)
+        code = build_evidence(current, flags)
+        if code:
+            return code
+    else:
+        say("Pass these to build_content_evidence.py, plus one --envelope for each other snapshot/envelope-*.json "
+            "this run persisted: " + flag_text(flags))
+        if waiting_for is not None:
+            say(f"The post's metadata comes from {waiting_for}, which is not in this run yet: persist its result as "
+                "the Skill says, then build the evidence with every envelope and prepare the brief (steps 4 and 5).")
+    reads = media["read"] if media and media["read"] else []
+    if reads:
         for line in media.get("overview_legend") or []:
             say(line)
         say(("Frames: make this one read now. " if len(reads) == 1 else
              f"Frames: make these {len(reads)} reads now, one after another, each at most {READ_CHUNK} frames so "
              "the host shows every image. ")
             + "If a result shows you the images, they are viewed: do not save or stage them, and go on to "
-            "build_content_evidence.py after the last read. Only if a read returns a download link instead, save "
-            "and fetch it the way the Skill says for read_research_data_artifacts, then open each image's path "
-            "before any visual claim:")
+            + ("the brief below" if build else "build_content_evidence.py") + " after the last read. Only if a read "
+            "returns a download link instead, save and fetch it the way the Skill says for read_research_data_artifacts, "
+            "then open each image's path before any visual claim:")
         for item in reads:
             say("read: " + json.dumps(item, ensure_ascii=False))
     elif viewer_ok:
@@ -899,7 +1056,184 @@ def settle(current: dict[str, Any]) -> int:
             "say the video has no speech to export, never that fetching it failed.")
     else:
         say("No frames arrived: keep the missing-visual-evidence limit and read the transcript and measurements only.")
+    if not build:
+        return 0
+    return next_step(current, bool(reads))
+
+
+def flag_text(flags: list[tuple[str, str]]) -> str:
+    """The builder flags as one shell line; only a limitation's free text needs quoting."""
+    return " ".join(f"{flag} {collect_media.quote(value) if flag == '--limitation' else value}"
+                    for flag, value in flags)
+
+
+def metadata_elsewhere(current: dict[str, Any]) -> str | None:
+    """The tool the post's metadata still has to come from before the evidence can be built (YouTube's
+    youtube_get_video when this observation could not make the call itself), or None when it rides in the media call,
+    this observation made it (whatever it brought), or its envelope is already in the run."""
+    route = (public_video_sources.source(current.get("platform")) or {}).get("metadata_route")
+    if (current["mode"] not in METADATA_MODES or route in (None, "media_call")
+            or (current.get("metadata") or {}).get("handed") or metadata_in_run(route)):
+        return None
+    return route
+
+
+def with_every_envelope(flags: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """The builder flags with one --envelope for every snapshot/envelope-*.json the run holds (the observation's and
+    any the model persisted beside it), each once, after the observation's own."""
+    known = {value for flag, value in flags if flag == "--envelope"}
+    others = sorted(f"snapshot/{path.name}" for path in (static_host.run_dir() / "snapshot").glob("envelope-*.json"))
+    extra = [("--envelope", path) for path in others if path not in known]
+    position = max((index for index, (flag, _) in enumerate(flags) if flag in {"--request", "--envelope"}), default=0)
+    return flags[:position + 1] + extra + flags[position + 1:]
+
+
+def step(script: str, argv: list[str]) -> tuple[int, str]:
+    """Run one of this Skill's scripts in the run directory, as the model would; its exit code and output."""
+    done = subprocess.run([sys.executable, "-B", str(SCRIPTS / script), *argv], cwd=static_host.run_dir(),
+                          capture_output=True, text=True)
+    return done.returncode, (done.stdout + (done.stderr if done.returncode else "")).rstrip("\n")
+
+
+def command(script: str, argv: list[str]) -> str:
+    """One complete command line for a script of this Skill, run in this run's directory."""
+    return (f"cd {collect_media.quote(str(static_host.run_dir()))} && python3 "
+            + " ".join(collect_media.quote(part) for part in [str(SCRIPTS / script), *argv]))
+
+
+def build_evidence(current: dict[str, Any], flags: list[tuple[str, str]]) -> int:
+    """Step 4, run here: the evidence from every envelope the run holds. 0 when built."""
+    argv = [part for pair in flags for part in pair] + BUILD_OUTPUTS
+    replace = (static_host.run_dir() / BUILD_OUTPUTS[-1]).exists()
+    code, out = step("build_content_evidence.py", argv + (["--replace"] if replace else []))
+    envelopes = [value for flag, value in flags if flag == "--envelope"]
+    say("Evidence (step 4) built here, with: " + flag_text(flags))
+    say("Envelopes included: " + (", ".join(envelopes) if envelopes else "none"))
+    say(out)
+    if code:
+        say("The evidence build failed: that step failed; report it as the Skill says.")
+        return 1
+    current["built"] = {"envelopes": envelopes}
+    save_state(current)
+    rebuild = command("build_content_evidence.py", argv + ["--replace"])
+    after = ("export_transcript.py as the Skill says" if current["mode"] not in BRIEF_MODES
+             else command("prepare_analysis.py", prepare_argv(current)))
+    say("If another envelope is persisted after this (a post row, a baseline, metadata from another tool) or a "
+        "per-run flag applies (--owner-metrics, --published-at, --limitation for a failed call), run steps 4 and 5 "
+        "once more, with it added: " + rebuild + " then " + after)
     return 0
+
+
+def prepare_argv(current: dict[str, Any]) -> list[str]:
+    return ["--run", str(static_host.run_dir()), "--mode", current["mode"], "--question-file", QUESTION]
+
+
+def next_step(current: dict[str, Any], reads: bool) -> int:
+    """Step 5, run here: the brief, printed as prepare_analysis.py prints it (a transcript export has none)."""
+    if current["mode"] not in BRIEF_MODES:
+        say("A transcript export has no brief: now run export_transcript.py as the Skill says.")
+        return 0
+    if not (static_host.run_dir() / QUESTION).is_file():
+        say("The creator's words are not in analysis/question.txt: write them there, then prepare the brief (step 5).")
+        return 0
+    code, out = step("prepare_analysis.py", prepare_argv(current))
+    lines = out.split("\n")
+    if code == 0 and PRINTED[0] + len(out.encode("utf-8")) > PRINT_LIMIT:
+        # Too long to print beside the observation: the brief stays in its file.
+        tail = lines[-1].split(") ", 1)[1] if lines[-1].startswith("(End of") else lines[-1]
+        say(lines[0])
+        say("The brief is too long to print with the observation: read analysis/brief.md whole now. " + tail)
+    else:
+        say(out)
+    if code == 1:
+        return 1
+    if code == 0 and reads:
+        say("Make the frame reads above before writing anything.")
+    return 0
+
+
+# A job id the Web host polls (agent-service: `deep_analysis_pending`), and at most this many of them.
+JOB_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+MAX_PENDING_JOBS = 64
+
+
+def keyframes_running() -> bool:
+    """Whether the latest media result still reports the keyframes job as running."""
+    record = (static_host.composite_records(MEDIA_TOOL) or [{}])[-1]
+    return any(isinstance(job, dict) and str(job.get("group") or job.get("operation") or "").endswith("extract_keyframes")
+               and job.get("status") in static_host.PENDING
+               for job in (record.get("summary") or {}).get("jobs") or [])
+
+
+def deep_remaining_s(current: dict[str, Any], media_waiting: bool) -> float | None:
+    """On a deep run whose keyframes are still running: the seconds the full pass still needs (estimated from the
+    duration, `observation_order.deep_fetch_s`, counted from when its jobs were first asked for) when that does not
+    fit what is left of this observation's deadline, or when the deadline covers no further wait at all. None while
+    waiting on is worth it, or when the frames are in."""
+    if not keyframes_running():
+        return None
+    duration = known_duration(current)
+    started = collect_media.state().get("deep_started_at") or current.get("started_at")
+    needed = (observation_order.deep_fetch_s(duration) - seconds_since(started) if duration is not None else None)
+    left = deadline_left(current) - observation_order.HAND_OVER_MARGIN_S
+    if needed is not None and needed > left:
+        return needed
+    if not media_waiting:
+        return max(needed or 0.0, float(observation_order.CALL_WAIT_S))
+    return None
+
+
+def deep_pending(current: dict[str, Any], remaining_s: float) -> int:
+    """Stop waiting on a deep run's frames: say how long they still need, name the running jobs for a host that
+    delivers the result by itself, and how to continue. Nothing is built and no report is written in this turn."""
+    record = (static_host.composite_records(MEDIA_TOOL) or [{}])[-1]
+    running = [job for job in (record.get("summary") or {}).get("jobs") or []
+               if isinstance(job, dict) and job.get("status") in static_host.PENDING and job.get("job_id")]
+    jobs = [str(job["job_id"]) for job in running if JOB_ID.match(str(job["job_id"]))][:MAX_PENDING_JOBS]
+    minutes = max(1, math.ceil(remaining_s / 60))
+    duration = known_duration(current)
+    current["deep_pending"] = {"jobs": jobs, "at": now().isoformat(), "minutes_left": minutes}
+    save_state(current)
+    question_file = static_host.run_dir() / QUESTION
+    question = question_file.read_text(encoding="utf-8") if question_file.is_file() else ""
+    say(json.dumps({"status": "deep_pending", "source": current["source"],
+                    "pending": [f"{str(job.get('group') or '').rsplit('/', 1)[-1]}={job['job_id']}" for job in running],
+                    "duration_s": duration, "minutes_left": minutes}, ensure_ascii=False))
+    if jobs and str(current["url"]).startswith(("https://", "http://")):
+        # One whole line a host may act on: it watches these jobs and asks for the analysis once they are done.
+        say("deep_analysis_pending: " + json.dumps({"jobs": jobs, "url": current["url"], "question": question},
+                                                   ensure_ascii=False, separators=(",", ":")))
+    length = f"this {round(duration / 60)}-minute video" if duration else "this video"
+    again = (f"cd {collect_media.quote(str(static_host.run_dir()))} && python3 "
+             + " ".join(collect_media.quote(part) for part in [str(SCRIPTS / "observe_video.py"), "--url",
+                                                               current["url"], "--mode", current["mode"],
+                                                               "--depth", "deep"]))
+    say(f"The full analysis is still running on Kabo's side: about {minutes} more minute"
+        f"{'s' if minutes != 1 else ''} for {length}. Nothing failed, and nothing is queued or charged again while it "
+        "runs. Write no report and no answer about the video in this turn. Tell the creator, in their language and in "
+        f"one or two sentences, that the full analysis is still running, about {minutes} more minute"
+        f"{'s' if minutes != 1 else ''}, and that they can say \"continue\" later to get it; if a host note after this "
+        "says the result will be posted automatically, say that instead. When they say continue, run this one command "
+        "(this same run picks up the same jobs): " + again)
+    return 0
+
+
+def continue_deep(current: dict[str, Any]) -> int:
+    """A deep run that stopped waiting goes on: the same media call again under the same key (the server replays the
+    jobs it queued; nothing is queued or charged twice), with a new observation deadline from now."""
+    current.pop("deep_pending", None)
+    current["started_at"] = now().isoformat()
+    current["timed_out"] = []
+    media = current["media"]
+    sent = list(media.get("operations") or [])
+    current["media"] = {"active": False, "done": False,
+                        "requested": [name for name in media.get("requested") or [] if name not in sent]}
+    media_state = collect_media.state()
+    media_state["rounds"] = 0
+    collect_media.save_state(media_state)
+    save_state(current)
+    return begin(current, note="Continuing the full analysis: the same call picks up the jobs already running "
+                               "(nothing is queued or charged twice).")
 
 
 def resume(args: argparse.Namespace) -> int:
@@ -907,7 +1241,10 @@ def resume(args: argparse.Namespace) -> int:
     if not current:
         raise ValueError("no observation was started in this run; run observe_video.py without --placed first")
     if current.get("done"):
-        say("This observation is already complete; build the evidence with the arguments printed before.")
+        say("This observation is already complete; "
+            + ("its evidence and brief were built: go on from the brief (analysis/brief.md), and to add an envelope "
+               "run steps 4 and 5 once more as printed before." if current.get("built") else
+               "build the evidence with the arguments printed before."))
         return 0
     awaiting = current.get("awaiting") or []
     for entry in awaiting:
@@ -915,6 +1252,8 @@ def resume(args: argparse.Namespace) -> int:
             read_viewer(current, Path(entry["file"]), entry["tool"])
         elif entry["tool"] in SIDE_TOOLS:
             read_side(current, entry["tool"], Path(entry["file"]))
+        elif entry["tool"] == (current.get("metadata") or {}).get("tool"):
+            read_metadata(current, Path(entry["file"]))
     media_refused = False
     if any(entry["tool"] == MEDIA_TOOL for entry in awaiting):
         # True when the server refused the frame options before any job ran: the same call goes again without them.
@@ -961,6 +1300,12 @@ def resume(args: argparse.Namespace) -> int:
         viewer["timed_out"] = True
         record_timeout(current, ["the whole-video viewing"])
     media_waiting = media_wants and media_wait is not None
+    if current.get("depth") == "deep" and media_open and not media_refused:
+        # A full analysis the creator asked for: frames that cannot arrive inside this deadline are not cut short to
+        # "did not arrive in time"; the run stops waiting and the jobs keep running (deep_pending).
+        remaining = deep_remaining_s(current, media_waiting)
+        if remaining is not None:
+            return deep_pending(current, remaining)
     if media_refused and not media_waiting:
         # Nothing ran on the refused call, and the deadline no longer covers sending it again.
         media_refused = False
@@ -1038,6 +1383,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--id", dest="result_id", help="the result id of the last collect_video_media call")
     parser.add_argument("--observe-source", choices=observation_order.PUBLIC_SOURCES,
                         help="test and bake-off only: force one observation source")
+    parser.add_argument("--depth", choices=observation_order.DEPTHS,
+                        help="deep: the full analysis of a long video, only once the creator accepted it (no quick "
+                             "sample); fixed for the run at its first hand-over")
     parser.add_argument("--poll-sleep-s", type=float, default=POLL_INTERVAL_S, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     collect_media.bind_run_to_cwd()
@@ -1046,6 +1394,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.placed:
             return resume(args)
         current = state()
+        if current.get("deep_pending"):
+            return continue_deep(current)
         if current and not current.get("done"):
             say("This observation was already started; make the calls printed earlier, or run with --placed.")
             return 0
