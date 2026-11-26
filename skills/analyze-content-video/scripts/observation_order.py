@@ -67,7 +67,7 @@ SOURCE_UNAVAILABLE_REPLY = ("This video can't be opened: it may have been delete
 # hand-over therefore starts only while the deadline still covers its own longest wait (`round_waits`).
 OBSERVE_DEADLINE_S = 330
 # A video known to run past ten minutes stops waiting earlier. Its analysis reads more (the overview sheets, a long
-# transcript) and its frames take minutes to decode: on pre an 18-minute video's frames arrived just before 330
+# transcript) and its frames take minutes to decode: on pre a 111-minute video's frames arrived just before 330
 # seconds, the analysis that followed needed about two and a half minutes more, and the turn died at 500 with no
 # reply. 270 seconds leaves it about three and a half; frames that miss it are named as not arrived in time.
 LONG_VIDEO_S = 600
