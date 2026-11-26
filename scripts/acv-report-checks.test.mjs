@@ -138,6 +138,55 @@ print(json.dumps({"silent": silent, "local": local}))`);
   assert.ok(out.local.some((line) => /ask once for the published link/.test(line)));
 });
 
+// The brief's section 3 holds every value an analysis cites, so the model never reads the evidence files: owner
+// metrics, every measured group, each local sound block, the declared-against-delivered entries and each acquisition
+// step, each by a name the reference check accepts.
+test("brief: section 3 lists owner metrics, every measured group, discrepancies and acquisition steps by citable name", () => {
+  const out = probe(`
+from prepare_analysis import evidence_index
+from validate_video_analysis import evidence_handles
+evidence = {
+    "evidence_id": "ev-1", "content_ref": {"platform": "youtube"}, "frames": {}, "transcript": {},
+    "owner_metrics": {"status": "available", "source_mode": "provided_export", "items": [
+        {"native_name": "averageViewDuration", "value": 12.4, "unit": "seconds", "status": "available", "denominator_known": False},
+        {"native_name": "subscribersGained", "value": 0, "status": "zero", "denominator_known": True}]},
+    "media": {"duration_s": 120, "has_audio": True,
+              "discrepancies": [{"field": "height", "declared": 1920, "observed": 1280, "note": "a 720p transcode"}],
+              "probed": {"brightness": {"samples": 90, "whole_video": {"samples": 90, "mean_luma": 120.5},
+                                        "per_shot": [{"shot_index": i, "samples": 2, "mean_luma": 100 + i} for i in range(45)]},
+                         "loudness": {"interval_s": 0.1, "samples": 1200, "mean_lufs": -14.2, "lead_in_silence_s": None},
+                         "mean_volume_db": -14.2, "measured": ["brightness", "loudness"], "unavailable": ["freeze"]},
+              "audio": {"status": "completed", "measured": ["loudness"], "findings": [],
+                        "loudness": {"integrated_lufs": -14.1, "range_lu": 6.2, "true_peak_dbtp": -0.4,
+                                     "level_jumps": [{"at_s": 3}]}}},
+    "acquisition": [{"step": "connector_call", "operation": "measure_media_signals", "status": "completed"},
+                    {"step": "local_extraction", "operation": "measure_loudness", "tool": "ffmpeg", "status": "failed"}],
+}
+lines = evidence_index(evidence, "connector", {"mode": "diagnosis"})
+print(json.dumps({"lines": lines, "handles": sorted(evidence_handles(evidence))}))`);
+  const text = out.lines.join("\n");
+  assert.match(text, /lists every citable reference with its value[\s\S]*they need no read\./);
+  assert.doesNotMatch(text, /read from the evidence file|complete list of legal references/);
+  assert.ok(out.lines.includes("- owner metrics (available, provided_export):"), text);
+  assert.ok(out.lines.includes("  - `owner_metrics.averageViewDuration` = 12.4 (seconds, population unknown)"), text);
+  assert.ok(out.lines.includes("  - `owner_metrics.subscribersGained` = 0 zero"), text);
+  // Past forty shots the brightness line names the darkest and brightest instead of every shot.
+  assert.ok(out.lines.includes("- `media.probed.brightness` (mean luma, 0-255): 90 samples; whole video mean luma 120.5 (`.whole_video`); "
+    + "45 shots in `.per_shot[i]`; darkest `.per_shot[0]` shot 0: 100; brightest `.per_shot[44]` shot 44: 144"), text);
+  // A null field is left out, never printed as a value.
+  assert.ok(out.lines.includes("- `media.probed.loudness` (momentary loudness summary; `.<field>`): interval_s 0.1, samples 1200, mean_lufs -14.2"), text);
+  assert.ok(out.lines.includes("- `media.probed.unavailable`: freeze"), text);
+  assert.ok(out.lines.includes("  `media.audio.loudness`: integrated_lufs -14.1, range_lu 6.2, true_peak_dbtp -0.4"), text);
+  assert.ok(out.lines.includes("- `media.discrepancies[0]` height: declared 1920, observed 1280 (a 720p transcode)"), text);
+  assert.ok(out.lines.includes("- `acquisition[0]` measure_media_signals completed; `acquisition[1]` measure_loudness (ffmpeg) failed"), text);
+  const handles = new Set(out.handles);
+  const cited = [...text.matchAll(/`((?:media\.probed|media\.audio|media\.discrepancies|acquisition|owner_metrics)[A-Za-z0-9_.\[\]]*)`/g)].map((match) => match[1]);
+  assert.ok(cited.length >= 9, cited.join(" "));
+  // Every name resolves but the note's form example (a silence span this evidence lacks) and `media.audio`, which
+  // labels the local measurement whose blocks are cited.
+  assert.deepEqual(cited.filter((ref) => !handles.has(ref) && !["media.probed.silence.spans[0]", "media.audio"].includes(ref)), []);
+});
+
 test("local extraction: a thinned body sampled at least once a second is not degraded; local steps open the observe stage", async (t) => {
   const out = probe(`
 from extract_local_frames import plan_frames

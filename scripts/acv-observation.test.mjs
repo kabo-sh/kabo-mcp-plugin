@@ -42,7 +42,7 @@ const TOOLS = { collect_public_metadata: "public_video_collect_public_metadata",
 
 // One fixed job id per operation, so a second media call in the same run (after a fallback) never reuses one.
 const JOB_NUMBER = { collect_public_metadata: 1, fetch_transcript: 2, extract_keyframes: 3, measure_media_signals: 4 };
-function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyTranscript = false, frameTimes = [0, 0.5, 1, 12, 25], measuredDuration, cues } = {}) {
+function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyTranscript = false, frameTimes = [0, 0.5, 1, 12, 25], measuredDuration, cues, signals } = {}) {
   const base = {
     schema_version: "1.0", connector_id: "public-video-media", operation, provider: "fixture", status: failed ? "failed" : "completed",
     summary: "ok", limitations: failed ? ["the platform refused the download"] : [], credential_values_recorded: false, job_id: jobId,
@@ -63,13 +63,28 @@ function mediaEnvelope(operation, jobId, { failed = false, duration = 30, emptyT
       origin: "speech_recognition", cue_count: 2, artifacts: [] } };
   if (operation === "measure_media_signals")
     return { ...base, data: { shots: { count: 2, cuts_at_s: [12.5], shots: [{ start_s: 0, end_s: 12.5 }, { start_s: 12.5, end_s: 30 }] }, artifacts: [],
-      ...(measuredDuration ? { duration_s: measuredDuration } : {}) } };
+      ...(measuredDuration ? { duration_s: measuredDuration } : {}), ...signals } };
   const frames = frameTimes.map((t, i) => ({ bytes: 100, sha256: "c".repeat(64), frame_id: `frame-${String(i + 1).padStart(4, "0")}`, t_seconds: t,
     object_ref: `creator-media/${jobId}/epoch-1/frame-${String(i + 1).padStart(4, "0")}.jpg` }));
   return { ...base, data: { frames, artifacts: frames.map((f) => ({ kind: "keyframes", bytes: 100, sha256: f.sha256, object_ref: f.object_ref })),
     selection: "duration_scaled_v1", duration_s: 30, frame_count: frames.length } };
 }
-function composite(args, { failed = false, duration, emptyTranscript, frameTimes, measuredDuration, cues } = {}) {
+// Every signal the measurement returns for a typical 30-second video of six shots: the momentary loudness every 0.1 s,
+// brightness per shot, a silence span, framing, and what was and was not measured.
+const FULL_SIGNALS = {
+  shots: { count: 6, cuts_at_s: [2.4, 6.3, 11, 17.5, 24], shots: [0, 2.4, 6.3, 11, 17.5, 24].map((start, index, all) =>
+    ({ index, start_s: start, end_s: all[index + 1] ?? 30, duration_s: +((all[index + 1] ?? 30) - start).toFixed(3) })) },
+  silence: { min_s: 0.5, floor_db: -40, spans: [{ start_s: 28.9, end_s: 30, duration_s: 1.1 }] },
+  freeze: { min_s: 1, spans: [] },
+  framing: { fps: 30, width: 720, height: 1280, aspect_ratio: 0.5625, vertical_screen_fill: 1,
+    bars: { top: 0, left: 0, right: 0, bottom: 0 }, content_rect: { x: 0, y: 0, width: 720, height: 1280 } },
+  brightness: { samples: 30, whole_video: { samples: 30, mean_luma: 121.4 },
+    per_shot: [134.9, 106.4, 146.7, 115.9, 98.2, 127.5].map((mean_luma, shot_index) => ({ shot_index, samples: 5, mean_luma })) },
+  loudness: { interval_s: 0.1, series: Array.from({ length: 300 }, (_, i) => ({ t_seconds: +(i / 10).toFixed(1),
+    momentary_lufs: i < 3 ? -120.7 : +(-15 + 3 * Math.sin(i / 7)).toFixed(1) })) },
+  measured: ["shots", "brightness", "silence", "loudness", "freeze", "framing"], unavailable: [],
+};
+function composite(args, { failed = false, duration, emptyTranscript, frameTimes, measuredDuration, cues, signals } = {}) {
   const jobs = [], list = [];
   args.requests.forEach((request) => {
     const group = `${request.content_id}/${request.operation}`;
@@ -79,7 +94,7 @@ function composite(args, { failed = false, duration, emptyTranscript, frameTimes
     const lost = failed === "all" || (failed && request.operation !== "collect_public_metadata");
     jobs.push({ group, content_id: request.content_id, operation: request.operation, attempt: 1, job_id: jobId, status: lost ? "failed" : "completed" });
     list.push({ tool: TOOLS[request.operation], parameters: request.parameters, group, attempts: 1,
-      result: mediaEnvelope(request.operation, jobId, { failed: lost, duration, emptyTranscript, frameTimes, measuredDuration, cues }) });
+      result: mediaEnvelope(request.operation, jobId, { failed: lost, duration, emptyTranscript, frameTimes, measuredDuration, cues, signals }) });
   });
   return { schema_version: "kabo-composite-fetch.v1", tool: "collect_video_media", status: "completed", calls: list,
     summary: { requests: jobs.length, pending: 0, jobs }, coverage: { deadline_reached: false, unfinished: [], provider_calls: 0, pending: 0 }, limitations: [] };
@@ -900,11 +915,11 @@ test("begin --workspace, default diagnosis: the observation ends with the eviden
   assert.match(begun.out.split("\n")[1], CREDIT_LINE);
   assert.equal(begun.out.split("\n")[2], "Sections 5-7 are references/diagnosis-rules.md (this run's analysis/rules.md is the same text): "
     + "no read when it is already in your context, otherwise read it whole while the evidence arrives.");
-  // A typical short video: 30 seconds, 60 frames (every half second), 20 spoken lines.
+  // A typical short video: 30 seconds, 60 frames (every half second), 20 spoken lines, every signal measured.
   const frameTimes = Array.from({ length: 60 }, (_, i) => i / 2);
   const cues = Array.from({ length: 20 }, (_, i) => ({ text: `Line ${i + 1}: here is one more reason your pan keeps burning on a high flame.`,
     start_ms: i * 1500, end_ms: i * 1500 + 1400 }));
-  const { out } = await driveFrom(run, begun.out, { media: { frameTimes, cues } });
+  const { out } = await driveFrom(run, begun.out, { media: { frameTimes, cues, signals: FULL_SIGNALS } });
   const bytes = Buffer.byteLength(out);
   t.diagnostic(`final observation output: ${bytes} bytes (brief ${Buffer.byteLength(await readFile(path.join(run, "analysis/brief.md")))} bytes)`);
   assert.ok(bytes < 56 * 1024, `${bytes} bytes`);
@@ -918,6 +933,21 @@ test("begin --workspace, default diagnosis: the observation ends with the eviden
   assert.match(out, /Sections 5-7 are references\/diagnosis-rules\.md \(this run's analysis\/rules\.md is the same text\): no read when it is already in your context, otherwise read it whole now\. Then write analysis\/video_judgment\.json/);
   assert.equal(out.trimEnd().split("\n").at(-1), "Make the frame reads above before writing anything.");
   assertValidEvidence(await readJson(path.join(run, "analysis/content_evidence.json")));
+  // Section 3 holds every measured value and every citable reference, so the model reads neither evidence file:
+  // each measured group by name with its numbers, each acquisition step, and only references the check accepts.
+  const section3 = brief.slice(brief.indexOf("## 3. Evidence index"), brief.indexOf("## 4. "));
+  assert.match(section3, /This index lists every citable reference with its value: cite each exactly as written here/);
+  assert.match(section3, /they need no read\./);
+  assert.doesNotMatch(section3, /read from the evidence file|The complete list of legal references/);
+  assert.match(section3, /^- `media\.probed\.loudness` \(momentary loudness summary; `\.<field>`\): interval_s 0\.1, samples 300, mean_lufs -1[0-9.]+, min_lufs -120\.7, .*lead_in_silence_s 0\.2, first_audible_s 0\.3/m);
+  assert.match(section3, /^- `media\.probed\.brightness` \(mean luma, 0-255\): 30 samples; whole video mean luma 121\.4 \(`\.whole_video`\); per shot \(`\.per_shot\[i\]` = shot index: mean luma\) \[0\] shot 0: 134\.9, .*\[5\] shot 5: 127\.5$/m);
+  assert.match(section3, /^- `media\.probed\.mean_volume_db` = -1[0-9.]+ \(the loudness mean\)$/m);
+  assert.match(section3, /^- `media\.probed\.measured`: shots, brightness, silence, loudness, freeze, framing$/m);
+  assert.match(section3, /^- `acquisition\[0\]` collect_public_metadata completed; `acquisition\[1\]` /m);
+  const refs = new Set((await readJson(path.join(run, "analysis/content_evidence.references.json"))).evidence_refs);
+  const cited = [...section3.matchAll(/`((?:media\.probed|media\.discrepancies|acquisition|owner_metrics)[A-Za-z0-9_.\[\]]*)`/g)].map((match) => match[1]);
+  assert.ok(cited.length >= 10, cited.join(" "));
+  assert.deepEqual(cited.filter((ref) => !refs.has(ref)), []);
   // A second resume by mistake neither observes nor builds again.
   const again = shell(resumeOf(begun.out));
   assert.match(again.out, /already complete; its evidence and brief were built/);

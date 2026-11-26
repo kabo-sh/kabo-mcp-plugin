@@ -98,8 +98,17 @@ CARDS_SOURCE = DEFAULT_RULES_NAME + " + topic cards"
 # The line section 5 of a default diagnosis opens with (method_section); with topic cards it is not there.
 DEFAULT_ONLY = "No topic card was asked for: the base card alone gives the default analysis."
 DIAGNOSIS_REPORT = SKILL / "references" / "diagnosis-report.md"
-# The measured signals worth a line in the index; the rest of media.probed stays in the evidence file.
+# The measured signals printed whole in the index; every other media.probed group gets a compact line
+# (probed_lines), so the index holds every measured value an analysis cites.
 PROBED_SUMMARY = ("shots", "silence", "freeze", "framing")
+# The opening of section 3: it lists every citable reference with its value, so neither evidence file needs a read.
+INDEX_NOTE = ("This index lists every citable reference with its value: cite each exactly as written here (any "
+              "field of a measured group as `media.probed.<group>.<field>`, a list item by its position, such as "
+              "`media.probed.silence.spans[0]`). The evidence files "
+              "(`analysis/content_evidence.json`, `analysis/content_evidence.references.json`) are what the "
+              "reference check validates against; they need no read.")
+# Past this many shots the brightness line names the darkest and brightest shots instead of every one.
+PER_SHOT_LIMIT = 40
 # A sound cue in a transcript: a bracketed tag such as [Music] (in any language) or a music note.
 SOUND_MARKER = re.compile(r"\[[^\[\]\n]{1,40}\]|[\u266a\u266b\u266c]")
 # Whole-video note aspects that are about what was heard ("Audio Integration", "Audio Quality", "Voice", ...).
@@ -255,9 +264,7 @@ def transcript_lines(transcript: dict[str, Any]) -> list[str]:
 
 def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[str, Any],
                    request: dict[str, Any] | None = None) -> list[str]:
-    lines = [f"Observation source: {source or 'unknown'}. Evidence `{evidence.get('evidence_id')}`. The complete "
-             "list of legal references is `analysis/content_evidence.references.json`; the values are in "
-             "`analysis/content_evidence.json`.", ""]
+    lines = [f"Observation source: {source or 'unknown'}. Evidence `{evidence.get('evidence_id')}`. {INDEX_NOTE}", ""]
     late = late_lines(evidence)
     if late:
         lines += ["### Did not arrive in time", ""] + [f"- {one_line(text)}" for text in late] + [
@@ -301,6 +308,7 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
         lines.append(f"- `public_metrics.{metric['native_name']}` = {metric.get('value')}")
     for item in evidence.get("derived") or []:
         lines.append(f"- `derived.{item['name']}` = {item.get('value')}")
+    lines += owner_lines(evidence)
     lines += [""] + sound_lines(evidence)
     if "audience_response" in evidence or any(card.get("id") == AUDIENCE_CARD for card in method.get("cards") or []):
         lines += audience_lines(evidence)
@@ -388,15 +396,101 @@ def evidence_index(evidence: dict[str, Any], source: str | None, method: dict[st
             if isinstance(value, dict):
                 shown = {key: item for key, item in value.items() if key != "shots" or len(json.dumps(item)) < 4000}
                 lines.append(f"- `media.probed.{name}`: {json.dumps(shown, ensure_ascii=False)}")
-        others = sorted(set(probed) - set(PROBED_SUMMARY))
-        if others:
-            lines.append(f"- also measured, read from the evidence file: {', '.join(f'`media.probed.{n}`' for n in others)}")
+        lines += probed_lines(probed)
         lines.append("")
+    lines += discrepancy_lines(media) + acquisition_lines(evidence)
     if evidence.get("limitations"):
         lines += ["### Limitations already recorded", ""]
         lines += [f"- {one_line(text)}" for text in evidence["limitations"]]
         lines.append("")
     return lines
+
+
+def number(value: Any) -> str:
+    return f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
+
+
+def brightness_line(block: dict[str, Any]) -> str:
+    """The measured brightness (mean luma, 0-255): the whole video and each shot, as `per_shot[i]`."""
+    whole = block.get("whole_video") or {}
+    parts = [f"{block.get('samples')} samples"]
+    if isinstance(whole, dict) and whole.get("mean_luma") is not None:
+        parts.append(f"whole video mean luma {number(whole['mean_luma'])} (`.whole_video`)")
+    shots = [(index, item) for index, item in enumerate(block.get("per_shot") or []) if isinstance(item, dict)]
+    if shots and len(shots) <= PER_SHOT_LIMIT:
+        parts.append("per shot (`.per_shot[i]` = shot index: mean luma) "
+                     + ", ".join(f"[{index}] shot {item.get('shot_index')}: {number(item.get('mean_luma'))}"
+                                 for index, item in shots))
+    elif shots:
+        lit = [(index, item) for index, item in shots if isinstance(item.get("mean_luma"), (int, float))]
+        ends = [min(lit, key=lambda pair: pair[1]["mean_luma"]), max(lit, key=lambda pair: pair[1]["mean_luma"])] if lit else []
+        parts.append(f"{len(shots)} shots in `.per_shot[i]`"
+                     + "".join(f"; {label} `.per_shot[{index}]` shot {item.get('shot_index')}: {number(item['mean_luma'])}"
+                               for label, (index, item) in zip(("darkest", "brightest"), ends)))
+    return "- `media.probed.brightness` (mean luma, 0-255): " + "; ".join(parts)
+
+
+def loudness_line(block: dict[str, Any]) -> str:
+    """The momentary-loudness summary: every field the evidence holds, by its own name."""
+    fields = ", ".join(f"{key} {number(value)}" for key, value in block.items() if value is not None)
+    return f"- `media.probed.loudness` (momentary loudness summary; `.<field>`): {fields}"
+
+
+def probed_lines(probed: dict[str, Any]) -> list[str]:
+    """Every measured group not printed whole above, compactly, with its citable name."""
+    lines = []
+    for name in sorted(set(probed) - set(PROBED_SUMMARY)):
+        value = probed[name]
+        if name == "loudness" and isinstance(value, dict):
+            lines.append(loudness_line(value))
+        elif name == "brightness" and isinstance(value, dict):
+            lines.append(brightness_line(value))
+        elif name == "mean_volume_db":
+            lines.append(f"- `media.probed.mean_volume_db` = {number(value)} (the loudness mean)")
+        elif isinstance(value, list):
+            lines.append(f"- `media.probed.{name}`: {', '.join(map(str, value)) or 'none'}")
+        else:
+            text = json.dumps(value, ensure_ascii=False)
+            lines.append(f"- `media.probed.{name}`: " + (text if len(text) <= 600 else
+                         "fields " + ", ".join(f"`.{key}`" for key in value) if isinstance(value, dict) else text[:600]))
+    return lines
+
+
+def owner_lines(evidence: dict[str, Any]) -> list[str]:
+    """The owner's own metrics, when an owner export or connector supplied them: each by its citable name."""
+    block = evidence.get("owner_metrics") or {}
+    items = [item for item in block.get("items") or [] if isinstance(item, dict) and item.get("native_name")]
+    if not items:
+        return []
+    lines = [f"- owner metrics ({block.get('status')}, {block.get('source_mode')}):"]
+    for item in items:
+        extra = [str(item[key]) for key in ("unit", "period") if item.get(key)]
+        if item.get("denominator_known") is False:
+            extra.append("population unknown")
+        lines.append(f"  - `owner_metrics.{item['native_name']}` = {number(item.get('value'))}"
+                     + (f" {item.get('status')}" if item.get("status") != "available" else "")
+                     + (f" ({', '.join(extra)})" if extra else ""))
+    return lines
+
+
+def discrepancy_lines(media: dict[str, Any]) -> list[str]:
+    items = [item for item in media.get("discrepancies") or [] if isinstance(item, dict)]
+    if not items:
+        return []
+    return ["### Declared against delivered", ""] + [
+        f"- `media.discrepancies[{index}]` {item.get('field')}: declared {json.dumps(item.get('declared'))}, "
+        f"observed {json.dumps(item.get('observed'))}" + (f" ({one_line(item['note'])})" if item.get("note") else "")
+        for index, item in enumerate(items)] + [""]
+
+
+def acquisition_lines(evidence: dict[str, Any]) -> list[str]:
+    """Each acquisition step, citable as `acquisition[i]`: what it fetched or measured and how it ended."""
+    steps = [item for item in evidence.get("acquisition") or [] if isinstance(item, dict)]
+    if not steps:
+        return []
+    return ["### Acquisition steps", "", "- " + "; ".join(
+        f"`acquisition[{index}]` {item.get('operation')}" + (f" ({item['tool']})" if item.get("tool") else "")
+        + f" {item.get('status')}" for index, item in enumerate(steps)), ""]
 
 
 def quick_lines(evidence: dict[str, Any], mode: str | None) -> list[str]:
@@ -582,6 +676,14 @@ def audio_lines(audio: dict[str, Any]) -> list[str]:
              + (f"; not measured: {', '.join(item.get('measure', '') for item in audio.get('skipped') or [])}"
                 if audio.get("skipped") else "")
              + (f"; stopped early at {json.dumps(audio['measured_until_s'])}" if audio.get("measured_until_s") else "")]
+    for name, block in audio.items():
+        # Each measured block is citable as `media.audio.<name>`: its single numbers, never its lists or series.
+        if name in ("findings", "listen_check", "thresholds") or not isinstance(block, dict):
+            continue
+        scalars = [f"{key} {number(value)}" for key, value in block.items()
+                   if value is not None and not isinstance(value, (dict, list))]
+        if scalars:
+            lines.append(f"  `media.audio.{name}`: {', '.join(scalars)}")
     findings = [item for item in audio.get("findings") or [] if isinstance(item, dict)]
     if findings:
         lines.append("  Findings (measured, threshold cleared; cite `media.audio.findings[i]`):")
