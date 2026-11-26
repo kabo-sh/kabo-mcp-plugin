@@ -92,11 +92,12 @@ Never write or edit `ContentEvidence` fields yourself. The builder derives the r
 `data_note` from recorded source, sampling and citation facts; it never treats extraction or
 citation as viewing.
 
-Before writing the judgment, read `analysis/content_evidence.references.json`. Its `evidence_id`
-and `evidence_sha256` bind it to that evidence; use its exact `evidence_refs` for observation
-citations, never guessed paths or staged filenames. It lists legal references, not observed facts:
-read each cited value and its availability; missing or null remains unavailable. Creator-view
-cards cite `observations.<observation_id>`.
+Section 3 of the brief lists every citable reference with its value: cite them exactly as written
+there, never guessed paths or staged filenames. `analysis/content_evidence.references.json` (bound
+to the evidence by its `evidence_id` and `evidence_sha256`) is what the reference check validates
+against; neither it nor the evidence file needs a read. A legal reference is not an observed fact:
+check each cited value and its availability in section 3; missing or null remains unavailable.
+Creator-view cards cite `observations.<observation_id>`.
 
 **Still-image posts.** Open the available `ContentEvidence.images.items[].path` files in `index`
 order. Cite their `image_id` with observation `basis: image`, leave `t_start_s` / `t_end_s` null and

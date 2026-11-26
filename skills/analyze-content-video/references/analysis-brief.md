@@ -7,8 +7,9 @@ These rules hold in every mode, whatever the method cards above say.
 
 - **Cite what you stand on.** Every judgment names its evidence id from section 3: a `frame_id`, an
   image id, `transcript.cue[i]`, a whole-video note id, a `media.probed.…` measure,
-  `content_metadata.caption` or a metric name. Copy ids exactly; the complete legal list is
-  `analysis/content_evidence.references.json`.
+  `content_metadata.caption` or a metric name. Copy ids exactly as section 3 writes them: it lists
+  every citable reference with its value, so the evidence files need no read (the reference check
+  validates against them).
 - **Say no more than the cited evidence shows.** The reference check confirms only that an id
   exists, not that it supports the claim: re-open each cited frame (or re-read the cue or note)
   and cut any word it does not show: "same", "only", "nothing changes", "throughout" need every
@@ -46,7 +47,7 @@ These rules hold in every mode, whatever the method cards above say.
 <!-- section: output-diagnosis -->
 Write `analysis/video_judgment.json` once, at its absolute run path, following the judgment schema
 below: only these fields, with its shapes and enums. Keep `revisions` empty for `third_party` and
-`unknown`. Cite exact refs from `analysis/content_evidence.references.json`; an observation resting
+`unknown`. Cite exact refs as section 3 lists them; an observation resting
 on a whole-video note uses `basis` `viewer_observation` and cites the note's id. The composer
 supplies evidence lineage, completeness and the unchanged `analysis/deterministic.json` block.
 

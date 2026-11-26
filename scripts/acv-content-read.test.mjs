@@ -96,6 +96,15 @@ test("reply hygiene: nothing but the prescribed text reaches the creator, and ne
   assert.match(briefTexts, /\*\*Plain words for the creator\.\*\*/);
 });
 
+// A content read answers from the brief alone: the judgment rules every mode shares say section 3 lists each citable
+// reference with its value, and send the model to neither evidence file (a read there cost a round-trip on Kabo Web).
+test("citations: every mode cites from section 3 of the brief and reads neither evidence file", () => {
+  const rules = briefTexts.split(/^<!-- section: judgment-rules -->\n/m)[1].split(/^<!-- section: /m)[0];
+  assert.match(rules, /Copy ids exactly as section 3 writes them: it lists\s+every citable reference with its value, so the evidence files need no read/);
+  assert.doesNotMatch(briefTexts, /complete legal list|Cite exact refs from `analysis\/content_evidence\.references\.json`/);
+  assert.doesNotMatch(contentRead, /content_evidence\.(?:references\.)?json/);
+});
+
 // Long videos in two steps: a quick first read whose answer offers the full analysis, which runs only on consent.
 test("long videos: the full analysis runs only when the creator accepted the offer or a host says it is ready, never at or under 3 minutes", () => {
   const analysis = section("Analysis");

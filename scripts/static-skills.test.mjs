@@ -136,6 +136,24 @@ test("drivers in the real ZIP download no program and hand off to public tools e
 });
 
 // The planned frame count is the requested amount: if the provider returns one frame fewer (120 requested, 119 records), state it as is in data_note; reject only if it returns more than planned.
+// The brief's section 3 lists every citable reference with its value; no shipped text of analyze-content-video may
+// send the model to read the evidence or its reference index, which only the reference check reads.
+test("ACV text never tells the model to read the evidence files; section 3 of the brief carries every citable value", async () => {
+  const dir = path.join(import.meta.dirname, "..", "skills", "analyze-content-video");
+  const names = ["SKILL.md", "references/analysis-brief.md", "references/diagnosis-rules.md", "references/diagnosis-runtime.md",
+    "references/local-file.md", "references/craft-teardown.md"];
+  const texts = await Promise.all(names.map(async (name) => [name, await readFile(path.join(dir, name), "utf8")]));
+  for (const [name, text] of texts) {
+    assert.doesNotMatch(text, /\bread `analysis\/content_evidence\.(?:references\.)?json`/i, name);
+    assert.doesNotMatch(text, /complete legal list|read from the evidence file/, name);
+  }
+  const runtime = texts.find(([name]) => name.endsWith("diagnosis-runtime.md"))[1];
+  assert.match(runtime, /Section 3 of the brief lists every citable reference with its value/);
+  assert.match(runtime, /neither it nor the evidence file needs a read/);
+  const script = await readFile(path.join(dir, "scripts", "prepare_analysis.py"), "utf8");
+  assert.doesNotMatch(script, /also measured, read from the evidence file/);
+});
+
 test("ACV data_note accepts fewer frame records than planned and states the requested amount; more than planned is still rejected", () => {
   const probe = `
 import json, sys
