@@ -4,7 +4,7 @@ The version number follows `plugin.json`; the root package version in `.claude-p
 
 ## 1.0.67
 
-- remake-viral-video 1.0.32: cards over the creator's own finished talking video, as a branch of "a re-edit of
+- remake-viral-video 1.0.33: cards over the creator's own finished talking video, as a branch of "a re-edit of
   their own video" (no new route, description unchanged). The new `references/steps/talking-head-cards.md` carries
   the judgement of the open-source talking-head-cards Skill: pick moments by what the sentence does (a number, a
   comparison, a name, a quote, a list, two sides, a ring on something already on screen) in three passes over the
