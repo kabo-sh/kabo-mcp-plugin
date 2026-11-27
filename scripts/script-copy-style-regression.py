@@ -4,6 +4,9 @@ with another round in the same style. The rules are pinned here so an edit canno
 validator must refuse copy that repeats wording the creator already rejected.
 """
 import importlib.util
+import sys
+
+sys.dont_write_bytecode = True
 from pathlib import Path
 import unittest
 
