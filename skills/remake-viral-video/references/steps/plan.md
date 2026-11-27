@@ -258,7 +258,7 @@ weak for the ask):
   person): it can look pasted on. More reliable: they film the part themselves, or the original
   picture stays with their cloned voice.
 - Hands working with objects: fingers can bend or merge. More reliable: the creator talking plus a
-  hands-free close-up of the object, or a short clip of their own hands.
+  close-up of the object with no hands in it, or a short clip of their own hands.
 - Talking from a single still: only the mouth moves on a frozen picture. More reliable: a 5-10 s
   clip of them talking drives the mouth on real footage; without one, give the still life with a
   push-in, parallax or B-roll.
