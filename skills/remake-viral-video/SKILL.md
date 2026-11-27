@@ -4,7 +4,7 @@ description: "Have Kabo make a finished MP4: remake a reference video (talking, 
 license: MIT
 compatibility: "Requires the Kabo MCP server at https://kabo.sh/mcp-pub with its video tools, Python 3 for local file uploads, and network access from scripts to the signed storage.googleapis.com upload links that Kabo tool results return. Kabo permission: video (projects, plan checks, production, replies, status, cancel and local file uploads) and public video data (transcripts and keyframes of a reference)."
 metadata:
-  version: "1.0.31"
+  version: "1.0.32"
   platform_agnostic: "true"
 allowed-tools: start_video_project upload_file check_video_plan make_video reply_to_video get_remake_video public_video_fetch_transcript public_video_extract_keyframes
 ---
@@ -66,7 +66,8 @@ that, not by how the request is worded ("remake" included):
    (`references/steps/edits.md`).
 6. Nobody on camera **when there is no narrated reference video to remake** (a freeform animation
    or kinetic-typography video from a prompt, product photos turned into an ad, a multi-photo
-   montage, a live-video HUD callout overlay, a re-edit of their own video, or a silent or
+   montage, a live-video HUD callout overlay, a re-edit of their own video or cards timed to what
+   they say in it (`references/steps/talking-head-cards.md`), or a silent or
    out-of-scope reference that the whole remake refuses): build it from steps (project, steps,
    deliver); never ask for their face. For a code-animated video (an explainer, a chart, product
    photos, an illustrated story), write a shot list first and pick one motion style and the
