@@ -2,6 +2,23 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.66
+
+- remake-viral-video 1.0.31: never hand the work back to the creator (no "cut it yourself in CapCut", no list of
+  times to cut by hand) -- clips or reels from their own video are made with steps, and a failed step is fixed or
+  replaced before replying (badcase #010–014); plan every on-screen text block with its place and time so titles,
+  cards and captions never overlap, run off the frame or cover a face, and check a frame at each text's start
+  before delivery (#053); when changing a video's language, clean the source first (old text removed, every line
+  re-voiced, title rewritten) and cut shots from it afterwards, then transcribe the result before delivery
+  (internal #64).
+  Also plan around known model limits and say them before the first paid step: a face swap is offered
+  after re-performing on their own camera or keeping the picture with their cloned voice (#005/#006);
+  hand-and-object shots are avoided or flagged (#037/#043); a single photo asks once for a 5-10 s clip,
+  else the background gets a push-in, parallax or B-roll (#072). Stated as one rule: before a paid step that relies
+  on a model known to be weak for the ask, say the risk, offer the more reliable path, then do the creator's choice;
+  other requests start without asking. A language change gives every on-screen text a counterpart at the same time
+  and place (titles to titles, nothing blank) and captions follow the speech.
+
 ## 1.0.65
 
 - analyze-content-video: the quick first read now starts at videos over 10 minutes instead of 3. Over the 30 days
