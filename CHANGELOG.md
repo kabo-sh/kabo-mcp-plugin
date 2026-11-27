@@ -2,6 +2,18 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.67
+
+- create-script-and-packaging, develop-content-ideas: land the copy style in fewer rounds. A pasted sample is the
+  specification (length, structure, tone, vocabulary; the two or three matched traits are named first); an
+  ambiguous style word gets two or three short directions to pick from instead of one long generic draft; a
+  rejection without a reason ("too generic", "boring", "too long") is mapped to the dimension that failed and the
+  next version changes that dimension visibly, or one short question asks which; rejected wording stays banned
+  for the thread and the validator refuses copy that repeats it; an unstated tone no longer turns a usable draft
+  into a "still missing" report, and voice examples are no longer asked for before writing. Ideas: an
+  unexplained rejection changes topic, angle, format or specificity rather than producing another batch in the
+  same mould.
+
 ## 1.0.66
 
 - remake-viral-video 1.0.31: never hand the work back to the creator (no "cut it yourself in CapCut", no list of
