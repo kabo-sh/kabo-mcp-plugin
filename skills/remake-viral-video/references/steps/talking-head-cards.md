@@ -139,7 +139,8 @@ params: {duration: <the handle's seconds, exactly as status lists it>,
   then, and fade it in and out within that span.
 - Every word is in the markup and every animation is on `tl`. The renderer only seeks the GSAP
   timeline and shows clips by `data-start` / `data-duration`; it never calls a page's own
-  `window.render`, `requestAnimationFrame` or `setInterval`, so text drawn that way never shows and
+  `window.render`, `requestAnimationFrame` or `setInterval` and never plays CSS animations or
+  transitions, so text shown that way never appears and
   a fully transparent overlay fails the step. A count-up is a tween on `tl` that writes the number
   into the element on every update; a ring or underline is an SVG path with `pathLength="1"` drawn
   from `stroke-dashoffset: 1` to `0`.
@@ -161,8 +162,8 @@ The number lands at 11.9 s, the moment "24" is said.
 
 Look at the step's preview, then take `frame` (without grid) at each card's fully shown moment:
 the face, the hands and the text already on screen are clear, the number shows its final value,
-the text fits its plate, nothing touches an edge, and no person warning is left in the notes.
-Fix and re-run once. Before delivering, tell the
+the text fits its plate, nothing touches an edge, and no person warning is left in the notes (a
+warning still there means the check failed; never call it passed). Fix and re-run once. Before delivering, tell the
 creator each card, the words it is timed to, and the moments you left without a card and why.
 The result keeps the video's sound and length; the runner writes it at 30 frames a second, so say
 so when the video was at another rate.
