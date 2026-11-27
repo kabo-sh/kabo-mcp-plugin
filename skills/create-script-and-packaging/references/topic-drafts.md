@@ -16,6 +16,8 @@ terminal retrieval failure is recorded, state that status without suggesting a d
 Otherwise, a closing suggestion may name `analyze-content-video` to analyze the supplied URL;
 do not invoke it or include a return-here step.
 Read [personal-facts.md](personal-facts.md) for facts and names on every copy surface.
+Read [copy-style.md](copy-style.md) when the creator asks for a style, supplies copy to imitate
+or rejects an earlier draft; carry their stated tone, sample and rejected wording into every version.
 
 A sequel needs the actual previous episode, not just its topic. Apply
 [source-adaptation.md](source-adaptation.md) first when the user requests a
