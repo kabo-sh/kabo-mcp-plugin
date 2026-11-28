@@ -2,6 +2,21 @@
 
 The version number follows `plugin.json`; the root package version in `.claude-plugin/plugin.json`, `package.json` and `package-lock.json` is kept in sync with it.
 
+## 1.0.68
+
+- remake-viral-video 1.0.34: cards over the creator's own finished talking video, as a branch of "a re-edit of
+  their own video" (no new route, description unchanged); the route sends these requests to the new
+  `references/steps/talking-head-cards.md` before the first step. It carries the judgement of the open-source
+  talking-head-cards Skill: pick moments by what the sentence does (a number, a comparison, a name, a quote, a
+  list, two sides, a ring on something already on screen) in three passes over the transcript; never repeat what
+  is already on screen (mark it or add nothing); keep cards clear of faces, gesturing hands and on-screen text;
+  land each card on its word from `transcribe` word times; about 8 s between cards and 2-5 in a 60-90 s video;
+  card text only what was said; ranges and years never count up; two columns open when the first side starts.
+  All cards go in one `motion_graphics` call over the video as `base` with `duration` equal to its length
+  (`trim` / `splice` past 120 s); every animation is on `tl` (CSS animations and transitions never play); move a
+  card when the person warning names it, and a warning left means the check failed; with no card, skip the step,
+  since a fully transparent overlay fails.
+
 ## 1.0.67
 
 - create-script-and-packaging, develop-content-ideas: land the copy style in fewer rounds. A pasted sample is the

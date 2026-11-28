@@ -11,6 +11,11 @@ use `tracked_overlay` (the marks follow those points as they move) with the clip
 markup or `hud_callout` puts marks at fixed screen positions that do not follow anything; use them
 only for things that stay put.
 
+**Cards over the creator's own finished talking video** (a number, a comparison, a name, a quote,
+a list, two sides, a ring on something already on screen, timed to the word that says it, the
+picture, sound and length kept): which moments, what each card says, when and where are in
+`talking-head-cards.md`; all the cards go in one call with the video as `base`.
+
 0. **With a reference (a video or images to make it like), write its style first** (this applies to
    every video made like a reference, code-animated or generated) -- a short
    phrase each, read off its frames (`frame` at a few moments), before the shot list. The whole
