@@ -19,8 +19,9 @@ Do not re-ask facts already confirmed in `SelectedIdea`. Ask once only for missi
 
 - actual product/customer proof and which claims may be published;
 - available UI, footage, locations, people, and likeness permissions;
-- Creator voice examples or prohibited language when the profile does not supply them;
 - platform-specific packaging inputs that cannot be inferred from the script (the platform itself is not one: it takes the default in `SKILL.md`).
+
+Do not ask for voice examples or a tone before writing: use what the thread already shows, default to concise, and follow `references/copy-style.md` when the creator asks for a style or rejects a draft.
 
 Missing proof does not block a draft. It blocks unsupported sentences and `ready_for_review` / `approved_for_production` status.
 

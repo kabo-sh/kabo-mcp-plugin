@@ -345,6 +345,17 @@ def walk_keys(value):
             yield from walk_keys(child)
 
 
+def rejected_wording_in_copy(package, request):
+    """Banned phrases from the creator that reappear on a copy surface (hooks, script, packaging)."""
+    banned = [phrase.strip() for phrase in ((request.get("creative_direction") or {}).get("banned_phrases") or [])
+              if isinstance(phrase, str) and phrase.strip()]
+    if not banned:
+        return []
+    surfaces = {key: package.get(key) for key in ("hook_options", "script", "packaging")}
+    text = "\n".join(all_text(surfaces)).casefold()
+    return [phrase for phrase in banned if phrase.casefold() in text]
+
+
 def all_text(value):
     if isinstance(value, str):
         yield value
@@ -936,14 +947,19 @@ def validate_package(package: Any, request: Any, request_path: Path, run_root: P
     questions = ((package.get("interaction") or {}).get("required_questions") or [])
     next_action = (package.get("interaction") or {}).get("next_action")
     selected_requires_proof = bool(frozen.get("required_assets")) and (request.get("proof_assets") or {}).get("status") != "confirmed"
-    needs_input = bool(missing_assets or unresolved_claims or selected_requires_proof or (request.get("creative_direction") or {}).get("status") == "missing")
+    # An unstated tone is a creative choice with a concise default, not missing material: it must
+    # not turn a usable draft into a "still missing" report.
+    needs_input = bool(missing_assets or unresolved_claims or selected_requires_proof)
     if needs_input:
-        require(status == "draft_needs_user_input", "missing proof/assets/voice requires draft_needs_user_input", errors)
+        require(status == "draft_needs_user_input", "missing proof/assets requires draft_needs_user_input", errors)
         require(next_action == "ask_user_once" and bool(questions), "missing inputs require one question batch", errors)
     elif status != "approved_for_production":
         require(status == "ready_for_review", "complete draft must be ready_for_review", errors)
         require(next_action in {"review_and_approve", "revise"}, "complete draft must request review", errors)
         require(not questions, "complete draft must not contain unanswered questions", errors)
+
+    used = rejected_wording_in_copy(package, request)
+    require(not used, f"copy repeats wording the creator rejected: {used}", errors)
 
     forbidden_keys = {"publish_day", "publish_time", "best_publish_time", "schedule_at", "predicted_ctr", "predicted_views", "predicted_retention", "rpm"}
     found_keys = forbidden_keys & set(walk_keys(package))

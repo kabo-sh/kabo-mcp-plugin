@@ -156,6 +156,7 @@ deliverable, say which platform's format it follows and that the creator can nam
 | A concrete topic with unconfirmed audience, goal or CTA, or a scoped copy rewrite (hooks, CTAs, captions, cover copy) | `references/topic-drafts.md` |
 | Cover text or opening alternatives for an existing script in the conversation | `references/partial-script-edits.md` |
 | A reference-account style | `references/reference-account-evidence.md` |
+| A style request, copy to imitate, or a rejection of earlier copy ("too generic", "boring", "too long") | `references/copy-style.md` |
 | Facts the creator supplied, or copy about real people, companies or events | `references/creator-facts.md` |
 
 Read `references/request-routing.md` before enforcing core package inputs. When the request
@@ -239,7 +240,9 @@ suggestions labelled as estimates.
    screenshots or keyword/CTR/retention/RPM predictions. For maternal, medical, nutrition or
    exercise copy, omit causal, diagnostic, treatment and postpartum-safety claims unless the request
    supplies evidence and the wording is qualified.
-9. If proof, approved assets, Creator voice or another material input is missing, still return a
+9. Fill `creative_direction` from the whole thread (tone, voice rules, rejected wording) as
+   `references/copy-style.md` describes; a style the creator did not state is not a missing input.
+   If proof, approved assets or another material input is missing, still return a
    useful `draft_needs_user_input` with explicit placeholders and one question batch; with a
    concrete topic, include the requested copy in the same response. Never mark it shoot-ready or
    turn a proposed audience, CTA, resource, course benefit or health claim into a confirmed input.

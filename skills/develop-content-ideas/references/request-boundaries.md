@@ -10,6 +10,7 @@ or language. Resolve intent before constructing the request; do not make the use
 | Select N / revise N | Reuse the exact displayed number, title and retained ID. Revise only requested fields; do not regenerate the other candidates or invent IDs when recovering chat. |
 | Pick a few / briefly explain | Select from the existing validated list; preserve original numbers. Use `references/delivery.md` to render and emit the selection, not a new batch. |
 | Another batch | A new run with the real earlier list/context, current count and exclusions; avoid unwanted repeats, not the shared causal scaffold. |
+| A rejection without a reason ("boring", "these are bad", "too generic") | Identify which dimension failed before a new batch: topic, angle, format, or specificity. Infer it from the thread when one is clear; otherwise ask one short question with those options. The next batch must change that dimension visibly, and the rejected ideas' angles go into exclusions for the rest of the thread. Do not answer an unexplained rejection with another batch in the same mould. |
 
 Resolve against the nearest relevant list plus later corrections, not merely the last text block.
 With several possible referents, inspect the visible context first; ask one focused question only
